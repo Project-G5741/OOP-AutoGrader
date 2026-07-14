@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 name: Keep Render Service Alive
 
 on:
@@ -5,11 +6,20 @@ on:
     # every 5 minutes
     - cron: '*/5 * * * *'
   workflow_dispatch: {}
+=======
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Chạy mỗi 10 phút
+  workflow_dispatch:       # Cho phép chạy thủ công
+>>>>>>> e6c5188dadbcf5f55ff5f83f6c4ad4cfd19bb466
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+<<<<<<< HEAD
       - name: Curl Render service URL
         run: |
           # use repo secret if present, otherwise fallback to known Render URL
@@ -28,3 +38,10 @@ jobs:
             echo "Ping returned status $STATUS."
             exit 1
           fi
+=======
+      - name: Ping Render App
+        run: |
+          echo "Pinging service..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://oop-autograder.onrender.com/health)
+          echo "HTTP Status: $RESPONSE"
+>>>>>>> e6c5188dadbcf5f55ff5f83f6c4ad4cfd19bb466
