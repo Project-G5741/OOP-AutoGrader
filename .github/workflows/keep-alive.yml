@@ -15,7 +15,7 @@ jobs:
           # Sử dụng secret nếu có, nếu không thì dùng URL mặc định
           RENDER_URL="${{ secrets.RENDER_SERVICE_URL }}"
           if [ -z "$RENDER_URL" ]; then
-            RENDER_URL="https://oop-autograder.onrender.com/health"
+            RENDER_URL="https://oop-autograder.onrender.com/api/health"
             echo "No secret set — falling back to $RENDER_URL"
           fi
           echo "Pinging $RENDER_URL"
