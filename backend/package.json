@@ -1,0 +1,9 @@
+{
+  "name": "eiu-capstone-backend",
+  "version": "1.0.0",
+  "description": "Legacy Node.js backend placeholder. The backend is now implemented in Java Spring Boot.",
+  "private": true,
+  "scripts": {
+    "info": "echo This backend is implemented in Java Spring Boot; use Maven to run it."
+  }
+}

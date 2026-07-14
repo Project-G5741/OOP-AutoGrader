@@ -1,0 +1,25 @@
+{
+  "name": "capstone",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && mvn spring-boot:run",
+    "start": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuankiet2005-art/Capstone_Project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tuankiet2005-art/Capstone_Project/issues"
+  },
+  "homepage": "https://github.com/tuankiet2005-art/Capstone_Project#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

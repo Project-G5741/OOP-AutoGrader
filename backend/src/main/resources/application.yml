@@ -1,0 +1,18 @@
+spring:
+  config:
+    import: optional:dotenv:.env
+
+server:
+  port: ${PORT:8002}
+
+google:
+  client-id: ${901862485743-on3umlivpedse7hosvjtjqdpqr57s69i.apps.googleusercontent.com:}
+
+allowed-domain: eiu.edu.vn
+
+jwt:
+  secret: ${JWT_SECRET:replace_me_change_this_to_a_secret_at_least_32_chars}
+  validity-seconds: 3600
+
+cors:
+  allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
