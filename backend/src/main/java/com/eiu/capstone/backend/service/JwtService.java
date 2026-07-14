@@ -1,8 +1,8 @@
 package com.eiu.capstone.backend.service;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 import javax.crypto.SecretKey;
 
@@ -19,9 +19,6 @@ import jakarta.annotation.PostConstruct;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret}")
-    private String secret;
-
     @Value("${jwt.validity-seconds}")
     private long validitySeconds;
 
@@ -29,20 +26,27 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
-        signingKey = Keys.hmacShaKeyFor(secretBytes);
+        // Generated fresh every time the app starts — not loaded from config.
+        // This means tokens signed before a restart can no longer be verified,
+        // forcing all users to log in again after every deploy/restart.
+        signingKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
     }
 
-    public String createToken(GoogleTokenInfo tokenInfo) {
+    public String createToken(GoogleTokenInfo tokenInfo, List<String> roles) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .setSubject(tokenInfo.getSub())
                 .claim("email", tokenInfo.getEmail())
                 .claim("name", tokenInfo.getName())
                 .claim("domain", tokenInfo.getDomain())
+                .claim("roles", roles)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(validitySeconds)))
                 .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public SecretKey getSigningKey() {
+        return signingKey;
     }
 }

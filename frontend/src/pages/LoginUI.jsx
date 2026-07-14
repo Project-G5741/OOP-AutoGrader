@@ -31,7 +31,7 @@ export default function LoginUI({ onLoginSuccess }) {
       }
 
       const data = await response.json();
-      onLoginSuccess?.(data.accessToken);
+      onLoginSuccess?.(data);
     } catch (error) {
       console.error('Backend authentication failed', error);
       alert('Đăng nhập thất bại. Vui lòng thử lại.');
