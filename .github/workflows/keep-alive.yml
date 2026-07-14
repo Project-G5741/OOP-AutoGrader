@@ -1,34 +1,24 @@
-<<<<<<< HEAD
 name: Keep Render Service Alive
 
 on:
   schedule:
-    # every 5 minutes
+    # Chạy mỗi 5 phút để giữ service không bị sleep
     - cron: '*/5 * * * *'
-  workflow_dispatch: {}
-=======
-name: Keep Render Alive
-
-on:
-  schedule:
-    - cron: '*/10 * * * *'  # Chạy mỗi 10 phút
-  workflow_dispatch:       # Cho phép chạy thủ công
->>>>>>> e6c5188dadbcf5f55ff5f83f6c4ad4cfd19bb466
+  workflow_dispatch: {}  # Cho phép chạy thủ công
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-<<<<<<< HEAD
       - name: Curl Render service URL
         run: |
-          # use repo secret if present, otherwise fallback to known Render URL
+          # Sử dụng secret nếu có, nếu không thì dùng URL mặc định
           RENDER_URL="${{ secrets.RENDER_SERVICE_URL }}"
           if [ -z "$RENDER_URL" ]; then
-            RENDER_URL="https://oop-autograder.onrender.com/api/health"
+            RENDER_URL="https://oop-autograder.onrender.com/health"
             echo "No secret set — falling back to $RENDER_URL"
           fi
-          echo "Pinging $RENDER_URL";
+          echo "Pinging $RENDER_URL"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_URL") || true
           echo "HTTP status: $STATUS"
           if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 500 ]; then
@@ -38,10 +28,3 @@ jobs:
             echo "Ping returned status $STATUS."
             exit 1
           fi
-=======
-      - name: Ping Render App
-        run: |
-          echo "Pinging service..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://oop-autograder.onrender.com/health)
-          echo "HTTP Status: $RESPONSE"
->>>>>>> e6c5188dadbcf5f55ff5f83f6c4ad4cfd19bb466
