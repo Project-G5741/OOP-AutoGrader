@@ -1,0 +1,16 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Chạy mỗi 10 phút
+  workflow_dispatch:       # Cho phép chạy thủ công
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render App
+        run: |
+          echo "Pinging service..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://oop-autograder.onrender.com/health)
+          echo "HTTP Status: $RESPONSE"
