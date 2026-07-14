@@ -108,7 +108,7 @@ function computeSummary(submissions) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LecturerDashBoard() {
+export default function LecturerDashBoard({ user, onLogout }) {
   // ── File Explorer state ──
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [currentPath, setCurrentPath] = useState([]);
@@ -159,7 +159,7 @@ export default function LecturerDashBoard() {
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#0A0A0F] p-6 transition-colors">
       <div className="max-w-[1400px] mx-auto">
-        <Header />
+        <Header user={user} onLogout={onLogout} />
       </div>
       {/* ── Bulk Upload ── */}
       <div className="mb-6">

@@ -27,10 +27,16 @@ export default function App() {
     setUser(data);
   };
 
+  const handleLogout = () => {
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("user");
+    setUser(null);
+  };
+
   const renderDashboard = () => {
     if (!user?.roles?.length) return <div>Unknown role</div>;
-    if (user.roles.includes("LECTURER")) return <LecturerDashboard user={user} />;
-    if (user.roles.includes("STUDENT")) return <StudentDashboard user={user} />;
+    if (user.roles.includes("LECTURER")) return <LecturerDashboard user={user} onLogout={handleLogout} />;
+    if (user.roles.includes("STUDENT")) return <StudentDashboard user={user} onLogout={handleLogout} />;
     return <div>Unknown role</div>;
   };
 

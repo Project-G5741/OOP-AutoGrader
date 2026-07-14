@@ -6,7 +6,7 @@ import DropZone from '../components/ui/DropZone';
 import ResultList from '../components/ResultList';
 import Card from '../components/ui/Card';
 
-export default function StudentDashboard() {
+export default function StudentDashboard({ user, onLogout }) {
   const labOptions = ["Lab 01: Abstraction", "Lab 02: Polymophism", "Lab 03: Inheritance", "Lab 04: Interface"];
   const problemOptions = ["Problem 01", "Problem 02", "Problem 03"];
 
@@ -27,7 +27,7 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#0A0A0F] p-6 transition-colors">
       <div className="max-w-[1400px] mx-auto">
-        <Header />
+        <Header user={user} onLogout={onLogout} />
 
         {/* Dropdowns */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

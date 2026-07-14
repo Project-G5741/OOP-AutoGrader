@@ -33,12 +33,20 @@ public class JwtService {
     }
 
     public String createToken(GoogleTokenInfo tokenInfo, List<String> roles) {
+        return createToken(tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roles, tokenInfo.getSub());
+    }
+
+    public String createToken(String email, String name, String domain, List<String> roles) {
+        return createToken(email, name, domain, roles, email);
+    }
+
+    private String createToken(String email, String name, String domain, List<String> roles, String subject) {
         Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject(tokenInfo.getSub())
-                .claim("email", tokenInfo.getEmail())
-                .claim("name", tokenInfo.getName())
-                .claim("domain", tokenInfo.getDomain())
+                .setSubject(subject)
+                .claim("email", email)
+                .claim("name", name)
+                .claim("domain", domain)
                 .claim("roles", roles)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(validitySeconds)))
