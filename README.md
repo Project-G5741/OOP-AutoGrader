@@ -1,6 +1,6 @@
 # EIU Capstone Project
 
-This repository contains a full-stack web application for the EIU Capstone project. It combines a React + Vite frontend with a Java Spring Boot backend, Google authentication, JWT-based authorization, and a PostgreSQL database with Liquibase migrations.
+This repository contains a full-stack web application for the EIU Capstone project. It combines a React + Vite frontend with a Java Spring Boot backend, Google authentication, JWT-based authorization, and a Neon PostgreSQL connection.
 
 ## 1. What this project does
 
@@ -28,7 +28,7 @@ The application includes:
 - Spring Security
 - Spring Data JPA
 - PostgreSQL
-- Liquibase
+- database migrations
 - JWT (jjwt)
 - Springdoc OpenAPI / Swagger UI
 
@@ -74,7 +74,7 @@ EIU-Capstone/
     ├── src/main/resources/     # application.yml, application.properties, DB migration files
     │   ├── application.yml
     │   ├── application.properties
-    │   └── db/changelog/        # Liquibase SQL migrations
+    │   └── db/changelog/        # database migrations SQL migrations
     └── .env.example             # Example environment variables for local development
 ```
 
@@ -174,5 +174,6 @@ Use Swagger UI to explore and test the CRUD-style endpoints exposed by the backe
 ## 11. Notes for development
 
 - If you change backend configuration, update `backend/src/main/resources/application.yml` or `backend/.env`.
-- Liquibase migrations are stored in `backend/src/main/resources/db/changelog/`.
+- database migrations migrations are stored in `backend/src/main/resources/`.
 - To stop the running services, press `Ctrl + C` in the terminal.
+
