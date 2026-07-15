@@ -6,7 +6,6 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [dob, setDob] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [done, setDone] = useState(false);
@@ -19,13 +18,13 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!irn || !dob || !passwordMatch) return;
+    if (!irn || !passwordMatch) return;
     setIsSubmitting(true);
     try {
       const resp = await fetch(`${API_BASE}/api/auth/google/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, irn, password, role: 'STUDENT', dateOfBirth: dob }),
+        body: JSON.stringify({ token, irn, password, role: 'STUDENT'}),
       });
       if (!resp.ok) {
         const text = await resp.text();
@@ -107,19 +106,6 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Date of Birth <span className="text-purple-500">*</span></label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                    <input
-                      type="date"
-                      value={dob}
-                      onChange={(e) => setDob(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm [color-scheme:light] dark:[color-scheme:dark]"
-                    />
-                  </div>
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Set Password <span className="text-purple-500">*</span></label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -163,7 +149,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                   )}
                 </div>
 
-                <button type="submit" disabled={!irn || !dob || !passwordMatch || isSubmitting} className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition-all duration-200 shadow-md shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed mt-2">
+                <button type="submit" disabled={!irn || !passwordMatch || isSubmitting} className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition-all duration-200 shadow-md shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed mt-2">
                   {isSubmitting ? 'Processing...' : 'Complete Setup'}
                 </button>
               </form>
