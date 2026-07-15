@@ -30,6 +30,9 @@ public class UserAccount {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean is_active;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_role",
@@ -55,4 +58,6 @@ public class UserAccount {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
+    public boolean getIsActive() {return is_active;}
+    public void setIsActive(boolean is_active) { this.is_active = is_active;}
 }

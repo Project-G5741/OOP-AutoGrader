@@ -1,7 +1,9 @@
 package com.eiu.capstone.backend.service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
@@ -11,6 +13,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.DTO.BulkCreateResult;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -27,11 +30,22 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     public UserService(UserAccountRepository userRepository,
-                        RoleRepository roleRepository,
-                        PasswordEncoder passwordEncoder) {
+            RoleRepository roleRepository,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    @Transactional
+    public List<UserAccount> getAllUser() {
+        return userRepository.findAll();
+    }
+
+    @Transactional
+    public UserAccount getUser(UUID id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("User not found: " + id));
     }
 
     @Transactional
@@ -49,10 +63,11 @@ public class UserService {
         UserAccount user = new UserAccount();
         user.setFullName(request.fullName());
         user.setEmail(request.email());
-        user.setStudentCode(request.studentCode());
-        user.setTeacherCode(request.teacherCode());
+        user.setStudentCode(blankToNull(request.studentCode()));
+        user.setTeacherCode(blankToNull(request.teacherCode()));
         user.setDateOfBirth(request.dateOfBirth());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setIsActive(true);
 
         if (request.roleNames() != null && !request.roleNames().isEmpty()) {
             user.setRoles(resolveRoles(request.roleNames()));
@@ -63,8 +78,34 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    public List<BulkCreateResult> createUsers(List<CreateUserRequest> requests) {
+        List<BulkCreateResult> results = new ArrayList<>();
+
+        for (int i = 0; i < requests.size(); i++) {
+            CreateUserRequest request = requests.get(i);
+            try {
+                UserAccount created = createUser(request); // reuses your existing single-user method
+                results.add(BulkCreateResult.success(created));
+            } catch (Exception e) {
+                results.add(BulkCreateResult.failure(request.email(), e.getMessage()));
+            }
+
+            if (i < requests.size() - 1) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+
+        return results;
+    }
+
     @Transactional
-    public UserAccount createOrUpdateGoogleUser(String email, String fullName, LocalDate dateOfBirth, String irn, String password, String roleName) {
+    public UserAccount createOrUpdateGoogleUser(String email, String fullName, LocalDate dateOfBirth, String irn,
+            String password, String roleName) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email is required");
         }
@@ -122,11 +163,13 @@ public class UserService {
     }
 
     @Transactional
-    public void deleteUser(UUID id) {
+    public UserAccount deleteUser(UUID id) {
         if (!userRepository.existsById(id)) {
             throw new NoSuchElementException("User not found: " + id);
         }
-        userRepository.deleteById(id);
+        UserAccount user = userRepository.getReferenceById(id);
+        user.setIsActive(false);
+        return userRepository.save(user);
     }
 
     private Set<Role> resolveRoles(Set<String> roleNames) {
@@ -154,4 +197,8 @@ public class UserService {
     private boolean isLecturerRole(String roleName) {
         return "LECTURER".equalsIgnoreCase(normalizeRoleName(roleName));
     }
+
+    private String blankToNull(String value) {
+    return (value == null || value.isBlank()) ? null : value;
+}
 }
