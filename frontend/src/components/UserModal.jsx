@@ -35,6 +35,7 @@ export default function UserModal({ modal, selected, form, isDark, onClose, onSa
                 { label: 'IRN', key: 'irn', type: 'text', placeholder: 'e.g. 20521234' },
                 { label: 'Full Name', key: 'fullname', type: 'text', placeholder: 'Enter full name' },
                 { label: 'Email', key: 'email', type: 'email', placeholder: 'user@university.edu' },
+                { label: 'Password', key: 'password', type: 'password', placeholder: 'Enter password' },
               ].map(({ label, key, type, placeholder }) => (
                 <div key={key}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>

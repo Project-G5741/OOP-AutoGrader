@@ -5,7 +5,7 @@ import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
 
-const EMPTY_FORM = { irn: '', fullname: '', email: '', role: 'STUDENT' };
+const EMPTY_FORM = { irn: '', fullname: '', email: '', password: '', role: 'STUDENT' };
 
 const ROLE_COLORS = {
   STUDENT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -13,14 +13,21 @@ const ROLE_COLORS = {
 };
 
 const normalizeUser = (user) => {
-  const roles = user.roles || [];
-  const mainRole = roles[0]?.name?.toUpperCase() || '';
+  const rawRoles = user.roles || [];
+  const normalizedRoles = Array.isArray(rawRoles)
+    ? rawRoles
+        .map((role) => (typeof role === 'string' ? role : role?.name))
+        .filter(Boolean)
+        .map((role) => role.toUpperCase())
+    : [];
+  const mainRole = normalizedRoles[0] || '';
   return {
     ...user,
-    irn: user.studentCode || user.teacherCode || '',
+    irn: user.irn || user.studentCode || user.teacherCode || '',
     fullname: user.fullName || user.fullname || '',
     role: mainRole,
     dateOfBirth: user.dateOfBirth || '',
+    roles: normalizedRoles.map((name) => ({ name })),
   };
 };
 
@@ -46,7 +53,18 @@ export default function UserManagement({ hideNav = false }) {
 
   const openEdit = (user) => {
     setSelected(user);
-    setForm({ irn: user.studentCode || user.teacherCode || '', fullname: user.fullName || user.fullname, email: user.email, role: (user.roles || []).map((role) => role.name).join(', ') });
+    const rawRoles = user.roles || [];
+    const normalizedRoles = Array.isArray(rawRoles)
+      ? rawRoles.map((role) => (typeof role === 'string' ? role : role?.name)).filter(Boolean).map((role) => role.toUpperCase())
+      : [];
+
+    setForm({
+      irn: user.irn || user.studentCode || user.teacherCode || '',
+      fullname: user.fullname || user.fullName || '',
+      email: user.email || '',
+      password: '',
+      role: user.role || normalizedRoles[0] || 'STUDENT',
+    });
     setModal('edit');
   };
 
@@ -78,20 +96,40 @@ export default function UserManagement({ hideNav = false }) {
   const handleSave = async () => {
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-      const userPayload = {
-        studentCode: form.irn,
-        fullName: form.fullname,
-        email: form.email,
-        roleNames: [form.role],
-      };
-      const resp = await fetch(`${API_BASE}/api/users/addUser`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userPayload),
-      });
-      if (!resp.ok) throw new Error(`Create failed: ${resp.status}`);
-      const createdData = await resp.json();
-      setUsers((prev) => [...prev, normalizeUser(createdData)]);
+      if (modal === 'edit' && selected) {
+        const requestBody = {
+          irn: form.irn,
+          fullName: form.fullname,
+          email: form.email,
+          role: form.role,
+        };
+        const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+        if (!resp.ok) throw new Error(`Update failed: ${resp.status}`);
+        const updatedData = await resp.json();
+        setUsers((prev) => prev.map((user) => (user.id === selected.id ? normalizeUser(updatedData) : user)));
+      } else {
+        const userPayload = {
+          fullName: form.fullname,
+          email: form.email,
+          password: form.password,
+          studentCode: form.role === 'STUDENT' ? form.irn : null,
+          teacherCode: form.role === 'LECTURER' ? form.irn : null,
+          dateOfBirth: null,
+          roleNames: [form.role],
+        };
+        const resp = await fetch(`${API_BASE}/api/users/addUser`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userPayload),
+        });
+        if (!resp.ok) throw new Error(`Create failed: ${resp.status}`);
+        const createdData = await resp.json();
+        setUsers((prev) => [...prev, normalizeUser(createdData)]);
+      }
       setModal(null);
     } catch (error) {
       console.error('Failed to save user', error);

@@ -9,12 +9,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
+import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
+import com.eiu.capstone.backend.DTO.UserDTO.UpdateUserRequest;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.RoleRepository;
@@ -170,6 +174,57 @@ public class UserService {
         UserAccount user = userRepository.getReferenceById(id);
         user.setIsActive(false);
         return userRepository.save(user);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse updateUser(UUID userId, UserDTO.UpdateUserRequest request) {
+        UserAccount user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "User not found: " + userId));
+ 
+        // Enforce email uniqueness, excluding the current user.
+        // Uses findByEmail instead of existsByEmailAndIdNot so no new
+        // repository method is required; swap this back if you'd rather
+        // add existsByEmailAndIdNot(String, UUID) to the repository.
+        userRepository.findByEmail(request.getEmail())
+                .filter(existing -> !existing.getId().equals(userId))
+                .ifPresent(existing -> {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT, "Email already in use: " + request.getEmail());
+                });
+ 
+        // Resolve the role first, since it decides where the IRN goes
+        String roleName = request.getRole().trim().toUpperCase();
+        Role role = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Role not found: " + roleName));
+ 
+        // Route the IRN to the correct field based on role, clearing the other
+        if ("STUDENT".equals(roleName)) {
+            user.setStudentCode(request.getIrn());
+            user.setTeacherCode(null);
+        } else if ("TEACHER".equals(roleName)) {
+            user.setTeacherCode(request.getIrn());
+            user.setStudentCode(null);
+        } else {
+            // e.g. ADMIN or other roles with no code convention yet;
+            // defaults to studentCode, adjust if your schema differs
+            user.setStudentCode(request.getIrn());
+            user.setTeacherCode(null);
+        }
+ 
+        user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail());
+ 
+        HashSet<Role> roles = new HashSet<>();
+        roles.add(role);
+        user.setRoles(roles);
+ 
+        UserAccount saved = userRepository.save(user);
+ 
+        // Built here, still inside @Transactional, so the lazy `roles`
+        // collection is safe to read
+        return UserDTO.UserResponse.fromEntity(saved);
     }
 
     private Set<Role> resolveRoles(Set<String> roleNames) {
