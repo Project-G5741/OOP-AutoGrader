@@ -14,8 +14,11 @@ import {
   X,
 } from "lucide-react";
 import React from "react";
+import { useTheme } from "../context/ThemeContext";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import NavBar from "../components/NavBar";
+import UserManagement from "./UserManagement";
 import Select from "../components/ui/Select";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -109,6 +112,10 @@ function computeSummary(submissions) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LecturerDashBoard({ user, onLogout }) {
+
+  const { isDark, toggleTheme } = useTheme();
+  const [activeNav, setActiveNav] = useState('dashboard');
+
   // ── File Explorer state ──
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [currentPath, setCurrentPath] = useState([]);
@@ -157,85 +164,96 @@ export default function LecturerDashBoard({ user, onLogout }) {
     : SUBMISSIONS.slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#0A0A0F] p-6 transition-colors">
-      <div className="max-w-[1400px] mx-auto">
-        <Header user={user} onLogout={onLogout} />
-      </div>
-      {/* ── Bulk Upload ── */}
-      <div className="mb-6">
-        <div className="bg-white dark:bg-[#1e2530] rounded-xl p-6 shadow-sm dark:shadow-none">
-          <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-8">
-            <div className="flex flex-col items-center justify-center">
-              <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
-                <Upload className="w-8 h-8 text-blue-500" />
+    <div className={isDark ? 'dark' : ''}>
+      <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#0A0A0F] p-6 transition-colors">
+        <NavBar
+          active={activeNav}
+          onNavigate={setActiveNav}
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
+        />
+
+        {activeNav === 'dashboard' ? (
+          <>
+            <div className="max-w-[1400px] mx-auto">
+              <Header user={user} onLogout={onLogout} />
+            </div>
+
+            {/* ── Bulk Upload ── */}
+            <div className="mb-6">
+              <div className="bg-white dark:bg-[#1e2530] rounded-xl p-6 shadow-sm dark:shadow-none">
+                <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-8">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+                      <Upload className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <h3 className="text-gray-900 dark:text-white mb-2">
+                      Drop .zip or .rar files here
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                      Upload compressed student submissions
+                    </p>
+                    <button className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                      + Select files
+                    </button>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-gray-900 dark:text-white mb-2">
-                Drop .zip or .rar files here
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
-                Upload compressed student submissions
-              </p>
-              <button className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                + Select files
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
-        <Select label="Select Lab" options={labOptions} />
-      </div>
-
-      {/* ── File Explorer ── */}
-      <div className="mb-6">
-        <div className="bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden">
-          {/* Top bar */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              {currentPath.length > 0 && (
-                <button
-                  onClick={() => setCurrentPath([])}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#1A1A24] rounded-lg transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                </button>
-              )}
-              <h2 className="text-gray-900 dark:text-white">
-                {currentPath.length === 0
-                  ? "Student Submissions"
-                  : currentPath[0]}
-              </h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                ({currentItems.length}{" "}
-                {currentItems.length === 1 ? "item" : "items"})
-              </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleQuickDelete}
-                className={`px-3 py-1.5 ${isDeleteMode ? "bg-red-700" : "bg-red-600"} hover:bg-red-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2`}
-              >
-                <Trash2 className="w-4 h-4" />
-                {isDeleteMode
-                  ? selectedFolders.length > 0
-                    ? `Delete (${selectedFolders.length})`
-                    : "Cancel"
-                  : "Quick Delete"}
-              </button>
-              <button
-                onClick={() => setIsCollapsed((v) => !v)}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#1A1A24] rounded-lg transition-colors"
-              >
-                {isCollapsed ? (
-                  <ChevronDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                ) : (
-                  <ChevronUp className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                )}
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
+              <Select label="Select Lab" options={labOptions} />
             </div>
-          </div>
+
+            {/* ── File Explorer ── */}
+            <div className="mb-6">
+              <div className="bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden">
+                {/* Top bar */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    {currentPath.length > 0 && (
+                      <button
+                        onClick={() => setCurrentPath([])}
+                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#1A1A24] rounded-lg transition-colors"
+                      >
+                        <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      </button>
+                    )}
+                    <h2 className="text-gray-900 dark:text-white">
+                      {currentPath.length === 0
+                        ? "Student Submissions"
+                        : currentPath[0]}
+                    </h2>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      ({currentItems.length}{" "}
+                      {currentItems.length === 1 ? "item" : "items"})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleQuickDelete}
+                      className={`px-3 py-1.5 ${isDeleteMode ? "bg-red-700" : "bg-red-600"} hover:bg-red-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {isDeleteMode
+                        ? selectedFolders.length > 0
+                          ? `Delete (${selectedFolders.length})`
+                          : "Cancel"
+                        : "Quick Delete"}
+                    </button>
+                    <button
+                      onClick={() => setIsCollapsed((v) => !v)}
+                      className="p-1.5 hover:bg-gray-100 dark:hover:bg-[#1A1A24] rounded-lg transition-colors"
+                    >
+                      {isCollapsed ? (
+                        <ChevronDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      ) : (
+                        <ChevronUp className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
           {/* Delete hint */}
           {isDeleteMode && !isCollapsed && (
@@ -468,8 +486,26 @@ export default function LecturerDashBoard({ user, onLogout }) {
           </table>
         </div>
       </div>
-
+        </>
+      ) : activeNav === 'users' ? (
+        <UserManagement hideNav />
+      ) : activeNav === 'projects' ? (
+        <div className="max-w-[1400px] mx-auto py-10 text-center text-gray-700 dark:text-gray-300">
+          <h2 className="text-xl font-semibold mb-3">Projects</h2>
+          <p>Project tracking is coming soon.</p>
+        </div>
+      ) : activeNav === 'reports' ? (
+        <div className="max-w-[1400px] mx-auto py-10 text-center text-gray-700 dark:text-gray-300">
+          <h2 className="text-xl font-semibold mb-3">Reports</h2>
+          <p>Report generation is coming soon.</p>
+        </div>
+      ) : (
+        <div className="max-w-[1400px] mx-auto py-10 text-center text-gray-700 dark:text-gray-300">
+          <h2 className="text-xl font-semibold mb-3">Page not found</h2>
+        </div>
+      )}
       <Footer />
     </div>
+  </div>
   );
 }
