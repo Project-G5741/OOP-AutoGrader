@@ -14,7 +14,6 @@ export default function Header({ onLogout, user }) {
         </div>
         <div>
           <h1 className="text-xl text-gray-900 dark:text-white font-medium">Lab Submission</h1>
-          {user?.email ? <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p> : null}
         </div>
       </div>
 

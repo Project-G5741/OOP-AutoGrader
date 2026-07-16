@@ -9,14 +9,19 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
+import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
+import com.eiu.capstone.backend.DTO.UserDTO.UpdateUserRequest;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.service.UserService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/users")
@@ -58,4 +63,12 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<UserDTO.UserResponse> updateUser(
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody UserDTO.UpdateUserRequest request) {
+ 
+        UserDTO.UserResponse updated = userService.updateUser(id, request);
+        return ResponseEntity.ok(updated);
+    }
 }

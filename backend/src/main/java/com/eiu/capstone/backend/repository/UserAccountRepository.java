@@ -12,4 +12,6 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     Optional<UserAccount> findByStudentCode(String studentCode);
     Optional<UserAccount> findByTeacherCode(String teacherCode);
     Optional<UserAccount> findByStudentCodeOrTeacherCode(String studentCode, String teacherCode);
+
+    boolean existsByEmailAndIdNot(String email, UUID id);
 }
