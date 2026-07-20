@@ -1,18 +1,46 @@
-import { Plus, Pencil, Search, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
 
-export default function UserTable({ search, onSearchChange, onCreate, filteredUsers, users, loading, onEdit, onDelete, roleColors }) {
+export default function UserTable({
+  search,
+  onSearchChange,
+  onCreate,
+  rows,
+  users,
+  totalItems,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onSort,
+  sortDirection,
+  loading,
+  onEdit,
+  onDelete,
+  roleColors,
+}) {
+  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
+
   return (
     <div className="bg-white dark:bg-[#1e2530] rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-      <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by IRN, name or email…"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 pr-4 py-2 w-72 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+      <div className="px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by IRN, name or email…"
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-9 pr-4 py-2 w-72 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+          <button
+            onClick={onSort}
+            type="button"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c] transition-colors"
+          >
+            {sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Sort by name
+          </button>
         </div>
         <button
           onClick={onCreate}
@@ -41,11 +69,11 @@ export default function UserTable({ search, onSearchChange, onCreate, filteredUs
                   Loading users...
                 </td>
               </tr>
-            ) : filteredUsers.length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-gray-400 dark:text-gray-600">No users found.</td>
               </tr>
-            ) : filteredUsers.map((u) => (
+            ) : rows.map((u) => (
               <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors">
                 <td className="px-6 py-4 font-mono text-gray-700 dark:text-gray-300">{u.irn}</td>
                 <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{u.fullname}</td>
@@ -72,8 +100,31 @@ export default function UserTable({ search, onSearchChange, onCreate, filteredUs
         </table>
       </div>
 
-      <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-600">
-        {loading ? 'Loading users...' : `Showing ${filteredUsers.length} of ${users.length} users`}
+      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#151b24] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {loading ? 'Loading users...' : `Showing ${rows.length} of ${totalItems} matching users`}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#1a1a2c] dark:text-gray-200"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Previous
+          </button>
+          <span className="text-xs text-gray-600 dark:text-gray-400">Page {currentPage} of {pageCount}</span>
+          <button
+            type="button"
+            onClick={() => onPageChange(Math.min(pageCount, currentPage + 1))}
+            disabled={currentPage === pageCount}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#1a1a2c] dark:text-gray-200"
+          >
+            Next
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
