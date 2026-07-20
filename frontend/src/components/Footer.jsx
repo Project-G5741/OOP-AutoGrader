@@ -1,9 +1,9 @@
 export default function Footer() {
   return (
-    <div className="text-center mt-6 py-4">
-      <p className="text-sm text-gray-400 dark:text-gray-500">
-        Make by Pham Quan Kha & Doan Tuan Kiet
+    <footer className="mt-8 border-t border-gray-200/80 py-5 text-center dark:border-gray-700">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Made by Pham Quan Kha & Doan Tuan Kiet
       </p>
-    </div>
+    </footer>
   );
 }
