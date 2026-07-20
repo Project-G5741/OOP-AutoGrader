@@ -7,11 +7,11 @@ const navItems = [
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
-export default function NavBar({ active, onNavigate, isDark, onToggleTheme }) {
+export default function NavBar({ active, onNavigate }) {
   return (
-    <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#151b24]/80 backdrop-blur">
-      <div className="max-w-7xl mx-auto px-6 py-[7.5px] flex items-center justify-end">
-        <nav className="flex items-center gap-2">
+    <div className="w-full rounded-2xl border border-gray-200/80 bg-white px-4 py-3 dark:border-gray-700 dark:bg-[#151b24] sm:px-6">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <nav className="flex flex-wrap items-center gap-2">
           {navItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -29,6 +29,6 @@ export default function NavBar({ active, onNavigate, isDark, onToggleTheme }) {
           ))}
         </nav>
       </div>
-    </header>
+    </div>
   );
 }
