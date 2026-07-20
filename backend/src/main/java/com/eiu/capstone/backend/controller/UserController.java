@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
 import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
-import com.eiu.capstone.backend.DTO.UserDTO.UpdateUserRequest;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.service.UserService;
 

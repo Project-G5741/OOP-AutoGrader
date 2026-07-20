@@ -18,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
 import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
-import com.eiu.capstone.backend.DTO.UserDTO.UpdateUserRequest;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.RoleRepository;
@@ -43,7 +42,7 @@ public class UserService {
 
     @Transactional
     public List<UserAccount> getAllUser() {
-        return userRepository.findAll();
+        return userRepository.findAllWithRoles();
     }
 
     @Transactional
