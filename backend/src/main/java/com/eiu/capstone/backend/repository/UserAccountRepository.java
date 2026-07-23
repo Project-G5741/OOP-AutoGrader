@@ -12,7 +12,7 @@ import com.eiu.capstone.backend.model.UserAccount;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
     @EntityGraph(attributePaths = "roles")
-    @Query("select users from UserAccount")
+    @Query("select users from UserAccount users")
     List<UserAccount> findAllWithRoles();
 
     Optional<UserAccount> findByEmail(String email);
