@@ -28,6 +28,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    console.log('handleLogout called');
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("user");
     setUser(null);
