@@ -3,7 +3,7 @@ import { Home, Users, FolderKanban, BarChart3, Moon, Sun } from 'lucide-react';
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'users', label: 'Users', icon: Users },
-  { id: 'projects', label: 'Projects', icon: FolderKanban },
+  { id: 'projects', label: 'Submission', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 

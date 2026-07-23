@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import Select from '../components/ui/Select';
 import DropZone from '../components/ui/DropZone';
 import ResultList from '../components/ResultList';
 import Card from '../components/ui/Card';
+import StudentHistoryPage from './StudentHistory';
+import ProfileEditModal from '../components/student/ProfileEditModal';
 
 export default function StudentDashboard({ user, onLogout }) {
+  const [showHistory, setShowHistory] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const labOptions = ['Lab 01: Abstraction', 'Lab 02: Polymorphism', 'Lab 03: Inheritance', 'Lab 04: Interface'];
   const problemOptions = ['Problem 01', 'Problem 02', 'Problem 03'];
 
@@ -23,8 +27,43 @@ export default function StudentDashboard({ user, onLogout }) {
     { name: 'Test 4: Large Input', status: 'error' },
   ];
 
+  // if (showHistory) {
+  //   return(
+  //   <StudentHistoryPage 
+  //   user = {user}
+  //   onLogout = {onLogout}
+  //   onEditProfile={() => setShowHistory(false)} 
+  //   onNavigate={() => setShowHistory(false)}
+  //   />
+  //   );
+  // }
+
+  const handleCommand = (cmd) => {
+    if (cmd === 'home') {
+      setShowHistory(false);
+    } else if (cmd === 'history') {
+      setShowHistory(true);
+    } else if (cmd === 'editProfile') {
+      setShowProfile(true);
+    }
+  };
+
+  if (showHistory) {
+    return (
+      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
+        <StudentHistoryPage 
+          user={user}
+          onLogout={onLogout}
+          onEditProfile={() => setShowHistory(false)}
+          // Không cần onNavigate nữa
+        />
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell user={user} onLogout={onLogout}>
+    <>
+    <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Select label="Select Lab" options={labOptions} />
@@ -94,5 +133,7 @@ export default function StudentDashboard({ user, onLogout }) {
         </div>
       </div>
     </AppShell>
+      {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />}
+    </>
   );
 }

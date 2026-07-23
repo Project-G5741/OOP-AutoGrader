@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { BarChart3, FileText, FolderKanban, Users } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
+import ProfileEditModal from '../components/student/ProfileEditModal';
 import DashboardSection from '../components/lecturer/DashboardSection';
 import LecturerOverviewCard from '../components/lecturer/LecturerOverviewCard';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
-import UploadPanel from '../components/lecturer/UploadPanel';
 import Select from '../components/ui/Select';
 import UserManagement from './UserManagement';
+import SubmissionManagement from './SubmissionManagement';
 
 const ROOT_FOLDERS = [
   { name: 'Lab01_2190001_John_Doe', type: 'folder' },
@@ -18,6 +19,7 @@ const ROOT_FOLDERS = [
 
 const SUBMISSIONS = [
   {
+    labName: 'Lab 01: Abstraction',
     student: 'John Doe',
     id: '2190001',
     score: 92,
@@ -25,6 +27,7 @@ const SUBMISSIONS = [
     failedTests: ['Testcase 1', 'Testcase 3'],
   },
   {
+    labName: 'Lab 01: Abstraction',
     student: 'Jane Smith',
     id: '2190002',
     score: 88,
@@ -32,6 +35,7 @@ const SUBMISSIONS = [
     failedTests: ['Testcase 2', 'Testcase 4', 'Testcase 5'],
   },
   {
+    labName: 'Lab 02: Polymorphism',
     student: 'Mike Johnson',
     id: '2190003',
     score: 95,
@@ -39,6 +43,7 @@ const SUBMISSIONS = [
     failedTests: ['Testcase 1'],
   },
   {
+    labName: 'Lab 03: Inheritance',
     student: 'Sarah Williams',
     id: '2190004',
     score: 76,
@@ -72,8 +77,16 @@ function computeSummary(submissions) {
 export default function LecturerDashboard({ user, onLogout }) {
   const { isDark } = useTheme();
   const [activeNav, setActiveNav] = useState('dashboard');
+  const [selectedLab, setSelectedLab] = useState(LAB_OPTIONS[0]);
+  const [showProfile, setShowProfile] = useState(false);
 
   const summary = useMemo(() => computeSummary(SUBMISSIONS), []);
+
+  const filteredSubmissions = selectedLab
+    ? SUBMISSIONS.filter((item) => item.labName === selectedLab)
+    : SUBMISSIONS;
+
+  const overviewSummary = useMemo(() => computeSummary(filteredSubmissions), [filteredSubmissions]);
 
   const overviewCards = [
     {
@@ -108,7 +121,18 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   return (
     <div className={isDark ? 'dark' : ''}>
-      <AppShell user={user} onLogout={onLogout} showNav activeNav={activeNav} onNavigate={setActiveNav}>
+      <AppShell
+          user={user}
+          onLogout={onLogout}
+          showNav
+          activeNav={activeNav}
+          onNavigate={setActiveNav}
+          onCommand={(cmd) => {
+            if (cmd === 'home') setActiveNav('dashboard');
+            else if (cmd === 'history') setActiveNav('projects');
+            else if (cmd === 'editProfile') setShowProfile(true);
+          }}
+      >
         {activeNav === 'dashboard' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -117,24 +141,53 @@ export default function LecturerDashboard({ user, onLogout }) {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <DashboardSection
-                title="Submission intake"
-                subtitle="Upload compressed files and select the active lab"
-              >
-                <div className="space-y-4">
-                  <Select label="Select Lab" options={LAB_OPTIONS} />
-                  <UploadPanel title="Drop .zip or .rar files here" description="Upload compressed student submissions to begin review" />
+            <DashboardSection title="Grading overview" subtitle="Recent submissions and evaluation summary">
+              <div className="grid gap-6 xl:grid-cols-[0.4fr_0.6fr]">
+                <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">Select Lab</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Choose the current grading lab.</p>
+                    </div>
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                      {filteredSubmissions.length} submissions
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {LAB_OPTIONS.map((lab) => (
+                      <button
+                        key={lab}
+                        type="button"
+                        onClick={() => setSelectedLab(lab)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                          selectedLab === lab
+                            ? 'border-purple-500 bg-purple-950/30 text-white'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-purple-400 hover:bg-purple-50 dark:border-gray-700 dark:bg-[#141a23] dark:text-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span>{lab}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">{SUBMISSIONS.filter((item) => item.labName === lab).length} submissions</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </DashboardSection>
 
-              <DashboardSection title="Current review queue" subtitle="A compact view of the latest student work">
-                <div className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                  <p className="font-medium text-gray-900 dark:text-white">{ROOT_FOLDERS.length} student folders are ready</p>
-                  <p className="mt-2">Each folder represents a submission batch that can be inspected and graded.</p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-3xl border border-gray-200 bg-white p-5 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">{selectedLab} overview</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Submission performance and failure summary.</p>
+                    </div>
+                    <button className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500" type="button">
+                      Export
+                    </button>
+                  </div>
+                  <SubmissionTable submissions={filteredSubmissions} summary={overviewSummary} />
                 </div>
-              </DashboardSection>
-            </div>
+              </div>
+            </DashboardSection>
 
             <DashboardSection title="Grading overview" subtitle="Recent submissions and evaluation summary">
               <SubmissionTable submissions={SUBMISSIONS} summary={summary} />
@@ -143,10 +196,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         ) : activeNav === 'users' ? (
           <UserManagement hideNav noShell user={user} onLogout={onLogout} />
         ) : activeNav === 'projects' ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-700 shadow-sm dark:border-gray-700 dark:bg-[#1e2530] dark:text-gray-300">
-            <h2 className="mb-3 text-xl font-semibold">Projects</h2>
-            <p>Project tracking is coming soon.</p>
-          </div>
+          <SubmissionManagement />
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-700 shadow-sm dark:border-gray-700 dark:bg-[#1e2530] dark:text-gray-300">
             <h2 className="mb-3 text-xl font-semibold">Reports</h2>
@@ -154,6 +204,7 @@ export default function LecturerDashboard({ user, onLogout }) {
           </div>
         )}
       </AppShell>
+      {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />}
     </div>
   );
 }
