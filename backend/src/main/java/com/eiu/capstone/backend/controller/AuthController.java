@@ -25,11 +25,8 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(
-        origins = {"http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5173", "http://127.0.0.1:5173"},
-        allowedHeaders = "*",
-        allowCredentials = "true"
-)
+@CrossOrigin(origins = { "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5173",
+        "http://127.0.0.1:5173" }, allowedHeaders = "*", allowCredentials = "true")
 public class AuthController {
 
     private final GoogleTokenVerifier googleTokenVerifier;
@@ -38,7 +35,7 @@ public class AuthController {
     private final UserService userService;
 
     public AuthController(GoogleTokenVerifier googleTokenVerifier, JwtService jwtService,
-                          UserAccountRepository userAccountRepository, UserService userService) {
+            UserAccountRepository userAccountRepository, UserService userService) {
         this.googleTokenVerifier = googleTokenVerifier;
         this.jwtService = jwtService;
         this.userAccountRepository = userAccountRepository;
@@ -57,8 +54,9 @@ public class AuthController {
                 .map(role -> role.getName().toUpperCase())
                 .toList();
 
-        var jwt = jwtService.createToken(tokenInfo, roleNames);
-        var response = new AuthResponse(jwt, tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roleNames);
+        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
+        var response = new AuthResponse(jwt, tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(),
+                roleNames);
         return ResponseEntity.ok(response);
     }
 
@@ -71,15 +69,15 @@ public class AuthController {
                 null,
                 request.irn(),
                 request.password(),
-                request.role()
-        );
+                request.role());
 
         List<String> roleNames = userAccount.getRoles().stream()
                 .map(role -> role.getName().toUpperCase())
                 .toList();
 
-        var jwt = jwtService.createToken(tokenInfo, roleNames);
-        var response = new AuthResponse(jwt, tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roleNames);
+        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
+        var response = new AuthResponse(jwt, tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(),
+                roleNames);
         return ResponseEntity.ok(response);
     }
 
@@ -91,8 +89,10 @@ public class AuthController {
                     .map(role -> role.getName().toUpperCase())
                     .toList();
 
-            var jwt = jwtService.createToken(userAccount.getEmail(), userAccount.getFullName(), "local", roleNames);
-            return ResponseEntity.ok(new AuthResponse(jwt, userAccount.getEmail(), userAccount.getFullName(), "local", roleNames));
+            var jwt = jwtService.createToken(userAccount.getEmail(), userAccount.getFullName(), "local", roleNames,
+                    userAccount.getIrn());
+            return ResponseEntity
+                    .ok(new AuthResponse(jwt, userAccount.getEmail(), userAccount.getFullName(), "local", roleNames));
         } catch (BadCredentialsException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ex.getMessage());
         }

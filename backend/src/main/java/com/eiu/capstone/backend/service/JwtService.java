@@ -32,15 +32,17 @@ public class JwtService {
         signingKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
     }
 
-    public String createToken(GoogleTokenInfo tokenInfo, List<String> roles) {
-        return createToken(tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roles, tokenInfo.getSub());
+    public String createToken(GoogleTokenInfo tokenInfo, List<String> roles, String irn) {
+        return createToken(tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roles, tokenInfo.getSub(),
+                irn);
     }
 
-    public String createToken(String email, String name, String domain, List<String> roles) {
-        return createToken(email, name, domain, roles, email);
+    public String createToken(String email, String name, String domain, List<String> roles, String irn) {
+        return createToken(email, name, domain, roles, email, irn);
     }
 
-    private String createToken(String email, String name, String domain, List<String> roles, String subject) {
+    private String createToken(String email, String name, String domain, List<String> roles, String subject,
+            String irn) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .setSubject(subject)
@@ -48,6 +50,7 @@ public class JwtService {
                 .claim("name", name)
                 .claim("domain", domain)
                 .claim("roles", roles)
+                .claim("irn", irn)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(validitySeconds)))
                 .signWith(signingKey, SignatureAlgorithm.HS256)
