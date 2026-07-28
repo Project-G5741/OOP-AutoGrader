@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.controller;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -18,14 +19,18 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.ChallengeUploadResult;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
+import com.eiu.capstone.backend.grading.GradingService;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
+import com.eiu.capstone.backend.model.StudentLabProgress;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
+import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
+import com.eiu.capstone.backend.utility.TimeUtil;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -39,17 +44,23 @@ public class SubmissionController {
     private final UserAccountRepository userAccountRepository;
     private final LabRepository labRepository;
     private final LabSubmissionRepository labSubmissionRepository;
+    private final StudentLabProgressRepository studentLabProgressRepository;
+    private final GradingService gradingService;
 
     public SubmissionController(JwtService jwtService,
                                  SubmissionStorageService submissionStorageService,
                                  UserAccountRepository userAccountRepository,
                                  LabRepository labRepository,
-                                 LabSubmissionRepository labSubmissionRepository) {
+                                 LabSubmissionRepository labSubmissionRepository,
+                                 StudentLabProgressRepository studentLabProgressRepository,
+                                 GradingService gradingService) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
         this.userAccountRepository = userAccountRepository;
         this.labRepository = labRepository;
         this.labSubmissionRepository = labSubmissionRepository;
+        this.studentLabProgressRepository = studentLabProgressRepository;
+        this.gradingService = gradingService;
     }
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
@@ -79,10 +90,6 @@ public class SubmissionController {
         try {
             result = submissionStorageService.processUpload(irn, requestId, files);
 
-            //  run your actual grading/plagiarism-check step against result.challenges
-            //  here (each ChallengeResult exposes .folder, .mmdFileCount, .classFileCount),
-            //  and use its output to set the real score below instead of BigDecimal.ZERO.
-
             LabSubmission submission = labSubmissionRepository
                     .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber)
                     .orElseGet(LabSubmission::new);
@@ -92,7 +99,13 @@ public class SubmissionController {
             if (submission.getScore() == null) {
                 submission.setScore(BigDecimal.ZERO);
             }
-            labSubmissionRepository.save(submission);
+            submission = labSubmissionRepository.save(submission);
+
+            BigDecimal score = gradingService.gradeSubmission(submission, lab, result.challenges);
+            submission.setScore(score);
+            submission = labSubmissionRepository.save(submission);
+
+            updateStudentProgress(userAccount, lab, submission, score);
 
             List<ChallengeUploadResult> challengeResults = result.challenges.stream()
                     .map(c -> new ChallengeUploadResult(c.challengeName, c.mmdFileCount, c.classFileCount))
@@ -106,12 +119,33 @@ public class SubmissionController {
                     submission.getScore()
             ));
         } finally {
-            // Safe to always delete: submissionFolder is unique per request (keyed by
-            // requestId), so this can never step on another in-flight submission's files.
             if (result != null) {
                 submissionStorageService.deleteFolder(result.submissionFolder);
             }
         }
+    }
+
+    private void updateStudentProgress(UserAccount userAccount, Lab lab, LabSubmission submission, BigDecimal score) {
+        StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
+                .orElseGet(StudentLabProgress::new);
+        progress.setUser(userAccount);
+        progress.setLab(lab);
+
+        OffsetDateTime now = TimeUtil.nowInVietnam();
+        if (progress.getFirstSubmittedAt() == null) {
+            progress.setFirstSubmittedAt(now);
+        }
+        progress.setLastSubmittedAt(now);
+
+        int attempts = progress.getAttemptsCount() == null ? 0 : progress.getAttemptsCount();
+        progress.setAttemptsCount(attempts + 1);
+
+        if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
+            progress.setHighestScore(score);
+            progress.setBestSubmissionId(submission.getId());
+        }
+
+        studentLabProgressRepository.save(progress);
     }
 
     private Claims parseAuthHeader(String authHeader) {

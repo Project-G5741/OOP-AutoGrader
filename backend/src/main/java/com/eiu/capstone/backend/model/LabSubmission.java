@@ -16,6 +16,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
+import com.eiu.capstone.backend.utility.TimeUtil;
+
 @Entity
 @Table(
         name = "lab_submission",
@@ -55,7 +57,7 @@ public class LabSubmission {
             score = BigDecimal.ZERO;
         }
         if (submittedAt == null) {
-            submittedAt = OffsetDateTime.now();
+            submittedAt = TimeUtil.nowInVietnam();
         }
     }
 

@@ -1,0 +1,13 @@
+package com.eiu.capstone.backend.grading;
+
+import java.util.List;
+
+public class ParsedClass {
+    public String simpleName;
+    public String scope;        
+    public String declaringType;
+    public boolean isAbstract;
+    public List<ParsedField> fields;
+    public List<ParsedMethod> methods;
+    public List<ParsedConstructor> constructors;
+}

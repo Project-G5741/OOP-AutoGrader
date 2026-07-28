@@ -20,17 +20,6 @@ import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 @Service
 public class JavaCompilerService {
 
-    /**
-     * Compiles the given .java source files, writing the resulting .class files
-     * directly into outputDir (via the "-d" compiler flag).
-     *
-     * IMPORTANT: this requires the backend to run on a full JDK, not a JRE —
-     * ToolProvider.getSystemJavaCompiler() returns null on a JRE-only runtime.
-     * Check your Dockerfile's base image (e.g. eclipse-temurin:21-jdk, not -jre).
-     *
-     * @return diagnostic messages (warnings included) collected during compilation.
-     * @throws SubmissionProcessingException if compilation fails or no compiler is available.
-     */
     public List<String> compile(List<Path> javaSourceFiles, Path outputDir) {
         if (javaSourceFiles.isEmpty()) {
             return List.of();
