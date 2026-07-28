@@ -2,21 +2,26 @@ import { Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Button from './Button';
 
-// TODO: replace with your real backend endpoint
-const UPLOAD_URL = '/api/upload';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 export default function DropZone({
   title = "Drop or drag your folder here",
   buttonText = "Select Folder",
-  onFilesSelected
+  onFilesSelected,
+  // NEW: which lab/attempt this upload belongs to, and the current auth token.
+  // Pass these down from whatever page renders DropZone (e.g. from route params
+  // and your auth context/state — adjust the source to match how you store the JWT).
+  labId,
+  attemptNumber,
+  authToken,
 }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   // Recursively walks a dropped FileSystemEntry tree (used for drag & drop,
   // since dataTransfer.files alone does not see into subfolders).
-  // Collects { file, relativePath } for every file found.
   const walkEntry = (entry, pathPrefix, collected) => {
     return new Promise((resolve, reject) => {
       if (entry.isFile) {
@@ -26,8 +31,6 @@ export default function DropZone({
         }, reject);
       } else if (entry.isDirectory) {
         const reader = entry.createReader();
-        // readEntries() only returns a batch at a time, so it must be
-        // called repeatedly until it returns an empty array.
         const readAllBatches = (accumulated = []) => {
           reader.readEntries(async (batch) => {
             if (batch.length === 0) {
@@ -47,7 +50,6 @@ export default function DropZone({
     });
   };
 
-  // Drag-and-drop path: walk the full folder tree.
   const handleDropItems = async (items) => {
     const topLevelEntries = Array.from(items)
       .map((item) => item.webkitGetAsEntry())
@@ -60,8 +62,6 @@ export default function DropZone({
     handleFiles(collected);
   };
 
-  // Click-to-select path: the browser already gives each file a
-  // webkitRelativePath (e.g. "my-folder/sub/file.txt"), no walking needed.
   const handleInputFiles = (fileList) => {
     const collected = Array.from(fileList).map((file) => ({
       file,
@@ -70,43 +70,64 @@ export default function DropZone({
     handleFiles(collected);
   };
 
-  // Common handler for both paths: entries = [{ file, relativePath }]
   const handleFiles = (entries) => {
-    console.log(`Dropped folder contains ${entries.length} file(s):`);
-    entries.forEach(({ relativePath, file }) => {
+    // Client-side filter is just for UX/logging — the backend re-filters
+    // authoritatively and ignores anything that isn't .mmd or .java.
+    const relevant = entries.filter(({ relativePath }) => {
+      const lower = relativePath.toLowerCase();
+      return lower.endsWith('.mmd') || lower.endsWith('.java');
+    });
+
+    console.log(`Dropped folder contains ${entries.length} file(s), ${relevant.length} relevant (.mmd/.java):`);
+    relevant.forEach(({ relativePath, file }) => {
       console.log(`  ${relativePath}  (${file.size} bytes)`);
     });
 
     if (onFilesSelected) {
-      onFilesSelected(entries.map((e) => e.file));
+      onFilesSelected(relevant.map((e) => e.file));
     }
 
-    uploadFiles(entries);
+    uploadFiles(relevant);
   };
 
-  // Placeholder upload. Each file is appended with its relative path as the
-  // filename so the backend can reconstruct the folder structure
   const uploadFiles = async (entries) => {
+    if (!labId || !attemptNumber) {
+      console.error('DropZone: labId/attemptNumber not provided, cannot upload.');
+      setUploadError('Missing lab or attempt info — cannot upload.');
+      return;
+    }
+    if (!authToken) {
+      console.error('DropZone: authToken not provided, cannot upload.');
+      setUploadError('You must be signed in to upload.');
+      return;
+    }
+
     setIsUploading(true);
+    setUploadError(null);
     try {
       const formData = new FormData();
       entries.forEach(({ file, relativePath }) => {
         formData.append('files', file, relativePath);
       });
 
-      const res = await fetch(UPLOAD_URL, {
+      const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptNumber}/upload`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
         body: formData,
       });
 
       if (!res.ok) {
-        throw new Error(`Upload failed with status ${res.status}`);
+        const errorText = await res.text();
+        throw new Error(errorText || `Upload failed with status ${res.status}`);
       }
 
-      console.log('Upload successful');
+      const data = await res.json();
+      console.log('Upload successful:', data);
     } catch (err) {
-      // TODO: surface this to the UI instead of just logging
       console.error('Upload error:', err);
+      setUploadError(err.message || 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -160,6 +181,10 @@ export default function DropZone({
           {isUploading ? "Uploading..." : "or click to upload"}
         </p>
 
+        {uploadError && (
+          <p className="text-red-500 text-sm mb-4">{uploadError}</p>
+        )}
+
         <Button
           className="bg-purple-600 hover:bg-purple-700 text-white"
           onClick={() => inputRef.current?.click()}
@@ -168,7 +193,6 @@ export default function DropZone({
           {buttonText}
         </Button>
 
-        {/* Hidden Input */}
         <input
           ref={inputRef}
           type="file"

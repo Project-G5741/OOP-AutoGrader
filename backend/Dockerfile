@@ -10,7 +10,7 @@ COPY src ./src
 RUN mvn -B -DskipTests package
 
 # Stage 2: Runtime
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jdk
 WORKDIR /app
 
 # Copy JAR từ stage build
