@@ -22,7 +22,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload`
 - Header: `Authorization: Bearer ${authToken}`
-- Errors surfaced via `alert()` / callback
+- Errors surfaced in-component (`uploadError`); API `ErrorResponse.message` is parsed from JSON (e.g. compile diagnostics)
 
 ### Button, Card, Select
 

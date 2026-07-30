@@ -8,7 +8,11 @@ Compare compiled student Java classes against a database rubric using reflection
 
 | File | Role |
 |---|---|
-| `GradingService.java` | Orchestrator: map challenge folders → DB challenges, grade, persist results, compute score |
+| `GradingService.java` | Orchestrator: grade against rubric snapshot, compute score |
+| `GradingResultStore.java` | Short read/write transactions for prior and new submission results |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric in batched DB queries |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |
+| `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `ReflectionClassParser.java` | Load `.class` files via `URLClassLoader`, extract structure into parsed DTOs |
 | `ParsedClass.java` | Class name, scope, declaring type, abstract flag, members |
 | `ParsedField.java` | name, dataType, scope |
@@ -21,8 +25,10 @@ Compare compiled student Java classes against a database rubric using reflection
 
 ```
 SubmissionController
-  → SubmissionStorageService.processUpload()   // save + compile
-  → GradingService.gradeSubmission()
+  → LabRubricCache.get(lab)              // cached rubric snapshot
+  → SubmissionStorageService.processUpload()   // parallel per-challenge compile
+  → GradingService.gradeSubmission(snapshot)
+  → MmdPersistenceHook.onUploadComplete()      // no-op until MMD archival
   → SubmissionStorageService.deleteFolder()    // cleanup (finally block)
 ```
 
@@ -44,7 +50,7 @@ Attribute metadata resolved via `MasterData` and `*Declaration` entities (scopes
 
 ### Comparison method
 
-Each expected element is matched against parsed student classes using SHA-256 hashes of attribute tuples:
+Each expected element is matched against parsed student classes using **direct attribute comparison** (case-insensitive) on the same tuples previously hashed:
 
 - **Class**: scope + declaring type + abstract flag
 - **Field**: scope + data type (lookup by name)
@@ -66,9 +72,16 @@ Each expected element is matched against parsed student classes using SHA-256 ha
 | `SubmissionMethodResult` | Method match outcome |
 | `SubmissionConstructorResult` | Constructor match outcome |
 
+Each upload upserts result rows keyed by `(submission_id, element_id)` via `GradingResultStore.loadExisting` + `saveAll`.
+
+### Rubric cache invalidation
+
+- `LabRubricCache.invalidate(labId)` drops the in-process snapshot; TTL is the fallback.
+- Rubric writers (future admin APIs) must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations.
+
 ## Work Guidance
 
-- `GradingService.gradeSubmission()` is `@Transactional`
+- `GradingService.gradeSubmission()` loads and saves via `GradingResultStore`; CPU work runs outside those transactions
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` — only `.class` files in the challenge's `classes/` subfolder
 - Do not grade source `.java` files directly; compilation must succeed first
 - Inheritance and class relations are out of scope until explicitly implemented

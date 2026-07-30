@@ -34,4 +34,10 @@ public class GlobalExceptionHandler {
         var error = new ErrorResponse(exception.getMessage(), "Validation failed.");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
+
+    @ExceptionHandler(SubmissionProcessingException.class)
+    public ResponseEntity<ErrorResponse> handleSubmissionProcessingException(SubmissionProcessingException exception) {
+        var error = new ErrorResponse(exception.getMessage(), "Submission processing failed.");
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
+    }
 }

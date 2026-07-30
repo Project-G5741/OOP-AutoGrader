@@ -64,13 +64,20 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 ### Submission pipeline (summary)
 
-Upload → `SubmissionStorageService` (save + compile) → `GradingService` (reflect + compare) → cleanup temp folder. See child docs for folder layout and scoring rules.
+Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + compare against snapshot) → MMD hook (no-op by default) → cleanup temp folder.
+
+Grading tuning properties (`application.properties`):
+
+| Property | Default | Purpose |
+|---|---|---|
+| `app.grading.parallelism` | `4` | Max concurrent challenge workers (capped at CPU count) |
+| `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
+| `app.grading.timing-log` | `false` | Log `rubric_ms`, `process_ms`, `grade_ms`, `total_ms` per upload |
 
 ## Work Guidance
 
 - Controllers stay thin; business logic belongs in `service/` or `grading/`
-- Throw `SubmissionProcessingException` for upload/compile failures
-- Use `GlobalExceptionHandler` for consistent error responses
+- Throw `SubmissionProcessingException` for upload/compile failures — handled by `GlobalExceptionHandler` (422)
 - `LabService` exists but `LabController` calls `LabRepository` directly — follow existing pattern per endpoint
 - New API endpoints need CORS coverage in `CorsConfig` if called from frontend
 

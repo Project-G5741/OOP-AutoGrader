@@ -4,6 +4,22 @@ import Button from './Button';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+async function readUploadErrorMessage(response) {
+  const text = await response.text();
+  if (!text) {
+    return `Upload failed with status ${response.status}`;
+  }
+  try {
+    const body = JSON.parse(text);
+    if (typeof body.message === 'string' && body.message.trim()) {
+      return body.message.trim();
+    }
+  } catch {
+    // Plain-text error body
+  }
+  return text.trim();
+}
+
 export default function DropZone({
   title = "Drop or drag your folder here",
   buttonText = "Select Folder",
@@ -119,8 +135,8 @@ export default function DropZone({
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || `Upload failed with status ${res.status}`);
+        const message = await readUploadErrorMessage(res);
+        throw new Error(message);
       }
 
       const data = await res.json();
@@ -182,7 +198,9 @@ export default function DropZone({
         </p>
 
         {uploadError && (
-          <p className="text-red-500 text-sm mb-4">{uploadError}</p>
+          <pre className="text-red-500 text-sm mb-4 max-w-full whitespace-pre-wrap text-left overflow-x-auto">
+            {uploadError}
+          </pre>
         )}
 
         <Button

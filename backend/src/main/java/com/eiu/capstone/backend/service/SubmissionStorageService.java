@@ -6,17 +6,22 @@ import java.nio.file.Path;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.utility.CompletableFutures;
 
 @Service
 public class SubmissionStorageService {
@@ -28,60 +33,40 @@ public class SubmissionStorageService {
     private String baseDir;
 
     private final JavaCompilerService javaCompilerService;
+    private final ExecutorService gradingExecutor;
 
-    public SubmissionStorageService(JavaCompilerService javaCompilerService) {
+    public SubmissionStorageService(JavaCompilerService javaCompilerService,
+                                    ExecutorService gradingExecutor) {
         this.javaCompilerService = javaCompilerService;
+        this.gradingExecutor = gradingExecutor;
     }
 
-    /** Result for a single challenge subfolder. */
     public static class ChallengeResult {
         public final String challengeName;
         public final Path folder;
-        public final int mmdFileCount;
         public final int classFileCount;
 
-        public ChallengeResult(String challengeName, Path folder, int mmdFileCount, int classFileCount) {
+        public ChallengeResult(String challengeName, Path folder, int classFileCount) {
             this.challengeName = challengeName;
             this.folder = folder;
-            this.mmdFileCount = mmdFileCount;
             this.classFileCount = classFileCount;
         }
     }
 
-    /** Overall result for the whole upload (may span several challenge folders). */
     public static class ProcessResult {
-        /** The folder that should be deleted once grading is done — unique per upload request. */
         public final Path submissionFolder;
         public final List<ChallengeResult> challenges;
+        public final Map<String, List<MultipartFile>> mmdByChallenge;
 
-        public ProcessResult(Path submissionFolder, List<ChallengeResult> challenges) {
+        public ProcessResult(Path submissionFolder,
+                             List<ChallengeResult> challenges,
+                             Map<String, List<MultipartFile>> mmdByChallenge) {
             this.submissionFolder = submissionFolder;
             this.challenges = challenges;
+            this.mmdByChallenge = mmdByChallenge;
         }
     }
 
-    /**
-     * Expects each MultipartFile's originalFilename to carry the file's path *relative to
-     * the dropped folder*, e.g. "Nguyen_Van_A_lab2/Nguyen_Van_A_challenge_1/Car.java" or just
-     * "Nguyen_Van_A_challenge_1/Car.java" (see DropZone.jsx — it appends each file with its
-     * webkitRelativePath as the multipart filename).
-     *
-     * Files are written under a folder unique to this specific upload request:
-     *   <baseDir>/<irn>/<requestId>/challenge_<n>/mmd/       -> uploaded .mmd files, as-is
-     *   <baseDir>/<irn>/<requestId>/challenge_<n>/classes/   -> .class files compiled from
-     *                                                           that challenge's .java files only
-     *
-     * The requestId (a fresh UUID minted per upload — see SubmissionController) is what
-     * prevents two overlapping submissions from the same student (e.g. a double-click, or
-     * submitting Lab 2 and then Lab 3 before Lab 2 finishes grading) from colliding in the
-     * same challenge_N folder. Without it, "challenge_1" would mean the same path regardless
-     * of which lab or which submission it came from.
-     *
-     * Anything that isn't .mmd or .java, or that isn't nested inside a recognizable
-     * challenge folder, is ignored.
-     *
-     * Does NOT delete anything afterward — see deleteFolder().
-     */
     public ProcessResult processUpload(String irn, String requestId, List<MultipartFile> files) {
         String irnFolderName = sanitize(irn);
         if (irnFolderName.isEmpty()) {
@@ -92,63 +77,81 @@ public class SubmissionStorageService {
         }
         Path submissionFolder = Path.of(baseDir, irnFolderName, requestId);
 
-        // Group incoming files by the challenge folder they were dropped under.
-        Map<String, List<MultipartFile>> byChallenge = new LinkedHashMap<>();
+        Map<String, List<MultipartFile>> byChallenge = new java.util.LinkedHashMap<>();
+        Map<String, List<MultipartFile>> mmdByChallenge = new java.util.LinkedHashMap<>();
+
         for (MultipartFile file : files) {
             String originalName = file.getOriginalFilename();
             if (originalName == null || originalName.isBlank()) continue;
 
             String lower = originalName.toLowerCase();
             if (!lower.endsWith(".mmd") && !lower.endsWith(".java")) {
-                continue; // ignore everything else, per spec
+                continue;
             }
 
             String challengeKey = extractChallengeKey(originalName);
             if (challengeKey == null) {
-                continue; // couldn't place this file under any challenge folder — skip it
+                continue;
             }
 
-            byChallenge.computeIfAbsent(challengeKey, k -> new ArrayList<>()).add(file);
+            if (lower.endsWith(".mmd")) {
+                mmdByChallenge.computeIfAbsent(challengeKey, k -> new ArrayList<>()).add(file);
+            } else {
+                byChallenge.computeIfAbsent(challengeKey, k -> new ArrayList<>()).add(file);
+            }
         }
 
-        List<ChallengeResult> results = new ArrayList<>();
-        for (Map.Entry<String, List<MultipartFile>> entry : byChallenge.entrySet()) {
-            results.add(processChallenge(submissionFolder, entry.getKey(), entry.getValue()));
-        }
+        Set<String> challengeKeys = new LinkedHashSet<>();
+        challengeKeys.addAll(byChallenge.keySet());
+        challengeKeys.addAll(mmdByChallenge.keySet());
 
-        return new ProcessResult(submissionFolder, results);
+        try {
+            List<CompletableFuture<ChallengeResult>> futures = challengeKeys.stream()
+                    .map(challengeKey -> CompletableFuture.supplyAsync(
+                            () -> processChallenge(
+                                    submissionFolder,
+                                    challengeKey,
+                                    byChallenge.getOrDefault(challengeKey, List.of())),
+                            gradingExecutor))
+                    .collect(Collectors.toList());
+
+            List<ChallengeResult> results = CompletableFutures.joinAll(futures);
+            return new ProcessResult(submissionFolder, results, Map.copyOf(mmdByChallenge));
+        } catch (RuntimeException e) {
+            deleteFolder(submissionFolder);
+            throw e;
+        }
     }
 
     private ChallengeResult processChallenge(Path submissionFolder, String challengeName, List<MultipartFile> files) {
         Path challengeFolder = submissionFolder.resolve(challengeName);
-        Path mmdFolder = challengeFolder.resolve("mmd");
         Path classesFolder = challengeFolder.resolve("classes");
-        Path sourcesFolder = challengeFolder.resolve("_sources_tmp"); // temp holding area, deleted below
+        Path sourcesFolder = challengeFolder.resolve("_sources_tmp");
 
         try {
-            Files.createDirectories(mmdFolder);
             Files.createDirectories(classesFolder);
-            Files.createDirectories(sourcesFolder);
+            if (!files.isEmpty()) {
+                Files.createDirectories(sourcesFolder);
+            }
         } catch (IOException e) {
             throw new SubmissionProcessingException("Could not create folders for " + challengeName, e);
         }
 
-        int mmdCount = 0;
+        if (files.isEmpty()) {
+            return new ChallengeResult(challengeName, challengeFolder, 0);
+        }
+
         List<Path> javaSources = new ArrayList<>();
 
         for (MultipartFile file : files) {
             String fileName = fileNameOnly(file.getOriginalFilename());
-            String lower = fileName.toLowerCase();
-
+            if (!fileName.toLowerCase().endsWith(".java")) {
+                continue;
+            }
             try {
-                if (lower.endsWith(".mmd")) {
-                    file.transferTo(mmdFolder.resolve(fileName));
-                    mmdCount++;
-                } else if (lower.endsWith(".java")) {
-                    Path target = sourcesFolder.resolve(fileName);
-                    file.transferTo(target);
-                    javaSources.add(target);
-                }
+                Path target = sourcesFolder.resolve(fileName);
+                file.transferTo(target);
+                javaSources.add(target);
             } catch (IOException e) {
                 throw new SubmissionProcessingException("Failed to save file: " + fileName, e);
             }
@@ -156,37 +159,26 @@ public class SubmissionStorageService {
 
         try {
             javaCompilerService.compile(javaSources, classesFolder);
-        } 
-        finally {
+        } catch (RuntimeException e) {
+            deleteRecursively(challengeFolder);
+            throw e;
+        } finally {
             deleteRecursively(sourcesFolder);
         }
 
         int classCount = countFiles(classesFolder, ".class");
-        return new ChallengeResult(challengeName, challengeFolder, mmdCount, classCount);
+        return new ChallengeResult(challengeName, challengeFolder, classCount);
     }
 
-    /**
-     * Deletes a folder tree — call with ProcessResult.submissionFolder once grading for
-     * this whole upload is done. Because submissionFolder is unique per request (keyed by
-     * requestId), this is always safe to call without risk of deleting another in-flight
-     * submission's files, even from the same student. Nothing calls this automatically.
-     */
     public void deleteFolder(Path folder) {
         deleteRecursively(folder);
     }
 
-    /**
-     * Looks through every path segment (except the filename itself) for one matching
-     * "challenge[_-]<number>" (case-insensitive), e.g. "Nguyen_Van_A_challenge_1" -> "challenge_1".
-     * Falls back to a sanitized version of the immediate parent folder name if no segment
-     * matches the pattern, so unexpected-but-real folders still land somewhere instead of
-     * being silently dropped. Returns null if the file has no parent folder at all.
-     */
     private String extractChallengeKey(String relativePath) {
         String normalized = relativePath.replace('\\', '/');
         String[] segments = normalized.split("/");
         if (segments.length < 2) {
-            return null; // file wasn't inside any folder — can't tell which challenge it belongs to
+            return null;
         }
 
         for (int i = 0; i < segments.length - 1; i++) {
@@ -196,7 +188,6 @@ public class SubmissionStorageService {
             }
         }
 
-        // Fallback: use the immediate parent folder's sanitized name rather than dropping the file.
         String parent = sanitize(segments[segments.length - 2]);
         return parent.isEmpty() ? null : parent;
     }
@@ -206,7 +197,6 @@ public class SubmissionStorageService {
         return Path.of(normalized).getFileName().toString();
     }
 
-    /** Lowercases, strips diacritics (e.g. "Khá" -> "kha"), keeps only [a-z0-9_]. */
     private String sanitize(String input) {
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "");
@@ -234,7 +224,6 @@ public class SubmissionStorageService {
                         try {
                             Files.deleteIfExists(p);
                         } catch (IOException ignored) {
-                            // best-effort cleanup
                         }
                     });
         } catch (IOException ignored) {

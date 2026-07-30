@@ -12,8 +12,6 @@ import com.eiu.capstone.backend.model.ClassEntity;
 
 public interface ClassEntityRepository extends JpaRepository<ClassEntity, UUID> {
 
-    List<ClassEntity> findByChallenge(Challenge challenge);
-
-    @Query("SELECT c FROM ClassEntity c JOIN FETCH c.scope JOIN FETCH c.declaringType WHERE c.challenge = :challenge")
-    List<ClassEntity> findByChallengeWithAttributes(@Param("challenge") Challenge challenge);
+    @Query("SELECT c FROM ClassEntity c JOIN FETCH c.scope JOIN FETCH c.declaringType WHERE c.challenge IN :challenges")
+    List<ClassEntity> findByChallengeInWithAttributes(@Param("challenges") List<Challenge> challenges);
 }

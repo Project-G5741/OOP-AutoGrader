@@ -8,7 +8,8 @@ Business logic layer: submission file handling, Java compilation, authentication
 
 | Service | Responsibility |
 |---|---|
-| `SubmissionStorageService` | Upload pipeline: group files by challenge, write `.mmd`/`.java`, compile, return metadata |
+| `SubmissionStorageService` | Upload pipeline: group files by challenge, parallel compile `.java`, return metadata |
+| `MmdPersistenceHook` | Extension point for `.mmd` archival (default `NoOpMmdPersistenceHook`) |
 | `JavaCompilerService` | Compile submitted `.java` files to `classes/` via `javax.tools.JavaCompiler` |
 | `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn) |
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
@@ -23,10 +24,12 @@ Per upload request (unique `requestId` prevents collisions):
 
 ```
 <SUBMISSION_BASE_DIR>/<sanitized_irn>/<requestId>/challenge_<N>/
-  mmd/           → uploaded .mmd files
   classes/       → compiled .class output
   _sources_tmp/  → temp .java sources (deleted after compile)
 ```
+
+- `.mmd` files are accepted in uploads but not written to disk on the hot path; use `MmdPersistenceHook` for near-future archival
+- Challenges are compiled in parallel (`app.grading.parallelism`, default 4)
 
 - Multipart filenames carry relative paths from the dropped folder (see `DropZone.jsx`)
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
@@ -55,7 +58,9 @@ Per upload request (unique `requestId` prevents collisions):
 ## Work Guidance
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
-- Compile errors should surface via `SubmissionProcessingException` — controller returns these to the client
+- Compile errors should surface via `SubmissionProcessingException` — `GlobalExceptionHandler` returns HTTP 422 with the message
+- MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0` so grading records 0% for that challenge
+- `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle
 - Auth service changes affect both `AuthController` and `SubmissionController` JWT parsing
 

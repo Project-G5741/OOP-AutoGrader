@@ -9,8 +9,9 @@ Render deployment steps (Docker)
    - `FRONTEND_URL` = https://oop-autograder.vercel.app
    - `JWT_SECRET` = <your-jwt-secret>
    - `GOOGLE_CLIENT_ID` = <google client id>
-4. (Optional) Add `JAVA_OPTS` if you need memory tuning, e.g. `-Xmx512m`.
-5. Deploy. Check logs for successful startup and startup.
+4. (Optional) Add `JAVA_OPTS` if you need memory tuning, e.g. `-Xmx512m`. Parallel per-challenge compilation uses `app.grading.parallelism` (default `4`); lower it on small instances if memory is tight.
+5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `30`), `app.grading.timing-log` (`true` to log upload phase timings). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
+6. Deploy. Check logs for successful startup and startup.
 
 Local build & test:
 ```
