@@ -1,9 +1,10 @@
 package com.eiu.capstone.backend.repository;
 
-import com.eiu.capstone.backend.model.MethodDeclaration;
+import java.util.UUID;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.UUID;
+import com.eiu.capstone.backend.model.MethodDeclaration;
 
 public interface MethodDeclarationRepository extends JpaRepository<MethodDeclaration, UUID> {
 }
