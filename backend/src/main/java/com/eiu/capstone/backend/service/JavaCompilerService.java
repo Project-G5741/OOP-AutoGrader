@@ -39,8 +39,9 @@ public class JavaCompilerService {
                     fileManager.getJavaFileObjectsFromPaths(javaSourceFiles);
 
             List<String> options = List.of(
-                    "-d", outputDir.toString(),
-                    "-encoding", "UTF-8"
+                    // "-Xmx218m", 
+                    "-d", outputDir.toString()
+                    , "-encoding", "UTF-8"
             );
 
             StringWriter errorOutput = new StringWriter();
