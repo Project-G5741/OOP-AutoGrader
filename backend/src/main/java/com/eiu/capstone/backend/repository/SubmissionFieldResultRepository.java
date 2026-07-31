@@ -15,4 +15,6 @@ public interface SubmissionFieldResultRepository extends JpaRepository<Submissio
     List<SubmissionFieldResult> findBySubmission(LabSubmission submission);
 
     Optional<SubmissionFieldResult> findBySubmissionAndField(LabSubmission submission, Field field);
+
+    void deleteBySubmission(LabSubmission submission);
 }

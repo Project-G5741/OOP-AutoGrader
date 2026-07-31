@@ -2,50 +2,37 @@ package com.eiu.capstone.backend.grading;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import com.eiu.capstone.backend.model.Challenge;
-import com.eiu.capstone.backend.model.ClassEntity;
-import com.eiu.capstone.backend.model.Constructor;
-import com.eiu.capstone.backend.model.ConstructorDeclaration;
-import com.eiu.capstone.backend.model.Field;
-import com.eiu.capstone.backend.model.FieldDeclaration;
-import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
+import com.eiu.capstone.backend.grading.rubric.FieldRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.model.LabSubmission;
-import com.eiu.capstone.backend.model.Method;
-import com.eiu.capstone.backend.model.MethodDeclaration;
-import com.eiu.capstone.backend.model.Parameter;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.SubmissionMethodResult;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
-import com.eiu.capstone.backend.repository.ClassEntityRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
-import com.eiu.capstone.backend.repository.ParameterRepository;
-import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
+import com.eiu.capstone.backend.utility.CompletableFutures;
 
 @Service
 public class GradingService {
@@ -53,192 +40,166 @@ public class GradingService {
     private static final Pattern CHALLENGE_NUMBER_PATTERN = Pattern.compile("challenge_(\\d+)");
 
     private final ChallengeRepository challengeRepository;
-    private final ClassEntityRepository classEntityRepository;
     private final FieldRepository fieldRepository;
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
-    private final ParameterRepository parameterRepository;
-    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
-    private final SubmissionFieldResultRepository submissionFieldResultRepository;
-    private final SubmissionMethodResultRepository submissionMethodResultRepository;
-    private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
     private final ReflectionClassParser reflectionClassParser;
+    private final ExecutorService gradingExecutor;
+    private final GradingResultStore gradingResultStore;
 
     public GradingService(ChallengeRepository challengeRepository,
-                           ClassEntityRepository classEntityRepository,
-                           FieldRepository fieldRepository,
-                           MethodRepository methodRepository,
-                           ConstructorRepository constructorRepository,
-                           ParameterRepository parameterRepository,
-                           SubmissionChallengeResultRepository submissionChallengeResultRepository,
-                           SubmissionFieldResultRepository submissionFieldResultRepository,
-                           SubmissionMethodResultRepository submissionMethodResultRepository,
-                           SubmissionConstructorResultRepository submissionConstructorResultRepository,
-                           ReflectionClassParser reflectionClassParser) {
+                          FieldRepository fieldRepository,
+                          MethodRepository methodRepository,
+                          ConstructorRepository constructorRepository,
+                          ReflectionClassParser reflectionClassParser,
+                          ExecutorService gradingExecutor,
+                          GradingResultStore gradingResultStore) {
         this.challengeRepository = challengeRepository;
-        this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
-        this.parameterRepository = parameterRepository;
-        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
-        this.submissionFieldResultRepository = submissionFieldResultRepository;
-        this.submissionMethodResultRepository = submissionMethodResultRepository;
-        this.submissionConstructorResultRepository = submissionConstructorResultRepository;
         this.reflectionClassParser = reflectionClassParser;
+        this.gradingExecutor = gradingExecutor;
+        this.gradingResultStore = gradingResultStore;
     }
 
-    @Transactional
-    public BigDecimal gradeSubmission(LabSubmission submission, Lab lab,
-                                       List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+    public BigDecimal gradeSubmission(LabSubmission submission,
+                                      LabRubricSnapshot rubric,
+                                      List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
 
         String irn = submission.getUser() != null ? submission.getUser().getIrn() : "unknown";
         System.out.println("=========================================");
-        System.out.println("Grading submission " + submission.getId() + " (IRN: " + irn + ", lab: " + lab.getId() + ")");
+        System.out.println("Grading submission " + submission.getId() + " (IRN: " + irn + ")");
 
-        Map<UUID, SubmissionFieldResult> existingFieldResults = submissionFieldResultRepository.findBySubmission(submission)
-                .stream().collect(Collectors.toMap(r -> r.getField().getId(), r -> r));
-        Map<UUID, SubmissionMethodResult> existingMethodResults = submissionMethodResultRepository.findBySubmission(submission)
-                .stream().collect(Collectors.toMap(r -> r.getMethod().getId(), r -> r));
-        Map<UUID, SubmissionConstructorResult> existingConstructorResults = submissionConstructorResultRepository.findBySubmission(submission)
-                .stream().collect(Collectors.toMap(r -> r.getConstructor().getId(), r -> r));
-        Map<UUID, SubmissionChallengeResult> existingChallengeResults = submissionChallengeResultRepository.findBySubmission(submission)
-                .stream().collect(Collectors.toMap(r -> r.getChallenge().getId(), r -> r));
+        GradingService.ExistingResults existing = gradingResultStore.loadExisting(submission);
+        GradingComputationResult computed = computeAgainstSnapshot(
+                rubric, challengeFolderResults, submission, existing);
+        gradingResultStore.save(computed);
 
-        List<SubmissionFieldResult> fieldResultsToSave = new ArrayList<>();
-        List<SubmissionMethodResult> methodResultsToSave = new ArrayList<>();
-        List<SubmissionConstructorResult> constructorResultsToSave = new ArrayList<>();
-        List<SubmissionChallengeResult> challengeResultsToSave = new ArrayList<>();
-
-        List<BigDecimal> challengePercentages = new ArrayList<>();
-
-        for (SubmissionStorageService.ChallengeResult folderResult : challengeFolderResults) {
-            Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
-            if (challengeNumber == null) {
-                System.out.println("  [skip] Folder '" + folderResult.challengeName
-                        + "' doesn't look like challenge_<N> — cannot map to a Challenge row.");
-                continue;
-            }
-
-            Optional<Challenge> challengeOpt = challengeRepository.findByLabAndChallengeNumber(lab, challengeNumber);
-            if (challengeOpt.isEmpty()) {
-                System.out.println("  [skip] No Challenge found for lab=" + lab.getId()
-                        + " challenge_number=" + challengeNumber + ".");
-                continue;
-            }
-
-            Challenge challenge = challengeOpt.get();
-            Path classesDir = folderResult.folder.resolve("classes");
-
-            GradingOutcome outcome = gradeChallenge(
-                    submission, challenge, classesDir,
-                    existingFieldResults, existingMethodResults, existingConstructorResults, existingChallengeResults,
-                    fieldResultsToSave, methodResultsToSave, constructorResultsToSave, challengeResultsToSave);
-
-            challengePercentages.add(outcome.percentage);
-            printChallengeReport(challenge, outcome);
-        }
-
-        submissionFieldResultRepository.saveAll(fieldResultsToSave);
-        submissionMethodResultRepository.saveAll(methodResultsToSave);
-        submissionConstructorResultRepository.saveAll(constructorResultsToSave);
-        submissionChallengeResultRepository.saveAll(challengeResultsToSave);
-
-        BigDecimal overallScore = challengePercentages.isEmpty()
-                ? BigDecimal.ZERO
-                : average(challengePercentages);
-
-        System.out.println("Overall score (simple average across " + challengePercentages.size()
-                + " challenge(s)): " + overallScore + " / 100");
+        System.out.println("Overall score (simple average across " + computed.challengePercentages.size()
+                + " challenge(s)): " + computed.overallScore + " / 100");
         System.out.println("=========================================");
 
-        return overallScore;
+        return computed.overallScore;
     }
 
-    private GradingOutcome gradeChallenge(
-            LabSubmission submission, Challenge challenge, Path classesDir,
-            Map<UUID, SubmissionFieldResult> existingFieldResults,
-            Map<UUID, SubmissionMethodResult> existingMethodResults,
-            Map<UUID, SubmissionConstructorResult> existingConstructorResults,
-            Map<UUID, SubmissionChallengeResult> existingChallengeResults,
-            List<SubmissionFieldResult> fieldResultsToSave,
-            List<SubmissionMethodResult> methodResultsToSave,
-            List<SubmissionConstructorResult> constructorResultsToSave,
-            List<SubmissionChallengeResult> challengeResultsToSave) {
+    private GradingComputationResult computeAgainstSnapshot(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+            LabSubmission submission,
+            ExistingResults existing) {
 
+        List<CompletableFuture<ChallengeComputation>> futures = challengeFolderResults.stream()
+                .map(folderResult -> CompletableFuture.supplyAsync(
+                        () -> gradeChallengeFolder(rubric, folderResult),
+                        gradingExecutor))
+                .collect(Collectors.toList());
+
+        List<ChallengeComputation> challengeComputations = CompletableFutures.joinAll(futures);
+
+        GradingComputationResult result = new GradingComputationResult();
+        result.fieldResults = new ArrayList<>();
+        result.methodResults = new ArrayList<>();
+        result.constructorResults = new ArrayList<>();
+        result.challengeResults = new ArrayList<>();
+        result.challengePercentages = new ArrayList<>();
+
+        for (ChallengeComputation cc : challengeComputations) {
+            if (cc == null) continue;
+            for (PendingFieldResult pending : cc.pendingFields) {
+                result.fieldResults.add(buildFieldResult(existing.fieldResults, submission, pending.fieldId(), pending.correct()));
+            }
+            for (PendingMethodResult pending : cc.pendingMethods) {
+                result.methodResults.add(buildMethodResult(existing.methodResults, submission, pending.methodId(), pending.correct()));
+            }
+            for (PendingConstructorResult pending : cc.pendingConstructors) {
+                result.constructorResults.add(buildConstructorResult(
+                        existing.constructorResults, submission, pending.constructorId(), pending.correct()));
+            }
+            if (cc.pendingChallenge != null) {
+                result.challengeResults.add(buildChallengeResult(
+                        existing.challengeResults, submission, cc.pendingChallenge.challengeId(), cc.pendingChallenge.correct()));
+            }
+            if (cc.percentage != null) {
+                result.challengePercentages.add(cc.percentage);
+            }
+            if (cc.challengeNumber != null) {
+                printChallengeReport(cc);
+            }
+        }
+
+        result.overallScore = result.challengePercentages.isEmpty()
+                ? BigDecimal.ZERO
+                : average(result.challengePercentages);
+        return result;
+    }
+
+    private ChallengeComputation gradeChallengeFolder(
+            LabRubricSnapshot rubric,
+            SubmissionStorageService.ChallengeResult folderResult) {
+
+        Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
+        if (challengeNumber == null) {
+            System.out.println("  [skip] Folder '" + folderResult.challengeName
+                    + "' doesn't look like challenge_<N> — cannot map to a Challenge row.");
+            return null;
+        }
+
+        ChallengeRubric challengeRubric = rubric.challenge(challengeNumber).orElse(null);
+        if (challengeRubric == null) {
+            System.out.println("  [skip] No Challenge rubric for challenge_number=" + challengeNumber + ".");
+            return null;
+        }
+
+        Path classesDir = folderResult.folder.resolve("classes");
         List<ParsedClass> parsedClasses = Files.exists(classesDir)
                 ? reflectionClassParser.parseClasses(classesDir)
                 : List.of();
         Map<String, ParsedClass> parsedByName = parsedClasses.stream()
                 .collect(Collectors.toMap(pc -> pc.simpleName, pc -> pc, (a, b) -> a));
 
-        List<ClassEntity> expectedClasses = classEntityRepository.findByChallengeWithAttributes(challenge);
-
-        List<Field> allFields = expectedClasses.isEmpty() ? List.of()
-                : fieldRepository.findByClassEntityInWithDeclaration(expectedClasses);
-        List<Method> allMethods = expectedClasses.isEmpty() ? List.of()
-                : methodRepository.findByClassEntityInWithDeclaration(expectedClasses);
-        List<Constructor> allConstructors = expectedClasses.isEmpty() ? List.of()
-                : constructorRepository.findByClassEntityInWithDeclaration(expectedClasses);
-
-        List<Parameter> allMethodParams = allMethods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(allMethods);
-        List<Parameter> allConstructorParams = allConstructors.isEmpty() ? List.of()
-                : parameterRepository.findByConstructorEntityIn(allConstructors);
-
-        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
-                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
-        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
-                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
-        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
-                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
-
-        Map<UUID, List<String>> paramTypesByMethod = groupParamTypesByMethod(allMethodParams);
-        Map<UUID, List<String>> paramTypesByConstructor = groupParamTypesByConstructor(allConstructorParams);
+        ChallengeComputation computation = new ChallengeComputation();
+        computation.challengeNumber = challengeNumber;
+        computation.challengeName = challengeRubric.name();
+        computation.pendingFields = new ArrayList<>();
+        computation.pendingMethods = new ArrayList<>();
+        computation.pendingConstructors = new ArrayList<>();
 
         int totalElements = 0;
         int correctElements = 0;
         boolean challengeFullyCorrect = true;
         List<ClassGradeReport> classReports = new ArrayList<>();
 
-        for (ClassEntity expectedClass : expectedClasses) {
+        for (ClassRubric expectedClass : challengeRubric.classes()) {
             ClassGradeReport report = new ClassGradeReport();
-            report.className = expectedClass.getName();
+            report.className = expectedClass.name();
 
-            ParsedClass parsed = parsedByName.get(expectedClass.getName());
+            ParsedClass parsed = parsedByName.get(expectedClass.name());
             report.matched = parsed != null;
             totalElements++;
 
-            List<Field> expectedFields = fieldsByClass.getOrDefault(expectedClass.getId(), List.of());
-            List<Method> expectedMethods = methodsByClass.getOrDefault(expectedClass.getId(), List.of());
-            List<Constructor> expectedConstructors = constructorsByClass.getOrDefault(expectedClass.getId(), List.of());
-
             if (parsed == null) {
                 challengeFullyCorrect = false;
-                for (Field f : expectedFields) {
+                for (FieldRubric f : expectedClass.fields()) {
                     totalElements++;
-                    report.missingFields.add(f.getName());
-                    fieldResultsToSave.add(buildFieldResult(existingFieldResults, submission, f, false));
+                    report.missingFields.add(f.name());
+                    computation.pendingFields.add(new PendingFieldResult(f.id(), false));
                 }
-                for (Method m : expectedMethods) {
+                for (MethodRubric m : expectedClass.methods()) {
                     totalElements++;
-                    report.missingMethods.add(signatureLabel(m.getName(), paramTypesByMethod.getOrDefault(m.getId(), List.of())));
-                    methodResultsToSave.add(buildMethodResult(existingMethodResults, submission, m, false));
+                    report.missingMethods.add(signatureLabel(m.name(), m.parameterTypes()));
+                    computation.pendingMethods.add(new PendingMethodResult(m.id(), false));
                 }
-                for (Constructor c : expectedConstructors) {
+                for (ConstructorRubric c : expectedClass.constructors()) {
                     totalElements++;
-                    report.missingConstructors.add(signatureLabel(expectedClass.getName(), paramTypesByConstructor.getOrDefault(c.getId(), List.of())));
-                    constructorResultsToSave.add(buildConstructorResult(existingConstructorResults, submission, c, false));
+                    report.missingConstructors.add(signatureLabel(expectedClass.name(), c.parameterTypes()));
+                    computation.pendingConstructors.add(new PendingConstructorResult(c.id(), false));
                 }
                 classReports.add(report);
                 continue;
             }
 
-            String expectedClassHash = hash(
-                    expectedClass.getScope().getName(),
-                    expectedClass.getDeclaringType().getName(),
-                    String.valueOf(expectedClass.isAbstract()));
-            String actualClassHash = hash(parsed.scope, parsed.declaringType, String.valueOf(parsed.isAbstract));
-            report.classAttributesCorrect = expectedClassHash.equals(actualClassHash);
+            report.classAttributesCorrect = classAttributesMatch(expectedClass, parsed);
             if (report.classAttributesCorrect) {
                 correctElements++;
             } else {
@@ -247,104 +208,90 @@ public class GradingService {
 
             Map<String, ParsedField> parsedFieldsByName = parsed.fields.stream()
                     .collect(Collectors.toMap(f -> f.name, f -> f, (a, b) -> a));
-            for (Field expectedField : expectedFields) {
+            for (FieldRubric expectedField : expectedClass.fields()) {
                 totalElements++;
-                ParsedField pf = parsedFieldsByName.get(expectedField.getName());
-                boolean correct = false;
-                if (pf != null) {
-                    FieldDeclaration fd = expectedField.getFieldDeclaration();
-                    correct = hash(fd.getScope().getName(), fd.getDataType()).equals(hash(pf.scope, pf.dataType));
-                }
+                ParsedField pf = parsedFieldsByName.get(expectedField.name());
+                boolean correct = pf != null && fieldAttributesMatch(expectedField, pf);
                 if (correct) {
                     correctElements++;
                 } else {
                     challengeFullyCorrect = false;
-                    (pf == null ? report.missingFields : report.incorrectFields).add(expectedField.getName());
+                    (pf == null ? report.missingFields : report.incorrectFields).add(expectedField.name());
                 }
-                fieldResultsToSave.add(buildFieldResult(existingFieldResults, submission, expectedField, correct));
+                computation.pendingFields.add(new PendingFieldResult(expectedField.id(), correct));
             }
 
-            for (Method expectedMethod : expectedMethods) {
+            for (MethodRubric expectedMethod : expectedClass.methods()) {
                 totalElements++;
-                List<String> expectedParamTypes = paramTypesByMethod.getOrDefault(expectedMethod.getId(), List.of());
-                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.getName(), expectedParamTypes);
-                boolean correct = false;
-                if (match != null) {
-                    MethodDeclaration md = expectedMethod.getMethodDeclaration();
-                    String expectedHash = hash(md.getScope().getName(), md.getReturnType(),
-                            String.valueOf(md.isStatic()), String.valueOf(md.isAbstract()), String.valueOf(md.isFinal()));
-                    String actualHash = hash(match.scope, match.returnType,
-                            String.valueOf(match.isStatic), String.valueOf(match.isAbstract), String.valueOf(match.isFinal));
-                    correct = expectedHash.equals(actualHash);
-                }
+                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
+                boolean correct = match != null && methodAttributesMatch(expectedMethod, match);
                 if (correct) {
                     correctElements++;
                 } else {
                     challengeFullyCorrect = false;
                     (match == null ? report.missingMethods : report.incorrectMethods)
-                            .add(signatureLabel(expectedMethod.getName(), expectedParamTypes));
+                            .add(signatureLabel(expectedMethod.name(), expectedMethod.parameterTypes()));
                 }
-                methodResultsToSave.add(buildMethodResult(existingMethodResults, submission, expectedMethod, correct));
+                computation.pendingMethods.add(new PendingMethodResult(expectedMethod.id(), correct));
             }
 
-            for (Constructor expectedConstructor : expectedConstructors) {
+            for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
                 totalElements++;
-                List<String> expectedParamTypes = paramTypesByConstructor.getOrDefault(expectedConstructor.getId(), List.of());
-                ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedParamTypes);
-                boolean correct = false;
-                if (match != null) {
-                    ConstructorDeclaration cd = expectedConstructor.getConstructorDeclaration();
-                    correct = hash(cd.getScope().getName(), String.valueOf(cd.isDefault()))
-                            .equals(hash(match.scope, String.valueOf(match.parameterTypes.isEmpty())));
-                }
+                ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
+                boolean correct = match != null && constructorAttributesMatch(expectedConstructor, match);
                 if (correct) {
                     correctElements++;
                 } else {
                     challengeFullyCorrect = false;
                     (match == null ? report.missingConstructors : report.incorrectConstructors)
-                            .add(signatureLabel(expectedClass.getName(), expectedParamTypes));
+                            .add(signatureLabel(expectedClass.name(), expectedConstructor.parameterTypes()));
                 }
-                constructorResultsToSave.add(buildConstructorResult(existingConstructorResults, submission, expectedConstructor, correct));
+                computation.pendingConstructors.add(new PendingConstructorResult(expectedConstructor.id(), correct));
             }
 
             classReports.add(report);
         }
 
-        challengeResultsToSave.add(buildChallengeResult(existingChallengeResults, submission, challenge, challengeFullyCorrect));
-
-        BigDecimal percentage = totalElements == 0
+        computation.pendingChallenge = new PendingChallengeResult(challengeRubric.challengeId(), challengeFullyCorrect);
+        computation.percentage = totalElements == 0
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(correctElements)
                         .multiply(BigDecimal.valueOf(100))
                         .divide(BigDecimal.valueOf(totalElements), 2, RoundingMode.HALF_UP);
-
-        GradingOutcome outcome = new GradingOutcome();
-        outcome.percentage = percentage;
-        outcome.fullyCorrect = challengeFullyCorrect;
-        outcome.classReports = classReports;
-        return outcome;
+        computation.fullyCorrect = challengeFullyCorrect;
+        computation.classReports = classReports;
+        return computation;
     }
 
-    private Map<UUID, List<String>> groupParamTypesByMethod(List<Parameter> params) {
-        Map<UUID, List<Parameter>> grouped = params.stream()
-                .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
-        return grouped.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> e.getValue().stream()
-                        .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
-                        .map(Parameter::getDataType)
-                        .collect(Collectors.toList())));
+    private boolean classAttributesMatch(ClassRubric expected, ParsedClass actual) {
+        return equalsIgnoreCase(expected.scope(), actual.scope)
+                && equalsIgnoreCase(expected.declaringType(), actual.declaringType)
+                && expected.isAbstract() == actual.isAbstract;
     }
 
-    private Map<UUID, List<String>> groupParamTypesByConstructor(List<Parameter> params) {
-        Map<UUID, List<Parameter>> grouped = params.stream()
-                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
-        return grouped.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> e.getValue().stream()
-                        .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
-                        .map(Parameter::getDataType)
-                        .collect(Collectors.toList())));
+    private boolean fieldAttributesMatch(FieldRubric expected, ParsedField actual) {
+        return equalsIgnoreCase(expected.scope(), actual.scope)
+                && equalsIgnoreCase(expected.dataType(), actual.dataType);
+    }
+
+    private boolean methodAttributesMatch(MethodRubric expected, ParsedMethod actual) {
+        return equalsIgnoreCase(expected.scope(), actual.scope)
+                && equalsIgnoreCase(expected.returnType(), actual.returnType)
+                && expected.isStatic() == actual.isStatic
+                && expected.isAbstract() == actual.isAbstract
+                && expected.isFinal() == actual.isFinal;
+    }
+
+    private boolean constructorAttributesMatch(ConstructorRubric expected, ParsedConstructor actual) {
+        boolean actualDefault = actual.parameterTypes.isEmpty();
+        return equalsIgnoreCase(expected.scope(), actual.scope)
+                && expected.isDefault() == actualDefault;
+    }
+
+    private boolean equalsIgnoreCase(String a, String b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.trim().equalsIgnoreCase(b.trim());
     }
 
     private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, String name, List<String> expectedParamTypes) {
@@ -368,7 +315,7 @@ public class GradingService {
     private boolean sameTypes(List<String> a, List<String> b) {
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
-            if (!a.get(i).trim().equalsIgnoreCase(b.get(i).trim())) return false;
+            if (!equalsIgnoreCase(a.get(i), b.get(i))) return false;
         }
         return true;
     }
@@ -387,59 +334,54 @@ public class GradingService {
         return sum.divide(BigDecimal.valueOf(values.size()), 2, RoundingMode.HALF_UP);
     }
 
-    private String hash(String... parts) {
-        String combined = String.join("|", parts);
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(combined.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : bytes) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private SubmissionFieldResult buildFieldResult(Map<UUID, SubmissionFieldResult> existing,
-                                                     LabSubmission submission, Field field, boolean correct) {
-        SubmissionFieldResult result = existing.getOrDefault(field.getId(), new SubmissionFieldResult());
+                                                   LabSubmission submission,
+                                                   UUID fieldId,
+                                                   boolean correct) {
+        SubmissionFieldResult result = existing.getOrDefault(fieldId, new SubmissionFieldResult());
         result.setSubmission(submission);
-        result.setField(field);
+        result.setField(fieldRepository.getReferenceById(fieldId));
         result.setCorrect(correct);
         return result;
     }
 
     private SubmissionMethodResult buildMethodResult(Map<UUID, SubmissionMethodResult> existing,
-                                                       LabSubmission submission, Method method, boolean correct) {
-        SubmissionMethodResult result = existing.getOrDefault(method.getId(), new SubmissionMethodResult());
+                                                     LabSubmission submission,
+                                                     UUID methodId,
+                                                     boolean correct) {
+        SubmissionMethodResult result = existing.getOrDefault(methodId, new SubmissionMethodResult());
         result.setSubmission(submission);
-        result.setMethod(method);
+        result.setMethod(methodRepository.getReferenceById(methodId));
         result.setCorrect(correct);
         return result;
     }
 
     private SubmissionConstructorResult buildConstructorResult(Map<UUID, SubmissionConstructorResult> existing,
-                                                                 LabSubmission submission, Constructor constructorEntity, boolean correct) {
-        SubmissionConstructorResult result = existing.getOrDefault(constructorEntity.getId(), new SubmissionConstructorResult());
+                                                               LabSubmission submission,
+                                                               UUID constructorId,
+                                                               boolean correct) {
+        SubmissionConstructorResult result = existing.getOrDefault(constructorId, new SubmissionConstructorResult());
         result.setSubmission(submission);
-        result.setConstructor(constructorEntity);
+        result.setConstructor(constructorRepository.getReferenceById(constructorId));
         result.setCorrect(correct);
         return result;
     }
 
     private SubmissionChallengeResult buildChallengeResult(Map<UUID, SubmissionChallengeResult> existing,
-                                                             LabSubmission submission, Challenge challenge, boolean correct) {
-        SubmissionChallengeResult result = existing.getOrDefault(challenge.getId(), new SubmissionChallengeResult());
+                                                           LabSubmission submission,
+                                                           UUID challengeId,
+                                                           boolean correct) {
+        SubmissionChallengeResult result = existing.getOrDefault(challengeId, new SubmissionChallengeResult());
         result.setSubmission(submission);
-        result.setChallenge(challenge);
+        result.setChallenge(challengeRepository.getReferenceById(challengeId));
         result.setCorrect(correct);
         return result;
     }
 
-    private void printChallengeReport(Challenge challenge, GradingOutcome outcome) {
-        System.out.println("--- Challenge #" + challenge.getChallengeNumber() + ": " + challenge.getName() + " ---");
-        System.out.println("  Score: " + outcome.percentage + "% | Fully correct: " + outcome.fullyCorrect);
-        for (ClassGradeReport cr : outcome.classReports) {
+    private void printChallengeReport(ChallengeComputation computation) {
+        System.out.println("--- Challenge #" + computation.challengeNumber + ": " + computation.challengeName + " ---");
+        System.out.println("  Score: " + computation.percentage + "% | Fully correct: " + computation.fullyCorrect);
+        for (ClassGradeReport cr : computation.classReports) {
             String status = !cr.matched ? "MISSING" : (cr.classAttributesCorrect ? "OK" : "class declaration incorrect");
             System.out.println("  Class " + cr.className + ": " + status);
             printIfNotEmpty("    Missing fields", cr.missingFields);
@@ -457,13 +399,35 @@ public class GradingService {
         }
     }
 
-    public static class GradingOutcome {
-        public BigDecimal percentage;
-        public boolean fullyCorrect;
-        public List<ClassGradeReport> classReports;
+    static class ExistingResults {
+        Map<UUID, SubmissionFieldResult> fieldResults;
+        Map<UUID, SubmissionMethodResult> methodResults;
+        Map<UUID, SubmissionConstructorResult> constructorResults;
+        Map<UUID, SubmissionChallengeResult> challengeResults;
     }
 
-    public static class ClassGradeReport {
+    static class GradingComputationResult {
+        List<SubmissionFieldResult> fieldResults;
+        List<SubmissionMethodResult> methodResults;
+        List<SubmissionConstructorResult> constructorResults;
+        List<SubmissionChallengeResult> challengeResults;
+        List<BigDecimal> challengePercentages;
+        BigDecimal overallScore;
+    }
+
+    private static class ChallengeComputation {
+        Integer challengeNumber;
+        String challengeName;
+        BigDecimal percentage;
+        boolean fullyCorrect;
+        List<ClassGradeReport> classReports;
+        PendingChallengeResult pendingChallenge;
+        List<PendingFieldResult> pendingFields;
+        List<PendingMethodResult> pendingMethods;
+        List<PendingConstructorResult> pendingConstructors;
+    }
+
+    private static class ClassGradeReport {
         public String className;
         public boolean matched;
         public boolean classAttributesCorrect;

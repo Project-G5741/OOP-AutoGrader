@@ -15,4 +15,6 @@ public interface SubmissionConstructorResultRepository extends JpaRepository<Sub
     List<SubmissionConstructorResult> findBySubmission(LabSubmission submission);
 
     Optional<SubmissionConstructorResult> findBySubmissionAndConstructor(LabSubmission submission, Constructor constructor);
+
+    void deleteBySubmission(LabSubmission submission);
 }

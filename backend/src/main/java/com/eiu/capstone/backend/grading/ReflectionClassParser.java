@@ -37,7 +37,7 @@ public class ReflectionClassParser {
 
         List<ParsedClass> result = new ArrayList<>();
         try (URLClassLoader loader = new URLClassLoader(
-                new URL[]{classesDir.toUri().toURL()}, getClass().getClassLoader())) {
+                new URL[] { classesDir.toUri().toURL() }, getClass().getClassLoader())) {
 
             for (Path classFile : classFiles) {
                 String className = classFile.getFileName().toString().replace(".class", "");
@@ -66,38 +66,41 @@ public class ReflectionClassParser {
 
         parsed.fields = new ArrayList<>();
         for (Field f : clazz.getDeclaredFields()) {
-            if (f.isSynthetic()) continue;
+            if (f.isSynthetic())
+                continue;
             ParsedField pf = new ParsedField();
             pf.name = f.getName();
-            pf.dataType = f.getType().getSimpleName();
+            pf.dataType = simpleGenericName(f.getGenericType());
             pf.scope = scopeOf(f.getModifiers());
             parsed.fields.add(pf);
         }
 
         parsed.methods = new ArrayList<>();
         for (Method m : clazz.getDeclaredMethods()) {
-            if (m.isSynthetic() || m.isBridge()) continue;
+            if (m.isSynthetic() || m.isBridge())
+                continue;
             ParsedMethod pm = new ParsedMethod();
             pm.name = m.getName();
-            pm.returnType = m.getReturnType().getSimpleName();
+            pm.returnType = simpleGenericName(m.getGenericReturnType());
             pm.scope = scopeOf(m.getModifiers());
             pm.isStatic = Modifier.isStatic(m.getModifiers());
             pm.isAbstract = Modifier.isAbstract(m.getModifiers());
             pm.isFinal = Modifier.isFinal(m.getModifiers());
-            pm.parameterTypes = Arrays.stream(m.getParameterTypes())
-                    .map(Class::getSimpleName)
+            pm.parameterTypes = Arrays.stream(m.getGenericParameterTypes())
+                    .map(this::simpleGenericName)
                     .collect(Collectors.toList());
             parsed.methods.add(pm);
         }
 
         parsed.constructors = new ArrayList<>();
         for (java.lang.reflect.Constructor<?> c : clazz.getDeclaredConstructors()) {
-            if (c.isSynthetic()) continue;
+            if (c.isSynthetic())
+                continue;
             ParsedConstructor pc = new ParsedConstructor();
             pc.scope = scopeOf(c.getModifiers());
-            pc.parameterTypes = Arrays.stream(c.getParameterTypes())
-                    .map(Class::getSimpleName)
-                    .collect(Collectors.toList());
+            pc.parameterTypes = Arrays.stream(c.getGenericParameterTypes())
+        .map(this::simpleGenericName)
+        .collect(Collectors.toList());
             parsed.constructors.add(pc);
         }
 
@@ -105,18 +108,38 @@ public class ReflectionClassParser {
     }
 
     private String scopeOf(int modifiers) {
-        if (Modifier.isPublic(modifiers)) return "public";
-        if (Modifier.isPrivate(modifiers)) return "private";
-        if (Modifier.isProtected(modifiers)) return "protected";
+        if (Modifier.isPublic(modifiers))
+            return "public";
+        if (Modifier.isPrivate(modifiers))
+            return "private";
+        if (Modifier.isProtected(modifiers))
+            return "protected";
         // package-private — there's no corresponding master_data row today, so this
         // will simply never match an expected scope, which is the correct behavior.
         return "default";
     }
 
     private String declaringTypeOf(Class<?> clazz) {
-        if (clazz.isInterface()) return "interface";
-        if (clazz.isEnum()) return "enum";
-        if (clazz.isRecord()) return "record";
+        if (clazz.isInterface())
+            return "interface";
+        if (clazz.isEnum())
+            return "enum";
+        if (clazz.isRecord())
+            return "record";
         return "class";
+    }
+
+    private String simpleGenericName(java.lang.reflect.Type type) {
+        if (type instanceof Class<?> clazz) {
+            return clazz.getSimpleName();
+        }
+        if (type instanceof java.lang.reflect.ParameterizedType pt) {
+            String raw = simpleGenericName(pt.getRawType());
+            String args = Arrays.stream(pt.getActualTypeArguments())
+                    .map(this::simpleGenericName)
+                    .collect(Collectors.joining(", "));
+            return raw + "<" + args + ">";
+        }
+        return type.getTypeName(); // fallback for arrays, wildcards, etc.
     }
 }

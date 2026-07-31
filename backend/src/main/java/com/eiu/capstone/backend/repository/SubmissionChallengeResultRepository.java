@@ -15,4 +15,6 @@ public interface SubmissionChallengeResultRepository extends JpaRepository<Submi
     List<SubmissionChallengeResult> findBySubmission(LabSubmission submission);
 
     Optional<SubmissionChallengeResult> findBySubmissionAndChallenge(LabSubmission submission, Challenge challenge);
+
+    void deleteBySubmission(LabSubmission submission);
 }

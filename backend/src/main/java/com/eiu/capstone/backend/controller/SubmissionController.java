@@ -1,11 +1,13 @@
 package com.eiu.capstone.backend.controller;
 
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.ChallengeUploadResult;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
 import com.eiu.capstone.backend.grading.GradingService;
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.StudentLabProgress;
@@ -29,6 +33,7 @@ import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
@@ -46,6 +51,9 @@ public class SubmissionController {
     private final LabSubmissionRepository labSubmissionRepository;
     private final StudentLabProgressRepository studentLabProgressRepository;
     private final GradingService gradingService;
+    private final LabRubricCache labRubricCache;
+    private final MmdPersistenceHook mmdPersistenceHook;
+    private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
                                  SubmissionStorageService submissionStorageService,
@@ -53,7 +61,10 @@ public class SubmissionController {
                                  LabRepository labRepository,
                                  LabSubmissionRepository labSubmissionRepository,
                                  StudentLabProgressRepository studentLabProgressRepository,
-                                 GradingService gradingService) {
+                                 GradingService gradingService,
+                                 LabRubricCache labRubricCache,
+                                 MmdPersistenceHook mmdPersistenceHook,
+                                 @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
         this.userAccountRepository = userAccountRepository;
@@ -61,6 +72,9 @@ public class SubmissionController {
         this.labSubmissionRepository = labSubmissionRepository;
         this.studentLabProgressRepository = studentLabProgressRepository;
         this.gradingService = gradingService;
+        this.labRubricCache = labRubricCache;
+        this.mmdPersistenceHook = mmdPersistenceHook;
+        this.timingLog = timingLog;
     }
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
@@ -69,6 +83,8 @@ public class SubmissionController {
             @PathVariable Integer attemptNumber,
             @RequestHeader("Authorization") String authHeader,
             @RequestParam("files") List<MultipartFile> files) {
+
+        long totalStart = System.currentTimeMillis();
 
         Claims claims = parseAuthHeader(authHeader);
         String irn = claims.get("irn", String.class);
@@ -86,9 +102,17 @@ public class SubmissionController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
 
         String requestId = UUID.randomUUID().toString();
-        SubmissionStorageService.ProcessResult result = null;
+        Path submissionFolderToDelete = null;
         try {
-            result = submissionStorageService.processUpload(irn, requestId, files);
+            long rubricStart = System.currentTimeMillis();
+            LabRubricSnapshot rubric = labRubricCache.get(lab);
+            long rubricMs = System.currentTimeMillis() - rubricStart;
+
+            long processStart = System.currentTimeMillis();
+            SubmissionStorageService.ProcessResult uploadResult =
+                    submissionStorageService.processUpload(irn, requestId, files);
+            submissionFolderToDelete = uploadResult.submissionFolder;
+            long processMs = System.currentTimeMillis() - processStart;
 
             LabSubmission submission = labSubmissionRepository
                     .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber)
@@ -96,20 +120,32 @@ public class SubmissionController {
             submission.setUser(userAccount);
             submission.setLab(lab);
             submission.setAttemptNumber(attemptNumber);
-            if (submission.getScore() == null) {
-                submission.setScore(BigDecimal.ZERO);
-            }
+            submission.setScore(BigDecimal.ZERO);
             submission = labSubmissionRepository.save(submission);
 
-            BigDecimal score = gradingService.gradeSubmission(submission, lab, result.challenges);
+            long gradeStart = System.currentTimeMillis();
+            BigDecimal score = gradingService.gradeSubmission(submission, rubric, uploadResult.challenges);
+            long gradeMs = System.currentTimeMillis() - gradeStart;
+
             submission.setScore(score);
             submission = labSubmissionRepository.save(submission);
 
             updateStudentProgress(userAccount, lab, submission, score);
 
-            List<ChallengeUploadResult> challengeResults = result.challenges.stream()
-                    .map(c -> new ChallengeUploadResult(c.challengeName, c.mmdFileCount, c.classFileCount))
+            mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
+
+            List<ChallengeUploadResult> challengeResults = uploadResult.challenges.stream()
+                    .map(c -> new ChallengeUploadResult(
+                            c.challengeName,
+                            uploadResult.mmdByChallenge.getOrDefault(c.challengeName, List.of()).size(),
+                            c.classFileCount))
                     .collect(Collectors.toList());
+
+            if (timingLog) {
+                long totalMs = System.currentTimeMillis() - totalStart;
+                System.out.printf("grading_timing rubric_ms=%d process_ms=%d grade_ms=%d total_ms=%d%n",
+                        rubricMs, processMs, gradeMs, totalMs);
+            }
 
             return ResponseEntity.ok(new SubmissionUploadResponse(
                     submission.getId(),
@@ -119,8 +155,8 @@ public class SubmissionController {
                     submission.getScore()
             ));
         } finally {
-            if (result != null) {
-                submissionStorageService.deleteFolder(result.submissionFolder);
+            if (submissionFolderToDelete != null) {
+                submissionStorageService.deleteFolder(submissionFolderToDelete);
             }
         }
     }
