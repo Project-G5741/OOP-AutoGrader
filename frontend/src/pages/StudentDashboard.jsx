@@ -1,11 +1,9 @@
+// StudentDashboard.jsx
 import React, { useEffect, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
-import Select from '../components/ui/Select';
-import DropZone from '../components/ui/DropZone';
-import ResultList from '../components/ResultList';
-import Card from '../components/ui/Card';
 import StudentHistoryPage from './StudentHistory';
 import ProfileEditModal from '../components/student/ProfileEditModal';
+import StudentUI from '../components/student/StudentUI';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -13,55 +11,141 @@ export default function StudentDashboard({ user, onLogout }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  // NEW: labs fetched from the backend, so the dropdown is backed by real IDs
-  // instead of hardcoded strings.
-  const [labs, setLabs] = useState([]); // [{ id, name }]
-  const [selectedLabName, setSelectedLabName] = useState('');
+  // Labs
+  const [labs, setLabs] = useState([]);
+  const [selectedLabId, setSelectedLabId] = useState(null);
   const [labsError, setLabsError] = useState(null);
 
-  // TODO: no endpoint exists yet to look up a student's prior attempts for a lab.
-  // Hardcoding to 1 for now — once that endpoint exists, fetch it whenever
-  // selectedLabName changes instead (e.g. GET /api/submissions/mine?labId=...).
-  const [attemptNumber] = useState(1);
+  // Challenges
+  const [challenges, setChallenges] = useState([]);
+  const [selectedChallengeId, setSelectedChallengeId] = useState(null);
+  const [challengesError, setChallengesError] = useState(null);
 
-  const problemOptions = ['Problem 01', 'Problem 02', 'Problem 03'];
+  // Dữ liệu chi tiết
+  const [mmdData, setMmdData] = useState([]);
+  const [classData, setClassData] = useState([]);
+  const [testCases, setTestCases] = useState([]);
+  
+  // Stats
+  const [stats, setStats] = useState({
+    currentGrade: null,
+    totalSubmissions: 0,
+    latestSubmission: null
+  });
 
-  const classResults = [
-    { name: 'Main', status: 'success' },
-    { name: 'Helper', status: 'success' },
-    { name: 'Utils', status: 'error' },
-    { name: 'Config', status: 'success' },
-  ];
+  // Loading states
+  const [isLoadingLabs, setIsLoadingLabs] = useState(false);
+  const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const testResults = [
-    { name: 'Test 1: Basic Input', status: 'success' },
-    { name: 'Test 2: Edge Cases', status: 'success' },
-    { name: 'Test 3: Null Values', status: 'error' },
-    { name: 'Test 4: Large Input', status: 'error' },
-  ];
-
+  // 1. Fetch labs
   useEffect(() => {
     async function fetchLabs() {
+      setIsLoadingLabs(true);
       try {
         const res = await fetch(`${API_BASE}/api/labs`);
-        if (!res.ok) {
-          throw new Error(`Failed to load labs (status ${res.status})`);
-        }
-        const data = await res.json(); // [{ id, name }, ...]
+        if (!res.ok) throw new Error(`Failed to load labs (status ${res.status})`);
+        const data = await res.json();
         setLabs(data);
         if (data.length > 0) {
-          setSelectedLabName((current) => current || data[0].name);
+          setSelectedLabId(data[0].id);
         }
       } catch (err) {
-        console.error('Failed to fetch labs:', err);
-        setLabsError('Could not load labs. Please refresh the page.');
+        console.info('Failed to fetch labs:', err.message);
+        setLabsError('Could not load labs. The backend may be offline.');
+      } finally {
+        setIsLoadingLabs(false);
       }
     }
     fetchLabs();
   }, []);
 
-  const labOptions = labs.map((lab) => lab.name);
-  const selectedLab = labs.find((lab) => lab.name === selectedLabName);
+  // 2. Fetch challenges khi lab thay đổi
+  useEffect(() => {
+    if (!selectedLabId) return;
+
+    async function fetchChallenges() {
+      setIsLoadingChallenges(true);
+      setChallengesError(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges`);
+        if (!res.ok) throw new Error(`Failed to load challenges (status ${res.status})`);
+        const data = await res.json();
+        setChallenges(data);
+        if (data.length > 0) {
+          setSelectedChallengeId(data[0].id);
+        } else {
+          setSelectedChallengeId(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch challenges:', err);
+        setChallengesError('Could not load challenges.');
+        setChallenges([]);
+        setSelectedChallengeId(null);
+      } finally {
+        setIsLoadingChallenges(false);
+      }
+    }
+    fetchChallenges();
+  }, [selectedLabId]);
+
+  // 3. Fetch chi tiết (MMD, Class, Testcases) khi challenge thay đổi
+  useEffect(() => {
+    if (!selectedChallengeId || !selectedLabId) return;
+
+    async function fetchDetails() {
+      setIsLoadingDetails(true);
+      try {
+        // Fetch MMD data
+        const mmdRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/mmd`);
+        if (mmdRes.ok) {
+          const mmdData = await mmdRes.json();
+          setMmdData(mmdData);
+        }
+
+        // Fetch Class data
+        const classRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/class`);
+        if (classRes.ok) {
+          const classData = await classRes.json();
+          setClassData(classData);
+        }
+
+        // Fetch Testcases
+        const testRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/testcases`);
+        if (testRes.ok) {
+          const testData = await testRes.json();
+          setTestCases(testData);
+        }
+
+        // Fetch Stats
+        const statsRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/stats?studentId=${user?.id}`);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
+        }
+      } catch (err) {
+        console.error('Failed to fetch details:', err);
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    }
+    fetchDetails();
+  }, [selectedLabId, selectedChallengeId, user?.id]);
+
+  const handleLabChange = (labId) => {
+    setSelectedLabId(labId);
+    // Reset challenge selection
+    setSelectedChallengeId(null);
+  };
+
+  const handleChallengeChange = (challengeId) => {
+    setSelectedChallengeId(challengeId);
+  };
+
+  const handleFileUpload = async (files, labId, challengeId) => {
+    // TODO: Implement file upload to backend
+    console.log('Uploading files:', files, 'to lab:', labId, 'challenge:', challengeId);
+  };
 
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
@@ -85,96 +169,56 @@ export default function StudentDashboard({ user, onLogout }) {
     );
   }
 
+  const isLoading = isLoadingLabs || isLoadingChallenges || isLoadingDetails;
+
   return (
     <>
       <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {/* ASSUMPTION: Select wraps a native <select> and exposes value/onChange
-                like the DOM element itself. If your Select uses a different API
-                (e.g. onValueChange(value) instead of onChange(event)), adjust
-                the handler below accordingly — nothing else here depends on it. */}
-            <Select
-              label="Select Lab"
-              options={labOptions}
-              value={selectedLabName}
-              onChange={(e) => setSelectedLabName(e.target.value)}
-            />
-            <Select label="Select Problem" options={problemOptions} />
-          </div>
-
+        <div className="w-full">
+          {/* Hiển thị lỗi labs nếu có */}
           {labsError && (
-            <p className="text-red-500 text-sm">{labsError}</p>
-          )}
-
-          <div>
-            <DropZone
-              labId={selectedLab?.id}
-              attemptNumber={attemptNumber}
-              authToken={user?.accessToken}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <ResultList title="Class Results" actionText="View All" items={classResults} />
-            <ResultList title="Test Case Results" actionText="View Details" items={testResults} />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="flex flex-col justify-between">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20 text-blue-500">
-                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-                  </svg>
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">Total Submissions</span>
-              </div>
-              <span className="text-3xl font-semibold text-gray-900 dark:text-white">12</span>
-            </Card>
-
-            <Card className="flex flex-col justify-between">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20 text-purple-500">
-                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                  </svg>
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">Latest submission</span>
-              </div>
-              <span className="text-sm text-gray-900 dark:text-white">2 days ago</span>
-            </Card>
-
-            <Card className="flex items-center justify-center">
-              <div className="relative h-24 w-24">
-                <svg className="h-24 w-24 -rotate-90">
-                  <circle cx="48" cy="48" r="40" stroke="currentColor" className="text-gray-200 dark:text-gray-800" strokeWidth="8" fill="none" />
-                  <circle cx="48" cy="48" r="40" stroke="#10B981" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="62.8" strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-medium text-gray-900 dark:text-white">75%</span>
-                </div>
-              </div>
-            </Card>
-
-            <div className="flex flex-col justify-between rounded-xl bg-gradient-to-br from-green-600 to-green-700 p-6 shadow-lg">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 text-white">
-                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                  </svg>
-                </div>
-                <span className="text-sm text-white/90">Current Grade</span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-white">92</span>
-                <span className="text-white/70">/100</span>
-              </div>
+            <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200">
+              {labsError}
             </div>
-          </div>
+          )}
+          
+          <StudentUI
+            user={user}
+            // Labs
+            labs={labs}
+            selectedLabId={selectedLabId}
+            onLabChange={handleLabChange}
+            
+            // Challenges
+            challenges={challenges}
+            selectedChallengeId={selectedChallengeId}
+            onChallengeChange={handleChallengeChange}
+            
+            // Details
+            mmdData={mmdData}
+            classData={classData}
+            testCases={testCases}
+            
+            // Stats
+            stats={stats}
+            
+            // Upload
+            onFileUpload={handleFileUpload}
+            
+            // States
+            isLoading={isLoading}
+            error={labsError || challengesError}
+          />
         </div>
       </AppShell>
-      {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />}
+      
+      {showProfile && (
+        <ProfileEditModal 
+          isOpen={showProfile} 
+          onClose={() => setShowProfile(false)} 
+          user={user} 
+        />
+      )}
     </>
   );
 }

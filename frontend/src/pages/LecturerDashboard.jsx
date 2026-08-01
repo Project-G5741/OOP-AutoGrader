@@ -133,6 +133,11 @@ export default function LecturerDashboard({ user, onLogout }) {
             else if (cmd === 'editProfile') setShowProfile(true);
           }}
       >
+        <style jsx>{`
+        header button:last-child {
+          display: none !important;
+        }
+      `}</style>
         {activeNav === 'dashboard' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -204,7 +209,7 @@ export default function LecturerDashboard({ user, onLogout }) {
           </div>
         )}
       </AppShell>
-      {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />}
+      {/* {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />} */}
     </div>
   );
 }
