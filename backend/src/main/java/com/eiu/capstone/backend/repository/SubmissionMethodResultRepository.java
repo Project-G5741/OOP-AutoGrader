@@ -17,4 +17,6 @@ public interface SubmissionMethodResultRepository extends JpaRepository<Submissi
     Optional<SubmissionMethodResult> findBySubmissionAndMethod(LabSubmission submission, Method method);
 
     void deleteBySubmission(LabSubmission submission);
+
+    List<SubmissionMethodResult> findBySubmission_Id(UUID submissionId);
 }

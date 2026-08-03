@@ -14,4 +14,6 @@ public interface ChallengeRepository extends JpaRepository<Challenge, UUID> {
     Optional<Challenge> findByLabAndChallengeNumber(Lab lab, Integer challengeNumber);
 
     List<Challenge> findByLabOrderByChallengeNumberAsc(Lab lab);
+
+    List<Challenge> findByLab_IdOrderByChallengeNumberAsc(UUID labId);
 }

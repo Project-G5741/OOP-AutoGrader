@@ -14,7 +14,7 @@ export default function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-[#F5F5F7] text-slate-900 transition-colors dark:bg-[#0A0A0F] dark:text-slate-100">
-      <div className="w-full px-4 py-4 sm:px-6 lg:px-8">
+      <div className="w-full px-0 py-0">
         <div className="w-full">
           <Header user={user} onLogout={onLogout} onNavigate={onNavigate} onCommand={onCommand} />
 

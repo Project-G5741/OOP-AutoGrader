@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import Header from '../Header';
 import ProfileEditModal from './ProfileEditModal';
 import { History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, UserCircle } from 'lucide-react';
@@ -16,22 +16,21 @@ const HISTORY = [
 
 const LAB_OPTIONS = ['All Labs', ...new Set(HISTORY.map((item) => item.labName))];
 
-function scoreColor(score) {
-  if (score >= 90) return 'text-green-400';
-  if (score >= 75) return 'text-blue-400';
-  if (score >= 60) return 'text-yellow-400';
-  return 'text-red-400';
+function badgeClass(score) {
+  if (score >= 90) return 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500/30';
+  if (score >= 75) return 'bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500/30';
+  if (score >= 60) return 'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-500/30';
+  return 'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-500/30';
 }
 
-function scoreBadge(score) {
-  if (score >= 90) return 'bg-green-900/30 border-green-500/30';
-  if (score >= 75) return 'bg-blue-900/30 border-blue-500/30';
-  if (score >= 60) return 'bg-yellow-900/30 border-yellow-500/30';
-  return 'bg-red-900/30 border-red-500/30';
+function scoreColor(score) {
+  if (score >= 90) return 'text-green-600 dark:text-green-300';
+  if (score >= 75) return 'text-blue-600 dark:text-blue-300';
+  if (score >= 60) return 'text-yellow-600 dark:text-yellow-300';
+  return 'text-red-600 dark:text-red-300';
 }
 
 export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditProfile }) {
-  const [showProfile, setShowProfile] = useState(false);
   const [filterLab, setFilterLab] = useState('All Labs');
   const [expandedRow, setExpandedRow] = useState(null);
 
@@ -58,7 +57,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
   const averageBestScore = Math.round(bestPerLab.reduce((sum, item) => sum + item.bestScore, 0) / bestPerLab.length);
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-white">   
+    <div>
     {/* <Header user={user} onLogout={onLogout} onNavigate={onNavigate} onCommand={handleCommand} />        */}
       {/* <div className="border-b border-gray-800 bg-[#161b22] px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -74,7 +73,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
         </div>
       </div> */}
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
+      <div className="w-full flex flex-col gap-6 px-6 py-8">
         <div className="grid gap-4 md:grid-cols-4">
           {[
             { label: 'Labs Attempted', value: labs.length, tone: 'text-purple-400', bg: 'bg-purple-900/30' },
@@ -82,7 +81,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
             { label: 'Average Best Score', value: `${averageBestScore}%`, tone: 'text-green-400', bg: 'bg-green-900/30' },
             { label: 'Latest Submission', value: 'Jul 1', tone: 'text-orange-400', bg: 'bg-orange-900/30' },
           ].map((card) => (
-            <div key={card.label} className="rounded-3xl border border-gray-800 bg-[#151b24] p-5">
+            <div key={card.label} className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-[#151b24]">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{card.label}</p>
                 <div className={`rounded-2xl p-3 ${card.bg}`}>
@@ -95,7 +94,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[0.6fr_1fr]">
-          <section className="rounded-3xl border border-gray-800 bg-[#151b24] p-6">
+          <section className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151b24]">
             <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">Best Score per Lab</h2>
             <div className="mt-6 space-y-4">
               {bestPerLab.map((item) => (
@@ -113,7 +112,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
             </div>
           </section>
 
-          <section className="rounded-3xl border border-gray-800 bg-[#151b24] p-6">
+          <section className="rounded-3xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151b24]">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">All Submissions</h2>
@@ -122,7 +121,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
               <select
                 value={filterLab}
                 onChange={(event) => setFilterLab(event.target.value)}
-                className="rounded-2xl border border-gray-700 bg-[#12181f] px-3 py-2 text-xs text-gray-200 outline-none"
+                className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 outline-none dark:border-gray-700 dark:bg-[#12181f] dark:text-gray-200"
               >
                 {LAB_OPTIONS.map((labName) => (
                   <option key={labName} value={labName}>{labName}</option>
@@ -130,9 +129,9 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
               </select>
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-3xl border border-gray-800 bg-[#0f151b]">
+            <div className="mt-5 overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#0f151b]">
               <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-[#12181f] text-gray-500">
+                <thead className="bg-white text-gray-600 dark:bg-[#12181f] dark:text-gray-500">
                   <tr>
                     <th className="px-4 py-3">Lab</th>
                     <th className="px-4 py-3">Attempt</th>
@@ -144,44 +143,47 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
                 </thead>
                 <tbody>
                   {filteredHistory.map((item, index) => (
-                    <>
+                    <Fragment key={item.id}>
                       <tr
-                        key={item.id}
-                        className={`cursor-pointer border-b border-gray-800 transition hover:bg-[#11171f] ${index % 2 === 0 ? 'bg-[#0f151b]' : 'bg-[#12181f]'}`}
+                        className={`cursor-pointer border-b border-gray-200 transition bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-[#0f151b] dark:hover:bg-[#11171f] ${index % 2 === 0 ? '' : 'bg-gray-50'}`}
                         onClick={() => setExpandedRow(expandedRow === item.id ? null : item.id)}
                       >
-                        <td className="px-4 py-4 text-gray-200">{item.labName}</td>
-                        <td className="px-4 py-4 text-gray-400">#{item.attempt}</td>
+                        <td className="px-4 py-4 text-gray-900 dark:text-gray-200">{item.labName}</td>
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-400">#{item.attempt}</td>
                         <td className="px-4 py-4">
-                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${scoreBadge(item.score)} ${scoreColor(item.score)}`}>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${badgeClass(item.score)}`}>
                             {item.score}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-gray-400">{item.submittedAt}</td>
-                        <td className={`px-4 py-4 text-xs font-semibold uppercase ${item.failedTests.length === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {item.failedTests.length === 0 ? 'Pass' : 'Partial'}
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-400">{item.submittedAt}</td>
+                        <td className="px-4 py-4">
+                          {item.failedTests.length === 0 ? (
+                            <span className="inline-flex rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold dark:bg-emerald-800/40 dark:text-emerald-300">Pass</span>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-red-100 text-red-800 px-3 py-1 text-xs font-semibold dark:bg-red-800/40 dark:text-red-300">Partial</span>
+                          )}
                         </td>
-                        <td className="px-4 py-4 text-gray-400">
+                        <td className="px-4 py-4 text-gray-700 dark:text-gray-400">
                           {expandedRow === item.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </td>
                       </tr>
                       {expandedRow === item.id && (
-                        <tr className="bg-[#10151b]">
+                        <tr className="bg-gray-50 dark:bg-[#10151b]">
                           <td colSpan={6} className="px-4 py-4">
                             <div className="grid gap-4 md:grid-cols-2">
                               <div>
                                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Failed Classes</p>
-                                <p className="mt-2 text-sm text-green-300">{item.failedClasses.length ? item.failedClasses.join(', ') : 'None'}</p>
+                                <p className="mt-2 text-sm text-green-700 dark:text-green-300">{item.failedClasses.length ? item.failedClasses.join(', ') : 'None'}</p>
                               </div>
                               <div>
                                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Failed Testcases</p>
-                                <p className="mt-2 text-sm text-purple-300">{item.failedTests.length ? item.failedTests.join(', ') : 'None'}</p>
+                                <p className="mt-2 text-sm text-purple-700 dark:text-purple-300">{item.failedTests.length ? item.failedTests.join(', ') : 'None'}</p>
                               </div>
                             </div>
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -190,10 +192,9 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
         </div>
       </div>
 
-      <footer className="border-t border-gray-800 px-6 py-4 text-center text-xs text-gray-500">
+      {/* <footer className="border-t border-gray-200/80 px-6 py-4 text-center text-xs text-gray-500 dark:border-gray-800">
         Made by Pham Quan Kha &amp; Doan Tuan Kiet
-      </footer>
-      {showProfile && <ProfileEditModal isOpen={showProfile} onClose={() => setShowProfile(false)} />}
+      </footer> */}
     </div>
   );
 }

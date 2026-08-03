@@ -7,7 +7,7 @@ const tabs = [
   { id: 'contact', label: 'Contact Lecturer' },
 ];
 
-export default function ProfileEditModal({ isOpen, onClose }) {
+export default function ProfileEditModal({ isOpen, onClose, user }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [avatar, setAvatar] = useState(null);
   const [dob, setDob] = useState('2002-03-15');
@@ -54,18 +54,18 @@ export default function ProfileEditModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-gray-700 bg-[#161b22] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-[#161b22]">
+        <div className="flex items-center justify-between border-b border-gray-200/80 px-6 py-4 dark:border-gray-800">
           <div>
-            <h2 className="text-lg font-semibold text-white">Student Profile</h2>
-            <p className="text-sm text-gray-400">Update your details and contact your lecturer.</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Student Profile</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">View your information and change password.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 transition hover:text-white">
+          <button onClick={onClose} className="text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-gray-800 bg-[#12181f] px-4">
+        <div className="flex gap-1 border-b border-gray-200/80 bg-gray-50 px-4 dark:border-gray-800 dark:bg-[#12181f]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -102,16 +102,28 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                 <p className="text-xs text-gray-500">Upload a profile avatar.</p>
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-medium text-gray-400">Date of Birth</label>
-                <div className="relative">
-                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                  <input
-                    type="date"
-                    value={dob}
-                    onChange={(event) => setDob(event.target.value)}
-                    className="w-full rounded-2xl border border-gray-700 bg-[#0d1117] px-10 py-3 text-sm text-white outline-none focus:border-purple-500"
-                  />
+              <div className="grid gap-3">
+                <div>
+                  <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Student ID</label>
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-[#0d1117] dark:text-white">{user?.studentId || user?.id || 'N/A'}</div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Email</label>
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-[#0d1117] dark:text-white">{user?.email || 'student@example.edu'}</div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Date of Birth</label>
+                  <div className="relative">
+                    <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={(event) => setDob(event.target.value)}
+                      className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-10 py-3 text-sm text-gray-900 outline-none focus:border-purple-500 dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -132,7 +144,7 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                 { label: 'New Password', value: newPw, setter: setNewPw, visible: showNew, toggle: () => setShowNew((value) => !value) },
               ].map((field) => (
                 <div key={field.label}>
-                  <label className="mb-2 block text-xs font-medium text-gray-400">{field.label}</label>
+                      <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">{field.label}</label>
                   <div className="relative">
                     <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
                     <input
@@ -140,7 +152,7 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                       value={field.value}
                       onChange={(event) => field.setter(event.target.value)}
                       placeholder={`Enter ${field.label.toLowerCase()}`}
-                      className="w-full rounded-2xl border border-gray-700 bg-[#0d1117] px-10 py-3 text-sm text-white outline-none focus:border-purple-500"
+                      className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-10 py-3 text-sm text-gray-900 outline-none focus:border-purple-500 dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
                     />
                     <button
                       type="button"
@@ -154,14 +166,14 @@ export default function ProfileEditModal({ isOpen, onClose }) {
               ))}
 
               <div>
-                <label className="mb-2 block text-xs font-medium text-gray-400">Confirm New Password</label>
+                <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">Confirm New Password</label>
                 <input
                   type="password"
                   value={confirmPw}
                   onChange={(event) => setConfirmPw(event.target.value)}
                   placeholder="Repeat new password"
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm text-white outline-none bg-[#0d1117] focus:border-purple-500 ${
-                    pwMismatch ? 'border-red-500' : pwMatch ? 'border-green-500' : 'border-gray-700'
+                  className={`w-full rounded-2xl border px-4 py-3 text-sm text-gray-900 outline-none bg-gray-50 focus:border-purple-500 dark:bg-[#0d1117] dark:text-white ${
+                    pwMismatch ? 'border-red-500' : pwMatch ? 'border-green-500' : 'border-gray-200'
                   }`}
                 />
                 {pwMismatch && <p className="mt-2 text-xs text-red-400">Passwords do not match.</p>}
@@ -187,7 +199,7 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="Type your message here..."
-                className="w-full rounded-2xl border border-gray-700 bg-[#0d1117] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-purple-500 dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
               />
 
               <div>
@@ -205,7 +217,7 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                       key={item.label}
                       type="button"
                       onClick={() => fileRef.current?.click()}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-gray-700 bg-[#12181f] px-3 py-2 text-xs text-gray-300 transition hover:border-purple-500 hover:text-white"
+                      className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 transition hover:border-purple-500 hover:text-white dark:border-gray-700 dark:bg-[#12181f] dark:text-gray-300"
                     >
                       <item.icon className="h-4 w-4" />
                       {item.label}
@@ -220,7 +232,7 @@ export default function ProfileEditModal({ isOpen, onClose }) {
                   onChange={handleAttach}
                 />
                 {attachment && (
-                  <div className="mt-3 flex items-center justify-between rounded-2xl border border-gray-700 bg-[#12181f] px-3 py-2 text-sm text-gray-300">
+                  <div className="mt-3 flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-[#12181f] dark:text-gray-300">
                     <span className="truncate">{attachment.name}</span>
                     <span className="text-xs text-gray-500">{attachment.size}</span>
                   </div>

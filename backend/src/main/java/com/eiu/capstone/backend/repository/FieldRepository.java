@@ -16,4 +16,8 @@ public interface FieldRepository extends JpaRepository<Field, UUID> {
 
     @Query("SELECT f FROM Field f JOIN FETCH f.fieldDeclaration fd JOIN FETCH fd.scope WHERE f.classEntity IN :classEntities")
     List<Field> findByClassEntityInWithDeclaration(@Param("classEntities") List<ClassEntity> classEntities);
+
+    List<Field> findByClassEntity_Id(UUID classEntityId);
+ 
+    List<Field> findByClassEntity_IdIn(List<UUID> classEntityIds);
 }
