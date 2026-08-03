@@ -16,4 +16,8 @@ public interface MethodRepository extends JpaRepository<Method, UUID> {
 
     @Query("SELECT m FROM Method m JOIN FETCH m.methodDeclaration md JOIN FETCH md.scope WHERE m.classEntity IN :classEntities")
     List<Method> findByClassEntityInWithDeclaration(@Param("classEntities") List<ClassEntity> classEntities);
+
+    List<Method> findByClassEntity_Id(UUID classEntityId);
+ 
+    List<Method> findByClassEntity_IdIn(List<UUID> classEntityIds);
 }

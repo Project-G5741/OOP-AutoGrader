@@ -24,9 +24,13 @@ export default function DropZone({
   title = "Drop or drag your folder here",
   buttonText = "Select Folder",
   onFilesSelected,
-  // NEW: which lab/attempt this upload belongs to, and the current auth token.
-  // Pass these down from whatever page renders DropZone (e.g. from route params
-  // and your auth context/state — adjust the source to match how you store the JWT).
+  // Which lab/attempt this upload belongs to, and the current auth token.
+  // Pass these down from whatever page renders DropZone.
+  //
+  // NOTE: attemptNumber must be the NEXT unused attempt number for this
+  // (student, lab) — the backend upserts on (user, lab, attemptNumber), so
+  // reusing an existing attempt number re-grades that same submission
+  // instead of creating a new attempt.
   labId,
   attemptNumber,
   authToken,
@@ -126,6 +130,8 @@ export default function DropZone({
         formData.append('files', file, relativePath);
       });
 
+      // Backend upserts on (user, lab, attemptNumber) - this must be the
+      // next unused attempt number for this student+lab.
       const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptNumber}/upload`, {
         method: 'POST',
         headers: {

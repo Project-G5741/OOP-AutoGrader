@@ -17,4 +17,6 @@ public interface SubmissionFieldResultRepository extends JpaRepository<Submissio
     Optional<SubmissionFieldResult> findBySubmissionAndField(LabSubmission submission, Field field);
 
     void deleteBySubmission(LabSubmission submission);
+
+    List<SubmissionFieldResult> findBySubmission_Id(UUID submissionId);
 }

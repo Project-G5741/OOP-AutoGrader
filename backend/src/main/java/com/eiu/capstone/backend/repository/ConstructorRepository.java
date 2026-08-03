@@ -16,4 +16,8 @@ public interface ConstructorRepository extends JpaRepository<Constructor, UUID> 
 
     @Query("SELECT c FROM Constructor c JOIN FETCH c.constructorDeclaration cd JOIN FETCH cd.scope WHERE c.classEntity IN :classEntities")
     List<Constructor> findByClassEntityInWithDeclaration(@Param("classEntities") List<ClassEntity> classEntities);
+    
+    List<Constructor> findByClassEntity_Id(UUID classEntityId);
+ 
+    List<Constructor> findByClassEntity_IdIn(List<UUID> classEntityIds);
 }

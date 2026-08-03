@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import com.eiu.capstone.backend.DTO.LabDTO;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.LabRepository;
@@ -35,5 +36,11 @@ public class LabService {
 
     public void deleteLab(UUID labId) {
         labRepository.deleteById(labId);
+    }
+    
+    public List<LabDTO> getAllLabs() {
+        return labRepository.findAll().stream()
+                .map(lab -> new LabDTO(lab.getId(), lab.getName()))
+                .toList();
     }
 }

@@ -25,12 +25,12 @@ export default function StudentDashboard({ user, onLogout }) {
   const [mmdData, setMmdData] = useState([]);
   const [classData, setClassData] = useState([]);
   const [testCases, setTestCases] = useState([]);
-  
-  // Stats
+
+  // Stats - null means "no data yet", not zero
   const [stats, setStats] = useState({
     currentGrade: null,
-    totalSubmissions: 0,
-    latestSubmission: null
+    totalSubmissions: null,
+    latestSubmission: null,
   });
 
   // Loading states
@@ -89,48 +89,69 @@ export default function StudentDashboard({ user, onLogout }) {
     fetchChallenges();
   }, [selectedLabId]);
 
-  // 3. Fetch chi tiết (MMD, Class, Testcases) khi challenge thay đổi
+  // 3. Fetch chi tiết (MMD, Class, Testcases, Stats) khi challenge thay đổi
+  //
+  // Gating rule: the challenges list (fetched above) already tells us, per
+  // challenge, whether the student has a submission for it (`ch.score` is
+  // null/undefined when there's none — this is the front-end equivalent of
+  // the backend's `challenge_result["challenge_N"]` being an empty array).
+  // When a challenge has no submission, there is nothing to grade-detail,
+  // so we skip the mmd/class/testcase calls entirely instead of hitting the
+  // backend for empty results.
   useEffect(() => {
     if (!selectedChallengeId || !selectedLabId) return;
 
     async function fetchDetails() {
       setIsLoadingDetails(true);
       try {
-        // Fetch MMD data
-        const mmdRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/mmd`);
-        if (mmdRes.ok) {
-          const mmdData = await mmdRes.json();
-          setMmdData(mmdData);
+        const currentChallenge = challenges.find((c) => c.id === selectedChallengeId);
+        const hasSubmissionData =
+          currentChallenge?.score !== null && currentChallenge?.score !== undefined;
+
+        if (hasSubmissionData) {
+          // Fetch MMD data
+          const mmdRes = await fetch(
+            `${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/mmd`
+          );
+          setMmdData(mmdRes.ok ? await mmdRes.json() : []);
+
+          // Fetch Class data
+          const classRes = await fetch(
+            `${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/class`
+          );
+          setClassData(classRes.ok ? await classRes.json() : []);
+
+          // Fetch Testcases
+          const testRes = await fetch(
+            `${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/testcases`
+          );
+          setTestCases(testRes.ok ? await testRes.json() : []);
+        } else {
+          // No submission for this challenge yet — nothing to fetch, tabs render empty.
+          setMmdData([]);
+          setClassData([]);
+          setTestCases([]);
         }
 
-        // Fetch Class data
-        const classRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/class`);
-        if (classRes.ok) {
-          const classData = await classRes.json();
-          setClassData(classData);
-        }
-
-        // Fetch Testcases
-        const testRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/testcases`);
-        if (testRes.ok) {
-          const testData = await testRes.json();
-          setTestCases(testData);
-        }
-
-        // Fetch Stats
-        const statsRes = await fetch(`${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/stats?studentId=${user?.id}`);
+        // Stats are always fetched; the backend returns null fields when
+        // there's no data and the UI falls back to "--/--".
+        const statsRes = await fetch(
+          `${API_BASE}/api/labs/${selectedLabId}/challenges/${selectedChallengeId}/stats?studentId=${user?.id}`
+        );
         if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          setStats(statsData);
+          setStats(await statsRes.json());
+        } else {
+          setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
         }
       } catch (err) {
         console.error('Failed to fetch details:', err);
+        setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       } finally {
         setIsLoadingDetails(false);
       }
     }
     fetchDetails();
-  }, [selectedLabId, selectedChallengeId, user?.id]);
+  }, [selectedLabId, selectedChallengeId, user?.id, challenges]);
 
   const handleLabChange = (labId) => {
     setSelectedLabId(labId);
@@ -169,7 +190,7 @@ export default function StudentDashboard({ user, onLogout }) {
     );
   }
 
-  const isLoading = isLoadingLabs || isLoadingChallenges || isLoadingDetails;
+  const isLoading = isLoadingLabs || isLoadingChallenges;
 
   return (
     <>
@@ -181,42 +202,38 @@ export default function StudentDashboard({ user, onLogout }) {
               {labsError}
             </div>
           )}
-          
+
           <StudentUI
             user={user}
             // Labs
             labs={labs}
             selectedLabId={selectedLabId}
             onLabChange={handleLabChange}
-            
             // Challenges
             challenges={challenges}
             selectedChallengeId={selectedChallengeId}
             onChallengeChange={handleChallengeChange}
-            
             // Details
             mmdData={mmdData}
             classData={classData}
             testCases={testCases}
-            
             // Stats
             stats={stats}
-            
             // Upload
             onFileUpload={handleFileUpload}
-            
             // States
             isLoading={isLoading}
+            isLoadingDetails={isLoadingDetails}
             error={labsError || challengesError}
           />
         </div>
       </AppShell>
-      
+
       {showProfile && (
-        <ProfileEditModal 
-          isOpen={showProfile} 
-          onClose={() => setShowProfile(false)} 
-          user={user} 
+        <ProfileEditModal
+          isOpen={showProfile}
+          onClose={() => setShowProfile(false)}
+          user={user}
         />
       )}
     </>

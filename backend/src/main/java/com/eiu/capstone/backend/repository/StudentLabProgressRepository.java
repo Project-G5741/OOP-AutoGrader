@@ -12,4 +12,6 @@ import com.eiu.capstone.backend.model.UserAccount;
 public interface StudentLabProgressRepository extends JpaRepository<StudentLabProgress, UUID> {
 
     Optional<StudentLabProgress> findByUserAndLab(UserAccount user, Lab lab);
+
+    Optional<StudentLabProgress> findByUser_IdAndLab_Id(UUID userId, UUID labId);
 }
