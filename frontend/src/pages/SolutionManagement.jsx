@@ -12,7 +12,7 @@ const INITIAL_SOLUTIONS = [
 
 // Reusable Modal is provided by components/ui/Modal
 
-export default function SubmissionManagement() {
+export default function SolutionManagement() {
   const [solutions, setSolutions] = useState(INITIAL_SOLUTIONS);
   const [showAdd, setShowAdd] = useState(false);
   const [replaceFor, setReplaceFor] = useState(null);
@@ -75,8 +75,8 @@ export default function SubmissionManagement() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Solution Management</h2>
           <p className="text-sm text-gray-500">Upload grading solutions per lab</p>
@@ -93,8 +93,8 @@ export default function SubmissionManagement() {
         </div>
       </div>
 
-        <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full table-fixed text-sm bg-white dark:bg-transparent">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700">
+          <table className="w-full table-auto text-sm min-w-full bg-white dark:bg-transparent">
             <thead className="bg-white dark:bg-[#0f1720] text-gray-600 dark:text-gray-400">
               <tr>
                   <th className="w-1/4 px-4 py-4 text-left">Lab</th>
@@ -108,7 +108,7 @@ export default function SubmissionManagement() {
             <tbody>
               {solutions.map((s) => (
                 <tr key={s.lab} className="border-t border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-[#0b0f14]">
-                  <td className="px-6 py-4 align-middle">
+                  <td className="px-6 py-4 align-middle break-words">
                     <div className="flex items-center gap-3">
                       {editingLab === s.lab ? (
                         <input
@@ -138,8 +138,8 @@ export default function SubmissionManagement() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-gray-700 dark:text-gray-300">
-                    <div className="max-w-[14rem] truncate" title={s.description || ''}>{s.description || '-'}</div>
+                  <td className="px-4 py-4 text-gray-700 dark:text-gray-300 break-words">
+                    <div className="max-w-full break-words text-sm" title={s.description || ''}>{s.description || '-'}</div>
                   </td>
                   <td className="px-4 py-4 text-gray-700 dark:text-gray-400">{s.uploaded}</td>
                   <td className="px-4 py-4 text-gray-700 dark:text-gray-400">{s.files} files</td>

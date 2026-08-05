@@ -3,9 +3,11 @@ package com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ChallengeService {
@@ -15,93 +17,106 @@ public class ChallengeService {
     private final FieldRepository fieldRepository;
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
-    private final StudentLabProgressRepository studentLabProgressRepository;
-    private final SubmissionFieldResultRepository submissionFieldResultRepository;
-    private final SubmissionMethodResultRepository submissionMethodResultRepository;
-    private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
+    private final SubmissionResolutionService submissionResolutionService;
+    private final SubmissionResultLoader submissionResultLoader;
+    private final boolean timingLog;
 
     public ChallengeService(ChallengeRepository challengeRepository,
                              ClassEntityRepository classEntityRepository,
                              FieldRepository fieldRepository,
                              MethodRepository methodRepository,
                              ConstructorRepository constructorRepository,
-                             StudentLabProgressRepository studentLabProgressRepository,
-                             SubmissionFieldResultRepository submissionFieldResultRepository,
-                             SubmissionMethodResultRepository submissionMethodResultRepository,
-                             SubmissionConstructorResultRepository submissionConstructorResultRepository) {
+                             SubmissionResolutionService submissionResolutionService,
+                             SubmissionResultLoader submissionResultLoader,
+                             @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
-        this.studentLabProgressRepository = studentLabProgressRepository;
-        this.submissionFieldResultRepository = submissionFieldResultRepository;
-        this.submissionMethodResultRepository = submissionMethodResultRepository;
-        this.submissionConstructorResultRepository = submissionConstructorResultRepository;
+        this.submissionResolutionService = submissionResolutionService;
+        this.submissionResultLoader = submissionResultLoader;
+        this.timingLog = timingLog;
     }
 
     public List<ChallengeDTO> getChallengesForLab(UUID labId, UUID studentId) {
+        long start = System.currentTimeMillis();
         List<Challenge> challenges = challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId);
-        UUID referenceSubmissionId = resolveReferenceSubmissionId(labId, studentId);
+        if (challenges.isEmpty()) {
+            return List.of();
+        }
+
+        UUID referenceSubmissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        SubmissionCorrectIds correctIds = referenceSubmissionId == null
+                ? new SubmissionCorrectIds(Set.of(), Set.of(), Set.of())
+                : submissionResultLoader.loadCorrectIds(referenceSubmissionId);
+
+        List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);
+        List<Field> allFields = allClasses.isEmpty()
+                ? List.of()
+                : fieldRepository.findByClassEntityInWithDeclaration(allClasses);
+        List<Method> allMethods = allClasses.isEmpty()
+                ? List.of()
+                : methodRepository.findByClassEntityInWithDeclaration(allClasses);
+        List<Constructor> allConstructors = allClasses.isEmpty()
+                ? List.of()
+                : constructorRepository.findByClassEntityInWithDeclaration(allClasses);
+
+        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        Map<UUID, List<ClassEntity>> classesByChallenge = allClasses.stream()
+                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
 
         List<ChallengeDTO> result = new ArrayList<>();
         for (Challenge challenge : challenges) {
             Integer score = referenceSubmissionId == null
                     ? null
-                    : computeChallengeScore(challenge.getId(), referenceSubmissionId);
+                    : computeChallengeScore(
+                            classesByChallenge.getOrDefault(challenge.getId(), List.of()),
+                            fieldsByClass,
+                            methodsByClass,
+                            constructorsByClass,
+                            correctIds);
             result.add(new ChallengeDTO(challenge.getId(), challenge.getName(), score));
+        }
+
+        if (timingLog) {
+            System.out.printf("read_timing challenges_ms=%d%n", System.currentTimeMillis() - start);
         }
         return result;
     }
 
-    /**
-     * The submission used to grade the sidebar score (and the MMD/Class
-     * tabs, see ClassStructureService) is the student's BEST submission for
-     * the lab — student_lab_progress.best_submission_id. Swap this for a
-     * "most recent attempt" lookup if you'd rather always show the latest try.
-     */
-    private UUID resolveReferenceSubmissionId(UUID labId, UUID studentId) {
-        if (studentId == null) return null;
-        return studentLabProgressRepository.findByUser_IdAndLab_Id(studentId, labId)
-                .map(StudentLabProgress::getBestSubmissionId)
-                .orElse(null);
-    }
+    private Integer computeChallengeScore(
+                                          List<ClassEntity> classes,
+                                          Map<UUID, List<Field>> fieldsByClass,
+                                          Map<UUID, List<Method>> methodsByClass,
+                                          Map<UUID, List<Constructor>> constructorsByClass,
+                                          SubmissionCorrectIds correctIds) {
+        if (classes.isEmpty()) {
+            return null;
+        }
 
-    /**
-     * There's no single numeric "challenge score" column in the schema —
-     * only per-submission is_correct flags per field/method/constructor.
-     * This computes the percentage of the challenge's expected members that
-     * were graded correct in the reference submission, e.g. "92/100".
-     */
-    private Integer computeChallengeScore(UUID challengeId, UUID submissionId) {
-        List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
-        if (classes.isEmpty()) return null;
-
-        List<UUID> classIds = classes.stream().map(ClassEntity::getId).toList();
-
-        List<Field> fields = fieldRepository.findByClassEntity_IdIn(classIds);
-        List<Method> methods = methodRepository.findByClassEntity_IdIn(classIds);
-        List<Constructor> constructors = constructorRepository.findByClassEntity_IdIn(classIds);
+        List<Field> fields = new ArrayList<>();
+        List<Method> methods = new ArrayList<>();
+        List<Constructor> constructors = new ArrayList<>();
+        for (ClassEntity classEntity : classes) {
+            fields.addAll(fieldsByClass.getOrDefault(classEntity.getId(), List.of()));
+            methods.addAll(methodsByClass.getOrDefault(classEntity.getId(), List.of()));
+            constructors.addAll(constructorsByClass.getOrDefault(classEntity.getId(), List.of()));
+        }
 
         int total = fields.size() + methods.size() + constructors.size();
-        if (total == 0) return null;
-
-        Set<UUID> correctFieldIds = new HashSet<>();
-        for (SubmissionFieldResult r : submissionFieldResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) correctFieldIds.add(r.getField().getId());
-        }
-        Set<UUID> correctMethodIds = new HashSet<>();
-        for (SubmissionMethodResult r : submissionMethodResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) correctMethodIds.add(r.getMethod().getId());
-        }
-        Set<UUID> correctConstructorIds = new HashSet<>();
-        for (SubmissionConstructorResult r : submissionConstructorResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) correctConstructorIds.add(r.getConstructor().getId());
+        if (total == 0) {
+            return null;
         }
 
-        long correct = fields.stream().filter(f -> correctFieldIds.contains(f.getId())).count()
-                + methods.stream().filter(m -> correctMethodIds.contains(m.getId())).count()
-                + constructors.stream().filter(c -> correctConstructorIds.contains(c.getId())).count();
+        long correct = fields.stream().filter(f -> correctIds.fieldIds().contains(f.getId())).count()
+                + methods.stream().filter(m -> correctIds.methodIds().contains(m.getId())).count()
+                + constructors.stream().filter(c -> correctIds.constructorIds().contains(c.getId())).count();
 
         return Math.round((float) (correct * 100.0 / total));
     }

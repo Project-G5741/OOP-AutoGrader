@@ -24,18 +24,13 @@ export default function DropZone({
   title = "Drop or drag your folder here",
   buttonText = "Select Folder",
   onFilesSelected,
-  // Which lab/attempt this upload belongs to, and the current auth token.
-  // Pass these down from whatever page renders DropZone.
-  //
-  // NOTE: attemptNumber must be the NEXT unused attempt number for this
-  // (student, lab) — the backend upserts on (user, lab, attemptNumber), so
-  // reusing an existing attempt number re-grades that same submission
-  // instead of creating a new attempt.
+  onUploadComplete,
   labId,
   attemptNumber,
   authToken,
 }) {
   const inputRef = useRef(null);
+  const uploadInFlightRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -88,6 +83,9 @@ export default function DropZone({
       relativePath: file.webkitRelativePath || file.name,
     }));
     handleFiles(collected);
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
   };
 
   const handleFiles = (entries) => {
@@ -98,11 +96,6 @@ export default function DropZone({
       return lower.endsWith('.mmd') || lower.endsWith('.java');
     });
 
-    console.log(`Dropped folder contains ${entries.length} file(s), ${relevant.length} relevant (.mmd/.java):`);
-    relevant.forEach(({ relativePath, file }) => {
-      console.log(`  ${relativePath}  (${file.size} bytes)`);
-    });
-
     if (onFilesSelected) {
       onFilesSelected(relevant.map((e) => e.file));
     }
@@ -111,6 +104,7 @@ export default function DropZone({
   };
 
   const uploadFiles = async (entries) => {
+    if (isUploading || uploadInFlightRef.current) return;
     if (!labId || !attemptNumber) {
       console.error('DropZone: labId/attemptNumber not provided, cannot upload.');
       setUploadError('Missing lab or attempt info — cannot upload.');
@@ -122,6 +116,7 @@ export default function DropZone({
       return;
     }
 
+    uploadInFlightRef.current = true;
     setIsUploading(true);
     setUploadError(null);
     try {
@@ -132,7 +127,8 @@ export default function DropZone({
 
       // Backend upserts on (user, lab, attemptNumber) - this must be the
       // next unused attempt number for this student+lab.
-      const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptNumber}/upload`, {
+    const attemptForUpload = attemptNumber;
+    const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${authToken}`,
@@ -146,11 +142,14 @@ export default function DropZone({
       }
 
       const data = await res.json();
-      console.log('Upload successful:', data);
+      if (onUploadComplete) {
+        onUploadComplete(data);
+      }
     } catch (err) {
       console.error('Upload error:', err);
       setUploadError(err.message || 'Upload failed. Please try again.');
     } finally {
+      uploadInFlightRef.current = false;
       setIsUploading(false);
     }
   };

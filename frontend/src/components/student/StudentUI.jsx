@@ -8,6 +8,7 @@ import {
   ChevronUp,
   ClipboardList,
   AlertCircle,
+  GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
 
@@ -30,6 +31,37 @@ function StatusBadge({ status }) {
   );
 }
 
+function ScorePill({ ok, total, pct }) {
+  const color = pct >= 80
+    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700'
+    : pct >= 60
+      ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700'
+      : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700';
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-semibold ${color}`}>
+      {ok}/{total} · {pct}%
+    </span>
+  );
+}
+
+function relationTypeStyle(type) {
+  const normalized = String(type ?? '').toLowerCase();
+  if (normalized.includes('extends')) {
+    return 'bg-blue-500/10 text-blue-500 dark:bg-blue-500/15 dark:text-blue-300';
+  }
+  if (normalized.includes('implements')) {
+    return 'bg-orange-500/10 text-orange-500 dark:bg-orange-500/15 dark:text-orange-300';
+  }
+  if (normalized.includes('uses') || normalized.includes('depends')) {
+    return 'bg-teal-500/10 text-teal-500 dark:bg-teal-500/15 dark:text-teal-300';
+  }
+  if (normalized.includes('associates') || normalized.includes('aggregates')) {
+    return 'bg-purple-500/10 text-purple-500 dark:bg-purple-500/15 dark:text-purple-300';
+  }
+  return 'bg-slate-100 text-slate-700 dark:bg-[#1a1e27] dark:text-slate-200';
+}
+
 function scoreColor(s) {
   if (s === null || s === undefined) return 'text-gray-400';
   if (s >= 90) return 'text-green-500';
@@ -40,6 +72,15 @@ function scoreColor(s) {
 
 // Helper: has a value that isn't null/undefined
 const hasValue = (v) => v !== null && v !== undefined;
+
+function formatScopeDetail(scope, detail) {
+  const normalizedScope = scope?.trim();
+  const normalizedDetail = detail?.trim() ?? '';
+  if (!normalizedScope || normalizedScope === '-') {
+    return normalizedDetail;
+  }
+  return normalizedDetail ? `${normalizedScope} · ${normalizedDetail}` : normalizedScope;
+}
 
 export default function StudentUI({
   user,
@@ -64,13 +105,15 @@ export default function StudentUI({
     totalSubmissions: null,
     latestSubmission: null,
   },
+  nextAttemptNumber = 1,
 
   // Upload handler
-  onFileUpload = () => {},
+  onUploadComplete = () => {},
 
   // Loading/Error states
   isLoading = false,
   isLoadingDetails = false,
+  isRefreshingResults = false,
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -110,9 +153,74 @@ export default function StudentUI({
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
   const currentLab = labs.find(l => l.id === selectedLabId) || labs[0];
 
+  const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
+  const relations = relationData.length > 0 ? relationData : [
+    { from: 'Car', to: 'Vehicle', relType: 'extends', ok: true },
+    { from: 'Bike', to: 'Vehicle', relType: 'extends', ok: true },
+    { from: 'Car', to: 'Drivable', relType: 'implements', ok: false, error: 'Missing relation' },
+  ];
+
+  const relationScore = {
+    ok: relations.filter((r) => r.ok).length,
+    total: relations.length,
+    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 0,
+  };
+
+  const mmdScore = {
+    ok: mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0),
+    total: mmdData.reduce((sum, cls) => sum + (cls.attributes?.length || 0), 0),
+    pct: (() => {
+      const total = mmdData.reduce((sum, cls) => sum + (cls.attributes?.length || 0), 0);
+      const ok = mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0);
+      return total ? Math.round((ok / total) * 100) : 0;
+    })(),
+  };
+
+  const classScore = {
+    ok: classData.reduce((sum, cls) => {
+      const fieldsOk = cls.fields?.filter((f) => f.ok).length || 0;
+      const ctorsOk = cls.constructors?.filter((c) => c.ok).length || 0;
+      const methodsOk = cls.methods?.filter((m) => m.ok).length || 0;
+      return sum + fieldsOk + ctorsOk + methodsOk;
+    }, 0),
+    total: classData.reduce((sum, cls) => {
+      const fieldCount = cls.fields?.length || 0;
+      const ctorCount = cls.constructors?.length || 0;
+      const methodCount = cls.methods?.length || 0;
+      return sum + fieldCount + ctorCount + methodCount;
+    }, 0),
+    pct: (() => {
+      const total = classData.reduce((sum, cls) => sum + (cls.fields?.length || 0) + (cls.constructors?.length || 0) + (cls.methods?.length || 0), 0);
+      const ok = classData.reduce((sum, cls) => sum + (cls.fields?.filter((f) => f.ok).length || 0) + (cls.constructors?.filter((c) => c.ok).length || 0) + (cls.methods?.filter((m) => m.ok).length || 0), 0);
+      return total ? Math.round((ok / total) * 100) : 0;
+    })(),
+  };
+
+  const testCasesData = testCases || [];
+  const testScore = {
+    ok: testCasesData.filter((tc) => !tc.isExample && tc.passed).length,
+    total: testCasesData.filter((tc) => !tc.isExample).length || 1,
+    pct: (() => {
+      const scored = testCasesData.filter((tc) => !tc.isExample);
+      const ok = scored.filter((tc) => tc.passed).length;
+      return scored.length ? Math.round((ok / scored.length) * 100) : 0;
+    })(),
+  };
+
+  const issueErrors = [
+    ...mmdData.flatMap((cls) => cls.attributes?.filter((a) => !a.ok && a.error).map((a) => ({ type: 'MMD', message: a.error, location: `${cls.name} • ${a.name}` })) || []),
+    ...relations.filter((r) => !r.ok && r.error).map((r) => ({ type: 'Relation', message: r.error, location: `${r.from} → ${r.to}` })),
+    ...classData.flatMap((cls) => [
+      ...(cls.fields?.filter((f) => !f.ok && f.error).map((f) => ({ type: 'Class', message: f.error, location: `${cls.name} • ${f.name}` })) || []),
+      ...(cls.constructors?.filter((c) => !c.ok && c.error).map((c) => ({ type: 'Class', message: c.error, location: `${cls.name} • ${c.name}` })) || []),
+      ...(cls.methods?.filter((m) => !m.ok && m.error).map((m) => ({ type: 'Class', message: m.error, location: `${cls.name} • ${m.name}` })) || []),
+    ]),
+    ...testCasesData.filter((tc) => !tc.passed && tc.error).map((tc) => ({ type: 'Testcase', message: tc.error, location: tc.name })),
+  ];
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1a1f2e] transition-colors">
-      <div className="w-full max-w-full mx-auto px-12 py-12">
+      <div className="w-full max-w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Lab selector - Từ backend */}
         <div className="bg-white dark:bg-[#1e2530] rounded-xl p-4 shadow-sm dark:shadow-none mb-4">
           <label className="block text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
@@ -120,7 +228,7 @@ export default function StudentUI({
           </label>
           <select
             value={selectedLabId || ''}
-            onChange={(e) => onLabChange(Number(e.target.value))}
+            onChange={(e) => onLabChange(e.target.value)}
             className="w-full bg-gray-50 dark:bg-[#151b24] text-gray-900 dark:text-white px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 focus:border-purple-500 focus:outline-none text-sm"
             disabled={labs.length === 0}
           >
@@ -142,14 +250,14 @@ export default function StudentUI({
             title="Drop your project files here"
             buttonText="Select Project"
             labId={selectedLabId}
-            attemptNumber={(stats.totalSubmissions ?? 0) + 1}
+            attemptNumber={nextAttemptNumber}
             authToken={user?.accessToken}
-            onFilesSelected={(files) => onFileUpload(files, selectedLabId, selectedChallengeId)}
+            onUploadComplete={onUploadComplete}
           />
         </div>
 
         {/* Stats row - Từ backend, hiển thị "--/--" khi không có dữ liệu */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
@@ -190,10 +298,19 @@ export default function StudentUI({
           </div>
         </div>
 
-        {/* Overview */}
-        <div className="flex gap-4 min-h-[560px]">
+        {/* Overview — sidebar + result panel; only this section refreshes after upload */}
+        <div className="relative flex flex-col gap-4 min-h-[560px] lg:flex-row">
+          {isRefreshingResults && (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-[#1a1f2e]/60"
+              aria-busy="true"
+              aria-label="Refreshing results"
+            >
+              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           {/* Challenges sidebar - Từ backend */}
-          <div className="w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+          <div className="w-full lg:w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Challenges</h2>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
@@ -272,212 +389,258 @@ export default function StudentUI({
                 </div>
               ) : (
                 <>
-              {activeTab === 'mmd' && mmdData.length > 0 && (
-                <div className="grid grid-cols-3 gap-4">
-                  {mmdData.map((cls) => (
-                    <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                      <div className="bg-purple-50 dark:bg-purple-900/20 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-sm font-bold text-purple-700 dark:text-purple-300 font-mono">
-                          {cls.name}
-                        </p>
+              {activeTab === 'mmd' && (
+                <>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Object model checks for the selected challenge.</p>
+                    </div>
+                    <ScorePill ok={mmdScore.ok} total={mmdScore.total || 1} pct={mmdScore.pct} />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
+                    {mmdData.length > 0 ? mmdData.map((cls) => (
+                      <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                        <div className="bg-purple-50 dark:bg-purple-900/20 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                          <p className="text-sm font-bold text-purple-700 dark:text-purple-300 font-mono">{cls.name}</p>
+                        </div>
+                        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {cls.attributes?.map((a, i) => (
+                            <li key={i} className={`flex items-center justify-between px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                              <span className={`font-mono ${a.type === 'field' ? 'text-blue-600 dark:text-blue-400' : a.type === 'method' ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>
+                                {a.name}
+                              </span>
+                              <Tick ok={a.ok} />
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {cls.attributes.map((a, i) => (
-                          <li key={i} className={`flex items-center justify-between px-4 py-2 text-xs ${
-                            i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'
-                          }`}>
-                            <span className={`font-mono ${
-                              a.type === 'field'
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : a.type === 'method'
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-orange-500 dark:text-orange-400'
-                            }`}>
-                              {a.name}
-                            </span>
-                            <Tick ok={a.ok} />
-                          </li>
+                    )) : (
+                      <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                        No MMD class data is available.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-3xl bg-gray-50 p-4 dark:bg-[#11171f]">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                        <GitMerge className="w-4 h-4" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
+                      </div>
+                      <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                    </div>
+                    <div className="w-full overflow-hidden rounded-3xl border border-gray-200/40 dark:border-gray-700/50 bg-[#0f1320]">
+                      <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200/10 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold">From</span>
+                        <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
+                        <span className="font-semibold">To</span>
+                        <span className="font-semibold text-center">Status</span>
+                      </div>
+                      <div className="divide-y divide-gray-200/10 dark:divide-gray-800 bg-transparent">
+                        {relations.map((r, index) => (
+                          <div key={index}>
+                            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-slate-100">
+                              <span className="font-mono text-purple-400">{r.from}</span>
+                              <div className="flex justify-center">
+                                <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
+                                  {r.relType}
+                                </span>
+                              </div>
+                              <span className="font-mono text-purple-400">{r.to}</span>
+                              <div className="flex justify-center">
+                                {r.ok ? (
+                                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                                ) : (
+                                  <XCircle className="h-5 w-5 text-red-500" />
+                                )}
+                              </div>
+                            </div>
+                            {!r.ok && r.error && (
+                              <div className="grid grid-cols-4 px-4 py-2 text-xs font-mono text-red-300 bg-red-950/20">
+                                <div className="col-span-4 text-left">{r.from} → {r.to}: {r.error}</div>
+                              </div>
+                            )}
+                          </div>
                         ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeTab === 'class' && classData.length > 0 && (
-                <div className="space-y-5">
-                  {classData.map((cls) => (
-                    <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                      <div className="bg-gray-50 dark:bg-[#151b24] px-5 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-                        <div>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                            {cls.type || 'Class'}
-                          </span>
-                          <p className="font-bold text-gray-900 dark:text-white font-mono">
-                            {cls.name}
-                          </p>
-                        </div>
-                        <StatusBadge status={cls.status} />
-                      </div>
-                      <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                            Fields
-                          </p>
-                          {cls.fields?.map((f, i) => (
-                            <div key={i} className={`flex items-center justify-between px-4 py-2 ${
-                              i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'
-                            }`}>
-                              <div>
-                                <p className="text-xs font-mono text-blue-600 dark:text-blue-400">
-                                  {f.name}
-                                </p>
-                                <p className="text-[10px] text-gray-400">
-                                  {f.scope} · {f.dataType}
-                                </p>
-                              </div>
-                              <Tick ok={f.ok} />
-                            </div>
-                          ))}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                            Constructors
-                          </p>
-                          {cls.constructors?.map((c, i) => (
-                            <div key={i} className={`flex items-center justify-between px-4 py-2 ${
-                              i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'
-                            }`}>
-                              <div>
-                                <p className="text-xs font-mono text-orange-500 dark:text-orange-400">
-                                  {c.name}()
-                                </p>
-                                <p className="text-[10px] text-gray-400 truncate max-w-[110px]">
-                                  {c.params}
-                                </p>
-                              </div>
-                              <Tick ok={c.ok} />
-                            </div>
-                          ))}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                            Methods
-                          </p>
-                          {cls.methods?.map((m, i) => (
-                            <div key={i} className={`flex items-center justify-between px-4 py-2 ${
-                              i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'
-                            }`}>
-                              <div>
-                                <p className="text-xs font-mono text-green-600 dark:text-green-400">
-                                  {m.name}()
-                                </p>
-                                <p className="text-[10px] text-gray-400">
-                                  {m.scope} · {m.returnType}
-                                </p>
-                              </div>
-                              <Tick ok={m.ok} />
-                            </div>
-                          ))}
-                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                </>
               )}
 
-              {activeTab === 'testcase' && testCases.length > 0 && (
-                <div className="space-y-2">
-                  {testCases.map((tc) => (
-                    <div key={tc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                      <button
-                        onClick={() => tc.isExample && setExpandedTC(expandedTC === tc.id ? null : tc.id)}
-                        disabled={!tc.isExample}
-                        className={`w-full flex items-center justify-between px-4 py-3 transition-colors text-left ${
-                          tc.isExample
-                            ? 'hover:bg-gray-50 dark:hover:bg-[#151b24] cursor-pointer'
-                            : 'cursor-default opacity-60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {tc.isExample ? (
-                            <Tick ok={tc.passed} />
-                          ) : (
-                            <Lock className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                          )}
-                          <span className={`text-sm font-medium ${
-                            tc.isExample
-                              ? 'text-gray-800 dark:text-gray-200'
-                              : 'text-gray-400 dark:text-gray-600'
-                          }`}>
-                            {tc.name}
-                          </span>
-                          {!tc.isExample && (
-                            <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
-                              Hidden
-                            </span>
-                          )}
-                          {tc.isExample && (
-                            <StatusBadge status={tc.passed ? 'success' : 'error'} />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {tc.isExample && (
-                            <span className={`text-xs font-semibold ${
-                              tc.passed ? 'text-green-500' : 'text-red-500'
-                            }`}>
-                              {tc.passed ? 'PASS' : 'FAIL'}
-                            </span>
-                          )}
-                          {tc.isExample && (
-                            expandedTC === tc.id
-                              ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                              : <ChevronDown className="w-4 h-4 text-gray-400" />
-                          )}
-                        </div>
-                      </button>
-
-                      {tc.isExample && expandedTC === tc.id && (
-                        <div className="border-t border-gray-100 dark:border-gray-700 grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700">
-                          <div className="p-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                              Input
-                            </p>
-                            <pre className="bg-gray-50 dark:bg-[#151b24] rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                              {tc.input || '—'}
-                            </pre>
-                          </div>
-                          <div className="p-4">
-                            <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2">
-                              Expected Output
-                            </p>
-                            <pre className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40 rounded-lg p-3 text-xs font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap">
-                              {tc.expectedOutput || '—'}
-                            </pre>
-                          </div>
-                          <div className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                Your Output
-                              </p>
-                              <Tick ok={tc.passed} />
-                            </div>
-                            <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap border ${
-                              tc.passed
-                                ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-400"
-                                : "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400"
-                            }`}>
-                              {tc.studentOutput || '—'}
-                            </pre>
-                          </div>
-                        </div>
-                      )}
+              {activeTab === 'class' && (
+                <>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Field, constructor and method checks.</p>
                     </div>
-                  ))}
-                  <p className="text-xs text-gray-400 dark:text-gray-600 text-center pt-2">
-                    Only example testcases are viewable. Normal testcases are hidden.
-                  </p>
-                </div>
+                    <ScorePill ok={classScore.ok} total={classScore.total || 1} pct={classScore.pct} />
+                  </div>
+
+                  {classData.length > 0 ? (
+                    <div className="space-y-5">
+                      {classData.map((cls) => {
+                        const failedItems = [
+                          ...(cls.fields?.filter((f) => !f.ok).map((f) => ({ message: f.error || 'Field failed', location: f.name })) || []),
+                          ...(cls.constructors?.filter((c) => !c.ok).map((c) => ({ message: c.error || 'Constructor failed', location: c.name })) || []),
+                          ...(cls.methods?.filter((m) => !m.ok).map((m) => ({ message: m.error || 'Method failed', location: m.name })) || []),
+                        ];
+                        return (
+                          <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                            <div className="bg-gray-50 dark:bg-[#151b24] px-5 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+                              <div>
+                                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">{cls.type || 'Class'}</span>
+                                <p className="font-bold text-gray-900 dark:text-white font-mono">{cls.name}</p>
+                              </div>
+                              <StatusBadge status={failedItems.length ? 'error' : 'success'} />
+                            </div>
+
+                            {failedItems.length > 0 && (
+                              <div className="border-b border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10 px-5 py-3">
+                                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">Errors</p>
+                                <div className="space-y-2 text-xs text-red-600 dark:text-red-300">
+                                  {failedItems.map((item, idx) => (
+                                    <div key={idx} className="rounded-2xl bg-red-100 dark:bg-red-900/20 px-3 py-2">
+                                      <p className="font-semibold">{item.location}</p>
+                                      <p>{item.message}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-800">
+                              <div>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Fields</p>
+                                {cls.fields?.map((f, i) => (
+                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                                    <div>
+                                      <p className="text-xs font-mono text-blue-600 dark:text-blue-400">{f.name}</p>
+                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(f.scope, f.dataType)}</p>
+                                    </div>
+                                    <Tick ok={f.ok} />
+                                  </div>
+                                ))}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Constructors</p>
+                                {cls.constructors?.map((c, i) => (
+                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                                    <div>
+                                      <p className="text-xs font-mono text-orange-500 dark:text-orange-400">{c.name}({c.params})</p>
+                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(c.scope, '')}</p>
+                                    </div>
+                                    <Tick ok={c.ok} />
+                                  </div>
+                                ))}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Methods</p>
+                                {cls.methods?.map((m, i) => (
+                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                                    <div>
+                                      <p className="text-xs font-mono text-green-600 dark:text-green-400">{m.name}() : {m.returnType}</p>
+                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(m.scope, '')}</p>
+                                    </div>
+                                    <Tick ok={m.ok} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                      No class detail data is available.
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'testcase' && (
+                <>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Example testcases are visible; normal testcases remain hidden.</p>
+                    </div>
+                    <ScorePill ok={testScore.ok} total={testScore.total || 1} pct={testScore.pct} />
+                  </div>
+
+                  {testCasesData.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#11171f]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 mb-3">Errors</p>
+                        {issueErrors.filter((issue) => issue.type === 'Testcase').length > 0 ? (
+                          <div className="space-y-2">
+                            {issueErrors.filter((issue) => issue.type === 'Testcase').map((issue, index) => (
+                              <div key={index} className="rounded-2xl bg-white dark:bg-[#161b22] px-3 py-2 text-xs text-red-600 dark:text-red-300 border border-red-100 dark:border-red-800">
+                                <p className="font-semibold">{issue.location}</p>
+                                <p>{issue.message}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">No detailed testcase errors available yet.</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {testCasesData.map((tc) => (
+                          <div key={tc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => tc.isExample && setExpandedTC(expandedTC === tc.id ? null : tc.id)}
+                              disabled={!tc.isExample}
+                              className={`w-full flex items-center justify-between px-4 py-3 transition-colors text-left ${tc.isExample ? 'hover:bg-gray-50 dark:hover:bg-[#151b24] cursor-pointer' : 'cursor-default opacity-70'}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                {tc.isExample ? <Tick ok={tc.passed} /> : <Lock className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />}
+                                <span className={`text-sm font-medium ${tc.isExample ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600'}`}>
+                                  {tc.name}
+                                </span>
+                                {!tc.isExample && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>}
+                                {tc.isExample && <StatusBadge status={tc.passed ? 'success' : 'error'} />}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {tc.isExample && <span className={`text-xs font-semibold ${tc.passed ? 'text-green-500' : 'text-red-500'}`}>{tc.passed ? 'PASS' : 'FAIL'}</span>}
+                                {tc.isExample && (expandedTC === tc.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />)}
+                              </div>
+                            </button>
+
+                            {tc.isExample && expandedTC === tc.id && (
+                              <div className="border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-700">
+                                <div className="p-4">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Input</p>
+                                  <pre className="bg-gray-50 dark:bg-[#151b24] rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{tc.input || '—'}</pre>
+                                </div>
+                                <div className="p-4">
+                                  <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2">Expected Output</p>
+                                  <pre className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40 rounded-lg p-3 text-xs font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap">{tc.expectedOutput || '—'}</pre>
+                                </div>
+                                <div className="p-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Your Output</p>
+                                    <Tick ok={tc.passed} />
+                                  </div>
+                                  <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap border ${tc.passed ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400'}`}>{tc.studentOutput || '—'}</pre>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                      No testcase detail data is available.
+                    </div>
+                  )}
+                </>
               )}
                 </>
               )}

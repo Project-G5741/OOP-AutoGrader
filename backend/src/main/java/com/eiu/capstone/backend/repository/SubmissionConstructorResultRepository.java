@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -20,4 +22,6 @@ public interface SubmissionConstructorResultRepository extends JpaRepository<Sub
 
     List<SubmissionConstructorResult> findBySubmission_Id(UUID submissionId);
 
+    @Query("SELECT r FROM SubmissionConstructorResult r JOIN FETCH r.constructor WHERE r.submission.id = :submissionId")
+    List<SubmissionConstructorResult> findBySubmission_IdWithConstructor(@Param("submissionId") UUID submissionId);
 }

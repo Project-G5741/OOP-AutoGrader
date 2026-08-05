@@ -36,7 +36,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (labs, upload, stats) | `GET /api/labs`, upload via `DropZone` |
+| `showHistory === false` | Main dashboard (labs, upload, stats) | Parallel `GET /api/labs/{id}/challenges` + `GET /api/labs/{id}/stats`; class via `/class` on challenge select |
 | `showHistory === true` | `StudentHistoryPage` | Mock `HISTORY` constant |
 
 ### Header commands (`Header.jsx` → `onCommand`)
@@ -55,6 +55,9 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `PUT /api/users/{id}` | `UserManagement.jsx` |
 | `DELETE /api/users/{id}` | `UserManagement.jsx` |
 | `GET /api/labs` | `StudentDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges?studentId=` | `StudentDashboard.jsx` |
+| `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 

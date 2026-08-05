@@ -62,6 +62,10 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`
 - Soft-delete: users set `isActive=false`
 
+### Submission resolution
+
+Student-facing challenge scores, Class tab, and stats **current grade** use the student's **latest attempt** for the lab (`LabSubmissionRepository.findFirstByUser_IdAndLab_IdOrderByAttemptNumberDesc`). `student_lab_progress.best_submission_id` and `highest_score` are still updated on upload but are not used for student dashboard display.
+
 ### Submission pipeline (summary)
 
 Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + compare against snapshot) → MMD hook (no-op by default) → cleanup temp folder.
@@ -72,7 +76,18 @@ Grading tuning properties (`application.properties`):
 |---|---|---|
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers (capped at CPU count) |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
-| `app.grading.timing-log` | `false` | Log `rubric_ms`, `process_ms`, `grade_ms`, `total_ms` per upload |
+| `app.grading.timing-log` | `false` | Log upload (`rubric_ms`, `process_ms`, `grade_ms`, `total_ms`) and read paths (`challenges_ms`, `class_ms`, `stats_ms`) |
+| `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
+
+### Read-path performance
+
+- `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
+- `MasterDataCache` — cached scope/type labels; `ClassStructureService` uses batched rubric queries (same pattern as `LabRubricService`)
+- `ChallengeService` — one submission-result load + batched classes/members for all challenges in a lab
+- Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
+- `attemptsCount` on progress is synced to the count of `lab_submission` rows (one per attempt); re-upload does not add rows
+- Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
+- `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 
 ## Work Guidance
 

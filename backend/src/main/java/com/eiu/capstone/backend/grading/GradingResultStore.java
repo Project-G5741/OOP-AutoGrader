@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.grading;
 
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -31,14 +32,15 @@ class GradingResultStore {
 
     @Transactional(readOnly = true)
     GradingService.ExistingResults loadExisting(LabSubmission submission) {
+        UUID submissionId = submission.getId();
         GradingService.ExistingResults existing = new GradingService.ExistingResults();
-        existing.fieldResults = submissionFieldResultRepository.findBySubmission(submission)
+        existing.fieldResults = submissionFieldResultRepository.findBySubmission_IdWithField(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getField().getId(), r -> r));
-        existing.methodResults = submissionMethodResultRepository.findBySubmission(submission)
+        existing.methodResults = submissionMethodResultRepository.findBySubmission_IdWithMethod(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getMethod().getId(), r -> r));
-        existing.constructorResults = submissionConstructorResultRepository.findBySubmission(submission)
+        existing.constructorResults = submissionConstructorResultRepository.findBySubmission_IdWithConstructor(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getConstructor().getId(), r -> r));
-        existing.challengeResults = submissionChallengeResultRepository.findBySubmission(submission)
+        existing.challengeResults = submissionChallengeResultRepository.findBySubmission_IdWithChallenge(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getChallenge().getId(), r -> r));
         return existing;
     }

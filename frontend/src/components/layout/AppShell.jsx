@@ -11,12 +11,19 @@ export default function AppShell({
   showNav = false,
   className = '',
   onCommand,
+  hideUserMenu = false,
 }) {
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-slate-900 transition-colors dark:bg-[#0A0A0F] dark:text-slate-100">
+    <div className="min-h-screen bg-[#F5F5F7] text-slate-900 transition-colors dark:bg-[#0A0A0F] dark:text-slate-100 overflow-x-hidden">
       <div className="w-full px-0 py-0">
-        <div className="w-full">
-          <Header user={user} onLogout={onLogout} onNavigate={onNavigate} onCommand={onCommand} />
+        <div className="w-full max-w-full overflow-x-hidden">
+          <Header
+            user={user}
+            onLogout={onLogout}
+            onNavigate={onNavigate}
+            onCommand={onCommand}
+            hideUserMenu={hideUserMenu}
+          />
 
           {showNav && (
             <div className="mt-4 w-full">
@@ -24,7 +31,7 @@ export default function AppShell({
             </div>
           )}
 
-          <main className={`mt-6 flex-1 ${className}`}>{children}</main>
+          <main className={`mt-6 flex-1 min-w-0 overflow-x-hidden ${className}`}>{children}</main>
 
           <Footer />
         </div>

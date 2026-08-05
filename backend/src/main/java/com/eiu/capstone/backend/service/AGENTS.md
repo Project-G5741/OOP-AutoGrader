@@ -40,7 +40,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `JavaCompilerService.compile(sources, outputDir)` requires JDK (`ToolProvider.getSystemJavaCompiler()`)
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
-- Failures throw `SubmissionProcessingException` with diagnostic messages
+- Compile failures for a challenge folder are captured per challenge (upload continues); diagnostics appear on Class tab cards via `ClassDetailDTO.error`
 - Empty source list returns empty diagnostics (no-op)
 
 ### Authentication
