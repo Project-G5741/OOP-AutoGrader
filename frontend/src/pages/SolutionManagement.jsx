@@ -12,7 +12,7 @@ const INITIAL_SOLUTIONS = [
 
 // Reusable Modal is provided by components/ui/Modal
 
-export default function SubmissionManagement() {
+export default function SolutionManagement() {
   const [solutions, setSolutions] = useState(INITIAL_SOLUTIONS);
   const [showAdd, setShowAdd] = useState(false);
   const [replaceFor, setReplaceFor] = useState(null);

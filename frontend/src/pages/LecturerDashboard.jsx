@@ -8,7 +8,7 @@ import LecturerOverviewCard from '../components/lecturer/LecturerOverviewCard';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import Select from '../components/ui/Select';
 import UserManagement from './UserManagement';
-import SubmissionManagement from './SubmissionManagement';
+import SolutionManagement from './SolutionManagement';
 
 const ROOT_FOLDERS = [
   { name: 'Lab01_2190001_John_Doe', type: 'folder' },
@@ -200,7 +200,7 @@ export default function LecturerDashboard({ user, onLogout }) {
           </div>
         ) : activeNav === 'projects' ? (
           <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
-            <SubmissionManagement />
+            <SolutionManagement />
           </div>
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-700 shadow-sm dark:border-gray-700 dark:bg-[#1e2530] dark:text-gray-300 mx-4 sm:mx-6 lg:mx-8 max-w-full overflow-x-hidden">
