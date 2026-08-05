@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.eiu.capstone.backend.model.UserAccount;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -36,6 +37,7 @@ public class UserDTO {
         @NotBlank(message = "Role is required")
         private String role; // e.g. "STUDENT", "TEACHER", "ADMIN"
  
+        @JsonAlias({"newPassword"})
         private String password;
  
         public UpdateUserRequest() {}

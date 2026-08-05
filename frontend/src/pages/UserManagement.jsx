@@ -93,12 +93,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       ? rawRoles.map((role) => (typeof role === 'string' ? role : role?.name)).filter(Boolean).map((role) => role.toUpperCase())
       : [];
 
+    const initialRole = (item.role || normalizedRoles[0] || 'STUDENT').toUpperCase();
+    const roleValue = initialRole === 'TEACHER' ? 'LECTURER' : initialRole;
+
     setForm({
       irn: item.irn || item.studentCode || item.teacherCode || '',
       fullname: item.fullname || item.fullName || '',
       email: item.email || '',
       password: '',
-      role: item.role || normalizedRoles[0] || 'STUDENT',
+      role: roleValue,
     });
     setModal('edit');
   };
@@ -143,6 +146,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         };
         if (form.password) {
           requestBody.password = form.password;
+          requestBody.newPassword = form.password;
         }
         const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
           method: 'PUT',
@@ -153,14 +157,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         const updatedData = await resp.json();
         setUsers((prev) => prev.map((item) => (item.id === selected.id ? normalizeUser(updatedData) : item)));
       } else {
-        const userPayload = {
+        const normalizedRole = form.role === 'TEACHER' ? 'LECTURER' : form.role;
+      const userPayload = {
           fullName: form.fullname,
           email: form.email,
           password: form.password,
-          studentCode: form.role === 'STUDENT' ? form.irn : null,
-          teacherCode: form.role === 'LECTURER' ? form.irn : null,
+          studentCode: normalizedRole === 'STUDENT' ? form.irn : null,
+          teacherCode: normalizedRole === 'LECTURER' ? form.irn : null,
           dateOfBirth: null,
-          roleNames: [form.role],
+          roleNames: [normalizedRole],
         };
         const resp = await fetch(`${API_BASE}/api/users/addUser`, {
           method: 'POST',

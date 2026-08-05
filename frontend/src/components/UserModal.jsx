@@ -57,7 +57,7 @@ export default function UserModal({ modal, selected, form, isDark, onClose, onSa
                   className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm transition-all"
                 >
                   <option value="STUDENT">STUDENT</option>
-                  <option value="LECTURER">LECTURER</option>
+                  <option value="LECTURER">TEACHER</option>
                 </select>
               </div>
             </div>

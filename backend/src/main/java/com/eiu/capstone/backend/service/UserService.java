@@ -222,7 +222,7 @@ public class UserService {
                 });
  
         // Resolve the role first, since it decides where the IRN goes
-        String roleName = request.getRole().trim().toUpperCase();
+        String roleName = normalizeRoleName(request.getRole());
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Role not found: " + roleName));
@@ -231,7 +231,7 @@ public class UserService {
         if ("STUDENT".equals(roleName)) {
             user.setStudentCode(request.getIrn());
             user.setTeacherCode(null);
-        } else if ("TEACHER".equals(roleName)) {
+        } else if ("LECTURER".equals(roleName)) {
             user.setTeacherCode(request.getIrn());
             user.setStudentCode(null);
         } else {
@@ -284,7 +284,11 @@ public class UserService {
         if (roleName == null || roleName.isBlank()) {
             return "STUDENT";
         }
-        return roleName.trim().toUpperCase();
+        String normalized = roleName.trim().toUpperCase();
+        if ("TEACHER".equals(normalized) || "LECTURER".equals(normalized)) {
+            return "LECTURER";
+        }
+        return normalized;
     }
 
     private boolean isLecturerRole(String roleName) {
