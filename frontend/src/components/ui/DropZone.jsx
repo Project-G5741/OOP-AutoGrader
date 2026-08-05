@@ -127,7 +127,8 @@ export default function DropZone({
 
       // Backend upserts on (user, lab, attemptNumber) - this must be the
       // next unused attempt number for this student+lab.
-      const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptNumber}/upload`, {
+    const attemptForUpload = attemptNumber;
+    const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${authToken}`,

@@ -28,6 +28,7 @@ export default function StudentDashboard({ user, onLogout }) {
     totalSubmissions: null,
     latestSubmission: null,
   });
+  const [nextAttemptNumber, setNextAttemptNumber] = useState(1);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(false);
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
@@ -68,7 +69,15 @@ export default function StudentDashboard({ user, onLogout }) {
     }
   }, [studentId]);
 
-  const fetchStats = useCallback(async (labId) => {
+  useEffect(() => {
+    if (stats.totalSubmissions != null) {
+      setNextAttemptNumber((prev) =>
+        Math.max(prev, Number(stats.totalSubmissions) + 1)
+      );
+    }
+  }, [stats.totalSubmissions, selectedLabId]);
+
+  const fetchStats = useCallback(async (labId, { uploadSnapshot } = {}) => {
     if (!labId || !studentId) {
       setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       return;
@@ -78,13 +87,24 @@ export default function StudentDashboard({ user, onLogout }) {
         `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`
       );
       if (statsRes.ok) {
-        setStats(await statsRes.json());
-      } else {
+        const fresh = await statsRes.json();
+        setStats((prev) => ({
+          ...fresh,
+          totalSubmissions:
+            uploadSnapshot?.totalSubmissions ?? fresh.totalSubmissions ?? prev.totalSubmissions,
+          latestSubmission:
+            uploadSnapshot?.latestSubmission ?? fresh.latestSubmission ?? prev.latestSubmission,
+          currentGrade:
+            uploadSnapshot?.currentGrade ?? fresh.currentGrade ?? prev.currentGrade,
+        }));
+      } else if (!uploadSnapshot) {
         setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
-      setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
+      if (!uploadSnapshot) {
+        setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
+      }
     }
   }, [studentId]);
 
@@ -187,6 +207,7 @@ export default function StudentDashboard({ user, onLogout }) {
   const handleLabChange = (labId) => {
     setSelectedLabId(labId);
     setSelectedChallengeId(null);
+    setNextAttemptNumber(1);
     classDataCacheRef.current = {};
     setMmdData([]);
     setClassData([]);
@@ -205,6 +226,13 @@ export default function StudentDashboard({ user, onLogout }) {
 
   const handleUploadComplete = async (uploadResponse) => {
     const resultMap = uploadResponse?.challengeResult ?? {};
+    const uploadSnapshot = {
+      currentGrade: uploadResponse?.score != null
+        ? Math.round(Number(uploadResponse.score))
+        : undefined,
+      totalSubmissions: uploadResponse?.totalSubmissions ?? undefined,
+      latestSubmission: uploadResponse?.latestSubmission ?? undefined,
+    };
 
     for (const challengeId of Object.keys(resultMap)) {
       delete classDataCacheRef.current[challengeId];
@@ -219,11 +247,16 @@ export default function StudentDashboard({ user, onLogout }) {
     );
 
     setStats((prev) => ({
-      currentGrade: uploadResponse?.score != null
-        ? Math.round(Number(uploadResponse.score))
-        : prev.currentGrade,
-      latestSubmission: prev.latestSubmission,
+      currentGrade: uploadSnapshot.currentGrade ?? prev.currentGrade,
+      totalSubmissions: uploadSnapshot.totalSubmissions ?? prev.totalSubmissions,
+      latestSubmission: uploadSnapshot.latestSubmission ?? prev.latestSubmission,
     }));
+
+    if (uploadResponse?.attemptNumber != null) {
+      setNextAttemptNumber(Number(uploadResponse.attemptNumber) + 1);
+    } else if (uploadSnapshot.totalSubmissions != null) {
+      setNextAttemptNumber(Number(uploadSnapshot.totalSubmissions) + 1);
+    }
 
     if (!selectedLabId) return;
 
@@ -231,7 +264,7 @@ export default function StudentDashboard({ user, onLogout }) {
     try {
       await Promise.all([
         fetchChallenges(selectedLabId, { silent: true }),
-        fetchStats(selectedLabId),
+        fetchStats(selectedLabId, { uploadSnapshot }),
         selectedChallengeId
           ? fetchClassForChallenge(selectedLabId, selectedChallengeId, {
               force: true,
@@ -285,6 +318,7 @@ export default function StudentDashboard({ user, onLogout }) {
               classData={classData}
               testCases={testCases}
               stats={stats}
+              nextAttemptNumber={nextAttemptNumber}
               onUploadComplete={handleUploadComplete}
               isLoading={isInitialLoading}
               isLoadingDetails={isLoadingDetails}

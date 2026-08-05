@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.Method;
@@ -19,4 +21,7 @@ public interface SubmissionMethodResultRepository extends JpaRepository<Submissi
     void deleteBySubmission(LabSubmission submission);
 
     List<SubmissionMethodResult> findBySubmission_Id(UUID submissionId);
+
+    @Query("SELECT r FROM SubmissionMethodResult r JOIN FETCH r.method WHERE r.submission.id = :submissionId")
+    List<SubmissionMethodResult> findBySubmission_IdWithMethod(@Param("submissionId") UUID submissionId);
 }

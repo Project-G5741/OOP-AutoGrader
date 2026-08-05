@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.DTO.*;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -11,117 +12,125 @@ import java.util.stream.Collectors;
 @Service
 public class ClassStructureService {
 
+    private final ChallengeRepository challengeRepository;
     private final ClassEntityRepository classEntityRepository;
     private final FieldRepository fieldRepository;
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
     private final ParameterRepository parameterRepository;
-    private final StudentLabProgressRepository studentLabProgressRepository;
-    private final SubmissionFieldResultRepository submissionFieldResultRepository;
-    private final SubmissionMethodResultRepository submissionMethodResultRepository;
-    private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
-    private final MasterDataResolver masterDataResolver;
+    private final SubmissionResolutionService submissionResolutionService;
+    private final SubmissionResultLoader submissionResultLoader;
+    private final MasterDataCache masterDataCache;
+    private final SubmissionCompileErrorStore compileErrorStore;
+    private final boolean timingLog;
 
-    public ClassStructureService(ClassEntityRepository classEntityRepository,
+    public ClassStructureService(ChallengeRepository challengeRepository,
+                                  ClassEntityRepository classEntityRepository,
                                   FieldRepository fieldRepository,
                                   MethodRepository methodRepository,
                                   ConstructorRepository constructorRepository,
                                   ParameterRepository parameterRepository,
-                                  StudentLabProgressRepository studentLabProgressRepository,
-                                  SubmissionFieldResultRepository submissionFieldResultRepository,
-                                  SubmissionMethodResultRepository submissionMethodResultRepository,
-                                  SubmissionConstructorResultRepository submissionConstructorResultRepository,
-                                  MasterDataResolver masterDataResolver) {
+                                  SubmissionResolutionService submissionResolutionService,
+                                  SubmissionResultLoader submissionResultLoader,
+                                  MasterDataCache masterDataCache,
+                                  SubmissionCompileErrorStore compileErrorStore,
+                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
+        this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
         this.parameterRepository = parameterRepository;
-        this.studentLabProgressRepository = studentLabProgressRepository;
-        this.submissionFieldResultRepository = submissionFieldResultRepository;
-        this.submissionMethodResultRepository = submissionMethodResultRepository;
-        this.submissionConstructorResultRepository = submissionConstructorResultRepository;
-        this.masterDataResolver = masterDataResolver;
+        this.submissionResolutionService = submissionResolutionService;
+        this.submissionResultLoader = submissionResultLoader;
+        this.masterDataCache = masterDataCache;
+        this.compileErrorStore = compileErrorStore;
+        this.timingLog = timingLog;
     }
 
-    /** Powers the "MMD" tab: one box per class, one line per field/constructor/method. */
+    /**
+     * MMD grading is not implemented yet — returns empty until .mmd files are graded.
+     */
     public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId) {
-        UUID submissionId = resolveReferenceSubmissionId(labId, studentId);
-        if (submissionId == null) return List.of();
+        return List.of();
+    }
 
-        List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
-        if (classes.isEmpty()) return List.of();
-
-        Set<UUID> correctFieldIds = correctFieldIds(submissionId);
-        Set<UUID> correctMethodIds = correctMethodIds(submissionId);
-        Set<UUID> correctConstructorIds = correctConstructorIds(submissionId);
-
-        List<MmdClassDTO> result = new ArrayList<>();
-        for (ClassEntity ce : classes) {
-            List<MmdAttributeDTO> attributes = new ArrayList<>();
-
-            for (Field f : fieldRepository.findByClassEntity_Id(ce.getId())) {
-                String label = f.getName() + ": " + f.getFieldDeclaration().getDataType();
-                attributes.add(new MmdAttributeDTO(label, "field", correctFieldIds.contains(f.getId())));
-            }
-            for (Constructor c : constructorRepository.findByClassEntity_Id(ce.getId())) {
-                String params = formatParams(parameterRepository.findByConstructorEntity_IdOrderByOrderIndexAsc(c.getId()), false);
-                attributes.add(new MmdAttributeDTO(c.getName() + "(" + params + ")", "constructor",
-                        correctConstructorIds.contains(c.getId())));
-            }
-            for (Method m : methodRepository.findByClassEntity_Id(ce.getId())) {
-                String label = m.getName() + "(): " + m.getMethodDeclaration().getReturnType();
-                attributes.add(new MmdAttributeDTO(label, "method", correctMethodIds.contains(m.getId())));
-            }
-
-            result.add(new MmdClassDTO(ce.getName(), attributes));
+    /** Powers the "Class" tab for the student's latest attempt. */
+    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId) {
+        long start = System.currentTimeMillis();
+        UUID submissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        if (submissionId == null) {
+            return List.of();
+        }
+        List<ClassDetailDTO> result = buildClassDataForSubmission(submissionId, challengeId);
+        if (timingLog) {
+            System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
         }
         return result;
     }
 
-    /** Powers the "Class" tab: one card per class with Fields / Constructors / Methods columns. */
-    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId) {
-        UUID submissionId = resolveReferenceSubmissionId(labId, studentId);
-        if (submissionId == null) return List.of();
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID submissionId, UUID challengeId) {
+        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge == null) {
+            return List.of();
+        }
 
-        List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
-        if (classes.isEmpty()) return List.of();
+        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(List.of(challenge));
+        if (classes.isEmpty()) {
+            return List.of();
+        }
 
-        Map<Integer, String> masterData = masterDataResolver.loadAll();
+        Map<Integer, String> masterData = masterDataCache.get();
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
 
-        Set<UUID> correctFieldIds = correctFieldIds(submissionId);
-        Set<UUID> correctMethodIds = correctMethodIds(submissionId);
-        Set<UUID> correctConstructorIds = correctConstructorIds(submissionId);
+        List<Field> allFields = fieldRepository.findByClassEntityInWithDeclaration(classes);
+        List<Method> allMethods = methodRepository.findByClassEntityInWithDeclaration(classes);
+        List<Constructor> allConstructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
+        List<Parameter> constructorParams = allConstructors.isEmpty()
+                ? List.of()
+                : parameterRepository.findByConstructorEntityIn(allConstructors);
+
+        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        Map<UUID, List<Parameter>> paramsByConstructor = constructorParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
+
+        String compileError = compileErrorStore.get(submissionId, challengeId);
 
         List<ClassDetailDTO> result = new ArrayList<>();
         for (ClassEntity ce : classes) {
-            List<ClassFieldDetailDTO> fields = fieldRepository.findByClassEntity_Id(ce.getId()).stream()
+            List<ClassFieldDetailDTO> fields = fieldsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(f -> new ClassFieldDetailDTO(
                             f.getName(),
                             masterData.getOrDefault(f.getFieldDeclaration().getScope(), "-"),
                             f.getFieldDeclaration().getDataType(),
-                            correctFieldIds.contains(f.getId())))
+                            correctIds.fieldIds().contains(f.getId())))
                     .toList();
 
-            List<ClassConstructorDetailDTO> constructors = constructorRepository.findByClassEntity_Id(ce.getId()).stream()
+            List<ClassConstructorDetailDTO> constructors = constructorsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(c -> new ClassConstructorDetailDTO(
                             c.getName(),
-                            formatParams(parameterRepository.findByConstructorEntity_IdOrderByOrderIndexAsc(c.getId()), true),
-                            correctConstructorIds.contains(c.getId())))
+                            formatParams(paramsByConstructor.getOrDefault(c.getId(), List.of()), true),
+                            correctIds.constructorIds().contains(c.getId())))
                     .toList();
 
-            List<ClassMethodDetailDTO> methods = methodRepository.findByClassEntity_Id(ce.getId()).stream()
+            List<ClassMethodDetailDTO> methods = methodsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(m -> new ClassMethodDetailDTO(
                             m.getName(),
                             masterData.getOrDefault(m.getMethodDeclaration().getScope(), "-"),
                             m.getMethodDeclaration().getReturnType(),
-                            correctMethodIds.contains(m.getId())))
+                            correctIds.methodIds().contains(m.getId())))
                     .toList();
 
             result.add(new ClassDetailDTO(
                     ce.getName(),
                     resolveClassType(ce, masterData),
-                    resolveStatus(fields, constructors, methods),
+                    compileError != null ? "error" : resolveStatus(fields, constructors, methods),
+                    compileError,
                     fields, constructors, methods));
         }
         return result;
@@ -149,38 +158,8 @@ public class ClassStructureService {
 
     private String formatParams(List<Parameter> params, boolean includeType) {
         return params.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
                 .map(p -> includeType ? (p.getDataType() + " " + p.getName()) : p.getName())
                 .collect(Collectors.joining(", "));
-    }
-
-    private Set<UUID> correctFieldIds(UUID submissionId) {
-        Set<UUID> ids = new HashSet<>();
-        for (SubmissionFieldResult r : submissionFieldResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) ids.add(r.getField().getId());
-        }
-        return ids;
-    }
-
-    private Set<UUID> correctMethodIds(UUID submissionId) {
-        Set<UUID> ids = new HashSet<>();
-        for (SubmissionMethodResult r : submissionMethodResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) ids.add(r.getMethod().getId());
-        }
-        return ids;
-    }
-
-    private Set<UUID> correctConstructorIds(UUID submissionId) {
-        Set<UUID> ids = new HashSet<>();
-        for (SubmissionConstructorResult r : submissionConstructorResultRepository.findBySubmission_Id(submissionId)) {
-            if (r.isCorrect()) ids.add(r.getConstructor().getId());
-        }
-        return ids;
-    }
-
-    private UUID resolveReferenceSubmissionId(UUID labId, UUID studentId) {
-        if (studentId == null) return null;
-        return studentLabProgressRepository.findByUser_IdAndLab_Id(studentId, labId)
-                .map(StudentLabProgress::getBestSubmissionId)
-                .orElse(null);
     }
 }

@@ -12,6 +12,7 @@ public record ClassDetailDTO(
         String name,
         String type,
         String status,
+        String error,
         List<ClassFieldDetailDTO> fields,
         List<ClassConstructorDetailDTO> constructors,
         List<ClassMethodDetailDTO> methods

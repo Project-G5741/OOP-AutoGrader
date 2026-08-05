@@ -63,24 +63,28 @@ public class GradingService {
         this.gradingResultStore = gradingResultStore;
     }
 
-    public BigDecimal gradeSubmission(LabSubmission submission,
+    public GradingOutcome gradeSubmission(LabSubmission submission,
                                       LabRubricSnapshot rubric,
-                                      List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+                                      List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+                                      boolean skipExistingLoad) {
 
-        String irn = submission.getUser() != null ? submission.getUser().getIrn() : "unknown";
-        System.out.println("=========================================");
-        System.out.println("Grading submission " + submission.getId() + " (IRN: " + irn + ")");
-
-        GradingService.ExistingResults existing = gradingResultStore.loadExisting(submission);
+        GradingService.ExistingResults existing = skipExistingLoad
+                ? emptyExistingResults()
+                : gradingResultStore.loadExisting(submission);
         GradingComputationResult computed = computeAgainstSnapshot(
                 rubric, challengeFolderResults, submission, existing);
         gradingResultStore.save(computed);
 
-        System.out.println("Overall score (simple average across " + computed.challengePercentages.size()
-                + " challenge(s)): " + computed.overallScore + " / 100");
-        System.out.println("=========================================");
+        return new GradingOutcome(computed.overallScore, computed.gradedChallenges);
+    }
 
-        return computed.overallScore;
+    private static ExistingResults emptyExistingResults() {
+        ExistingResults existing = new ExistingResults();
+        existing.fieldResults = Map.of();
+        existing.methodResults = Map.of();
+        existing.constructorResults = Map.of();
+        existing.challengeResults = Map.of();
+        return existing;
     }
 
     private GradingComputationResult computeAgainstSnapshot(
@@ -103,6 +107,7 @@ public class GradingService {
         result.constructorResults = new ArrayList<>();
         result.challengeResults = new ArrayList<>();
         result.challengePercentages = new ArrayList<>();
+        result.gradedChallenges = new ArrayList<>();
 
         for (ChallengeComputation cc : challengeComputations) {
             if (cc == null) continue;
@@ -123,8 +128,10 @@ public class GradingService {
             if (cc.percentage != null) {
                 result.challengePercentages.add(cc.percentage);
             }
-            if (cc.challengeNumber != null) {
-                printChallengeReport(cc);
+            if (cc.challengeId != null && cc.percentage != null) {
+                result.gradedChallenges.add(new GradedChallengeSummary(
+                        cc.challengeId,
+                        cc.percentage.setScale(0, RoundingMode.HALF_UP).intValue()));
             }
         }
 
@@ -140,14 +147,11 @@ public class GradingService {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
-            System.out.println("  [skip] Folder '" + folderResult.challengeName
-                    + "' doesn't look like challenge_<N> — cannot map to a Challenge row.");
             return null;
         }
 
         ChallengeRubric challengeRubric = rubric.challenge(challengeNumber).orElse(null);
         if (challengeRubric == null) {
-            System.out.println("  [skip] No Challenge rubric for challenge_number=" + challengeNumber + ".");
             return null;
         }
 
@@ -160,6 +164,7 @@ public class GradingService {
 
         ChallengeComputation computation = new ChallengeComputation();
         computation.challengeNumber = challengeNumber;
+        computation.challengeId = challengeRubric.challengeId();
         computation.challengeName = challengeRubric.name();
         computation.pendingFields = new ArrayList<>();
         computation.pendingMethods = new ArrayList<>();
@@ -378,27 +383,6 @@ public class GradingService {
         return result;
     }
 
-    private void printChallengeReport(ChallengeComputation computation) {
-        System.out.println("--- Challenge #" + computation.challengeNumber + ": " + computation.challengeName + " ---");
-        System.out.println("  Score: " + computation.percentage + "% | Fully correct: " + computation.fullyCorrect);
-        for (ClassGradeReport cr : computation.classReports) {
-            String status = !cr.matched ? "MISSING" : (cr.classAttributesCorrect ? "OK" : "class declaration incorrect");
-            System.out.println("  Class " + cr.className + ": " + status);
-            printIfNotEmpty("    Missing fields", cr.missingFields);
-            printIfNotEmpty("    Incorrect fields", cr.incorrectFields);
-            printIfNotEmpty("    Missing methods", cr.missingMethods);
-            printIfNotEmpty("    Incorrect methods", cr.incorrectMethods);
-            printIfNotEmpty("    Missing constructors", cr.missingConstructors);
-            printIfNotEmpty("    Incorrect constructors", cr.incorrectConstructors);
-        }
-    }
-
-    private void printIfNotEmpty(String label, List<String> items) {
-        if (!items.isEmpty()) {
-            System.out.println(label + ": " + items);
-        }
-    }
-
     static class ExistingResults {
         Map<UUID, SubmissionFieldResult> fieldResults;
         Map<UUID, SubmissionMethodResult> methodResults;
@@ -412,11 +396,13 @@ public class GradingService {
         List<SubmissionConstructorResult> constructorResults;
         List<SubmissionChallengeResult> challengeResults;
         List<BigDecimal> challengePercentages;
+        List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
     }
 
     private static class ChallengeComputation {
         Integer challengeNumber;
+        UUID challengeId;
         String challengeName;
         BigDecimal percentage;
         boolean fullyCorrect;

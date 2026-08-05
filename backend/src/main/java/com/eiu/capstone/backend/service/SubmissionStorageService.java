@@ -45,11 +45,17 @@ public class SubmissionStorageService {
         public final String challengeName;
         public final Path folder;
         public final int classFileCount;
+        public final String compileError;
 
         public ChallengeResult(String challengeName, Path folder, int classFileCount) {
+            this(challengeName, folder, classFileCount, null);
+        }
+
+        public ChallengeResult(String challengeName, Path folder, int classFileCount, String compileError) {
             this.challengeName = challengeName;
             this.folder = folder;
             this.classFileCount = classFileCount;
+            this.compileError = compileError;
         }
     }
 
@@ -159,9 +165,9 @@ public class SubmissionStorageService {
 
         try {
             javaCompilerService.compile(javaSources, classesFolder);
-        } catch (RuntimeException e) {
-            deleteRecursively(challengeFolder);
-            throw e;
+        } catch (SubmissionProcessingException e) {
+            deleteRecursively(classesFolder);
+            return new ChallengeResult(challengeName, challengeFolder, 0, e.getMessage());
         } finally {
             deleteRecursively(sourcesFolder);
         }

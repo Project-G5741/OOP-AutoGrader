@@ -105,6 +105,7 @@ export default function StudentUI({
     totalSubmissions: null,
     latestSubmission: null,
   },
+  nextAttemptNumber = 1,
 
   // Upload handler
   onUploadComplete = () => {},
@@ -227,7 +228,7 @@ export default function StudentUI({
           </label>
           <select
             value={selectedLabId || ''}
-            onChange={(e) => onLabChange(Number(e.target.value))}
+            onChange={(e) => onLabChange(e.target.value)}
             className="w-full bg-gray-50 dark:bg-[#151b24] text-gray-900 dark:text-white px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 focus:border-purple-500 focus:outline-none text-sm"
             disabled={labs.length === 0}
           >
@@ -249,7 +250,7 @@ export default function StudentUI({
             title="Drop your project files here"
             buttonText="Select Project"
             labId={selectedLabId}
-            attemptNumber={(stats.totalSubmissions ?? 0) + 1}
+            attemptNumber={nextAttemptNumber}
             authToken={user?.accessToken}
             onUploadComplete={onUploadComplete}
           />

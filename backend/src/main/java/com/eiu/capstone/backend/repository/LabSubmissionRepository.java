@@ -24,4 +24,9 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
 
     /** All attempts a student has made on one specific lab, most recent attempt first. */
     List<LabSubmission> findByUserAndLabOrderByAttemptNumberDesc(UserAccount user, Lab lab);
+
+    /** Latest attempt for student-facing grading display. */
+    java.util.Optional<LabSubmission> findFirstByUser_IdAndLab_IdOrderByAttemptNumberDesc(UUID userId, UUID labId);
+
+    long countByUser_IdAndLab_Id(UUID userId, UUID labId);
 }

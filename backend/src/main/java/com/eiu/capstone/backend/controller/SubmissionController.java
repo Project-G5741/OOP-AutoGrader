@@ -3,9 +3,13 @@ package com.eiu.capstone.backend.controller;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -19,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.eiu.capstone.backend.DTO.ChallengeUploadResult;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
+import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingService;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
@@ -34,6 +38,7 @@ import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
+import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
@@ -44,6 +49,12 @@ import io.jsonwebtoken.JwtException;
 @RequestMapping("/api/submissions")
 public class SubmissionController {
 
+    private static final DateTimeFormatter LATEST_SUBMISSION_FORMAT =
+            DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm");
+
+    private static final Pattern CHALLENGE_NUMBER_PATTERN =
+            Pattern.compile("challenge_(\\d+)", Pattern.CASE_INSENSITIVE);
+
     private final JwtService jwtService;
     private final SubmissionStorageService submissionStorageService;
     private final UserAccountRepository userAccountRepository;
@@ -53,6 +64,7 @@ public class SubmissionController {
     private final GradingService gradingService;
     private final LabRubricCache labRubricCache;
     private final MmdPersistenceHook mmdPersistenceHook;
+    private final SubmissionCompileErrorStore compileErrorStore;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -64,6 +76,7 @@ public class SubmissionController {
                                  GradingService gradingService,
                                  LabRubricCache labRubricCache,
                                  MmdPersistenceHook mmdPersistenceHook,
+                                 SubmissionCompileErrorStore compileErrorStore,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -74,6 +87,7 @@ public class SubmissionController {
         this.gradingService = gradingService;
         this.labRubricCache = labRubricCache;
         this.mmdPersistenceHook = mmdPersistenceHook;
+        this.compileErrorStore = compileErrorStore;
         this.timingLog = timingLog;
     }
 
@@ -117,6 +131,7 @@ public class SubmissionController {
             LabSubmission submission = labSubmissionRepository
                     .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber)
                     .orElseGet(LabSubmission::new);
+            boolean isNewAttempt = submission.getId() == null;
             submission.setUser(userAccount);
             submission.setLab(lab);
             submission.setAttemptNumber(attemptNumber);
@@ -124,22 +139,24 @@ public class SubmissionController {
             submission = labSubmissionRepository.save(submission);
 
             long gradeStart = System.currentTimeMillis();
-            BigDecimal score = gradingService.gradeSubmission(submission, rubric, uploadResult.challenges);
+            GradingOutcome gradingOutcome = gradingService.gradeSubmission(
+                    submission, rubric, uploadResult.challenges, isNewAttempt);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
-            submission.setScore(score);
+            submission.setScore(gradingOutcome.overallScore());
             submission = labSubmissionRepository.save(submission);
 
-            updateStudentProgress(userAccount, lab, submission, score);
+            StudentLabProgress progress = updateStudentProgress(
+                    userAccount, lab, submission, gradingOutcome.overallScore(), attemptNumber);
+
+            compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
 
-            List<ChallengeUploadResult> challengeResults = uploadResult.challenges.stream()
-                    .map(c -> new ChallengeUploadResult(
-                            c.challengeName,
-                            uploadResult.mmdByChallenge.getOrDefault(c.challengeName, List.of()).size(),
-                            c.classFileCount))
-                    .collect(Collectors.toList());
+            Map<UUID, Integer> challengeResult = new LinkedHashMap<>();
+            for (var graded : gradingOutcome.gradedChallenges()) {
+                challengeResult.put(graded.challengeId(), graded.scorePercent());
+            }
 
             if (timingLog) {
                 long totalMs = System.currentTimeMillis() - totalStart;
@@ -151,8 +168,13 @@ public class SubmissionController {
                     submission.getId(),
                     irn,
                     requestId,
-                    challengeResults,
-                    submission.getScore()
+                    challengeResult,
+                    submission.getScore(),
+                    attemptNumber,
+                    progress.getAttemptsCount(),
+                    progress.getLastSubmittedAt() == null
+                            ? null
+                            : LATEST_SUBMISSION_FORMAT.format(progress.getLastSubmittedAt())
             ));
         } finally {
             if (submissionFolderToDelete != null) {
@@ -161,7 +183,11 @@ public class SubmissionController {
         }
     }
 
-    private void updateStudentProgress(UserAccount userAccount, Lab lab, LabSubmission submission, BigDecimal score) {
+    private StudentLabProgress updateStudentProgress(UserAccount userAccount,
+                                                     Lab lab,
+                                                     LabSubmission submission,
+                                                     BigDecimal score,
+                                                     int attemptNumber) {
         StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
                 .orElseGet(StudentLabProgress::new);
         progress.setUser(userAccount);
@@ -173,15 +199,40 @@ public class SubmissionController {
         }
         progress.setLastSubmittedAt(now);
 
-        int attempts = progress.getAttemptsCount() == null ? 0 : progress.getAttemptsCount();
-        progress.setAttemptsCount(attempts + 1);
+        labSubmissionRepository.flush();
+        int submissionRows = (int) labSubmissionRepository.countByUser_IdAndLab_Id(
+                userAccount.getId(), lab.getId());
+        progress.setAttemptsCount(Math.max(submissionRows, attemptNumber));
 
         if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
             progress.setHighestScore(score);
             progress.setBestSubmissionId(submission.getId());
         }
 
-        studentLabProgressRepository.save(progress);
+        return studentLabProgressRepository.save(progress);
+    }
+
+    private Map<UUID, String> compileErrorsByChallengeId(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challenges) {
+        Map<UUID, String> errors = new LinkedHashMap<>();
+        for (SubmissionStorageService.ChallengeResult challengeResult : challenges) {
+            if (challengeResult.compileError == null || challengeResult.compileError.isBlank()) {
+                continue;
+            }
+            Integer challengeNumber = extractChallengeNumber(challengeResult.challengeName);
+            if (challengeNumber == null) {
+                continue;
+            }
+            rubric.challenge(challengeNumber).ifPresent(challengeRubric ->
+                    errors.put(challengeRubric.challengeId(), challengeResult.compileError));
+        }
+        return errors;
+    }
+
+    private Integer extractChallengeNumber(String challengeFolderKey) {
+        Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(challengeFolderKey);
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : null;
     }
 
     private Claims parseAuthHeader(String authHeader) {
