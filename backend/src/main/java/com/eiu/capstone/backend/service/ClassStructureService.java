@@ -242,7 +242,7 @@ public class ClassStructureService {
             List<ClassFieldDetailDTO> fields = fieldsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(f -> new ClassFieldDetailDTO(
                             f.getName(),
-                            masterData.getOrDefault(f.getFieldDeclaration().getScope(), "-"),
+                            resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
                             f.getFieldDeclaration().getDataType(),
                             correctIds.fieldIds().contains(f.getId())))
                     .toList();
@@ -250,6 +250,7 @@ public class ClassStructureService {
             List<ClassConstructorDetailDTO> constructors = constructorsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(c -> new ClassConstructorDetailDTO(
                             c.getName(),
+                            resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
                             formatParams(paramsByConstructor.getOrDefault(c.getId(), List.of()), true),
                             correctIds.constructorIds().contains(c.getId())))
                     .toList();
@@ -257,7 +258,7 @@ public class ClassStructureService {
             List<ClassMethodDetailDTO> methods = methodsByClass.getOrDefault(ce.getId(), List.of()).stream()
                     .map(m -> new ClassMethodDetailDTO(
                             m.getName(),
-                            masterData.getOrDefault(m.getMethodDeclaration().getScope(), "-"),
+                            resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),
                             m.getMethodDeclaration().getReturnType(),
                             correctIds.methodIds().contains(m.getId())))
                     .toList();
@@ -275,6 +276,17 @@ public class ClassStructureService {
     private String resolveClassType(ClassEntity ce, Map<Integer, String> masterData) {
         String declaringType = masterData.getOrDefault(ce.getDeclaringType(), "CLASS");
         return ce.isAbstract() ? "ABSTRACT " + declaringType : declaringType;
+    }
+
+    private String resolveMasterDataLabel(MasterData masterData, Map<Integer, String> valueMap) {
+        if (masterData == null) {
+            return "-";
+        }
+        Integer id = masterData.getId();
+        if (id == null) {
+            return masterData.getName() != null ? masterData.getName() : "-";
+        }
+        return valueMap.getOrDefault(id, masterData.getName() != null ? masterData.getName() : "-");
     }
 
     private String resolveStatus(List<ClassFieldDetailDTO> fields,

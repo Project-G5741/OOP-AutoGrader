@@ -134,10 +134,12 @@ export default function StudentUI({
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
+  const [expandedClassName, setExpandedClassName] = useState(null);
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
     setExpandedTC(null);
+    setExpandedClassName(null);
   }, [selectedChallengeId]);
 
   const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-purple-500 text-purple-500 dark:text-purple-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`;
@@ -497,7 +499,7 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Field, constructor and method checks.</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Tap a class to inspect its members.</p>
                     </div>
                     {resultsRevealed && classScore.total > 0 && (
                       <ScorePill ok={classScore.ok} total={classScore.total} pct={classScore.pct} />
@@ -505,81 +507,93 @@ export default function StudentUI({
                   </div>
 
                   {classData.length > 0 ? (
-                    <div className="space-y-5">
+                    <div className="space-y-3">
                       {classData.map((cls) => {
-                        const failedItems = [
-                          ...(cls.fields?.filter((f) => !f.ok).map((f) => ({ message: f.error || 'Field failed', location: f.name })) || []),
-                          ...(cls.constructors?.filter((c) => !c.ok).map((c) => ({ message: c.error || 'Constructor failed', location: c.name })) || []),
-                          ...(cls.methods?.filter((m) => !m.ok).map((m) => ({ message: m.error || 'Method failed', location: m.name })) || []),
-                        ];
-                        return (
-                          <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                            <div className="bg-gray-50 dark:bg-[#151b24] px-5 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-                              <div>
-                                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">{cls.type || 'Class'}</span>
-                                <p className="font-bold text-gray-900 dark:text-white font-mono">{cls.name}</p>
-                              </div>
-                              <StatusBadge status={failedItems.length ? 'error' : 'success'} />
-                            </div>
+                        const fields = cls.fields ?? [];
+                        const constructors = cls.constructors ?? [];
+                        const methods = cls.methods ?? [];
+                        const isOpen = expandedClassName === cls.name;
+                        const allItems = [...fields, ...constructors, ...methods];
+                        const passCount = allItems.filter((item) => item.ok).length;
+                        const clsPct = allItems.length ? Math.round((passCount / allItems.length) * 100) : 100;
 
-                            {failedItems.length > 0 && (
-                              <div className="border-b border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10 px-5 py-3">
-                                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">Errors</p>
-                                <div className="space-y-2 text-xs text-red-600 dark:text-red-300">
-                                  {failedItems.map((item, idx) => (
-                                    <div key={idx} className="rounded-2xl bg-red-100 dark:bg-red-900/20 px-3 py-2">
-                                      <p className="font-semibold">{item.location}</p>
-                                      <p>{item.message}</p>
+                        return (
+                          <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#1e2530]">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
+                              className="flex w-full items-center justify-between gap-3 bg-gray-50 px-5 py-4 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+                            >
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{cls.type || 'Class'}</span>
+                                <p className="mt-1 font-bold font-mono text-gray-900 dark:text-white">{cls.name}</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <ScorePill ok={passCount} total={allItems.length} pct={clsPct} />
+                                {isOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                              </div>
+                            </button>
+
+                            {isOpen && (
+                              <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-700">
+                                {fields.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-500">Fields</p>
+                                    <div className="space-y-2">
+                                      {fields.map((f, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{f.name}: {f.dataType}</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{f.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={f.ok} />
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
+                                  </div>
+                                )}
+
+                                {constructors.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-orange-500">Constructors</p>
+                                    <div className="space-y-2">
+                                      {constructors.map((c, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-orange-500 dark:text-orange-400">{c.name}({c.params})</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{c.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={c.ok} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {methods.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-green-500">Methods</p>
+                                    <div className="space-y-2">
+                                      {methods.map((m, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-green-600 dark:text-green-400">{m.name}(): {m.returnType}</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{m.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={m.ok} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-800">
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Fields</p>
-                                {cls.fields?.map((f, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-blue-600 dark:text-blue-400">{f.name}</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(f.scope, f.dataType)}</p>
-                                    </div>
-                                    <Tick ok={f.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Constructors</p>
-                                {cls.constructors?.map((c, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-orange-500 dark:text-orange-400">{c.name}({c.params})</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(c.scope, '')}</p>
-                                    </div>
-                                    <Tick ok={c.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Methods</p>
-                                {cls.methods?.map((m, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-green-600 dark:text-green-400">{m.name}() : {m.returnType}</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(m.scope, '')}</p>
-                                    </div>
-                                    <Tick ok={m.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
                       No class detail data is available.
                     </div>
                   )}
