@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import './LoginUI.css';
 import { Moon, Sun, BarChart3, Eye, EyeOff, User, Lock } from 'lucide-react';
@@ -30,6 +30,16 @@ export default function LoginUI({ onLoginSuccess }) {
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+  // Load remembered IRN on mount
+  useEffect(() => {
+    const rememberedIrn = localStorage.getItem('rememberedIrn');
+    if (rememberedIrn) {
+      setIrn(rememberedIrn);
+      setRemember(true);
+    }
+  }, []);
+
+  // Local login with IRN and password
   const handleLocalLogin = async (e) => {
     e.preventDefault();
     if (!irn || !password) {
@@ -51,7 +61,17 @@ export default function LoginUI({ onLoginSuccess }) {
       }
 
       const data = await response.json();
-      if (remember) localStorage.setItem('rememberedIrn', irn);
+      
+      // Save token to storage
+      if (data.accessToken) {
+        localStorage.setItem('token', data.accessToken);
+        if (remember) {
+          localStorage.setItem('rememberedIrn', irn);
+        } else {
+          localStorage.removeItem('rememberedIrn');
+        }
+      }
+      
       onLoginSuccess?.(data);
     } catch (error) {
       console.error('Local authentication failed', error);
@@ -61,6 +81,7 @@ export default function LoginUI({ onLoginSuccess }) {
     }
   };
 
+  // Google login
   const handleGoogleSuccess = async (credentialResponse) => {
     const idToken = credentialResponse?.credential;
     if (!idToken) {
@@ -71,7 +92,6 @@ export default function LoginUI({ onLoginSuccess }) {
 
     setIsLoading(true);
     try {
-      // Try normal authenticate first
       const resp = await fetch(`${API_BASE}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,15 +100,25 @@ export default function LoginUI({ onLoginSuccess }) {
 
       if (resp.ok) {
         const data = await resp.json();
+        
+        // Save token to storage
+        if (data.accessToken) {
+          localStorage.setItem('token', data.accessToken);
+          console.log('✅ Token saved to localStorage from Google login');
+        }
+        
         onLoginSuccess?.(data);
         return;
       }
 
       if (resp.status === 403) {
-        // account not registered yet — open first-time setup modal
+        // Account not registered yet — open first-time setup modal
         const payload = decodeJwtPayload(idToken) || {};
         setGoogleToken(idToken);
-        setGoogleProfile({ email: payload.email, name: payload.name });
+        setGoogleProfile({ 
+          email: payload.email, 
+          name: payload.name || payload.email?.split('@')[0] || 'User' 
+        });
         setShowFirstTimeSetup(true);
         return;
       }
@@ -103,11 +133,22 @@ export default function LoginUI({ onLoginSuccess }) {
     }
   };
 
+  const handleGoogleError = () => {
+    console.error('Google login error');
+    alert('Google login failed. Please try again.');
+  };
+
   const handleCompleteFirstTime = async (createdData) => {
     setShowFirstTimeSetup(false);
+    // Save token if available
+    if (createdData?.accessToken) {
+      localStorage.setItem('token', createdData.accessToken);
+      console.log('✅ Token saved from first-time setup');
+    }
     onLoginSuccess?.(createdData);
   };
 
+  // Show first-time setup modal if needed
   if (showFirstTimeSetup) {
     return (
       <FirstTimeSetupUI
@@ -207,9 +248,7 @@ export default function LoginUI({ onLoginSuccess }) {
               <div className="google-login-wrapper">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    alert('Google login failed. Please try again.');
-                  }}
+                  onError={handleGoogleError}
                   render={(renderProps) => (
                     <button
                       type="button"
@@ -238,7 +277,6 @@ export default function LoginUI({ onLoginSuccess }) {
           <div className="footer-text">Made by Pham Quan Kha & Doan Tuan Kiet</div>
         </div>
       </div>
-
     </div>
   );
 }

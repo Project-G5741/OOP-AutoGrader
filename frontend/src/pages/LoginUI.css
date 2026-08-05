@@ -248,3 +248,25 @@
   font-size: 0.95rem;
 }
 .login-root.dark .footer-text { color: #7f8694; }
+
+/* Trong LoginUI.css hoặc component CSS */
+.input-error {
+  border-color: #ef4444 !important;
+}
+
+.input-error:focus {
+  border-color: #ef4444 !important;
+  ring-color: #ef4444 !important;
+}
+
+.error-text {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.success-text {
+  color: #22c55e;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}

@@ -36,6 +36,8 @@ public class UserDTO {
         @NotBlank(message = "Role is required")
         private String role; // e.g. "STUDENT", "TEACHER", "ADMIN"
  
+        private String password;
+ 
         public UpdateUserRequest() {}
  
         public String getIrn() { return irn; }
@@ -49,6 +51,9 @@ public class UserDTO {
  
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
+ 
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
     }
  
     /**
