@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { BarChart3, FileText, FolderKanban, Users } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
-import ProfileEditModal from '../components/student/ProfileEditModal';
+import ProfileEditModal from '../components/student/ChangePasswordModal';
 import DashboardSection from '../components/lecturer/DashboardSection';
 import LecturerOverviewCard from '../components/lecturer/LecturerOverviewCard';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
@@ -125,6 +125,7 @@ export default function LecturerDashboard({ user, onLogout }) {
           user={user}
           onLogout={onLogout}
           showNav
+          hideUserMenu
           activeNav={activeNav}
           onNavigate={setActiveNav}
           onCommand={(cmd) => {
@@ -133,13 +134,8 @@ export default function LecturerDashboard({ user, onLogout }) {
             else if (cmd === 'editProfile') setShowProfile(true);
           }}
       >
-        <style jsx>{`
-        header button:last-child {
-          display: none !important;
-        }
-      `}</style>
         {activeNav === 'dashboard' ? (
-          <div className="space-y-6">
+          <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
               {overviewCards.map((card) => (
                 <LecturerOverviewCard key={card.title} {...card} />
@@ -147,7 +143,7 @@ export default function LecturerDashboard({ user, onLogout }) {
             </div>
 
             <DashboardSection title="Grading overview" subtitle="Recent submissions and evaluation summary">
-              <div className="grid gap-6 xl:grid-cols-[0.4fr_0.6fr]">
+              <div className="grid gap-6 lg:grid-cols-[0.4fr_0.6fr]">
                 <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
@@ -199,11 +195,15 @@ export default function LecturerDashboard({ user, onLogout }) {
             </DashboardSection>
           </div>
         ) : activeNav === 'users' ? (
-          <UserManagement hideNav noShell user={user} onLogout={onLogout} />
+          <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+            <UserManagement hideNav noShell user={user} onLogout={onLogout} />
+          </div>
         ) : activeNav === 'projects' ? (
-          <SubmissionManagement />
+          <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+            <SubmissionManagement />
+          </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-700 shadow-sm dark:border-gray-700 dark:bg-[#1e2530] dark:text-gray-300">
+          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-700 shadow-sm dark:border-gray-700 dark:bg-[#1e2530] dark:text-gray-300 mx-4 sm:mx-6 lg:mx-8 max-w-full overflow-x-hidden">
             <h2 className="mb-3 text-xl font-semibold">Reports</h2>
             <p>Report generation is coming soon.</p>
           </div>
