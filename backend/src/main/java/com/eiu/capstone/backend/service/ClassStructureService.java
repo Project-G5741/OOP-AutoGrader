@@ -56,13 +56,15 @@ public class ClassStructureService {
         this.timingLog = timingLog;
     }
 
-    public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId) {
+    public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
-        UUID submissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
-        if (submissionId == null) {
+        UUID resolvedSubmissionId = submissionId != null
+                ? submissionId
+                : submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        if (resolvedSubmissionId == null) {
             return List.of();
         }
-        List<MmdClassDTO> result = buildMmdDataForSubmission(submissionId, challengeId);
+        List<MmdClassDTO> result = buildMmdDataForSubmission(resolvedSubmissionId, challengeId);
         if (timingLog) {
             System.out.printf("read_timing mmd_ms=%d%n", System.currentTimeMillis() - start);
         }
@@ -188,13 +190,15 @@ public class ClassStructureService {
     }
 
     /** Powers the "Class" tab for the student's latest attempt. */
-    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId) {
+    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
-        UUID submissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
-        if (submissionId == null) {
+        UUID resolvedSubmissionId = submissionId != null
+                ? submissionId
+                : submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        if (resolvedSubmissionId == null) {
             return List.of();
         }
-        List<ClassDetailDTO> result = buildClassDataForSubmission(submissionId, challengeId);
+        List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
         if (timingLog) {
             System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
         }

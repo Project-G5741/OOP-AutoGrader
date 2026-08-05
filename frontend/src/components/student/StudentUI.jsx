@@ -73,6 +73,20 @@ function scoreColor(s) {
 // Helper: has a value that isn't null/undefined
 const hasValue = (v) => v !== null && v !== undefined;
 
+// Session challenge scores are keyed by challenge id, but ids may arrive as
+// either the raw id or its string form depending on the source map, so check both.
+function hasSessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return false;
+  return Object.hasOwn(challengeScores, challengeId)
+    || Object.hasOwn(challengeScores, String(challengeId));
+}
+
+function sessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return undefined;
+  if (Object.hasOwn(challengeScores, challengeId)) return challengeScores[challengeId];
+  return challengeScores[String(challengeId)];
+}
+
 function formatScopeDetail(scope, detail) {
   const normalizedScope = scope?.trim();
   const normalizedDetail = detail?.trim() ?? '';
@@ -115,6 +129,7 @@ export default function StudentUI({
   isLoadingDetails = false,
   isRefreshingResults = false,
   resultsRevealed = false,
+  sessionChallengeScores = {},
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -320,7 +335,10 @@ export default function StudentUI({
                   No challenges available
                 </li>
               ) : (
-                challenges.map((ch) => (
+                challenges.map((ch) => {
+                  const chHasScore = resultsRevealed && hasSessionChallengeScore(sessionChallengeScores, ch.id);
+                  const chScore = chHasScore ? sessionChallengeScore(sessionChallengeScores, ch.id) : null;
+                  return (
                   <li key={ch.id}>
                     <button
                       onClick={() => onChallengeChange(ch.id)}
@@ -338,9 +356,9 @@ export default function StudentUI({
                         }`}>
                           {ch.name}
                         </p>
-                        {resultsRevealed && hasValue(ch.score) ? (
-                          <p className={`text-xs mt-0.5 font-semibold ${scoreColor(ch.score)}`}>
-                            {ch.score} / 100
+                        {chHasScore && hasValue(chScore) ? (
+                          <p className={`text-xs mt-0.5 font-semibold ${scoreColor(chScore)}`}>
+                            {chScore} / 100
                           </p>
                         ) : resultsRevealed ? (
                           <p className="text-xs mt-0.5 text-gray-400 dark:text-gray-600">
@@ -353,7 +371,8 @@ export default function StudentUI({
                       )}
                     </button>
                   </li>
-                ))
+                  );
+                })
               )}
             </ul>
           </div>

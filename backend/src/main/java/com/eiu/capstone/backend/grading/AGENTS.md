@@ -68,8 +68,8 @@ Each expected element is matched against parsed student classes using **direct a
 ### Scoring
 
 - Each expected class, field, method, constructor counts as one element
-- Challenge percentage = `correctElements / totalElements * 100`
-- Overall score = simple average across graded challenges (unmapped folders excluded)
+- Challenge percentage = average of the Java-side percentage and the MMD-side percentage, each weighted 50%
+- Overall score = average across all rubric challenges, with missing or unsubmitted challenges counted as 0%
 
 ### Result persistence
 

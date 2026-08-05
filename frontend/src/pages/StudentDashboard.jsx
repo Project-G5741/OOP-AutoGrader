@@ -216,17 +216,19 @@ export default function StudentDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (!selectedLabId) return;
-    const labRevealed = revealedLabIds.includes(selectedLabId);
-
     fetchChallenges(selectedLabId);
     fetchStats(selectedLabId);
+  }, [selectedLabId, fetchChallenges, fetchStats]);
 
+  useEffect(() => {
+    if (!selectedLabId) return;
+    const labRevealed = revealedLabIds.includes(selectedLabId);
     if (!labRevealed) {
       setClassData([]);
       setMmdData([]);
       setTestCases([]);
     }
-  }, [selectedLabId, revealedLabIds, fetchChallenges, fetchStats]);
+  }, [selectedLabId, revealedLabIds]);
 
   useEffect(() => {
     if (!selectedChallengeId || !selectedLabId || !resultsRevealed) return;

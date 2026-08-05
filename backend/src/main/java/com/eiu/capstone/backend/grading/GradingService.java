@@ -130,6 +130,7 @@ public class GradingService {
         result.gradedChallenges = new ArrayList<>();
         result.mmdMetaByChallengeId = new java.util.LinkedHashMap<>();
 
+        Map<Integer, BigDecimal> percentagesByChallengeNumber = new java.util.LinkedHashMap<>();
         for (ChallengeComputation cc : challengeComputations) {
             if (cc == null) continue;
             if (cc.challengeId != null && cc.mmdMeta != null) {
@@ -153,8 +154,8 @@ public class GradingService {
                 result.challengeResults.add(buildChallengeResult(
                         existing.challengeResults, submission, cc.pendingChallenge.challengeId(), cc.pendingChallenge.correct()));
             }
-            if (cc.percentage != null) {
-                result.challengePercentages.add(cc.percentage);
+            if (cc.challengeNumber != null && cc.percentage != null) {
+                percentagesByChallengeNumber.put(cc.challengeNumber, cc.percentage);
             }
             if (cc.challengeId != null && cc.percentage != null) {
                 result.gradedChallenges.add(new GradedChallengeSummary(
@@ -163,9 +164,18 @@ public class GradingService {
             }
         }
 
-        result.overallScore = result.challengePercentages.isEmpty()
+        List<BigDecimal> overallChallengeScores = new ArrayList<>();
+        for (ChallengeRubric challengeRubric : rubric.byChallengeNumber().values().stream()
+                .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
+                .toList()) {
+            BigDecimal challengeScore = percentagesByChallengeNumber.getOrDefault(challengeRubric.challengeNumber(), BigDecimal.ZERO);
+            result.challengePercentages.add(challengeScore);
+            overallChallengeScores.add(challengeScore);
+        }
+
+        result.overallScore = overallChallengeScores.isEmpty()
                 ? BigDecimal.ZERO
-                : average(result.challengePercentages);
+                : average(overallChallengeScores);
         return result;
     }
 
@@ -204,7 +214,8 @@ public class GradingService {
         MmdGradingOutcome mmdOutcome = mmdBundle.outcome();
 
         int totalElements = 0;
-        int correctElements = 0;
+        int javaCorrectElements = 0;
+        int mmdCorrectElements = 0;
         boolean challengeFullyCorrect = true;
         List<ClassGradeReport> classReports = new ArrayList<>();
 
@@ -244,8 +255,14 @@ public class GradingService {
             boolean javaClassCorrect = classAttributesMatch(expectedClass, parsed);
             boolean mmdClassCorrect = mmdOutcome.isClassCorrect(expectedClass.id());
             report.classAttributesCorrect = javaClassCorrect && mmdClassCorrect;
+            if (javaClassCorrect) {
+                javaCorrectElements++;
+            }
+            if (mmdClassCorrect) {
+                mmdCorrectElements++;
+            }
             if (report.classAttributesCorrect) {
-                correctElements++;
+                challengeFullyCorrect = challengeFullyCorrect && true;
             } else {
                 challengeFullyCorrect = false;
             }
@@ -256,9 +273,16 @@ public class GradingService {
                 totalElements++;
                 ParsedField pf = parsedFieldsByName.get(expectedField.name());
                 boolean javaCorrect = pf != null && fieldAttributesMatch(expectedField, pf);
-                boolean correct = javaCorrect && mmdOutcome.isFieldCorrect(expectedField.id());
+                boolean mmdCorrect = mmdOutcome.isFieldCorrect(expectedField.id());
+                boolean correct = javaCorrect && mmdCorrect;
+                if (javaCorrect) {
+                    javaCorrectElements++;
+                }
+                if (mmdCorrect) {
+                    mmdCorrectElements++;
+                }
                 if (correct) {
-                    correctElements++;
+                    challengeFullyCorrect = challengeFullyCorrect && true;
                 } else {
                     challengeFullyCorrect = false;
                     (pf == null ? report.missingFields : report.incorrectFields).add(expectedField.name());
@@ -270,9 +294,16 @@ public class GradingService {
                 totalElements++;
                 ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
                 boolean javaCorrect = match != null && methodAttributesMatch(expectedMethod, match);
-                boolean correct = javaCorrect && mmdOutcome.isMethodCorrect(expectedMethod.id());
+                boolean mmdCorrect = mmdOutcome.isMethodCorrect(expectedMethod.id());
+                boolean correct = javaCorrect && mmdCorrect;
+                if (javaCorrect) {
+                    javaCorrectElements++;
+                }
+                if (mmdCorrect) {
+                    mmdCorrectElements++;
+                }
                 if (correct) {
-                    correctElements++;
+                    challengeFullyCorrect = challengeFullyCorrect && true;
                 } else {
                     challengeFullyCorrect = false;
                     (match == null ? report.missingMethods : report.incorrectMethods)
@@ -285,9 +316,16 @@ public class GradingService {
                 totalElements++;
                 ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
                 boolean javaCorrect = match != null && constructorAttributesMatch(expectedConstructor, match);
-                boolean correct = javaCorrect && mmdOutcome.isConstructorCorrect(expectedConstructor.id());
+                boolean mmdCorrect = mmdOutcome.isConstructorCorrect(expectedConstructor.id());
+                boolean correct = javaCorrect && mmdCorrect;
+                if (javaCorrect) {
+                    javaCorrectElements++;
+                }
+                if (mmdCorrect) {
+                    mmdCorrectElements++;
+                }
                 if (correct) {
-                    correctElements++;
+                    challengeFullyCorrect = challengeFullyCorrect && true;
                 } else {
                     challengeFullyCorrect = false;
                     (match == null ? report.missingConstructors : report.incorrectConstructors)
@@ -301,9 +339,10 @@ public class GradingService {
 
         for (RelationRubric expectedRelation : challengeRubric.relations()) {
             totalElements++;
-            boolean correct = mmdOutcome.isRelationCorrect(expectedRelation.id());
-            if (correct) {
-                correctElements++;
+            boolean mmdCorrect = mmdOutcome.isRelationCorrect(expectedRelation.id());
+            boolean correct = mmdCorrect;
+            if (mmdCorrect) {
+                mmdCorrectElements++;
             } else {
                 challengeFullyCorrect = false;
             }
@@ -312,11 +351,7 @@ public class GradingService {
 
         computation.pendingChallenge = new PendingChallengeResult(challengeRubric.challengeId(), challengeFullyCorrect);
         computation.mmdMeta = buildMmdMeta(challengeRubric, mmdBundle, mmdOutcome);
-        computation.percentage = totalElements == 0
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(correctElements)
-                        .multiply(BigDecimal.valueOf(100))
-                        .divide(BigDecimal.valueOf(totalElements), 2, RoundingMode.HALF_UP);
+        computation.percentage = calculateChallengePercentage(javaCorrectElements, mmdCorrectElements, totalElements);
         computation.fullyCorrect = challengeFullyCorrect;
         computation.classReports = classReports;
         return computation;
@@ -386,6 +421,20 @@ public class GradingService {
     private Integer extractChallengeNumber(String challengeFolderKey) {
         Matcher m = CHALLENGE_NUMBER_PATTERN.matcher(challengeFolderKey);
         return m.matches() ? Integer.parseInt(m.group(1)) : null;
+    }
+
+    static BigDecimal calculateChallengePercentage(int javaCorrectCount, int mmdCorrectCount, int totalElements) {
+        if (totalElements <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal javaPercentage = BigDecimal.valueOf(javaCorrectCount)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalElements), 2, RoundingMode.HALF_UP);
+        BigDecimal mmdPercentage = BigDecimal.valueOf(mmdCorrectCount)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalElements), 2, RoundingMode.HALF_UP);
+        return javaPercentage.add(mmdPercentage)
+                .divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal average(List<BigDecimal> values) {

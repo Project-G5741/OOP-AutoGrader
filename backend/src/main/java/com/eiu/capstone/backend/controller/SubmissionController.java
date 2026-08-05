@@ -132,9 +132,10 @@ public class SubmissionController {
             submissionFolderToDelete = uploadResult.submissionFolder;
             long processMs = System.currentTimeMillis() - processStart;
 
-            LabSubmission submission = labSubmissionRepository
-                    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber)
-                    .orElseGet(LabSubmission::new);
+            var existingSubmission = labSubmissionRepository
+                    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber);
+            boolean isNewSubmission = existingSubmission.isEmpty();
+            LabSubmission submission = existingSubmission.orElseGet(LabSubmission::new);
             submission.setUser(userAccount);
             submission.setLab(lab);
             submission.setAttemptNumber(attemptNumber);
@@ -143,7 +144,7 @@ public class SubmissionController {
 
             long gradeStart = System.currentTimeMillis();
             GradingOutcome gradingOutcome = gradingService.gradeSubmission(
-                    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge, true);
+                    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge, isNewSubmission);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
             submission.setScore(gradingOutcome.overallScore());

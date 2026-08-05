@@ -36,20 +36,26 @@ public class ChallengeController {
         return challengeService.getChallengesForLab(labId, studentId);
     }
 
-    /** Powers the "MMD" tab. Returns [] when the student has no reference submission yet. */
+    /** Powers the "MMD" tab. Returns [] when the student has no reference submission yet.
+     *  submissionId pins the response to a specific submission (e.g. the one just graded);
+     *  when omitted, falls back to the student's latest submission for this lab. */
     @GetMapping("/{challengeId}/mmd")
     public List<MmdClassDTO> getMmd(@PathVariable UUID labId,
                                      @PathVariable UUID challengeId,
-                                     @RequestParam(required = false) UUID studentId) {
-        return classStructureService.getMmdData(labId, challengeId, studentId);
+                                     @RequestParam(required = false) UUID studentId,
+                                     @RequestParam(required = false) UUID submissionId) {
+        return classStructureService.getMmdData(labId, challengeId, studentId, submissionId);
     }
 
-    /** Powers the "Class" tab. Returns [] when the student has no reference submission yet. */
+    /** Powers the "Class" tab. Returns [] when the student has no reference submission yet.
+     *  submissionId pins the response to a specific submission (e.g. the one just graded);
+     *  when omitted, falls back to the student's latest submission for this lab. */
     @GetMapping("/{challengeId}/class")
     public List<ClassDetailDTO> getClassData(@PathVariable UUID labId,
                                               @PathVariable UUID challengeId,
-                                              @RequestParam(required = false) UUID studentId) {
-        return classStructureService.getClassData(labId, challengeId, studentId);
+                                              @RequestParam(required = false) UUID studentId,
+                                              @RequestParam(required = false) UUID submissionId) {
+        return classStructureService.getClassData(labId, challengeId, studentId, submissionId);
     }
 
     /**
