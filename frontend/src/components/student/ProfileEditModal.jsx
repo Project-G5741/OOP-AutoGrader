@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, Lock, CheckCircle2 } from 'lucide-react';
 
-export default function ProfileEditModal({ isOpen, onClose, user }) {
+export default function ChangePasswordModal({ isOpen, onClose, user }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

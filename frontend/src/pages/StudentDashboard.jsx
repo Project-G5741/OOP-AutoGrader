@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
-import ProfileEditModal from '../components/student/ChangePasswordModal';
+import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -296,7 +296,7 @@ export default function StudentDashboard({ user, onLogout }) {
       </AppShell>
 
       {showChangePassword && (
-        <ProfileEditModal
+        <ChangePasswordModal
           isOpen={showChangePassword}
           onClose={() => setShowChangePassword(false)}
           user={user}

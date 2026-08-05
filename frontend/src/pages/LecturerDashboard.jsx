@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { BarChart3, FileText, FolderKanban, Users } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
-import ProfileEditModal from '../components/student/ChangePasswordModal';
+import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import DashboardSection from '../components/lecturer/DashboardSection';
 import LecturerOverviewCard from '../components/lecturer/LecturerOverviewCard';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
