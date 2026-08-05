@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.StatsDTO;
+import com.eiu.capstone.backend.analytics.dto.LabStatisticsResponse;
+import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
+import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.service.StatsService;
 
@@ -20,10 +24,14 @@ public class LabController {
 
     private final LabRepository labRepository;
     private final StatsService statsService;
+    private final LecturerAnalyticsService lecturerAnalyticsService;
 
-    public LabController(LabRepository labRepository, StatsService statsService) {
+    public LabController(LabRepository labRepository,
+                         StatsService statsService,
+                         LecturerAnalyticsService lecturerAnalyticsService) {
         this.labRepository = labRepository;
         this.statsService = statsService;
+        this.lecturerAnalyticsService = lecturerAnalyticsService;
     }
 
     @GetMapping
@@ -40,5 +48,18 @@ public class LabController {
     public StatsDTO getStats(@PathVariable UUID labId,
                              @RequestParam(required = false) UUID studentId) {
         return statsService.getStats(labId, studentId);
+    }
+
+    @GetMapping("/{labId}/statistics")
+    public LabStatisticsResponse getStatistics(@PathVariable UUID labId) {
+        return lecturerAnalyticsService.getLabStatistics(labId);
+    }
+
+    @GetMapping("/{labId}/submissions")
+    public Page<SubmissionSummaryDTO> getSubmissions(@PathVariable UUID labId,
+                                                     @RequestParam(defaultValue = "0") int page,
+                                                     @RequestParam(defaultValue = "20") int size,
+                                                     @RequestParam(required = false) String sort) {
+        return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort);
     }
 }
