@@ -52,7 +52,7 @@ export default function UserTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full table-auto text-sm min-w-full">
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-800">
               {['IRN', 'Full Name', 'Date of Birth', 'Email', 'Role', 'Actions'].map((h) => (
@@ -75,10 +75,10 @@ export default function UserTable({
               </tr>
             ) : rows.map((u) => (
               <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors">
-                <td className="px-6 py-4 font-mono text-gray-700 dark:text-gray-300">{u.irn}</td>
-                <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{u.fullname}</td>
-                <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{u.dob}</td>
-                <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{u.email}</td>
+                <td className="px-6 py-4 font-mono text-gray-700 dark:text-gray-300 break-words">{u.irn}</td>
+                <td className="px-6 py-4 text-gray-900 dark:text-white font-medium break-words">{u.fullname}</td>
+                <td className="px-6 py-4 text-gray-600 dark:text-gray-400 break-words">{u.dob}</td>
+                <td className="px-6 py-4 text-gray-600 dark:text-gray-400 break-words">{u.email}</td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[u.role]}`}>
                     {u.role}
