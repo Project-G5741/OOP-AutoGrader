@@ -41,6 +41,15 @@ function scoreColor(s) {
 // Helper: has a value that isn't null/undefined
 const hasValue = (v) => v !== null && v !== undefined;
 
+function formatScopeDetail(scope, detail) {
+  const normalizedScope = scope?.trim();
+  const normalizedDetail = detail?.trim() ?? '';
+  if (!normalizedScope || normalizedScope === '-') {
+    return normalizedDetail;
+  }
+  return normalizedDetail ? `${normalizedScope} · ${normalizedDetail}` : normalizedScope;
+}
+
 export default function StudentUI({
   user,
   // Dữ liệu labs
@@ -66,11 +75,12 @@ export default function StudentUI({
   },
 
   // Upload handler
-  onFileUpload = () => {},
+  onUploadComplete = () => {},
 
   // Loading/Error states
   isLoading = false,
   isLoadingDetails = false,
+  isRefreshingResults = false,
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -144,7 +154,7 @@ export default function StudentUI({
             labId={selectedLabId}
             attemptNumber={(stats.totalSubmissions ?? 0) + 1}
             authToken={user?.accessToken}
-            onFilesSelected={(files) => onFileUpload(files, selectedLabId, selectedChallengeId)}
+            onUploadComplete={onUploadComplete}
           />
         </div>
 
@@ -190,8 +200,17 @@ export default function StudentUI({
           </div>
         </div>
 
-        {/* Overview */}
-        <div className="flex gap-4 min-h-[560px]">
+        {/* Overview — sidebar + result panel; only this section refreshes after upload */}
+        <div className="relative flex gap-4 min-h-[560px]">
+          {isRefreshingResults && (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-[#1a1f2e]/60"
+              aria-busy="true"
+              aria-label="Refreshing results"
+            >
+              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           {/* Challenges sidebar - Từ backend */}
           <div className="w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
@@ -319,6 +338,16 @@ export default function StudentUI({
                         </div>
                         <StatusBadge status={cls.status} />
                       </div>
+                      {cls.error && (
+                        <div className="border-b border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/20 px-5 py-3">
+                          <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">
+                            Compilation failed
+                          </p>
+                          <pre className="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap font-mono">
+                            {cls.error}
+                          </pre>
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
                         <div>
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">
@@ -333,7 +362,7 @@ export default function StudentUI({
                                   {f.name}
                                 </p>
                                 <p className="text-[10px] text-gray-400">
-                                  {f.scope} · {f.dataType}
+                                  {formatScopeDetail(f.scope, f.dataType)}
                                 </p>
                               </div>
                               <Tick ok={f.ok} />
@@ -373,7 +402,7 @@ export default function StudentUI({
                                   {m.name}()
                                 </p>
                                 <p className="text-[10px] text-gray-400">
-                                  {m.scope} · {m.returnType}
+                                  {formatScopeDetail(m.scope, m.returnType)}
                                 </p>
                               </div>
                               <Tick ok={m.ok} />

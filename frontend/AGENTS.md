@@ -61,7 +61,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 |---|---|
 | Auth, user CRUD, labs list, student upload | Live API |
 | Lecturer dashboard submissions | Hardcoded in `LecturerDashboard.jsx` |
-| Student history and stats | Hardcoded in `StudentHistoryPage.jsx` / `StudentDashboard.jsx` |
+| Student history and stats | Live API via `StudentDashboard` (latest attempt) |
 | Submission management (lecturer) | Local mock in `SubmissionManagement.jsx` |
 
 ## Work Guidance
@@ -70,7 +70,8 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Match existing Tailwind utility patterns; login screens use custom CSS (`LoginUI.css`)
 - Pass `user` and `onLogout` props from `App.jsx` down to dashboards
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
-- `attemptNumber` is currently hardcoded to `1` in `StudentDashboard.jsx`
+- Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
+- Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 
 ## Verification
 
