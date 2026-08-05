@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.ClassRelation;
 import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.ConstructorDeclaration;
 import com.eiu.capstone.backend.model.Field;
@@ -21,6 +22,7 @@ import com.eiu.capstone.backend.model.MethodDeclaration;
 import com.eiu.capstone.backend.model.Parameter;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
+import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
@@ -35,19 +37,22 @@ public class LabRubricService {
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
     private final ParameterRepository parameterRepository;
+    private final ClassRelationRepository classRelationRepository;
 
     public LabRubricService(ChallengeRepository challengeRepository,
                             ClassEntityRepository classEntityRepository,
                             FieldRepository fieldRepository,
                             MethodRepository methodRepository,
                             ConstructorRepository constructorRepository,
-                            ParameterRepository parameterRepository) {
+                            ParameterRepository parameterRepository,
+                            ClassRelationRepository classRelationRepository) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
         this.parameterRepository = parameterRepository;
+        this.classRelationRepository = classRelationRepository;
     }
 
     public LabRubricSnapshot loadForLab(Lab lab) {
@@ -67,6 +72,8 @@ public class LabRubricService {
         List<Parameter> methodParams = allMethods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(allMethods);
         List<Parameter> constructorParams = allConstructors.isEmpty() ? List.of()
                 : parameterRepository.findByConstructorEntityIn(allConstructors);
+        List<ClassRelation> allRelations = allClasses.isEmpty() ? List.of()
+                : classRelationRepository.findByClassEntityInWithEndpoints(allClasses);
 
         Map<UUID, List<Field>> fieldsByClass = allFields.stream()
                 .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
@@ -79,6 +86,8 @@ public class LabRubricService {
 
         Map<UUID, List<ClassEntity>> classesByChallenge = allClasses.stream()
                 .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        Map<UUID, List<ClassRelation>> relationsByChallenge = allRelations.stream()
+                .collect(Collectors.groupingBy(r -> r.getClassEntity().getChallenge().getId()));
 
         Map<Integer, ChallengeRubric> byNumber = new HashMap<>();
         for (Challenge challenge : challenges) {
@@ -92,8 +101,13 @@ public class LabRubricService {
                         paramTypesByMethod,
                         paramTypesByConstructor));
             }
+            List<RelationRubric> relationRubrics = relationsByChallenge.getOrDefault(challenge.getId(), List.of())
+                    .stream()
+                    .map(this::toRelationRubric)
+                    .toList();
             byNumber.put(challenge.getChallengeNumber(),
-                    new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(), classRubrics));
+                    new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
+                            classRubrics, relationRubrics));
         }
 
         return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));
@@ -147,5 +161,15 @@ public class LabRubricService {
                 fieldRubrics,
                 methodRubrics,
                 constructorRubrics);
+    }
+
+    private RelationRubric toRelationRubric(ClassRelation relation) {
+        return new RelationRubric(
+                relation.getId(),
+                relation.getClassEntity().getId(),
+                relation.getClassEntity().getName(),
+                relation.getTargetClassEntity().getId(),
+                relation.getTargetClassEntity().getName(),
+                relation.getRelationType().getName());
     }
 }

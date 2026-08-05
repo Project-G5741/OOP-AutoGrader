@@ -48,7 +48,7 @@ public class ChallengeService {
 
         UUID referenceSubmissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
         SubmissionCorrectIds correctIds = referenceSubmissionId == null
-                ? new SubmissionCorrectIds(Set.of(), Set.of(), Set.of())
+                ? new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of())
                 : submissionResultLoader.loadCorrectIds(referenceSubmissionId);
 
         List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);

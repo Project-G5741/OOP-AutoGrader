@@ -11,6 +11,7 @@ import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
 
 @Component
 class GradingResultStore {
@@ -18,15 +19,18 @@ class GradingResultStore {
     private final SubmissionFieldResultRepository submissionFieldResultRepository;
     private final SubmissionMethodResultRepository submissionMethodResultRepository;
     private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
+    private final SubmissionRelationResultRepository submissionRelationResultRepository;
     private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
 
     GradingResultStore(SubmissionFieldResultRepository submissionFieldResultRepository,
                        SubmissionMethodResultRepository submissionMethodResultRepository,
                        SubmissionConstructorResultRepository submissionConstructorResultRepository,
+                       SubmissionRelationResultRepository submissionRelationResultRepository,
                        SubmissionChallengeResultRepository submissionChallengeResultRepository) {
         this.submissionFieldResultRepository = submissionFieldResultRepository;
         this.submissionMethodResultRepository = submissionMethodResultRepository;
         this.submissionConstructorResultRepository = submissionConstructorResultRepository;
+        this.submissionRelationResultRepository = submissionRelationResultRepository;
         this.submissionChallengeResultRepository = submissionChallengeResultRepository;
     }
 
@@ -40,6 +44,8 @@ class GradingResultStore {
                 .stream().collect(Collectors.toMap(r -> r.getMethod().getId(), r -> r));
         existing.constructorResults = submissionConstructorResultRepository.findBySubmission_IdWithConstructor(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getConstructor().getId(), r -> r));
+        existing.relationResults = submissionRelationResultRepository.findBySubmission_IdWithRelation(submissionId)
+                .stream().collect(Collectors.toMap(r -> r.getClassRelation().getId(), r -> r));
         existing.challengeResults = submissionChallengeResultRepository.findBySubmission_IdWithChallenge(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getChallenge().getId(), r -> r));
         return existing;
@@ -50,6 +56,7 @@ class GradingResultStore {
         submissionFieldResultRepository.saveAll(computed.fieldResults);
         submissionMethodResultRepository.saveAll(computed.methodResults);
         submissionConstructorResultRepository.saveAll(computed.constructorResults);
+        submissionRelationResultRepository.saveAll(computed.relationResults);
         submissionChallengeResultRepository.saveAll(computed.challengeResults);
     }
 }

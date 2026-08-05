@@ -1,9 +1,11 @@
 package com.eiu.capstone.backend.grading;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
@@ -22,12 +25,15 @@ import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.SubmissionMethodResult;
+import com.eiu.capstone.backend.model.SubmissionRelationResult;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
+import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
@@ -44,38 +50,48 @@ public class GradingService {
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
     private final ReflectionClassParser reflectionClassParser;
+    private final MmdParser mmdParser;
+    private final MmdComparisonService mmdComparisonService;
     private final ExecutorService gradingExecutor;
     private final GradingResultStore gradingResultStore;
+    private final ClassRelationRepository classRelationRepository;
 
     public GradingService(ChallengeRepository challengeRepository,
                           FieldRepository fieldRepository,
                           MethodRepository methodRepository,
                           ConstructorRepository constructorRepository,
                           ReflectionClassParser reflectionClassParser,
+                          MmdParser mmdParser,
+                          MmdComparisonService mmdComparisonService,
                           ExecutorService gradingExecutor,
-                          GradingResultStore gradingResultStore) {
+                          GradingResultStore gradingResultStore,
+                          ClassRelationRepository classRelationRepository) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
         this.reflectionClassParser = reflectionClassParser;
+        this.mmdParser = mmdParser;
+        this.mmdComparisonService = mmdComparisonService;
         this.gradingExecutor = gradingExecutor;
         this.gradingResultStore = gradingResultStore;
+        this.classRelationRepository = classRelationRepository;
     }
 
     public GradingOutcome gradeSubmission(LabSubmission submission,
                                       LabRubricSnapshot rubric,
                                       List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+                                      Map<String, List<MultipartFile>> mmdByChallenge,
                                       boolean skipExistingLoad) {
 
         GradingService.ExistingResults existing = skipExistingLoad
                 ? emptyExistingResults()
                 : gradingResultStore.loadExisting(submission);
         GradingComputationResult computed = computeAgainstSnapshot(
-                rubric, challengeFolderResults, submission, existing);
+                rubric, challengeFolderResults, mmdByChallenge, submission, existing);
         gradingResultStore.save(computed);
 
-        return new GradingOutcome(computed.overallScore, computed.gradedChallenges);
+        return new GradingOutcome(computed.overallScore, computed.gradedChallenges, computed.mmdMetaByChallengeId);
     }
 
     private static ExistingResults emptyExistingResults() {
@@ -83,6 +99,7 @@ public class GradingService {
         existing.fieldResults = Map.of();
         existing.methodResults = Map.of();
         existing.constructorResults = Map.of();
+        existing.relationResults = Map.of();
         existing.challengeResults = Map.of();
         return existing;
     }
@@ -90,12 +107,14 @@ public class GradingService {
     private GradingComputationResult computeAgainstSnapshot(
             LabRubricSnapshot rubric,
             List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+            Map<String, List<MultipartFile>> mmdByChallenge,
             LabSubmission submission,
             ExistingResults existing) {
 
         List<CompletableFuture<ChallengeComputation>> futures = challengeFolderResults.stream()
                 .map(folderResult -> CompletableFuture.supplyAsync(
-                        () -> gradeChallengeFolder(rubric, folderResult),
+                        () -> gradeChallengeFolder(rubric, folderResult,
+                                mmdByChallenge.getOrDefault(folderResult.challengeName, List.of())),
                         gradingExecutor))
                 .collect(Collectors.toList());
 
@@ -105,12 +124,17 @@ public class GradingService {
         result.fieldResults = new ArrayList<>();
         result.methodResults = new ArrayList<>();
         result.constructorResults = new ArrayList<>();
+        result.relationResults = new ArrayList<>();
         result.challengeResults = new ArrayList<>();
         result.challengePercentages = new ArrayList<>();
         result.gradedChallenges = new ArrayList<>();
+        result.mmdMetaByChallengeId = new java.util.LinkedHashMap<>();
 
         for (ChallengeComputation cc : challengeComputations) {
             if (cc == null) continue;
+            if (cc.challengeId != null && cc.mmdMeta != null) {
+                result.mmdMetaByChallengeId.put(cc.challengeId, cc.mmdMeta);
+            }
             for (PendingFieldResult pending : cc.pendingFields) {
                 result.fieldResults.add(buildFieldResult(existing.fieldResults, submission, pending.fieldId(), pending.correct()));
             }
@@ -120,6 +144,10 @@ public class GradingService {
             for (PendingConstructorResult pending : cc.pendingConstructors) {
                 result.constructorResults.add(buildConstructorResult(
                         existing.constructorResults, submission, pending.constructorId(), pending.correct()));
+            }
+            for (PendingRelationResult pending : cc.pendingRelations) {
+                result.relationResults.add(buildRelationResult(
+                        existing.relationResults, submission, pending.relationId(), pending.correct()));
             }
             if (cc.pendingChallenge != null) {
                 result.challengeResults.add(buildChallengeResult(
@@ -143,7 +171,8 @@ public class GradingService {
 
     private ChallengeComputation gradeChallengeFolder(
             LabRubricSnapshot rubric,
-            SubmissionStorageService.ChallengeResult folderResult) {
+            SubmissionStorageService.ChallengeResult folderResult,
+            List<MultipartFile> mmdFiles) {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
@@ -169,6 +198,10 @@ public class GradingService {
         computation.pendingFields = new ArrayList<>();
         computation.pendingMethods = new ArrayList<>();
         computation.pendingConstructors = new ArrayList<>();
+        computation.pendingRelations = new ArrayList<>();
+
+        MmdParseBundle mmdBundle = parseAndGradeMmd(challengeRubric, mmdFiles);
+        MmdGradingOutcome mmdOutcome = mmdBundle.outcome();
 
         int totalElements = 0;
         int correctElements = 0;
@@ -185,6 +218,10 @@ public class GradingService {
 
             if (parsed == null) {
                 challengeFullyCorrect = false;
+                boolean mmdClassCorrect = mmdOutcome.isClassCorrect(expectedClass.id());
+                if (!mmdClassCorrect) {
+                    // class element already counted
+                }
                 for (FieldRubric f : expectedClass.fields()) {
                     totalElements++;
                     report.missingFields.add(f.name());
@@ -204,7 +241,9 @@ public class GradingService {
                 continue;
             }
 
-            report.classAttributesCorrect = classAttributesMatch(expectedClass, parsed);
+            boolean javaClassCorrect = classAttributesMatch(expectedClass, parsed);
+            boolean mmdClassCorrect = mmdOutcome.isClassCorrect(expectedClass.id());
+            report.classAttributesCorrect = javaClassCorrect && mmdClassCorrect;
             if (report.classAttributesCorrect) {
                 correctElements++;
             } else {
@@ -216,7 +255,8 @@ public class GradingService {
             for (FieldRubric expectedField : expectedClass.fields()) {
                 totalElements++;
                 ParsedField pf = parsedFieldsByName.get(expectedField.name());
-                boolean correct = pf != null && fieldAttributesMatch(expectedField, pf);
+                boolean javaCorrect = pf != null && fieldAttributesMatch(expectedField, pf);
+                boolean correct = javaCorrect && mmdOutcome.isFieldCorrect(expectedField.id());
                 if (correct) {
                     correctElements++;
                 } else {
@@ -229,7 +269,8 @@ public class GradingService {
             for (MethodRubric expectedMethod : expectedClass.methods()) {
                 totalElements++;
                 ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
-                boolean correct = match != null && methodAttributesMatch(expectedMethod, match);
+                boolean javaCorrect = match != null && methodAttributesMatch(expectedMethod, match);
+                boolean correct = javaCorrect && mmdOutcome.isMethodCorrect(expectedMethod.id());
                 if (correct) {
                     correctElements++;
                 } else {
@@ -243,7 +284,8 @@ public class GradingService {
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
                 totalElements++;
                 ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
-                boolean correct = match != null && constructorAttributesMatch(expectedConstructor, match);
+                boolean javaCorrect = match != null && constructorAttributesMatch(expectedConstructor, match);
+                boolean correct = javaCorrect && mmdOutcome.isConstructorCorrect(expectedConstructor.id());
                 if (correct) {
                     correctElements++;
                 } else {
@@ -257,7 +299,19 @@ public class GradingService {
             classReports.add(report);
         }
 
+        for (RelationRubric expectedRelation : challengeRubric.relations()) {
+            totalElements++;
+            boolean correct = mmdOutcome.isRelationCorrect(expectedRelation.id());
+            if (correct) {
+                correctElements++;
+            } else {
+                challengeFullyCorrect = false;
+            }
+            computation.pendingRelations.add(new PendingRelationResult(expectedRelation.id(), correct));
+        }
+
         computation.pendingChallenge = new PendingChallengeResult(challengeRubric.challengeId(), challengeFullyCorrect);
+        computation.mmdMeta = buildMmdMeta(challengeRubric, mmdBundle, mmdOutcome);
         computation.percentage = totalElements == 0
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(correctElements)
@@ -372,6 +426,96 @@ public class GradingService {
         return result;
     }
 
+    private MmdParseBundle parseAndGradeMmd(ChallengeRubric challengeRubric, List<MultipartFile> mmdFiles) {
+        MmdGradingOutcome.ChallengeRubricElements elements = collectRubricElements(challengeRubric);
+        byte[] content = readFirstMmd(mmdFiles);
+        boolean mmdSubmitted = content != null && content.length > 0;
+        if (!mmdSubmitted) {
+            return new MmdParseBundle(MmdGradingOutcome.allIncorrect(elements), null, false);
+        }
+        try {
+            ParsedMmdDiagram diagram = mmdParser.parseBytes(content);
+            return new MmdParseBundle(mmdComparisonService.compare(challengeRubric, diagram), diagram, true);
+        } catch (MmdParseException ex) {
+            return new MmdParseBundle(MmdGradingOutcome.allIncorrect(elements), null, true);
+        }
+    }
+
+    private com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta buildMmdMeta(
+            ChallengeRubric challengeRubric,
+            MmdParseBundle mmdBundle,
+            MmdGradingOutcome mmdOutcome) {
+        com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta meta =
+                new com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta();
+        meta.mmdSubmitted = mmdBundle.mmdSubmitted();
+        Map<String, Boolean> stereotypeMap = new java.util.HashMap<>();
+        for (ClassRubric expectedClass : challengeRubric.classes()) {
+            stereotypeMap.put(expectedClass.id().toString(), mmdOutcome.isClassPresent(expectedClass.id()));
+        }
+        meta.classStereotypeCorrect = stereotypeMap;
+
+        Map<String, String> relationErrors = new java.util.HashMap<>();
+        for (RelationRubric expectedRelation : challengeRubric.relations()) {
+            if (mmdOutcome.isRelationCorrect(expectedRelation.id())) {
+                continue;
+            }
+            relationErrors.put(
+                    expectedRelation.id().toString(),
+                    resolveRelationError(mmdBundle, expectedRelation));
+        }
+        meta.relationErrors = relationErrors;
+        return meta;
+    }
+
+    private String resolveRelationError(MmdParseBundle mmdBundle, RelationRubric expectedRelation) {
+        if (!mmdBundle.mmdSubmitted() || mmdBundle.diagram() == null) {
+            return "Missing relationship";
+        }
+        if (mmdComparisonService.relationPresentInDiagram(expectedRelation, mmdBundle.diagram())) {
+            return "Relation mismatch";
+        }
+        return "Missing relationship";
+    }
+
+    private record MmdParseBundle(MmdGradingOutcome outcome, ParsedMmdDiagram diagram, boolean mmdSubmitted) {}
+
+    private byte[] readFirstMmd(List<MultipartFile> mmdFiles) {
+        if (mmdFiles == null || mmdFiles.isEmpty()) {
+            return null;
+        }
+        return mmdFiles.stream()
+                .sorted(Comparator.comparing(MultipartFile::getOriginalFilename, String.CASE_INSENSITIVE_ORDER))
+                .findFirst()
+                .map(file -> {
+                    try {
+                        return file.getBytes();
+                    } catch (IOException e) {
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    private MmdGradingOutcome.ChallengeRubricElements collectRubricElements(ChallengeRubric rubric) {
+        return new MmdGradingOutcome.ChallengeRubricElements(
+                rubric.classes().stream().map(ClassRubric::id).toList(),
+                rubric.classes().stream().flatMap(c -> c.fields().stream()).map(FieldRubric::id).toList(),
+                rubric.classes().stream().flatMap(c -> c.methods().stream()).map(MethodRubric::id).toList(),
+                rubric.classes().stream().flatMap(c -> c.constructors().stream()).map(ConstructorRubric::id).toList(),
+                rubric.relations().stream().map(RelationRubric::id).toList());
+    }
+
+    private SubmissionRelationResult buildRelationResult(Map<UUID, SubmissionRelationResult> existing,
+                                                         LabSubmission submission,
+                                                         UUID relationId,
+                                                         boolean correct) {
+        SubmissionRelationResult result = existing.getOrDefault(relationId, new SubmissionRelationResult());
+        result.setSubmission(submission);
+        result.setClassRelation(classRelationRepository.getReferenceById(relationId));
+        result.setCorrect(correct);
+        return result;
+    }
+
     private SubmissionChallengeResult buildChallengeResult(Map<UUID, SubmissionChallengeResult> existing,
                                                            LabSubmission submission,
                                                            UUID challengeId,
@@ -387,6 +531,7 @@ public class GradingService {
         Map<UUID, SubmissionFieldResult> fieldResults;
         Map<UUID, SubmissionMethodResult> methodResults;
         Map<UUID, SubmissionConstructorResult> constructorResults;
+        Map<UUID, SubmissionRelationResult> relationResults;
         Map<UUID, SubmissionChallengeResult> challengeResults;
     }
 
@@ -394,10 +539,12 @@ public class GradingService {
         List<SubmissionFieldResult> fieldResults;
         List<SubmissionMethodResult> methodResults;
         List<SubmissionConstructorResult> constructorResults;
+        List<SubmissionRelationResult> relationResults;
         List<SubmissionChallengeResult> challengeResults;
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
+        Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
     }
 
     private static class ChallengeComputation {
@@ -411,6 +558,8 @@ public class GradingService {
         List<PendingFieldResult> pendingFields;
         List<PendingMethodResult> pendingMethods;
         List<PendingConstructorResult> pendingConstructors;
+        List<PendingRelationResult> pendingRelations;
+        com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta mmdMeta;
     }
 
     private static class ClassGradeReport {

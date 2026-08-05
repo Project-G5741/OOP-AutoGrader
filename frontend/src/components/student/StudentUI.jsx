@@ -114,6 +114,7 @@ export default function StudentUI({
   isLoading = false,
   isLoadingDetails = false,
   isRefreshingResults = false,
+  resultsRevealed = false,
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -154,16 +155,12 @@ export default function StudentUI({
   const currentLab = labs.find(l => l.id === selectedLabId) || labs[0];
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
-  const relations = relationData.length > 0 ? relationData : [
-    { from: 'Car', to: 'Vehicle', relType: 'extends', ok: true },
-    { from: 'Bike', to: 'Vehicle', relType: 'extends', ok: true },
-    { from: 'Car', to: 'Drivable', relType: 'implements', ok: false, error: 'Missing relation' },
-  ];
+  const relations = relationData;
 
   const relationScore = {
     ok: relations.filter((r) => r.ok).length,
     total: relations.length,
-    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 0,
+    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
   };
 
   const mmdScore = {
@@ -199,7 +196,7 @@ export default function StudentUI({
   const testCasesData = testCases || [];
   const testScore = {
     ok: testCasesData.filter((tc) => !tc.isExample && tc.passed).length,
-    total: testCasesData.filter((tc) => !tc.isExample).length || 1,
+    total: testCasesData.filter((tc) => !tc.isExample).length,
     pct: (() => {
       const scored = testCasesData.filter((tc) => !tc.isExample);
       const ok = scored.filter((tc) => tc.passed).length;
@@ -256,7 +253,7 @@ export default function StudentUI({
           />
         </div>
 
-        {/* Stats row - Từ backend, hiển thị "--/--" khi không có dữ liệu */}
+        {/* Stats row — latest attempt from DB on login; updates after each upload */}
         <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
@@ -298,7 +295,7 @@ export default function StudentUI({
           </div>
         </div>
 
-        {/* Overview — sidebar + result panel; only this section refreshes after upload */}
+        {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex flex-col gap-4 min-h-[560px] lg:flex-row">
           {isRefreshingResults && (
             <div
@@ -341,15 +338,15 @@ export default function StudentUI({
                         }`}>
                           {ch.name}
                         </p>
-                        {hasValue(ch.score) ? (
+                        {resultsRevealed && hasValue(ch.score) ? (
                           <p className={`text-xs mt-0.5 font-semibold ${scoreColor(ch.score)}`}>
                             {ch.score} / 100
                           </p>
-                        ) : (
+                        ) : resultsRevealed ? (
                           <p className="text-xs mt-0.5 text-gray-400 dark:text-gray-600">
                             Not submitted
                           </p>
-                        )}
+                        ) : null}
                       </div>
                       {selectedChallengeId === ch.id && (
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
@@ -381,9 +378,9 @@ export default function StudentUI({
               </div>
             </div>
 
-            {/* Tab content - renders nothing when there's no data from the backend */}
+            {/* Tab content — empty-state UI until upload fetches results for this session */}
             <div className="flex-1 overflow-auto p-5">
-              {isLoadingDetails ? (
+              {resultsRevealed && isLoadingDetails ? (
                 <div className="flex items-center justify-center h-48">
                   <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
                 </div>
@@ -396,7 +393,9 @@ export default function StudentUI({
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Object model checks for the selected challenge.</p>
                     </div>
-                    <ScorePill ok={mmdScore.ok} total={mmdScore.total || 1} pct={mmdScore.pct} />
+                    {resultsRevealed && mmdScore.total > 0 && (
+                      <ScorePill ok={mmdScore.ok} total={mmdScore.total} pct={mmdScore.pct} />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
@@ -407,11 +406,13 @@ export default function StudentUI({
                         </div>
                         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                           {cls.attributes?.map((a, i) => (
-                            <li key={i} className={`flex items-center justify-between px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                              <span className={`font-mono ${a.type === 'field' ? 'text-blue-600 dark:text-blue-400' : a.type === 'method' ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>
+                            <li key={i} className={`flex items-start gap-3 px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                              <span className={`font-mono flex-1 min-w-0 break-words ${a.type === 'field' ? 'text-blue-600 dark:text-blue-400' : a.type === 'method' ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>
                                 {a.name}
                               </span>
-                              <Tick ok={a.ok} />
+                              <div className="flex-shrink-0 pt-0.5">
+                                <Tick ok={a.ok} />
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -429,7 +430,9 @@ export default function StudentUI({
                         <GitMerge className="w-4 h-4" />
                         <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
                       </div>
-                      <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                      {resultsRevealed && (
+                        <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                      )}
                     </div>
                     <div className="w-full overflow-hidden rounded-3xl border border-gray-200/40 dark:border-gray-700/50 bg-[#0f1320]">
                       <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200/10 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
@@ -477,7 +480,9 @@ export default function StudentUI({
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Field, constructor and method checks.</p>
                     </div>
-                    <ScorePill ok={classScore.ok} total={classScore.total || 1} pct={classScore.pct} />
+                    {resultsRevealed && classScore.total > 0 && (
+                      <ScorePill ok={classScore.ok} total={classScore.total} pct={classScore.pct} />
+                    )}
                   </div>
 
                   {classData.length > 0 ? (
@@ -569,7 +574,9 @@ export default function StudentUI({
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Example testcases are visible; normal testcases remain hidden.</p>
                     </div>
-                    <ScorePill ok={testScore.ok} total={testScore.total || 1} pct={testScore.pct} />
+                    {resultsRevealed && testScore.total > 0 && (
+                      <ScorePill ok={testScore.ok} total={testScore.total} pct={testScore.pct} />
+                    )}
                   </div>
 
                   {testCasesData.length > 0 ? (

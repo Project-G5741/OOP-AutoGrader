@@ -7,6 +7,26 @@ import StudentUI from '../components/student/StudentUI';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+function normalizeChallengeScores(resultMap = {}) {
+  const scores = {};
+  for (const [id, score] of Object.entries(resultMap)) {
+    scores[id] = score;
+  }
+  return scores;
+}
+
+function hasSessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return false;
+  return Object.hasOwn(challengeScores, challengeId)
+    || Object.hasOwn(challengeScores, String(challengeId));
+}
+
+function sessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return undefined;
+  if (Object.hasOwn(challengeScores, challengeId)) return challengeScores[challengeId];
+  return challengeScores[String(challengeId)];
+}
+
 export default function StudentDashboard({ user, onLogout }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -34,10 +54,18 @@ export default function StudentDashboard({ user, onLogout }) {
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isRefreshingResults, setIsRefreshingResults] = useState(false);
+  const [revealedLabIds, setRevealedLabIds] = useState([]);
+  const [sessionResultsByLab, setSessionResultsByLab] = useState({});
 
   const classDataCacheRef = useRef({});
+  const mmdDataCacheRef = useRef({});
+  const statsFetchGenRef = useRef(0);
 
   const studentId = user?.id;
+
+  const resultsRevealed = selectedLabId != null && revealedLabIds.includes(selectedLabId);
+  const sessionResults = selectedLabId ? sessionResultsByLab[selectedLabId] : null;
+  const sessionChallengeScores = sessionResults?.challengeScores ?? {};
 
   const fetchChallenges = useCallback(async (labId, { silent = false } = {}) => {
     if (!labId) return;
@@ -46,8 +74,7 @@ export default function StudentDashboard({ user, onLogout }) {
     }
     setChallengesError(null);
     try {
-      const query = studentId ? `?studentId=${studentId}` : '';
-      const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges${query}`);
+      const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges`);
       if (!res.ok) throw new Error(`Failed to load challenges (status ${res.status})`);
       const data = await res.json();
       setChallenges(data);
@@ -67,7 +94,7 @@ export default function StudentDashboard({ user, onLogout }) {
         setIsLoadingChallenges(false);
       }
     }
-  }, [studentId]);
+  }, []);
 
   useEffect(() => {
     if (stats.totalSubmissions != null) {
@@ -77,79 +104,94 @@ export default function StudentDashboard({ user, onLogout }) {
     }
   }, [stats.totalSubmissions, selectedLabId]);
 
-  const fetchStats = useCallback(async (labId, { uploadSnapshot } = {}) => {
+  const fetchStats = useCallback(async (labId) => {
     if (!labId || !studentId) {
       setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       return;
     }
+    const generation = statsFetchGenRef.current;
     try {
       const statsRes = await fetch(
         `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`
       );
+      if (generation !== statsFetchGenRef.current) return;
       if (statsRes.ok) {
         const fresh = await statsRes.json();
-        setStats((prev) => ({
-          ...fresh,
-          totalSubmissions:
-            uploadSnapshot?.totalSubmissions ?? fresh.totalSubmissions ?? prev.totalSubmissions,
-          latestSubmission:
-            uploadSnapshot?.latestSubmission ?? fresh.latestSubmission ?? prev.latestSubmission,
-          currentGrade:
-            uploadSnapshot?.currentGrade ?? fresh.currentGrade ?? prev.currentGrade,
-        }));
-      } else if (!uploadSnapshot) {
+        setStats({
+          currentGrade: fresh.currentGrade ?? null,
+          totalSubmissions: fresh.totalSubmissions ?? null,
+          latestSubmission: fresh.latestSubmission ?? null,
+        });
+      } else {
         setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
-      if (!uploadSnapshot) {
+      if (generation === statsFetchGenRef.current) {
         setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       }
     }
   }, [studentId]);
 
-  const fetchClassForChallenge = useCallback(async (
+  const fetchChallengeDetails = useCallback(async (
     labId,
     challengeId,
-    { force = false, score } = {},
+    { force = false, submissionId, challengeScores } = {},
   ) => {
     if (!labId || !challengeId || !studentId) {
       setClassData([]);
+      setMmdData([]);
       return;
     }
 
-    const hasSubmissionData = score !== undefined
-      ? score !== null
-      : (() => {
-          const currentChallenge = challenges.find((c) => c.id === challengeId);
-          return currentChallenge?.score !== null && currentChallenge?.score !== undefined;
-        })();
-
-    setMmdData([]);
     setTestCases([]);
 
-    if (!hasSubmissionData) {
+    if (!hasSessionChallengeScore(challengeScores, challengeId)) {
       setClassData([]);
+      setMmdData([]);
       return;
     }
 
-    if (!force && classDataCacheRef.current[challengeId]) {
-      setClassData(classDataCacheRef.current[challengeId]);
+    const cachedClass = !force && classDataCacheRef.current[challengeId];
+    const cachedMmd = !force && mmdDataCacheRef.current[challengeId];
+    if (cachedClass && cachedMmd) {
+      setClassData(cachedClass);
+      setMmdData(cachedMmd);
       return;
     }
 
     try {
-      const classRes = await fetch(
-        `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class?studentId=${studentId}`
-      );
-      const data = classRes.ok ? await classRes.json() : [];
-      classDataCacheRef.current[challengeId] = data;
-      setClassData(data);
+      const query = new URLSearchParams({ studentId });
+      if (submissionId) {
+        query.set('submissionId', submissionId);
+      }
+      const qs = `?${query.toString()}`;
+      const [classRes, mmdRes] = await Promise.all([
+        cachedClass
+          ? Promise.resolve({ ok: true, json: async () => cachedClass })
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`),
+        cachedMmd
+          ? Promise.resolve({ ok: true, json: async () => cachedMmd })
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`),
+      ]);
+
+      const classJson = classRes.ok ? await classRes.json() : [];
+      const mmdJson = mmdRes.ok ? await mmdRes.json() : [];
+
+      if (!cachedClass) {
+        classDataCacheRef.current[challengeId] = classJson;
+      }
+      if (!cachedMmd) {
+        mmdDataCacheRef.current[challengeId] = mmdJson;
+      }
+      setClassData(classJson);
+      setMmdData(mmdJson);
     } catch (err) {
-      console.error('Failed to fetch class data:', err);
+      console.error('Failed to fetch challenge details:', err);
       setClassData([]);
+      setMmdData([]);
     }
-  }, [studentId, challenges]);
+  }, [studentId]);
 
   useEffect(() => {
     async function fetchLabs() {
@@ -174,19 +216,35 @@ export default function StudentDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (!selectedLabId) return;
-    Promise.all([
-      fetchChallenges(selectedLabId),
-      fetchStats(selectedLabId),
-    ]);
-  }, [selectedLabId, fetchChallenges, fetchStats]);
+    const labRevealed = revealedLabIds.includes(selectedLabId);
+
+    fetchChallenges(selectedLabId);
+    fetchStats(selectedLabId);
+
+    if (!labRevealed) {
+      setClassData([]);
+      setMmdData([]);
+      setTestCases([]);
+    }
+  }, [selectedLabId, revealedLabIds, fetchChallenges, fetchStats]);
 
   useEffect(() => {
-    if (!selectedChallengeId || !selectedLabId) return;
+    if (!selectedChallengeId || !selectedLabId || !resultsRevealed) return;
 
-    const cached = classDataCacheRef.current[selectedChallengeId];
-    if (cached) {
-      setClassData(cached);
+    const labSession = sessionResultsByLab[selectedLabId];
+    const challengeScores = labSession?.challengeScores ?? {};
+    if (!hasSessionChallengeScore(challengeScores, selectedChallengeId)) {
+      setClassData([]);
       setMmdData([]);
+      setTestCases([]);
+      return;
+    }
+
+    const cachedClass = classDataCacheRef.current[selectedChallengeId];
+    const cachedMmd = mmdDataCacheRef.current[selectedChallengeId];
+    if (cachedClass && cachedMmd) {
+      setClassData(cachedClass);
+      setMmdData(cachedMmd);
       setTestCases([]);
       return;
     }
@@ -194,7 +252,10 @@ export default function StudentDashboard({ user, onLogout }) {
     async function fetchDetails() {
       setIsLoadingDetails(true);
       try {
-        await fetchClassForChallenge(selectedLabId, selectedChallengeId);
+        await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
+          submissionId: labSession?.submissionId,
+          challengeScores,
+        });
       } catch (err) {
         console.error('Failed to fetch details:', err);
       } finally {
@@ -202,13 +263,19 @@ export default function StudentDashboard({ user, onLogout }) {
       }
     }
     fetchDetails();
-  }, [selectedLabId, selectedChallengeId, fetchClassForChallenge]);
+  }, [
+    selectedLabId,
+    selectedChallengeId,
+    fetchChallengeDetails,
+    resultsRevealed,
+    sessionResultsByLab,
+  ]);
 
   const handleLabChange = (labId) => {
     setSelectedLabId(labId);
     setSelectedChallengeId(null);
-    setNextAttemptNumber(1);
     classDataCacheRef.current = {};
+    mmdDataCacheRef.current = {};
     setMmdData([]);
     setClassData([]);
     setTestCases([]);
@@ -216,62 +283,81 @@ export default function StudentDashboard({ user, onLogout }) {
 
   const handleChallengeChange = (challengeId) => {
     setSelectedChallengeId(challengeId);
-    const cached = classDataCacheRef.current[challengeId];
-    if (cached) {
-      setClassData(cached);
+    if (!resultsRevealed) {
+      setClassData([]);
       setMmdData([]);
       setTestCases([]);
+      return;
+    }
+    const challengeScores = sessionResultsByLab[selectedLabId]?.challengeScores ?? {};
+    if (!hasSessionChallengeScore(challengeScores, challengeId)) {
+      setClassData([]);
+      setMmdData([]);
+      setTestCases([]);
+      return;
+    }
+    const cachedClass = classDataCacheRef.current[challengeId];
+    const cachedMmd = mmdDataCacheRef.current[challengeId];
+    if (cachedClass && cachedMmd) {
+      setClassData(cachedClass);
+      setMmdData(cachedMmd);
     }
   };
 
   const handleUploadComplete = async (uploadResponse) => {
+    if (!selectedLabId) return;
+
     const resultMap = uploadResponse?.challengeResult ?? {};
-    const uploadSnapshot = {
+    const challengeScores = normalizeChallengeScores(resultMap);
+    const submissionId = uploadResponse?.submissionId ?? null;
+
+    statsFetchGenRef.current += 1;
+
+    classDataCacheRef.current = {};
+    mmdDataCacheRef.current = {};
+
+    setSessionResultsByLab((prev) => ({
+      ...prev,
+      [selectedLabId]: {
+        submissionId,
+        challengeScores,
+      },
+    }));
+
+    setStats({
       currentGrade: uploadResponse?.score != null
         ? Math.round(Number(uploadResponse.score))
-        : undefined,
-      totalSubmissions: uploadResponse?.totalSubmissions ?? undefined,
-      latestSubmission: uploadResponse?.latestSubmission ?? undefined,
-    };
-
-    for (const challengeId of Object.keys(resultMap)) {
-      delete classDataCacheRef.current[challengeId];
-    }
-
-    setChallenges((prev) =>
-      prev.map((challenge) => {
-        const score = resultMap[challenge.id];
-        if (score === undefined) return challenge;
-        return { ...challenge, score };
-      })
-    );
-
-    setStats((prev) => ({
-      currentGrade: uploadSnapshot.currentGrade ?? prev.currentGrade,
-      totalSubmissions: uploadSnapshot.totalSubmissions ?? prev.totalSubmissions,
-      latestSubmission: uploadSnapshot.latestSubmission ?? prev.latestSubmission,
-    }));
+        : null,
+      totalSubmissions: uploadResponse?.totalSubmissions ?? null,
+      latestSubmission: uploadResponse?.latestSubmission ?? null,
+    });
 
     if (uploadResponse?.attemptNumber != null) {
       setNextAttemptNumber(Number(uploadResponse.attemptNumber) + 1);
-    } else if (uploadSnapshot.totalSubmissions != null) {
-      setNextAttemptNumber(Number(uploadSnapshot.totalSubmissions) + 1);
+    } else if (uploadResponse?.totalSubmissions != null) {
+      setNextAttemptNumber(Number(uploadResponse.totalSubmissions) + 1);
     }
 
-    if (!selectedLabId) return;
+    setRevealedLabIds((prev) =>
+      prev.includes(selectedLabId) ? prev : [...prev, selectedLabId]
+    );
 
     setIsRefreshingResults(true);
     try {
-      await Promise.all([
-        fetchChallenges(selectedLabId, { silent: true }),
-        fetchStats(selectedLabId, { uploadSnapshot }),
+      if (
         selectedChallengeId
-          ? fetchClassForChallenge(selectedLabId, selectedChallengeId, {
-              force: true,
-              score: resultMap[selectedChallengeId],
-            })
-          : Promise.resolve(),
-      ]);
+        && hasSessionChallengeScore(challengeScores, selectedChallengeId)
+      ) {
+        await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
+          force: true,
+          submissionId,
+          challengeScores,
+        });
+      } else {
+        setClassData([]);
+        setMmdData([]);
+        setTestCases([]);
+      }
     } finally {
       setIsRefreshingResults(false);
     }
@@ -323,6 +409,8 @@ export default function StudentDashboard({ user, onLogout }) {
               isLoading={isInitialLoading}
               isLoadingDetails={isLoadingDetails}
               isRefreshingResults={isRefreshingResults}
+              resultsRevealed={resultsRevealed}
+              sessionChallengeScores={sessionChallengeScores}
               error={labsError || challengesError}
             />
           )}

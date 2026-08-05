@@ -36,7 +36,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (labs, upload, stats) | Parallel `GET /api/labs/{id}/challenges` + `GET /api/labs/{id}/stats`; class via `/class` on challenge select |
+| `showHistory === false` | Main dashboard (labs, upload, stats from latest DB attempt, challenge sidebar + tab shell) | `GET /api/labs`, `GET /api/labs/{id}/stats` on login/lab change; challenge scores + class/MMD detail only after upload in session |
 | `showHistory === true` | `StudentHistoryPage` | Mock `HISTORY` constant |
 
 ### Header commands (`Header.jsx` → `onCommand`)

@@ -68,7 +68,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + compare against snapshot) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + MMD parse/compare + merge) → MMD hook (no-op by default) → cleanup temp folder.
 
 Grading tuning properties (`application.properties`):
 
