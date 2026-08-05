@@ -122,7 +122,7 @@ export default function StudentUI({
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1a1f2e] transition-colors">
-      <div className="w-full max-w-full mx-auto px-12 py-12">
+      <div className="w-full max-w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Lab selector - Từ backend */}
         <div className="bg-white dark:bg-[#1e2530] rounded-xl p-4 shadow-sm dark:shadow-none mb-4">
           <label className="block text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
@@ -159,7 +159,7 @@ export default function StudentUI({
         </div>
 
         {/* Stats row - Từ backend, hiển thị "--/--" khi không có dữ liệu */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
@@ -201,7 +201,7 @@ export default function StudentUI({
         </div>
 
         {/* Overview — sidebar + result panel; only this section refreshes after upload */}
-        <div className="relative flex gap-4 min-h-[560px]">
+        <div className="relative flex flex-col gap-4 min-h-[560px] lg:flex-row">
           {isRefreshingResults && (
             <div
               className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-[#1a1f2e]/60"
@@ -212,7 +212,7 @@ export default function StudentUI({
             </div>
           )}
           {/* Challenges sidebar - Từ backend */}
-          <div className="w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+          <div className="w-full lg:w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Challenges</h2>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
@@ -292,7 +292,7 @@ export default function StudentUI({
               ) : (
                 <>
               {activeTab === 'mmd' && mmdData.length > 0 && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {mmdData.map((cls) => (
                     <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                       <div className="bg-purple-50 dark:bg-purple-900/20 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
@@ -348,7 +348,7 @@ export default function StudentUI({
                           </pre>
                         </div>
                       )}
-                      <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-800">
                         <div>
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">
                             Fields
@@ -467,7 +467,7 @@ export default function StudentUI({
                       </button>
 
                       {tc.isExample && expandedTC === tc.id && (
-                        <div className="border-t border-gray-100 dark:border-gray-700 grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-700">
+                        <div className="border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-700">
                           <div className="p-4">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
                               Input

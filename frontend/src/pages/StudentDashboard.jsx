@@ -2,14 +2,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
-import ProfileEditModal from '../components/student/ProfileEditModal';
+import ProfileEditModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 export default function StudentDashboard({ user, onLogout }) {
   const [showHistory, setShowHistory] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [labs, setLabs] = useState([]);
   const [selectedLabId, setSelectedLabId] = useState(null);
@@ -249,22 +249,10 @@ export default function StudentDashboard({ user, onLogout }) {
       setShowHistory(false);
     } else if (cmd === 'history') {
       setShowHistory(true);
-    } else if (cmd === 'editProfile') {
-      setShowProfile(true);
+    } else if (cmd === 'changePassword') {
+      setShowChangePassword(true);
     }
   };
-
-  if (showHistory) {
-    return (
-      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
-        <StudentHistoryPage
-          user={user}
-          onLogout={onLogout}
-          onEditProfile={() => setShowHistory(false)}
-        />
-      </AppShell>
-    );
-  }
 
   const isInitialLoading = isLoadingLabs || (isLoadingChallenges && challenges.length === 0);
 
@@ -278,31 +266,39 @@ export default function StudentDashboard({ user, onLogout }) {
             </div>
           )}
 
-          <StudentUI
-            user={user}
-            labs={labs}
-            selectedLabId={selectedLabId}
-            onLabChange={handleLabChange}
-            challenges={challenges}
-            selectedChallengeId={selectedChallengeId}
-            onChallengeChange={handleChallengeChange}
-            mmdData={mmdData}
-            classData={classData}
-            testCases={testCases}
-            stats={stats}
-            onUploadComplete={handleUploadComplete}
-            isLoading={isInitialLoading}
-            isLoadingDetails={isLoadingDetails}
-            isRefreshingResults={isRefreshingResults}
-            error={labsError || challengesError}
-          />
+          {showHistory ? (
+            <StudentHistoryPage
+              user={user}
+              onLogout={onLogout}
+              onNavigate={() => setShowHistory(false)}
+            />
+          ) : (
+            <StudentUI
+              user={user}
+              labs={labs}
+              selectedLabId={selectedLabId}
+              onLabChange={handleLabChange}
+              challenges={challenges}
+              selectedChallengeId={selectedChallengeId}
+              onChallengeChange={handleChallengeChange}
+              mmdData={mmdData}
+              classData={classData}
+              testCases={testCases}
+              stats={stats}
+              onUploadComplete={handleUploadComplete}
+              isLoading={isInitialLoading}
+              isLoadingDetails={isLoadingDetails}
+              isRefreshingResults={isRefreshingResults}
+              error={labsError || challengesError}
+            />
+          )}
         </div>
       </AppShell>
 
-      {showProfile && (
+      {showChangePassword && (
         <ProfileEditModal
-          isOpen={showProfile}
-          onClose={() => setShowProfile(false)}
+          isOpen={showChangePassword}
+          onClose={() => setShowChangePassword(false)}
           user={user}
         />
       )}

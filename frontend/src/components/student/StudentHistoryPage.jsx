@@ -1,6 +1,4 @@
 import { Fragment, useState } from 'react';
-import Header from '../Header';
-import ProfileEditModal from './ProfileEditModal';
 import { History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, UserCircle } from 'lucide-react';
 
 const HISTORY = [
@@ -30,20 +28,13 @@ function scoreColor(score) {
   return 'text-red-600 dark:text-red-300';
 }
 
-export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditProfile }) {
+export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   const [filterLab, setFilterLab] = useState('All Labs');
   const [expandedRow, setExpandedRow] = useState(null);
 
-  const handleCommand = (cmd) => {
-    if (cmd === 'home') {
-      if (onNavigate) {
-        onNavigate();
-      }
-    } else if (cmd === 'history') {
-      setFilterLab('All Labs');
-      setExpandedRow(null);
-    } else if (cmd === 'editProfile') {
-      setShowProfile(true);
+  const handleHome = () => {
+    if (onNavigate) {
+      onNavigate();
     }
   };
 
@@ -74,7 +65,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
       </div> */}
 
       <div className="w-full flex flex-col gap-6 px-6 py-8">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Labs Attempted', value: labs.length, tone: 'text-purple-400', bg: 'bg-purple-900/30' },
             { label: 'Total Submissions', value: HISTORY.length, tone: 'text-blue-400', bg: 'bg-blue-900/30' },
@@ -129,8 +120,8 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, onEditP
               </select>
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#0f151b]">
-              <table className="w-full border-collapse text-left text-sm">
+            <div className="mt-5 overflow-x-auto rounded-3xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#0f151b]">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead className="bg-white text-gray-600 dark:bg-[#12181f] dark:text-gray-500">
                   <tr>
                     <th className="px-4 py-3">Lab</th>

@@ -6,6 +6,12 @@
 html, body, #root {
   height: 100%;
   margin: 0;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+* {
+  box-sizing: border-box;
 }
 body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
