@@ -199,7 +199,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   ];
 
   const inner = (
-    <main className="space-y-6">
+    <main className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">User Management</h1>
         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Manage all system users — students, lecturers and admins</p>

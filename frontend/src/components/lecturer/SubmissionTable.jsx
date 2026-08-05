@@ -4,7 +4,7 @@ import { Eye } from 'lucide-react';
 export default function SubmissionTable({ submissions, summary }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
-      <table className="min-w-full">
+      <table className="w-full table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
             {['Student', 'ID', 'Score', 'Failed Classes', 'Failed Testcases', 'Action'].map((col) => (
