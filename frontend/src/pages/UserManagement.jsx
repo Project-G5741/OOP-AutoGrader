@@ -141,6 +141,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           email: form.email,
           role: form.role,
         };
+        if (form.password) {
+          requestBody.password = form.password;
+        }
         const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

@@ -12,6 +12,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LoginUI.jsx` | IRN/password login, Google OAuth, JWT decode |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
+| `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
 | `StudentDashboard.jsx` | Student shell: lab select, upload, stats; toggles history |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `UserManagement.jsx` | User CRUD (live API) |
@@ -27,10 +28,10 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 | Value | Renders | API |
 |---|---|---|
-| `dashboard` | Grading overview, `SubmissionTable` | Mock data |
+| `dashboard` | Grading overview, `SubmissionTable` | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `projects` | `SubmissionManagement` | Local mock |
-| `reports` | Placeholder | None |
+| `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections
 
@@ -58,6 +59,10 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `GET /api/labs/{labId}/challenges?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
+| `GET /api/lecturer/overview` | `LecturerDashboard.jsx` |
+| `GET /api/labs/{labId}/statistics` | `LecturerDashboard.jsx` |
+| `GET /api/labs/{labId}/submissions` | `LecturerDashboard.jsx` |
+| `GET /api/analytics/dashboard` | `Reports.jsx` |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 

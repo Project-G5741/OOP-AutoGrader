@@ -53,6 +53,9 @@ public class UserService {
 
     @Transactional
     public UserAccount createUser(CreateUserRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("User request is required");
+        }
         if (request.password() == null || request.password().isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
@@ -81,29 +84,55 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public List<BulkCreateResult> createUsers(List<CreateUserRequest> requests) {
+    @Transactional
+    public List<BulkCreateResult> createUser(List<CreateUserRequest> requests) {
         List<BulkCreateResult> results = new ArrayList<>();
-
-        for (int i = 0; i < requests.size(); i++) {
-            CreateUserRequest request = requests.get(i);
-            try {
-                UserAccount created = createUser(request); // reuses your existing single-user method
-                results.add(BulkCreateResult.success(created));
-            } catch (Exception e) {
-                results.add(BulkCreateResult.failure(request.email(), e.getMessage()));
-            }
-
-            if (i < requests.size() - 1) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
+        if (requests == null) {
+            return results;
         }
 
+        for (CreateUserRequest request : requests) {
+            if (request == null) {
+                results.add(BulkCreateResult.failure(null, "Empty user request"));
+                continue;
+            }
+            try {
+                results.add(BulkCreateResult.success(createUser(request)));
+            } catch (Exception ex) {
+                results.add(BulkCreateResult.failure(request.email(), ex.getMessage()));
+            }
+        }
         return results;
+    }
+
+    // UserService.java - Change password   
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is required");
+        }
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password is required");
+        }
+        if (newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
+        }
+        if (newPassword.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be less than 100 characters");
+        }
+
+        UserAccount user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be different from current password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
     }
 
     @Transactional
@@ -215,6 +244,16 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
  
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            if (request.getPassword().length() < 6) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
+            }
+            if (request.getPassword().length() > 100) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be less than 100 characters");
+            }
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        }
+ 
         HashSet<Role> roles = new HashSet<>();
         roles.add(role);
         user.setRoles(roles);
@@ -254,5 +293,6 @@ public class UserService {
 
     private String blankToNull(String value) {
     return (value == null || value.isBlank()) ? null : value;
+    
 }
 }
