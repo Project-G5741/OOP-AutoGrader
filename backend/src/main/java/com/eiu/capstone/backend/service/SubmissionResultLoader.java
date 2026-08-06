@@ -10,9 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.SubmissionMethodResult;
+import com.eiu.capstone.backend.model.SubmissionRelationResult;
 import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
 
 @Service
 public class SubmissionResultLoader {
@@ -20,13 +22,16 @@ public class SubmissionResultLoader {
     private final SubmissionFieldResultRepository submissionFieldResultRepository;
     private final SubmissionMethodResultRepository submissionMethodResultRepository;
     private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
+    private final SubmissionRelationResultRepository submissionRelationResultRepository;
 
     public SubmissionResultLoader(SubmissionFieldResultRepository submissionFieldResultRepository,
                                   SubmissionMethodResultRepository submissionMethodResultRepository,
-                                  SubmissionConstructorResultRepository submissionConstructorResultRepository) {
+                                  SubmissionConstructorResultRepository submissionConstructorResultRepository,
+                                  SubmissionRelationResultRepository submissionRelationResultRepository) {
         this.submissionFieldResultRepository = submissionFieldResultRepository;
         this.submissionMethodResultRepository = submissionMethodResultRepository;
         this.submissionConstructorResultRepository = submissionConstructorResultRepository;
+        this.submissionRelationResultRepository = submissionRelationResultRepository;
     }
 
     @Transactional(readOnly = true)
@@ -52,6 +57,13 @@ public class SubmissionResultLoader {
             }
         }
 
-        return new SubmissionCorrectIds(fieldIds, methodIds, constructorIds);
+        Set<UUID> relationIds = new HashSet<>();
+        for (SubmissionRelationResult result : submissionRelationResultRepository.findBySubmission_IdWithRelation(submissionId)) {
+            if (result.isCorrect()) {
+                relationIds.add(result.getClassRelation().getId());
+            }
+        }
+
+        return new SubmissionCorrectIds(fieldIds, methodIds, constructorIds, relationIds);
     }
 }

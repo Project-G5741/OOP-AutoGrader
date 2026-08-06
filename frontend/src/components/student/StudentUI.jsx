@@ -73,6 +73,20 @@ function scoreColor(s) {
 // Helper: has a value that isn't null/undefined
 const hasValue = (v) => v !== null && v !== undefined;
 
+// Session challenge scores are keyed by challenge id, but ids may arrive as
+// either the raw id or its string form depending on the source map, so check both.
+function hasSessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return false;
+  return Object.hasOwn(challengeScores, challengeId)
+    || Object.hasOwn(challengeScores, String(challengeId));
+}
+
+function sessionChallengeScore(challengeScores, challengeId) {
+  if (!challengeScores || challengeId == null) return undefined;
+  if (Object.hasOwn(challengeScores, challengeId)) return challengeScores[challengeId];
+  return challengeScores[String(challengeId)];
+}
+
 function formatScopeDetail(scope, detail) {
   const normalizedScope = scope?.trim();
   const normalizedDetail = detail?.trim() ?? '';
@@ -114,14 +128,18 @@ export default function StudentUI({
   isLoading = false,
   isLoadingDetails = false,
   isRefreshingResults = false,
+  resultsRevealed = false,
+  sessionChallengeScores = {},
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
+  const [expandedClassName, setExpandedClassName] = useState(null);
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
     setExpandedTC(null);
+    setExpandedClassName(null);
   }, [selectedChallengeId]);
 
   const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-purple-500 text-purple-500 dark:text-purple-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`;
@@ -154,16 +172,12 @@ export default function StudentUI({
   const currentLab = labs.find(l => l.id === selectedLabId) || labs[0];
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
-  const relations = relationData.length > 0 ? relationData : [
-    { from: 'Car', to: 'Vehicle', relType: 'extends', ok: true },
-    { from: 'Bike', to: 'Vehicle', relType: 'extends', ok: true },
-    { from: 'Car', to: 'Drivable', relType: 'implements', ok: false, error: 'Missing relation' },
-  ];
+  const relations = relationData;
 
   const relationScore = {
     ok: relations.filter((r) => r.ok).length,
     total: relations.length,
-    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 0,
+    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
   };
 
   const mmdScore = {
@@ -199,7 +213,7 @@ export default function StudentUI({
   const testCasesData = testCases || [];
   const testScore = {
     ok: testCasesData.filter((tc) => !tc.isExample && tc.passed).length,
-    total: testCasesData.filter((tc) => !tc.isExample).length || 1,
+    total: testCasesData.filter((tc) => !tc.isExample).length,
     pct: (() => {
       const scored = testCasesData.filter((tc) => !tc.isExample);
       const ok = scored.filter((tc) => tc.passed).length;
@@ -256,7 +270,7 @@ export default function StudentUI({
           />
         </div>
 
-        {/* Stats row - Từ backend, hiển thị "--/--" khi không có dữ liệu */}
+        {/* Stats row — latest attempt from DB on login; updates after each upload */}
         <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
@@ -298,7 +312,7 @@ export default function StudentUI({
           </div>
         </div>
 
-        {/* Overview — sidebar + result panel; only this section refreshes after upload */}
+        {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex flex-col gap-4 min-h-[560px] lg:flex-row">
           {isRefreshingResults && (
             <div
@@ -323,7 +337,10 @@ export default function StudentUI({
                   No challenges available
                 </li>
               ) : (
-                challenges.map((ch) => (
+                challenges.map((ch) => {
+                  const chHasScore = resultsRevealed && hasSessionChallengeScore(sessionChallengeScores, ch.id);
+                  const chScore = chHasScore ? sessionChallengeScore(sessionChallengeScores, ch.id) : null;
+                  return (
                   <li key={ch.id}>
                     <button
                       onClick={() => onChallengeChange(ch.id)}
@@ -341,22 +358,23 @@ export default function StudentUI({
                         }`}>
                           {ch.name}
                         </p>
-                        {hasValue(ch.score) ? (
-                          <p className={`text-xs mt-0.5 font-semibold ${scoreColor(ch.score)}`}>
-                            {ch.score} / 100
+                        {chHasScore && hasValue(chScore) ? (
+                          <p className={`text-xs mt-0.5 font-semibold ${scoreColor(chScore)}`}>
+                            {chScore} / 100
                           </p>
-                        ) : (
+                        ) : resultsRevealed ? (
                           <p className="text-xs mt-0.5 text-gray-400 dark:text-gray-600">
                             Not submitted
                           </p>
-                        )}
+                        ) : null}
                       </div>
                       {selectedChallengeId === ch.id && (
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0" />
                       )}
                     </button>
                   </li>
-                ))
+                  );
+                })
               )}
             </ul>
           </div>
@@ -381,9 +399,9 @@ export default function StudentUI({
               </div>
             </div>
 
-            {/* Tab content - renders nothing when there's no data from the backend */}
+            {/* Tab content — empty-state UI until upload fetches results for this session */}
             <div className="flex-1 overflow-auto p-5">
-              {isLoadingDetails ? (
+              {resultsRevealed && isLoadingDetails ? (
                 <div className="flex items-center justify-center h-48">
                   <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
                 </div>
@@ -396,7 +414,9 @@ export default function StudentUI({
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Object model checks for the selected challenge.</p>
                     </div>
-                    <ScorePill ok={mmdScore.ok} total={mmdScore.total || 1} pct={mmdScore.pct} />
+                    {resultsRevealed && mmdScore.total > 0 && (
+                      <ScorePill ok={mmdScore.ok} total={mmdScore.total} pct={mmdScore.pct} />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
@@ -407,11 +427,13 @@ export default function StudentUI({
                         </div>
                         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                           {cls.attributes?.map((a, i) => (
-                            <li key={i} className={`flex items-center justify-between px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                              <span className={`font-mono ${a.type === 'field' ? 'text-blue-600 dark:text-blue-400' : a.type === 'method' ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>
+                            <li key={i} className={`flex items-start gap-3 px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
+                              <span className={`font-mono flex-1 min-w-0 break-words ${a.type === 'field' ? 'text-blue-600 dark:text-blue-400' : a.type === 'method' ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400'}`}>
                                 {a.name}
                               </span>
-                              <Tick ok={a.ok} />
+                              <div className="flex-shrink-0 pt-0.5">
+                                <Tick ok={a.ok} />
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -429,7 +451,9 @@ export default function StudentUI({
                         <GitMerge className="w-4 h-4" />
                         <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
                       </div>
-                      <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                      {resultsRevealed && (
+                        <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                      )}
                     </div>
                     <div className="w-full overflow-hidden rounded-3xl border border-gray-200/40 dark:border-gray-700/50 bg-[#0f1320]">
                       <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200/10 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
@@ -475,87 +499,101 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Field, constructor and method checks.</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Tap a class to inspect its members.</p>
                     </div>
-                    <ScorePill ok={classScore.ok} total={classScore.total || 1} pct={classScore.pct} />
+                    {resultsRevealed && classScore.total > 0 && (
+                      <ScorePill ok={classScore.ok} total={classScore.total} pct={classScore.pct} />
+                    )}
                   </div>
 
                   {classData.length > 0 ? (
-                    <div className="space-y-5">
+                    <div className="space-y-3">
                       {classData.map((cls) => {
-                        const failedItems = [
-                          ...(cls.fields?.filter((f) => !f.ok).map((f) => ({ message: f.error || 'Field failed', location: f.name })) || []),
-                          ...(cls.constructors?.filter((c) => !c.ok).map((c) => ({ message: c.error || 'Constructor failed', location: c.name })) || []),
-                          ...(cls.methods?.filter((m) => !m.ok).map((m) => ({ message: m.error || 'Method failed', location: m.name })) || []),
-                        ];
-                        return (
-                          <div key={cls.name} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                            <div className="bg-gray-50 dark:bg-[#151b24] px-5 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-                              <div>
-                                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">{cls.type || 'Class'}</span>
-                                <p className="font-bold text-gray-900 dark:text-white font-mono">{cls.name}</p>
-                              </div>
-                              <StatusBadge status={failedItems.length ? 'error' : 'success'} />
-                            </div>
+                        const fields = cls.fields ?? [];
+                        const constructors = cls.constructors ?? [];
+                        const methods = cls.methods ?? [];
+                        const isOpen = expandedClassName === cls.name;
+                        const allItems = [...fields, ...constructors, ...methods];
+                        const passCount = allItems.filter((item) => item.ok).length;
+                        const clsPct = allItems.length ? Math.round((passCount / allItems.length) * 100) : 100;
 
-                            {failedItems.length > 0 && (
-                              <div className="border-b border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10 px-5 py-3">
-                                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">Errors</p>
-                                <div className="space-y-2 text-xs text-red-600 dark:text-red-300">
-                                  {failedItems.map((item, idx) => (
-                                    <div key={idx} className="rounded-2xl bg-red-100 dark:bg-red-900/20 px-3 py-2">
-                                      <p className="font-semibold">{item.location}</p>
-                                      <p>{item.message}</p>
+                        return (
+                          <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-[#1e2530]">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
+                              className="flex w-full items-center justify-between gap-3 bg-gray-50 px-5 py-4 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+                            >
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{cls.type || 'Class'}</span>
+                                <p className="mt-1 font-bold font-mono text-gray-900 dark:text-white">{cls.name}</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <ScorePill ok={passCount} total={allItems.length} pct={clsPct} />
+                                {isOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                              </div>
+                            </button>
+
+                            {isOpen && (
+                              <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-700">
+                                {fields.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-500">Fields</p>
+                                    <div className="space-y-2">
+                                      {fields.map((f, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{f.name}: {f.dataType}</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{f.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={f.ok} />
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
+                                  </div>
+                                )}
+
+                                {constructors.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-orange-500">Constructors</p>
+                                    <div className="space-y-2">
+                                      {constructors.map((c, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-orange-500 dark:text-orange-400">{c.name}({c.params})</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{c.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={c.ok} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {methods.length > 0 && (
+                                  <div className="px-5 py-3">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-green-500">Methods</p>
+                                    <div className="space-y-2">
+                                      {methods.map((m, i) => (
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}>
+                                          <div>
+                                            <p className="text-xs font-mono font-semibold text-green-600 dark:text-green-400">{m.name}(): {m.returnType}</p>
+                                            <p className="mt-0.5 text-[10px] text-gray-400">{m.scope || '—'}</p>
+                                          </div>
+                                          <Tick ok={m.ok} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-800">
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Fields</p>
-                                {cls.fields?.map((f, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-blue-600 dark:text-blue-400">{f.name}</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(f.scope, f.dataType)}</p>
-                                    </div>
-                                    <Tick ok={f.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Constructors</p>
-                                {cls.constructors?.map((c, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-orange-500 dark:text-orange-400">{c.name}({c.params})</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(c.scope, '')}</p>
-                                    </div>
-                                    <Tick ok={c.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-2 border-b border-gray-100 dark:border-gray-800">Methods</p>
-                                {cls.methods?.map((m, i) => (
-                                  <div key={i} className={`flex items-center justify-between px-4 py-2 ${i % 2 === 0 ? '' : 'bg-gray-50 dark:bg-[#151b24]/50'}`}>
-                                    <div>
-                                      <p className="text-xs font-mono text-green-600 dark:text-green-400">{m.name}() : {m.returnType}</p>
-                                      <p className="text-[10px] text-gray-400">{formatScopeDetail(m.scope, '')}</p>
-                                    </div>
-                                    <Tick ok={m.ok} />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
                       No class detail data is available.
                     </div>
                   )}
@@ -569,7 +607,9 @@ export default function StudentUI({
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Example testcases are visible; normal testcases remain hidden.</p>
                     </div>
-                    <ScorePill ok={testScore.ok} total={testScore.total || 1} pct={testScore.pct} />
+                    {resultsRevealed && testScore.total > 0 && (
+                      <ScorePill ok={testScore.ok} total={testScore.total} pct={testScore.pct} />
+                    )}
                   </div>
 
                   {testCasesData.length > 0 ? (

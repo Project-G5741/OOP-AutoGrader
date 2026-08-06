@@ -17,9 +17,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 ### Data source
 
-- `LecturerDashboard.jsx` passes hardcoded `SUBMISSIONS` and `LAB_OPTIONS` arrays
-- No live API integration for submission listing yet
-- `SubmissionTable` renders whatever submission array the parent provides
+- `LecturerDashboard.jsx` fetches overview, lab statistics, and submissions from live APIs
+- `SubmissionTable` renders the submission page returned by `/api/labs/{labId}/submissions`
+- `ReportsPanel` renders analytics from `/api/analytics/dashboard` via `Reports.jsx`
 
 ### Composition
 

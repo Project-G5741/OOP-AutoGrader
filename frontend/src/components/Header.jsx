@@ -67,22 +67,18 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{user?.fullName || user?.username || 'Student'}</p>
                     {user?.email && <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>}
                     <div className="grid gap-2 text-xs text-gray-500 dark:text-gray-400 mt-3">
-                      {user?.id && (
+                      {(user?.irn || user?.studentCode || user?.lecturerCode || user?.id) && (
                         <div className="flex items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 dark:bg-white/5">
                           <span>ID</span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">{user.id}</span>
+                          <span className="font-semibold text-gray-900 dark:text-gray-100">
+                            {user?.irn || user?.studentCode || user?.lecturerCode || user?.id}
+                          </span>
                         </div>
                       )}
                       {user?.username && (
                         <div className="flex items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 dark:bg-white/5">
                           <span>Username</span>
                           <span className="font-semibold text-gray-900 dark:text-gray-100">{user.username}</span>
-                        </div>
-                      )}
-                      {(user?.irn || user?.studentCode) && (
-                        <div className="flex items-center justify-between gap-2 rounded-2xl bg-gray-50 px-3 py-2 dark:bg-white/5">
-                          <span>IRN</span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">{user.irn || user.studentCode}</span>
                         </div>
                       )}
                     </div>

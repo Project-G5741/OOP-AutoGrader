@@ -11,7 +11,10 @@ A student's single graded attempt for a lab, keyed by user, lab, and attempt num
 A persisted per-element grading outcome (field, method, constructor, or challenge) tied to one lab submission. Natural key is submission plus rubric element id; re-grades update the same row.
 
 ### Rubric snapshot
-An in-memory, immutable graph of the lab's expected OOP structure (challenges, classes, members) loaded once per grading request, optionally from cache.
+An in-memory, immutable graph of the lab's expected OOP structure (challenges, classes, members, class relations) loaded once per grading request, optionally from cache.
+
+### MMD grading
+Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. When both `.java` and `.mmd` are present, a rubric element counts correct only if both sources pass.
 
 ## Relationships
 

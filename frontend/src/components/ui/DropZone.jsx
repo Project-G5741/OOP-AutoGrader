@@ -88,13 +88,50 @@ export default function DropZone({
     }
   };
 
+  const isValidFolderStructure = (entries) => {
+    const filePaths = entries.map(({ relativePath }) => relativePath);
+    if (filePaths.length === 0) {
+      return false;
+    }
+
+    const rootFolder = filePaths
+      .map((path) => path.split('/').filter(Boolean)[0])
+      .find(Boolean);
+
+    if (!rootFolder) {
+      return false;
+    }
+
+    const rootPattern = /^(\d+)_([a-z0-9_\s]+)_lab_(\d+)$/i;
+    if (!rootPattern.test(rootFolder)) {
+      return false;
+    }
+
+    const challengeFolders = new Set(
+      filePaths
+        .map((path) => path.split('/').filter(Boolean))
+        .filter((segments) => segments.length >= 2)
+        .map((segments) => segments[1])
+    );
+
+    return Array.from(challengeFolders).every((name) => /^(challenge[_-]?\d+)$/i.test(name));
+  };
+
   const handleFiles = (entries) => {
-    // Client-side filter is just for UX/logging — the backend re-filters
-    // authoritatively and ignores anything that isn't .mmd or .java.
     const relevant = entries.filter(({ relativePath }) => {
       const lower = relativePath.toLowerCase();
       return lower.endsWith('.mmd') || lower.endsWith('.java');
     });
+
+    if (relevant.length === 0) {
+      setUploadError('Please drop a valid project folder with .mmd/.java files inside challenge folders.');
+      return;
+    }
+
+    if (!isValidFolderStructure(relevant)) {
+      setUploadError("Invalid folder structure. Expected a root folder named like 'IRN_StudentName_lab_1' with challenge folders named 'challenge_1'.");
+      return;
+    }
 
     if (onFilesSelected) {
       onFilesSelected(relevant.map((e) => e.file));

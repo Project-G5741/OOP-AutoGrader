@@ -7,4 +7,5 @@ public record ChallengeRubric(
         UUID challengeId,
         int challengeNumber,
         String name,
-        List<ClassRubric> classes) {}
+        List<ClassRubric> classes,
+        List<RelationRubric> relations) {}

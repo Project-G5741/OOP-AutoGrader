@@ -5,5 +5,8 @@ package com.eiu.capstone.backend.DTO;
  * "Vehicle(brand)" (type="constructor"), "move(): void" (type="method").
  * `type` drives the color coding on the frontend (Tick + text color).
  */
-public record MmdAttributeDTO(String name, String type, boolean ok) {
+public record MmdAttributeDTO(String name, String type, boolean ok, String error) {
+    public MmdAttributeDTO(String name, String type, boolean ok) {
+        this(name, type, ok, null);
+    }
 }

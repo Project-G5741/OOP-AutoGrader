@@ -42,7 +42,9 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 |---|---|---|
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login |
-| `LabController` | `/api/labs` | List labs |
+| `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
+| `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
+| `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create (soft-delete) |
 | `SubmissionController` | `/api/submissions` | Upload + grade (JWT required) |
 
@@ -68,7 +70,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + compare against snapshot) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + MMD parse/compare + merge) → MMD hook (no-op by default) → cleanup temp folder.
 
 Grading tuning properties (`application.properties`):
 
@@ -88,6 +90,10 @@ Grading tuning properties (`application.properties`):
 - `attemptsCount` on progress is synced to the count of `lab_submission` rows (one per attempt); re-upload does not add rows
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
+- `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion, grade distribution)
+- `GET /api/labs/{labId}/submissions` — paginated submission summaries for lecturer dashboard
+- `GET /api/lecturer/overview` — lecturer dashboard overview cards
+- `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
 ## Work Guidance
 

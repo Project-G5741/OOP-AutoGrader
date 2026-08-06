@@ -28,6 +28,8 @@ public class SubmissionStorageService {
 
     private static final Pattern CHALLENGE_PATTERN =
             Pattern.compile("challenge[_-]?(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SUBMISSION_ROOT_PATTERN =
+            Pattern.compile("^(\\d+)_([a-z0-9_\\s]+)_lab_(\\d+)$", Pattern.CASE_INSENSITIVE);
 
     @Value("${app.storage.submission-base-dir}")
     private String baseDir;
@@ -87,6 +89,11 @@ public class SubmissionStorageService {
         Map<String, List<MultipartFile>> mmdByChallenge = new java.util.LinkedHashMap<>();
 
         for (MultipartFile file : files) {
+            String relativePath = file.getOriginalFilename();
+            if (!isValidSubmissionPath(relativePath)) {
+                throw new SubmissionProcessingException(
+                        "Invalid folder structure. Expected root folder like 'IRN_StudentName_lab_1' with challenge folders named 'challenge_1' and only .mmd/.java files inside.");
+            }
             String originalName = file.getOriginalFilename();
             if (originalName == null || originalName.isBlank()) continue;
 
@@ -178,6 +185,39 @@ public class SubmissionStorageService {
 
     public void deleteFolder(Path folder) {
         deleteRecursively(folder);
+    }
+
+    static boolean isValidSubmissionPath(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return false;
+        }
+        String normalized = relativePath.replace('\\', '/').trim();
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        String[] segments = normalized.split("/");
+        if (segments.length < 3) {
+            return false;
+        }
+
+        String rootFolder = segments[0];
+        if (!SUBMISSION_ROOT_PATTERN.matcher(rootFolder).matches()) {
+            return false;
+        }
+
+        for (int i = 1; i < segments.length - 1; i++) {
+            String segment = segments[i];
+            if (segment.isBlank()) {
+                return false;
+            }
+            if (!CHALLENGE_PATTERN.matcher(segment).matches()) {
+                return false;
+            }
+        }
+
+        String fileName = segments[segments.length - 1];
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".mmd") || lower.endsWith(".java");
     }
 
     private String extractChallengeKey(String relativePath) {

@@ -39,6 +39,7 @@ import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
+import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
@@ -65,6 +66,7 @@ public class SubmissionController {
     private final LabRubricCache labRubricCache;
     private final MmdPersistenceHook mmdPersistenceHook;
     private final SubmissionCompileErrorStore compileErrorStore;
+    private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -77,6 +79,7 @@ public class SubmissionController {
                                  LabRubricCache labRubricCache,
                                  MmdPersistenceHook mmdPersistenceHook,
                                  SubmissionCompileErrorStore compileErrorStore,
+                                 SubmissionMmdMetaStore submissionMmdMetaStore,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -88,6 +91,7 @@ public class SubmissionController {
         this.labRubricCache = labRubricCache;
         this.mmdPersistenceHook = mmdPersistenceHook;
         this.compileErrorStore = compileErrorStore;
+        this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.timingLog = timingLog;
     }
 
@@ -128,10 +132,10 @@ public class SubmissionController {
             submissionFolderToDelete = uploadResult.submissionFolder;
             long processMs = System.currentTimeMillis() - processStart;
 
-            LabSubmission submission = labSubmissionRepository
-                    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber)
-                    .orElseGet(LabSubmission::new);
-            boolean isNewAttempt = submission.getId() == null;
+            var existingSubmission = labSubmissionRepository
+                    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber);
+            boolean isNewSubmission = existingSubmission.isEmpty();
+            LabSubmission submission = existingSubmission.orElseGet(LabSubmission::new);
             submission.setUser(userAccount);
             submission.setLab(lab);
             submission.setAttemptNumber(attemptNumber);
@@ -140,7 +144,7 @@ public class SubmissionController {
 
             long gradeStart = System.currentTimeMillis();
             GradingOutcome gradingOutcome = gradingService.gradeSubmission(
-                    submission, rubric, uploadResult.challenges, isNewAttempt);
+                    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge, isNewSubmission);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
             submission.setScore(gradingOutcome.overallScore());
@@ -150,6 +154,7 @@ public class SubmissionController {
                     userAccount, lab, submission, gradingOutcome.overallScore(), attemptNumber);
 
             compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
+            submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
 
