@@ -7,11 +7,17 @@ import DashboardSection from '../components/lecturer/DashboardSection';
 import OverviewPanel from '../components/lecturer/OverviewPanel';
 import ReportsPage from './Reports';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
+import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
+import ExportMenu from '../components/lecturer/ExportMenu';
+import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
+import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
+import { exportRosterRows } from '../components/lecturer/exportRoster';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
-import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
+import { formatNumber, formatText, hasItems } from '../utils/formatters';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const ROSTER_PAGE_SIZE = 5;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,
   totalLabs: 0,
@@ -65,51 +71,6 @@ async function fetchAllLabSubmissions(labId, pageSize = 50) {
   }
   return all;
 }
-function ChallengeSubmissionsPlaceholder({ challengeLabel }) {
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h4 className="text-base font-semibold text-gray-900 dark:text-white">
-          {challengeLabel} Submissions
-        </h4>
-        <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-xs text-purple-600 dark:bg-purple-900/20 dark:text-purple-300">
-          <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
-          Loading submissions...
-        </span>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="w-full table-auto">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700">
-              {['Student', 'ID', 'Score', 'Attempts', 'Last Submission', 'Action'].map((col) => (
-                <th key={col} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[...Array(5)].map((_, index) => (
-              <tr key={index} className="border-b border-gray-100 dark:border-gray-800">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse dark:bg-gray-700" />
-                    <div className="h-4 w-28 rounded bg-gray-200 animate-pulse dark:bg-gray-700" />
-                  </div>
-                </td>
-                <td className="px-4 py-3"><div className="h-4 w-20 rounded bg-gray-200 animate-pulse dark:bg-gray-700" /></td>
-                <td className="px-4 py-3"><div className="h-4 w-12 rounded bg-gray-200 animate-pulse dark:bg-gray-700" /></td>
-                <td className="px-4 py-3"><div className="h-4 w-10 rounded bg-gray-200 animate-pulse dark:bg-gray-700" /></td>
-                <td className="px-4 py-3"><div className="h-4 w-24 rounded bg-gray-200 animate-pulse dark:bg-gray-700" /></td>
-                <td className="px-4 py-3"><div className="h-8 w-20 rounded-lg bg-gray-200 animate-pulse dark:bg-gray-700" /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 export default function LecturerDashboard({ user, onLogout }) {
   const { isDark } = useTheme();
@@ -124,18 +85,40 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [pagination, setPagination] = useState({
     total: 0,
     page: 0,
-    size: 20,
+    size: ROSTER_PAGE_SIZE,
     totalPages: 0,
   });
+  const [challengeSubmissions, setChallengeSubmissions] = useState([]);
+  const [challengePagination, setChallengePagination] = useState({
+    total: 0,
+    page: 0,
+    size: ROSTER_PAGE_SIZE,
+    totalPages: 0,
+  });
+  const [selectedRosterStudent, setSelectedRosterStudent] = useState(null);
+  const [selectedChallengeStudent, setSelectedChallengeStudent] = useState(null);
+  const [showAttemptHistory, setShowAttemptHistory] = useState(false);
+  const [showChallengeDrawer, setShowChallengeDrawer] = useState(false);
 
   const [loadingLabs, setLoadingLabs] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [loadingChallengeSubmissions, setLoadingChallengeSubmissions] = useState(false);
   const [loadingStatistics, setLoadingStatistics] = useState(false);
   const [labsError, setLabsError] = useState(null);
   const [overviewError, setOverviewError] = useState(null);
   const [submissionsError, setSubmissionsError] = useState(null);
+  const [challengeSubmissionsError, setChallengeSubmissionsError] = useState(null);
   const [statisticsError, setStatisticsError] = useState(null);
+  const [gradeOverview, setGradeOverview] = useState({ labs: [], content: [] });
+  const [gradeOverviewPagination, setGradeOverviewPagination] = useState({
+    total: 0,
+    page: 0,
+    size: ROSTER_PAGE_SIZE,
+    totalPages: 0,
+  });
+  const [loadingGradeOverview, setLoadingGradeOverview] = useState(false);
+  const [gradeOverviewError, setGradeOverviewError] = useState(null);
   const [challenges, setChallenges] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -211,7 +194,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setSubmissionsError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${pagination.size}&sort=submittedAt,desc`,
+        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=submittedAt,desc`,
         { headers: authHeaders() }
       );
 
@@ -227,7 +210,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       setPagination({
         total: data.totalElements ?? 0,
         page: data.number ?? 0,
-        size: data.size ?? pagination.size,
+        size: data.size ?? ROSTER_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
     } catch {
@@ -237,7 +220,41 @@ export default function LecturerDashboard({ user, onLogout }) {
     } finally {
       setLoadingSubmissions(false);
     }
-  }, [pagination.size]);
+  }, []);
+
+  const fetchChallengeSubmissions = useCallback(async (labId, challengeId, page = 0) => {
+    if (!labId || !challengeId) return;
+    setLoadingChallengeSubmissions(true);
+    setChallengeSubmissionsError(null);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/students?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=submittedAt,desc`,
+        { headers: authHeaders() },
+      );
+
+      if (!response.ok) {
+        setChallengeSubmissions([]);
+        setChallengePagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+        setChallengeSubmissionsError('Unable to load challenge submissions');
+        return;
+      }
+
+      const data = await response.json();
+      setChallengeSubmissions(data.content ?? []);
+      setChallengePagination({
+        total: data.totalElements ?? 0,
+        page: data.number ?? 0,
+        size: data.size ?? ROSTER_PAGE_SIZE,
+        totalPages: data.totalPages ?? 0,
+      });
+    } catch {
+      setChallengeSubmissions([]);
+      setChallengePagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+      setChallengeSubmissionsError('Unable to load challenge submissions');
+    } finally {
+      setLoadingChallengeSubmissions(false);
+    }
+  }, []);
 
   const fetchLabStatistics = useCallback(async (labId) => {
     if (!labId) return;
@@ -263,14 +280,55 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
+  const fetchGradeOverview = useCallback(async (page = 0) => {
+    setLoadingGradeOverview(true);
+    setGradeOverviewError(null);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${ROSTER_PAGE_SIZE}`,
+        { headers: authHeaders() },
+      );
+      if (!response.ok) {
+        setGradeOverview({ labs: [], content: [] });
+        setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+        setGradeOverviewError('Unable to load grade overview');
+        return;
+      }
+      const data = await response.json();
+      setGradeOverview({
+        labs: data.labs ?? [],
+        content: data.content ?? [],
+      });
+      setGradeOverviewPagination({
+        total: data.totalElements ?? 0,
+        page: data.page ?? 0,
+        size: data.size ?? ROSTER_PAGE_SIZE,
+        totalPages: data.totalPages ?? 0,
+      });
+    } catch {
+      setGradeOverview({ labs: [], content: [] });
+      setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+      setGradeOverviewError('Unable to load grade overview');
+    } finally {
+      setLoadingGradeOverview(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchLabs();
     fetchOverview();
   }, [fetchLabs, fetchOverview]);
 
   useEffect(() => {
+    if (activeNav === 'grading') {
+      fetchGradeOverview(0);
+    }
+  }, [activeNav, fetchGradeOverview]);
+
+  useEffect(() => {
     if (selectedLabId) {
       setActiveTab('overview');
+      setChallengePagination((prev) => ({ ...prev, page: 0 }));
       void Promise.all([
         fetchSubmissions(selectedLabId),
         fetchLabStatistics(selectedLabId),
@@ -278,6 +336,13 @@ export default function LecturerDashboard({ user, onLogout }) {
       ]);
     }
   }, [selectedLabId, fetchSubmissions, fetchLabStatistics, fetchChallengesForLab]);
+
+  useEffect(() => {
+    if (!selectedLabId || activeTab === 'overview') {
+      return;
+    }
+    fetchChallengeSubmissions(selectedLabId, activeTab, challengePagination.page);
+  }, [selectedLabId, activeTab, challengePagination.page, fetchChallengeSubmissions]);
 
   const handleLabChange = (labId) => {
     if (labId === selectedLabId) return;
@@ -290,7 +355,20 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   };
 
+  const handleChallengePageChange = (newPage) => {
+    setChallengePagination((prev) => ({ ...prev, page: newPage }));
+  };
+
+  const handleChallengeTabSelect = (challengeId) => {
+    setActiveTab(challengeId);
+    setChallengePagination((prev) => ({ ...prev, page: 0 }));
+  };
+
   const handleRefresh = () => {
+    if (activeNav === 'grading') {
+      fetchGradeOverview(gradeOverviewPagination.page);
+      return;
+    }
     fetchOverview();
     fetchLabs();
     if (selectedLabId) {
@@ -299,8 +377,15 @@ export default function LecturerDashboard({ user, onLogout }) {
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
+      if (activeTab !== 'overview') {
+        fetchChallengeSubmissions(selectedLabId, activeTab, challengePagination.page);
+      }
     }
   };
+  const handleGradeOverviewPageChange = (newPage) => {
+    fetchGradeOverview(newPage);
+  };
+
   const selectedLab = useMemo(
     () => labs.find((lab) => lab.id === selectedLabId),
     [labs, selectedLabId]
@@ -315,10 +400,10 @@ export default function LecturerDashboard({ user, onLogout }) {
   const challengeTabLabel = (challenge, index) => challenge.name ?? `Challenge ${index + 1}`;
 
   const labStatFields = useMemo(() => [
-    { label: 'Average Score', value: formatPercent(labStatistics?.averageScore) },
-    { label: 'Completion Rate', value: formatPercent(labStatistics?.completionRate) },
-    { label: 'Highest Score', value: formatPercent(labStatistics?.highestScore) },
-    { label: 'Lowest Score', value: formatPercent(labStatistics?.lowestScore) },
+    { label: 'Average Score', value: formatNumber(labStatistics?.averageScore) },
+    { label: 'Completion Rate', value: formatNumber(labStatistics?.completionRate) },
+    { label: 'Highest Score', value: formatNumber(labStatistics?.highestScore) },
+    { label: 'Lowest Score', value: formatNumber(labStatistics?.lowestScore) },
     { label: 'Total Submissions', value: formatNumber(labStatistics?.submissionCount) },
     { label: 'Enrolled Students', value: formatNumber(labStatistics?.studentCount) },
     { label: 'Students Submitted', value: formatNumber(labStatistics?.studentsSubmitted) },
@@ -326,43 +411,30 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const exportOverview = async (format) => {
     if (!selectedLabId) return;
-    const all = await fetchAllLabSubmissions(selectedLabId);
-
+    const all = await fetchAllLabSubmissions(selectedLabId, ROSTER_PAGE_SIZE);
     const rows = all.map((r) => ({
       'Student Name': r.studentName ?? '',
       'Student ID': r.studentCode ?? '',
       Attempts: r.attempt ?? 0,
-      'Lab Score': r.score != null ? `${r.score}%` : 'Not Submitted',
+      'Lab Score': r.score != null ? formatNumber(r.score) : 'Not Submitted',
       'Last Submitted': r.submittedAt ?? '—',
     }));
-
     const labName = selectedLab?.name ?? selectedLabId;
-    const fileBase = `lab_${String(labName).replace(/\s+/g, '_')}_roster`;
+    await exportRosterRows(format, {
+      rows,
+      labName,
+      fileBase: `lab_${String(labName).replace(/\s+/g, '_')}_roster`,
+    });
+  };
 
-    if (format === 'excel') {
-      const XLSX = await import('xlsx');
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Roster');
-      XLSX.writeFile(wb, `${fileBase}.xlsx`);
-    } else if (format === 'pdf') {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
-      doc.setFontSize(12);
-      let y = 20;
-      doc.text('Lab Student Roster', 14, y);
-      y += 10;
-      rows.forEach((row) => {
-        const line = `${row['Student Name']} | ${row['Student ID']} | ${row.Attempts} | ${row['Lab Score']}`;
-        doc.text(line, 14, y);
-        y += 8;
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-      });
-      doc.save(`${fileBase}.pdf`);
-    }
+  const handleRosterView = (student) => {
+    setSelectedRosterStudent(student);
+    setShowAttemptHistory(true);
+  };
+
+  const handleChallengeView = (student) => {
+    setSelectedChallengeStudent(student);
+    setShowChallengeDrawer(true);
   };
 
   const overviewCards = useMemo(() => [
@@ -375,7 +447,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     },
     {
       title: 'Average Score',
-      value: formatPercent(overview.averageScore),
+      value: formatNumber(overview.averageScore),
       subtitle: 'Across all student lab progress',
       icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
       accent: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30',
@@ -426,28 +498,6 @@ export default function LecturerDashboard({ user, onLogout }) {
             )}
 
             <OverviewPanel overviewCards={overviewCards} />
-
-            <DashboardSection
-              title="Reports & analytics"
-              subtitle="Open the dedicated reports page for detailed analytics"
-              actions={
-                <button
-                  onClick={() => setActiveNav('reports')}
-                  className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
-                  title="Open reports page"
-                >
-                  <RefreshCw className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </button>
-              }
-            >
-              <div className="rounded-xl border border-gray-100 bg-gray-50 p-6 dark:border-gray-700 dark:bg-[#141820]">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recent submissions: {hasItems(overview.recentSubmissions)
-                    ? `${overview.recentSubmissions.length} loaded`
-                    : 'Data not found'}
-                </p>
-              </div>
-            </DashboardSection>
 
             <DashboardSection
               title="Grading overview"
@@ -522,7 +572,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                         <button
                           key={challenge.id}
                           type="button"
-                          onClick={() => setActiveTab(challenge.id)}
+                          onClick={() => handleChallengeTabSelect(challenge.id)}
                           className={tabClass(activeTab === challenge.id)}
                         >
                           {challengeTabLabel(challenge, index)}
@@ -571,20 +621,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                               </div>
 
                               <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => exportOverview('excel')}
-                                  className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-sm text-white"
-                                >
-                                  Export Excel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => exportOverview('pdf')}
-                                  className="inline-flex items-center gap-2 rounded-md bg-gray-200 px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200"
-                                >
-                                  Export PDF
-                                </button>
+                                <ExportMenu onExport={exportOverview} />
                               </div>
                             </>
                           )}
@@ -608,23 +645,74 @@ export default function LecturerDashboard({ user, onLogout }) {
                                 }}
                                 pagination={pagination}
                                 onPageChange={handlePageChange}
+                                onView={handleRosterView}
+                                requireSubmissionForView={false}
                               />
                             )}
                           </div>
                         </div>
                       ) : (
-                        <ChallengeSubmissionsPlaceholder
-                          challengeLabel={
-                            activeChallengeTab
-                              ? challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index)
-                              : 'Challenge'
-                          }
-                        />
+                        <div>
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+                              {activeChallengeTab
+                                ? `${challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index)} Submissions`
+                                : 'Challenge Submissions'}
+                            </h4>
+                          </div>
+                          {challengeSubmissionsError && (
+                            <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{challengeSubmissionsError}</p>
+                          )}
+                          {loadingChallengeSubmissions ? (
+                            <div className="flex items-center justify-center py-12">
+                              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : (
+                            <SubmissionTable
+                              submissions={challengeSubmissions}
+                              pagination={challengePagination}
+                              onPageChange={handleChallengePageChange}
+                              onView={handleChallengeView}
+                              attemptLabel="Attempts"
+                              viewLabel="View"
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
+            </DashboardSection>
+          </div>
+        ) : activeNav === 'grading' ? (
+          <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+            <DashboardSection
+              title="Grading"
+              subtitle="Cross-lab grade overview for all students"
+              actions={
+                <button
+                  onClick={() => fetchGradeOverview(gradeOverviewPagination.page)}
+                  className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loadingGradeOverview ? 'animate-spin' : ''}`} />
+                </button>
+              }
+            >
+              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                Total score is the average of each student&apos;s latest lab scores across all labs in the system.
+              </p>
+              {gradeOverviewError && (
+                <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
+              )}
+              <GradeOverviewTable
+                labs={gradeOverview.labs}
+                students={gradeOverview.content}
+                loading={loadingGradeOverview}
+                pagination={gradeOverviewPagination}
+                onPageChange={handleGradeOverviewPageChange}
+              />
             </DashboardSection>
           </div>
         ) : activeNav === 'users' ? (
@@ -643,6 +731,29 @@ export default function LecturerDashboard({ user, onLogout }) {
       {showProfile && (
         <ChangePasswordModal isOpen={showProfile} user={user} onClose={() => setShowProfile(false)} />
       )}
+
+      <LabAttemptHistoryDrawer
+        open={showAttemptHistory}
+        onClose={() => {
+          setShowAttemptHistory(false);
+          setSelectedRosterStudent(null);
+        }}
+        labId={selectedLabId}
+        student={selectedRosterStudent}
+        labName={selectedLab?.name}
+      />
+
+      <LecturerSubmissionDrawer
+        open={showChallengeDrawer}
+        onClose={() => {
+          setShowChallengeDrawer(false);
+          setSelectedChallengeStudent(null);
+        }}
+        labId={selectedLabId}
+        challengeId={activeTab !== 'overview' ? activeTab : null}
+        challengeLabel={activeChallengeTab ? challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index) : 'Challenge'}
+        student={selectedChallengeStudent}
+      />
     </div>
   );
 }

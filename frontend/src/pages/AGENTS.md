@@ -28,7 +28,8 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 | Value | Renders | API |
 |---|---|---|
-| `dashboard` | Grading overview, `SubmissionTable` | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` |
+| `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`, `/api/labs/{id}/challenges/{id}/students` |
+| `grading` | Cross-lab `GradeOverviewTable` | Live `GET /api/lecturer/grade-overview` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `projects` | `SubmissionManagement` | Local mock |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
@@ -60,8 +61,12 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/lecturer/overview` | `LecturerDashboard.jsx` |
+| `GET /api/lecturer/grade-overview` | `LecturerDashboard.jsx` (`activeNav === 'grading'`) |
 | `GET /api/labs/{labId}/statistics` | `LecturerDashboard.jsx` |
 | `GET /api/labs/{labId}/submissions` | `LecturerDashboard.jsx` |
+| `GET /api/labs/{labId}/students/{studentId}/attempts` | `LecturerDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges/{challengeId}/students` | `LecturerDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges/{challengeId}/class?studentId=` | `LecturerDashboard.jsx` (drawer) |
 | `GET /api/analytics/dashboard` | `Reports.jsx` |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.

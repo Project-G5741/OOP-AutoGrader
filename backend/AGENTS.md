@@ -90,9 +90,13 @@ Grading tuning properties (`application.properties`):
 - `attemptsCount` on progress is synced to the count of `lab_submission` rows (one per attempt); re-upload does not add rows
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
-- `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion, grade distribution)
-- `GET /api/labs/{labId}/submissions` — paginated unique enrolled-student roster for lab overview
+- `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
+- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5)
+- `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
+- `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
+- `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards
+- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from latest submission; total = sum ÷ lab count)
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
 ## Work Guidance

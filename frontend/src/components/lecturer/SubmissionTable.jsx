@@ -1,15 +1,25 @@
 import { Eye } from 'lucide-react';
-import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
+import { formatNumber, formatText } from '../../utils/formatters';
 
-export default function SubmissionTable({ submissions, summary, pagination, onPageChange }) {
+export default function SubmissionTable({
+  submissions,
+  summary,
+  pagination,
+  onPageChange,
+  onView,
+  attemptLabel = 'Attempt',
+  viewLabel = 'View',
+  requireSubmissionForView = true,
+}) {
   const rows = Array.isArray(submissions) ? submissions : [];
+  const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
       <table className="w-full table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            {['Student', 'ID', 'Score', 'Attempt', 'Submitted At', 'Action'].map((col) => (
+            {['Student', 'ID', 'Score', attemptLabel, 'Submitted At', 'Action'].map((col) => (
               <th key={col} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                 {col}
               </th>
@@ -24,45 +34,56 @@ export default function SubmissionTable({ submissions, summary, pagination, onPa
               </td>
             </tr>
           ) : (
-            rows.map((submission, index) => (
-              <tr key={`${submission.studentCode ?? 'row'}-${index}`} className="border-b border-gray-200 dark:border-gray-700">
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentName)}</td>
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentCode)}</td>
-                <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(submission.score)}</td>
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatNumber(submission.attempt)}</td>
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.submittedAt)}</td>
-                <td className="px-4 py-3">
-                  <button className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-green-700" type="button">
-                    <Eye className="h-3 w-3" />
-                    View Details
-                  </button>
-                </td>
-              </tr>
-            ))
+            rows.map((submission, index) => {
+              const canView = requireSubmissionForView ? submission.hasSubmission !== false : true;
+              return (
+                <tr key={`${submission.studentCode ?? submission.studentId ?? 'row'}-${index}`} className="border-b border-gray-200 dark:border-gray-700">
+                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentName)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentCode)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(submission.score)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatNumber(submission.attempt ?? submission.attempts)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{submission.submittedAt || '—'}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      disabled={!canView}
+                      onClick={() => onView?.(submission)}
+                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:hover:bg-gray-400"
+                    >
+                      <Eye className="h-3 w-3" />
+                      {viewLabel}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })
           )}
 
           {(summary?.submissionCount != null || summary?.studentCount != null || summary?.completionRate != null) && (
             <tr className="border-t border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20">
-              <td className="px-4 py-4 text-sm font-bold text-blue-900 dark:text-blue-100">SUMMARY</td>
-              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-                Submissions: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.submissionCount)}</span>
+              <td colSpan={6} className="px-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  <span className="font-bold text-blue-900 dark:text-blue-100">SUMMARY</span>
+                  <span className="text-center">
+                    Submissions: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.submissionCount)}</span>
+                  </span>
+                  <span className="text-center">
+                    Enrolled: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.studentCount)}</span>
+                  </span>
+                  <span className="text-center">
+                    Completion: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.completionRate)}</span>
+                  </span>
+                </div>
               </td>
-              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-                Enrolled: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.studentCount)}</span>
-              </td>
-              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-                Completion: <span className="text-blue-900 dark:text-blue-100">{formatPercent(summary?.completionRate)}</span>
-              </td>
-              <td className="px-4 py-4" />
             </tr>
           )}
         </tbody>
       </table>
 
-      {pagination && pagination.totalPages > 1 && (
+      {showPagination && (
         <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-700">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Page {pagination.page + 1} of {pagination.totalPages}
+            Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
           </p>
           <div className="flex gap-2">
             <button

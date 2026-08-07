@@ -3,14 +3,13 @@ package com.eiu.capstone.backend.analytics.dto;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public record SubmissionSummaryDTO(
+public record ChallengeStudentRowDTO(
         UUID studentId,
         String studentName,
         String studentCode,
         BigDecimal score,
-        int attempt,
+        int attempts,
         String submittedAt,
-        boolean bestSubmission,
-        UUID submissionId,
-        boolean hasSubmission) {
+        boolean hasSubmission,
+        UUID submissionId) {
 }

@@ -22,5 +22,8 @@
   "homepage": "https://github.com/tuankiet2005-art/Capstone_Project#readme",
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
   }
 }

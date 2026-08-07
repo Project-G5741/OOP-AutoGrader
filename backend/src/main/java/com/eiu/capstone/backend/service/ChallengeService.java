@@ -90,6 +90,29 @@ public class ChallengeService {
         return result;
     }
 
+    /** Java-side challenge score from stored element results; null when the submission has no rubric elements for the challenge. */
+    public Integer computeChallengeScoreForSubmission(UUID submissionId, UUID challengeId) {
+        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge == null) {
+            return null;
+        }
+        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(List.of(challenge));
+        if (classes.isEmpty()) {
+            return null;
+        }
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        List<Field> fields = fieldRepository.findByClassEntityInWithDeclaration(classes);
+        List<Method> methods = methodRepository.findByClassEntityInWithDeclaration(classes);
+        List<Constructor> constructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
+        Map<UUID, List<Field>> fieldsByClass = fields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClass = methods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClass = constructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        return computeChallengeScore(classes, fieldsByClass, methodsByClass, constructorsByClass, correctIds);
+    }
+
     private Integer computeChallengeScore(
                                           List<ClassEntity> classes,
                                           Map<UUID, List<Field>> fieldsByClass,
