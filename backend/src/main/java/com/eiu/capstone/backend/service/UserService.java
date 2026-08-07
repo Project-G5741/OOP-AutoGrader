@@ -170,6 +170,7 @@ public class UserService {
         user.setRoles(resolveRoles(Set.of(normalizeRoleName(roleName))));
 
         if (isNewUser) {
+            user.setIsActive(true);
             return userRepository.save(user);
         }
         return userRepository.save(user);

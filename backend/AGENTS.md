@@ -30,7 +30,11 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials |
 | `GOOGLE_CLIENT_ID` | Google OAuth audience validation |
 | `JWT_SECRET` | Defined in config but **not currently used** by `JwtService` |
-| `FRONTEND_URL` | CORS allowed origin |
+| `FRONTEND_URL` | CORS allowed origin; fallback reset-link base when `Origin` header absent |
+| `RESET_FRONTEND_URL` | Optional override for fallback reset-link base (defaults to `FRONTEND_URL`) |
+
+Password-reset emails use the request `Origin` when it matches an allowed frontend (localhost or `https://oop-autograder.vercel.app`), so one backend can serve both local and production SPAs.
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Gmail SMTP for password-reset emails (`projectg5741@gmail.com`) |
 | `SUBMISSION_BASE_DIR` | Upload temp root (default `submissions/`) |
 | `PORT` | Server port (default `8002`) |
 
@@ -41,7 +45,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | Controller | Base path | Notes |
 |---|---|---|
 | `HealthController` | `/api` | `GET /api/health` |
-| `AuthController` | `/api/auth` | Google login/upsert, IRN+password login |
+| `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
 | `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |

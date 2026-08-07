@@ -5,41 +5,45 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.model.AuthRequest;
 import com.eiu.capstone.backend.model.AuthResponse;
+import com.eiu.capstone.backend.model.ForgotPasswordRequest;
 import com.eiu.capstone.backend.model.GoogleLoginUpsertRequest;
 import com.eiu.capstone.backend.model.LoginRequest;
+import com.eiu.capstone.backend.model.ResetPasswordRequest;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.GoogleTokenVerifier;
 import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.service.PasswordResetService;
 import com.eiu.capstone.backend.service.UserService;
 
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = { "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5173",
-        "http://127.0.0.1:5173" }, allowedHeaders = "*", allowCredentials = "true")
 public class AuthController {
 
     private final GoogleTokenVerifier googleTokenVerifier;
     private final JwtService jwtService;
     private final UserAccountRepository userAccountRepository;
     private final UserService userService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(GoogleTokenVerifier googleTokenVerifier, JwtService jwtService,
-            UserAccountRepository userAccountRepository, UserService userService) {
+            UserAccountRepository userAccountRepository, UserService userService,
+            PasswordResetService passwordResetService) {
         this.googleTokenVerifier = googleTokenVerifier;
         this.jwtService = jwtService;
         this.userAccountRepository = userAccountRepository;
         this.userService = userService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/google")
@@ -97,5 +101,20 @@ public class AuthController {
         } catch (BadCredentialsException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ex.getMessage());
         }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            @RequestHeader(value = "Origin", required = false) String origin) {
+        passwordResetService.requestReset(request.email(), origin);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.completeReset(
+                request.token(), request.newPassword(), request.confirmPassword());
+        return ResponseEntity.ok().build();
     }
 }

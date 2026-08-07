@@ -1,6 +1,17 @@
 spring:
   config:
     import: optional:dotenv:.env
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: ${PORT:8002}
@@ -16,4 +27,11 @@ jwt:
 
 cors:
   allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
+
+app:
+  mail:
+    from: ${MAIL_FROM:projectg5741@gmail.com}
+  password-reset:
+    expiry-minutes: 15
+    frontend-url: ${RESET_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}
 

@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import './LoginUI.css';
 import { Moon, Sun, BarChart3, Eye, EyeOff, User, Lock } from 'lucide-react';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
+import ForgotPasswordUI from './ForgotPasswordUI';
 
 function decodeJwtPayload(token) {
   try {
@@ -16,7 +17,7 @@ function decodeJwtPayload(token) {
   }
 }
 
-export default function LoginUI({ onLoginSuccess }) {
+export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage }) {
   const [isDark, setIsDark] = useState(true);
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +26,7 @@ export default function LoginUI({ onLoginSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [googleToken, setGoogleToken] = useState(null);
   const [googleProfile, setGoogleProfile] = useState(null);
 
@@ -160,6 +162,14 @@ export default function LoginUI({ onLoginSuccess }) {
     );
   }
 
+  if (showForgotPassword) {
+    return (
+      <ForgotPasswordUI
+        onBack={() => setShowForgotPassword(false)}
+      />
+    );
+  }
+
   return (
     <div className={isDark ? 'login-root dark' : 'login-root'}>
       <div className="login-bg">
@@ -184,6 +194,38 @@ export default function LoginUI({ onLoginSuccess }) {
           </div>
 
           <div className="card">
+            {loginMessage && (
+              <p
+                className="info-text"
+                style={{
+                  marginBottom: '1rem',
+                  padding: '0.75rem',
+                  borderRadius: '0.5rem',
+                  background: 'rgba(34, 197, 94, 0.12)',
+                  color: '#86efac',
+                }}
+              >
+                {loginMessage}
+                {onDismissLoginMessage && (
+                  <button
+                    type="button"
+                    onClick={onDismissLoginMessage}
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                )}
+              </p>
+            )}
             <form onSubmit={handleLocalLogin} className="login-form">
               <div className="form-group">
                 <label className="field-label">IRN (Student ID)</label>
@@ -230,7 +272,7 @@ export default function LoginUI({ onLoginSuccess }) {
                   />
                   <span>Remember me</span>
                 </label>
-                <button type="button" className="forgot-link">
+                <button type="button" className="forgot-link" onClick={() => setShowForgotPassword(true)}>
                   Forgot password?
                 </button>
               </div>

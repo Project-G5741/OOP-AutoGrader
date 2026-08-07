@@ -9,7 +9,9 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | IRN/password login, Google OAuth, JWT decode |
+| `LoginUI.jsx` | IRN/password login, Google OAuth, forgot-password entry, JWT decode |
+| `ForgotPasswordUI.jsx` | Request reset link by school email |
+| `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
@@ -50,6 +52,8 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | Endpoint | Page |
 |---|---|
 | `POST /api/auth/login` | `LoginUI.jsx` |
+| `POST /api/auth/forgot-password` | `ForgotPasswordUI.jsx` |
+| `POST /api/auth/reset-password` | `ResetPasswordUI.jsx` |
 | `POST /api/auth/google` | `LoginUI.jsx` |
 | `POST /api/auth/google/upsert` | `FirstTimeSetupUI.jsx` |
 | `GET /api/users/getAllUser` | `UserManagement.jsx` |

@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.model.ErrorResponse;
 
@@ -39,5 +40,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSubmissionProcessingException(SubmissionProcessingException exception) {
         var error = new ErrorResponse(exception.getMessage(), "Submission processing failed.");
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException exception) {
+        var message = exception.getReason() != null ? exception.getReason() : exception.getStatusCode().toString();
+        var error = new ErrorResponse(message, "Request failed.");
+        return ResponseEntity.status(exception.getStatusCode()).body(error);
     }
 }

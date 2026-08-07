@@ -7,8 +7,15 @@ Render deployment steps (Docker)
    - `DB_USERNAME` = <db user>
    - `DB_PASSWORD` = <db pass>
    - `FRONTEND_URL` = https://oop-autograder.vercel.app
+   - `MAIL_HOST` = smtp.gmail.com
+   - `MAIL_PORT` = 587
+   - `MAIL_USERNAME` = <gmail account used for SMTP>
+   - `MAIL_PASSWORD` = <16-char Gmail app password>
+   - `MAIL_FROM` = projectg5741@gmail.com
    - `JWT_SECRET` = <your-jwt-secret>
    - `GOOGLE_CLIENT_ID` = <google client id>
+
+   Password-reset emails use the browser `Origin` when allowed (localhost or Vercel); otherwise `FRONTEND_URL` is the fallback base.
 4. (Optional) Add `JAVA_OPTS` if you need memory tuning, e.g. `-Xmx512m`. Parallel per-challenge compilation uses `app.grading.parallelism` (default `4`); lower it on small instances if memory is tight.
 5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `30`), `app.grading.timing-log` (`true` to log upload phase timings). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
 6. Deploy. Check logs for successful startup and startup.
