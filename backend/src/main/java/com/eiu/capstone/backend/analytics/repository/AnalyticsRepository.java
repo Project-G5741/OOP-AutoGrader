@@ -1,18 +1,15 @@
 package com.eiu.capstone.backend.analytics.repository;
 
-import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.stereotype.Repository;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
-
-import org.springframework.stereotype.Repository;
 
 @Repository
 public class AnalyticsRepository {

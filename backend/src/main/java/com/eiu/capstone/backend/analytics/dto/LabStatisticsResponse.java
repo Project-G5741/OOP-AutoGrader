@@ -12,6 +12,7 @@ public record LabStatisticsResponse(
         BigDecimal lowestScore,
         long submissionCount,
         long studentCount,
+        long studentsSubmitted,
         BigDecimal completionRate,
         List<GradeDistributionBucket> gradeDistribution) {
 

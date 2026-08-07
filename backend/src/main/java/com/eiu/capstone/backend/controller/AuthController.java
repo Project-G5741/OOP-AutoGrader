@@ -1,23 +1,19 @@
 package com.eiu.capstone.backend.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.model.AuthRequest;
 import com.eiu.capstone.backend.model.AuthResponse;
-import com.eiu.capstone.backend.model.ChangePasswordRequest;
 import com.eiu.capstone.backend.model.GoogleLoginUpsertRequest;
 import com.eiu.capstone.backend.model.LoginRequest;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
@@ -25,7 +21,6 @@ import com.eiu.capstone.backend.service.GoogleTokenVerifier;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.UserService;
 
-import io.jsonwebtoken.Claims;
 import jakarta.validation.Valid;
 
 @RestController

@@ -51,17 +51,18 @@ public class LecturerAnalyticsService {
 
     public LabStatisticsResponse getLabStatistics(UUID labId) {
         Object[] summary = lecturerAnalyticsRepository.findLabStatisticsSummary(labId);
-        if (summary == null) {
+        long enrolledCount = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId);
+        long studentsSubmitted = lecturerAnalyticsRepository.countStudentsSubmittedForLab(labId);
+
+        if (summary == null && enrolledCount == 0) {
             return emptyLabStatistics(labId);
         }
 
-        long totalStudents = lecturerAnalyticsRepository.countTotalActiveStudents();
-        long studentCount = AnalyticsMapper.toLong(summary[6]);
         BigDecimal completionRate = null;
-        if (totalStudents > 0) {
-            completionRate = BigDecimal.valueOf(studentCount)
+        if (enrolledCount > 0) {
+            completionRate = BigDecimal.valueOf(studentsSubmitted)
                     .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalStudents), 2, RoundingMode.HALF_UP);
+                    .divide(BigDecimal.valueOf(enrolledCount), 2, RoundingMode.HALF_UP);
         }
 
         List<LabStatisticsResponse.GradeDistributionBucket> gradeDistribution = new ArrayList<>();
@@ -74,14 +75,23 @@ public class LecturerAnalyticsService {
             }
         }
 
+        String labName = summary != null
+                ? AnalyticsMapper.toString(summary[1])
+                : lecturerAnalyticsRepository.findLabName(labId);
+        BigDecimal averageScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[2]) : null;
+        BigDecimal highestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[3]) : null;
+        BigDecimal lowestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[4]) : null;
+        long submissionCount = summary != null ? AnalyticsMapper.toLong(summary[5]) : 0L;
+
         return new LabStatisticsResponse(
                 labId,
-                AnalyticsMapper.toString(summary[1]),
-                AnalyticsMapper.toBigDecimal(summary[2]),
-                AnalyticsMapper.toBigDecimal(summary[3]),
-                AnalyticsMapper.toBigDecimal(summary[4]),
-                AnalyticsMapper.toLong(summary[5]),
-                studentCount,
+                labName,
+                averageScore,
+                highestScore,
+                lowestScore,
+                submissionCount,
+                enrolledCount,
+                studentsSubmitted,
                 completionRate,
                 gradeDistribution
         );
@@ -90,15 +100,15 @@ public class LecturerAnalyticsService {
     public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId, int page, int size, String sort) {
         int safeSize = size <= 0 ? 20 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
-        SortSpec sortSpec = resolveSort(sort);
+        SortSpec sortSpec = resolveLabSort(sort);
 
-        long total = lecturerAnalyticsRepository.countLabSubmissions(labId);
+        long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId);
         List<SubmissionSummaryDTO> items = new ArrayList<>();
         if (total > 0) {
             int offset = safePage * safeSize;
-            for (Object[] row : lecturerAnalyticsRepository.findLabSubmissions(
+            for (Object[] row : lecturerAnalyticsRepository.findLabStudentRoster(
                     labId, sortSpec.column(), sortSpec.direction(), offset, safeSize)) {
-                SubmissionSummaryDTO item = toSubmissionSummary(row);
+                SubmissionSummaryDTO item = toLabRosterRow(row);
                 if (item != null) {
                     items.add(item);
                 }
@@ -116,6 +126,7 @@ public class LecturerAnalyticsService {
                 null,
                 null,
                 null,
+                0L,
                 0L,
                 0L,
                 null,
@@ -137,8 +148,8 @@ public class LecturerAnalyticsService {
         );
     }
 
-    private SubmissionSummaryDTO toSubmissionSummary(Object[] row) {
-        if (row == null || row.length < 6) {
+    private SubmissionSummaryDTO toLabRosterRow(Object[] row) {
+        if (row == null || row.length < 7) {
             return null;
         }
         return new SubmissionSummaryDTO(
@@ -164,19 +175,20 @@ public class LecturerAnalyticsService {
         return value.toString();
     }
 
-    private SortSpec resolveSort(String sort) {
+    private SortSpec resolveLabSort(String sort) {
         if (sort == null || sort.isBlank()) {
-            return new SortSpec("s.submitted_at", "DESC");
+            return new SortSpec("u.full_name", "ASC");
         }
         String[] parts = sort.split(",", 2);
         String field = parts[0].trim().toLowerCase();
-        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("asc") ? "ASC" : "DESC";
+        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
-            case "score" -> "s.score";
-            case "attempt" -> "s.attempt_number";
+            case "score" -> "latest_sub.score";
+            case "attempt" -> "latest_sub.attempt_number";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
-            default -> "s.submitted_at";
+            case "submittedat", "submitted_at" -> "latest_sub.submitted_at";
+            default -> "u.full_name";
         };
         return new SortSpec(column, direction);
     }
@@ -184,3 +196,4 @@ public class LecturerAnalyticsService {
     private record SortSpec(String column, String direction) {
     }
 }
+

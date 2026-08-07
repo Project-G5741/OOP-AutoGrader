@@ -91,7 +91,7 @@ Grading tuning properties (`application.properties`):
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion, grade distribution)
-- `GET /api/labs/{labId}/submissions` — paginated submission summaries for lecturer dashboard
+- `GET /api/labs/{labId}/submissions` — paginated unique enrolled-student roster for lab overview
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
