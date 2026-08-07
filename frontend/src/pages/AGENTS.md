@@ -39,7 +39,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | State | Renders | API |
 |---|---|---|
 | `showHistory === false` | Main dashboard (labs, upload, stats from latest DB attempt, challenge sidebar + tab shell) | `GET /api/labs`, `GET /api/labs/{id}/stats` on login/lab change; challenge scores + class/MMD detail only after upload in session |
-| `showHistory === true` | `StudentHistoryPage` | Mock `HISTORY` constant |
+| `showHistory === true` | `StudentHistoryPage` | Live `my-history` / `my-labs` APIs |
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
@@ -76,7 +76,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Pages compose `AppShell` (layout), child components, and local state
 - `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`)
 - When replacing mock data, update the relevant page and its child component docs
-- Planned: `GET /api/submissions/mine?labId=...` for student history (commented in `StudentDashboard.jsx`)
+- Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
 
 ## Verification
 

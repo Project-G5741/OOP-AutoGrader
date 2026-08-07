@@ -15,6 +15,8 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
+| `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
+| `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 
 ## Local Contracts
 

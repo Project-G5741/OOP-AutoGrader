@@ -7,6 +7,23 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+function deriveSubmissionStatus(score, challengeResults, apiStatus) {
+  if (apiStatus === 'passed' || apiStatus === 'partial' || apiStatus === 'failed' || apiStatus === 'unknown') {
+    return apiStatus;
+  }
+  if (challengeResults?.length > 0) {
+    const correctCount = challengeResults.filter((c) => c.isCorrect).length;
+    if (correctCount === challengeResults.length) return 'passed';
+    if (correctCount === 0) return 'failed';
+    return 'partial';
+  }
+  const numericScore = score != null ? Number(score) : null;
+  if (numericScore == null || Number.isNaN(numericScore)) return 'unknown';
+  if (numericScore <= 0) return 'failed';
+  if (numericScore >= 100) return 'passed';
+  return 'partial';
+}
+
 // ==================== SUB-COMPONENTS ====================
 
 function StatusBadge({ status }) {
@@ -49,37 +66,6 @@ function ScoreBar({ score }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-gray-700">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
-    </div>
-  );
-}
-
-function DetailRow({ label, items }) {
-  if (!items || items.length === 0) {
-    return (
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{label}</p>
-        <p className="mt-1 text-sm text-gray-400 dark:text-gray-600">None</p>
-      </div>
-    );
-  }
-  return (
-    <div>
-      <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{label}</p>
-      <div className="mt-1 space-y-0.5">
-        {items.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-2 text-sm">
-            {item.isCorrect ? (
-              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-            ) : (
-              <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-            )}
-            <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
-            {item.error && (
-              <span className="text-xs text-red-400 dark:text-red-400">({item.error})</span>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -387,10 +373,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                 <tbody>
                   {filteredSubmissions.map((item, index) => {
                     const isExpanded = expandedRow === item.id;
-                    const hasFailures = item.challengeResults?.some(c => !c.isCorrect) || false;
-                    const status = !item.challengeResults || item.challengeResults.length === 0
-                      ? 'unknown'
-                      : hasFailures ? 'partial' : 'passed';
+                    const status = deriveSubmissionStatus(
+                      item.score,
+                      item.challengeResults,
+                      item.status,
+                    );
 
                     return (
                       <Fragment key={item.id}>
@@ -456,24 +443,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                                   </div>
                                 )}
 
-                                {/* Detailed Elements - Fields, Methods, Constructors */}
-                                <div className="grid gap-4 md:grid-cols-3">
-                                  <DetailRow 
-                                    label="Fields" 
-                                    items={item.fieldResults?.map(f => ({ name: f.fieldName, isCorrect: f.isCorrect, error: f.error })) || []} 
-                                  />
-                                  <DetailRow 
-                                    label="Methods" 
-                                    items={item.methodResults?.map(m => ({ name: m.methodName, isCorrect: m.isCorrect, error: m.error })) || []} 
-                                  />
-                                  <DetailRow 
-                                    label="Constructors" 
-                                    items={item.constructorResults?.map(c => ({ name: c.constructorName, isCorrect: c.isCorrect, error: c.error })) || []} 
-                                  />
-                                </div>
-
-                                {(!item.challengeResults || item.challengeResults.length === 0) && 
-                                 (!item.fieldResults || item.fieldResults.length === 0) && (
+                                {(!item.challengeResults || item.challengeResults.length === 0) && (
                                   <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-4">
                                     No detailed results available for this submission
                                   </p>

@@ -62,7 +62,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Auth, user CRUD, labs list, student upload | Live API |
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
-| Student history and stats | Live API via `StudentDashboard` (latest attempt) |
+| Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
 | Submission management (lecturer) | Local mock in `SubmissionManagement.jsx` |
 
 ## Work Guidance

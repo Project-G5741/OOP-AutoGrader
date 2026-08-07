@@ -8,16 +8,17 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 | File | Role |
 |---|---|
-| `StudentHistoryPage.jsx` | Expandable history table with filters (mock data) |
+| `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
 | `ProfileEditModal.jsx` | Edit profile modal — used by both student and lecturer dashboards |
 
 ## Local Contracts
 
 ### StudentHistoryPage
 
-- Receives no API props — uses hardcoded `HISTORY` constant
-- Filter by lab name, expandable rows for attempt details
-- Planned replacement: `GET /api/submissions/mine?labId=...` (not implemented)
+- Fetches `GET /api/submissions/my-history` (optional `labId`) and `GET /api/submissions/my-labs`
+- Filter by lab name via dropdown; client-side table sort
+- Expanded rows show challenge-level results only
+- Row status: `passed` (all challenges correct), `failed` (none correct / 0% score), `partial` (mixed), `unknown` (no score and no challenge detail)
 
 ### ProfileEditModal
 
@@ -34,7 +35,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 ## Work Guidance
 
-- When student history API exists, fetch in `StudentDashboard.jsx` or `StudentHistoryPage.jsx` and remove mock `HISTORY`
+- Student history uses live APIs in `StudentHistoryPage.jsx`
 - Profile modal changes affect both roles — test both dashboards
 - `attemptNumber` logic will need backend support for multiple attempts per lab
 

@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import com.eiu.capstone.backend.DTO.ChallengeBreakdownDTO;
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
@@ -17,6 +18,8 @@ public class ChallengeService {
     private final FieldRepository fieldRepository;
     private final MethodRepository methodRepository;
     private final ConstructorRepository constructorRepository;
+    private final ClassRelationRepository classRelationRepository;
+    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
     private final SubmissionResolutionService submissionResolutionService;
     private final SubmissionResultLoader submissionResultLoader;
     private final boolean timingLog;
@@ -26,6 +29,8 @@ public class ChallengeService {
                              FieldRepository fieldRepository,
                              MethodRepository methodRepository,
                              ConstructorRepository constructorRepository,
+                             ClassRelationRepository classRelationRepository,
+                             SubmissionChallengeResultRepository submissionChallengeResultRepository,
                              SubmissionResolutionService submissionResolutionService,
                              SubmissionResultLoader submissionResultLoader,
                              @Value("${app.grading.timing-log:false}") boolean timingLog) {
@@ -34,6 +39,8 @@ public class ChallengeService {
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
         this.constructorRepository = constructorRepository;
+        this.classRelationRepository = classRelationRepository;
+        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
         this.submissionResolutionService = submissionResolutionService;
         this.submissionResultLoader = submissionResultLoader;
         this.timingLog = timingLog;
@@ -90,7 +97,72 @@ public class ChallengeService {
         return result;
     }
 
-    /** Java-side challenge score from stored element results; null when the submission has no rubric elements for the challenge. */
+    /**
+     * Per-challenge scores for one submission: stored challenge rows when present,
+     * otherwise recomputed from persisted element results (including relations).
+     */
+    public List<ChallengeBreakdownDTO> getChallengeBreakdownForSubmission(UUID submissionId, UUID labId) {
+        List<SubmissionChallengeResult> stored =
+                submissionChallengeResultRepository.findBySubmission_IdWithChallenge(submissionId);
+        if (!stored.isEmpty()) {
+            stored.sort(Comparator.comparing(r -> r.getChallenge().getChallengeNumber()));
+            return stored.stream()
+                    .map(r -> new ChallengeBreakdownDTO(
+                            r.getChallenge().getName(),
+                            r.isCorrect(),
+                            toRoundedPercent(r.getScore())))
+                    .toList();
+        }
+
+        List<Challenge> challenges = challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId);
+        if (challenges.isEmpty()) {
+            return List.of();
+        }
+
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);
+        List<ClassRelation> allRelations = allClasses.isEmpty()
+                ? List.of()
+                : classRelationRepository.findByClassEntityInWithEndpoints(allClasses);
+        List<Field> allFields = allClasses.isEmpty()
+                ? List.of()
+                : fieldRepository.findByClassEntityInWithDeclaration(allClasses);
+        List<Method> allMethods = allClasses.isEmpty()
+                ? List.of()
+                : methodRepository.findByClassEntityInWithDeclaration(allClasses);
+        List<Constructor> allConstructors = allClasses.isEmpty()
+                ? List.of()
+                : constructorRepository.findByClassEntityInWithDeclaration(allClasses);
+
+        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        Map<UUID, List<ClassEntity>> classesByChallenge = allClasses.stream()
+                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        Map<UUID, List<ClassRelation>> relationsByChallenge = allRelations.stream()
+                .collect(Collectors.groupingBy(r -> r.getClassEntity().getChallenge().getId()));
+
+        List<ChallengeBreakdownDTO> breakdown = new ArrayList<>();
+        for (Challenge challenge : challenges) {
+            Integer score = computeChallengeScore(
+                    classesByChallenge.getOrDefault(challenge.getId(), List.of()),
+                    fieldsByClass,
+                    methodsByClass,
+                    constructorsByClass,
+                    relationsByChallenge.getOrDefault(challenge.getId(), List.of()),
+                    correctIds);
+            if (score == null) {
+                continue;
+            }
+            breakdown.add(new ChallengeBreakdownDTO(challenge.getName(), score >= 100, score));
+        }
+        return breakdown;
+    }
+
+    /** Java-side challenge score from stored element results; null when the challenge has no gradable rubric elements. */
     public Integer computeChallengeScoreForSubmission(UUID submissionId, UUID challengeId) {
         Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
         if (challenge == null) {
@@ -100,6 +172,7 @@ public class ChallengeService {
         if (classes.isEmpty()) {
             return null;
         }
+        List<ClassRelation> relations = classRelationRepository.findByClassEntityInWithEndpoints(classes);
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         List<Field> fields = fieldRepository.findByClassEntityInWithDeclaration(classes);
         List<Method> methods = methodRepository.findByClassEntityInWithDeclaration(classes);
@@ -110,7 +183,7 @@ public class ChallengeService {
                 .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
         Map<UUID, List<Constructor>> constructorsByClass = constructors.stream()
                 .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
-        return computeChallengeScore(classes, fieldsByClass, methodsByClass, constructorsByClass, correctIds);
+        return computeChallengeScore(classes, fieldsByClass, methodsByClass, constructorsByClass, relations, correctIds);
     }
 
     private Integer computeChallengeScore(
@@ -118,6 +191,16 @@ public class ChallengeService {
                                           Map<UUID, List<Field>> fieldsByClass,
                                           Map<UUID, List<Method>> methodsByClass,
                                           Map<UUID, List<Constructor>> constructorsByClass,
+                                          SubmissionCorrectIds correctIds) {
+        return computeChallengeScore(classes, fieldsByClass, methodsByClass, constructorsByClass, List.of(), correctIds);
+    }
+
+    private Integer computeChallengeScore(
+                                          List<ClassEntity> classes,
+                                          Map<UUID, List<Field>> fieldsByClass,
+                                          Map<UUID, List<Method>> methodsByClass,
+                                          Map<UUID, List<Constructor>> constructorsByClass,
+                                          List<ClassRelation> relations,
                                           SubmissionCorrectIds correctIds) {
         if (classes.isEmpty()) {
             return null;
@@ -132,15 +215,20 @@ public class ChallengeService {
             constructors.addAll(constructorsByClass.getOrDefault(classEntity.getId(), List.of()));
         }
 
-        int total = fields.size() + methods.size() + constructors.size();
+        int total = fields.size() + methods.size() + constructors.size() + relations.size();
         if (total == 0) {
             return null;
         }
 
         long correct = fields.stream().filter(f -> correctIds.fieldIds().contains(f.getId())).count()
                 + methods.stream().filter(m -> correctIds.methodIds().contains(m.getId())).count()
-                + constructors.stream().filter(c -> correctIds.constructorIds().contains(c.getId())).count();
+                + constructors.stream().filter(c -> correctIds.constructorIds().contains(c.getId())).count()
+                + relations.stream().filter(r -> correctIds.relationIds().contains(r.getId())).count();
 
         return Math.round((float) (correct * 100.0 / total));
+    }
+
+    private Integer toRoundedPercent(java.math.BigDecimal score) {
+        return score == null ? null : score.setScale(0, java.math.RoundingMode.HALF_UP).intValue();
     }
 }

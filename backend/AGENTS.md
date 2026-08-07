@@ -46,14 +46,14 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create (soft-delete) |
-| `SubmissionController` | `/api/submissions` | Upload + grade (JWT required) |
+| `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 ### Security posture
 
 - `SecurityConfig` permits all requests; CSRF disabled
-- JWT is parsed manually in `SubmissionController` only — other endpoints are unauthenticated
+- JWT is parsed manually in `SubmissionController` for upload and student history reads — other endpoints are unauthenticated
 - `JwtService` regenerates signing key on every restart (tokens invalidated on restart)
 - Google auth enforces `@eiu.edu.vn` domain via `GoogleTokenVerifier`
 
@@ -93,6 +93,8 @@ Grading tuning properties (`application.properties`):
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
 - `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5)
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
+- `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
+- `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter)
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards
