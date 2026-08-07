@@ -1,5 +1,7 @@
 -- Operator-run script: creates term_enrollment and seeds from existing lab progress.
 -- Run against the project PostgreSQL database before using lecturer roster APIs.
+-- The backend also auto-syncs on startup (TermEnrollmentSyncService) and roster queries
+-- include students with student_lab_progress even when enrollment rows are missing.
 
 CREATE TABLE IF NOT EXISTS term_enrollment (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

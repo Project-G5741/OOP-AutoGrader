@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.StatsDTO;
+import com.eiu.capstone.backend.analytics.dto.LabAttemptHistoryItemDTO;
 import com.eiu.capstone.backend.analytics.dto.LabStatisticsResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
@@ -58,8 +59,14 @@ public class LabController {
     @GetMapping("/{labId}/submissions")
     public Page<SubmissionSummaryDTO> getSubmissions(@PathVariable UUID labId,
                                                      @RequestParam(defaultValue = "0") int page,
-                                                     @RequestParam(defaultValue = "20") int size,
+                                                     @RequestParam(defaultValue = "5") int size,
                                                      @RequestParam(required = false) String sort) {
         return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort);
+    }
+
+    @GetMapping("/{labId}/students/{studentId}/attempts")
+    public List<LabAttemptHistoryItemDTO> getStudentAttempts(@PathVariable UUID labId,
+                                                             @PathVariable UUID studentId) {
+        return lecturerAnalyticsService.getLabAttemptHistory(labId, studentId);
     }
 }

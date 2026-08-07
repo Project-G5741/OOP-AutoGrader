@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import com.eiu.capstone.backend.analytics.dto.AnalyticsDashboardResponse;
 import com.eiu.capstone.backend.analytics.dto.StudentReportResponse;
@@ -143,6 +144,20 @@ public class AnalyticsMapper {
         if (value instanceof Number) return ((Number) value).intValue() != 0;
         if (value instanceof String) return Boolean.parseBoolean((String) value);
         return false;
+    }
+
+    public static UUID toUuid(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof UUID uuid) {
+            return uuid;
+        }
+        try {
+            return UUID.fromString(value.toString());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private static String computeStatus(BigDecimal average) {
