@@ -151,8 +151,13 @@ public class GradingService {
                         existing.relationResults, submission, pending.relationId(), pending.correct()));
             }
             if (cc.pendingChallenge != null) {
+                BigDecimal challengeScore = cc.percentage != null ? cc.percentage : BigDecimal.ZERO;
                 result.challengeResults.add(buildChallengeResult(
-                        existing.challengeResults, submission, cc.pendingChallenge.challengeId(), cc.pendingChallenge.correct()));
+                        existing.challengeResults,
+                        submission,
+                        cc.pendingChallenge.challengeId(),
+                        cc.pendingChallenge.correct(),
+                        challengeScore));
             }
             if (cc.challengeNumber != null && cc.percentage != null) {
                 percentagesByChallengeNumber.put(cc.challengeNumber, cc.percentage);
@@ -568,11 +573,13 @@ public class GradingService {
     private SubmissionChallengeResult buildChallengeResult(Map<UUID, SubmissionChallengeResult> existing,
                                                            LabSubmission submission,
                                                            UUID challengeId,
-                                                           boolean correct) {
+                                                           boolean correct,
+                                                           BigDecimal score) {
         SubmissionChallengeResult result = existing.getOrDefault(challengeId, new SubmissionChallengeResult());
         result.setSubmission(submission);
         result.setChallenge(challengeRepository.getReferenceById(challengeId));
         result.setCorrect(correct);
+        result.setScore(score);
         return result;
     }
 
