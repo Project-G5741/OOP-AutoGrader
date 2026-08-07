@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.model;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -41,6 +42,9 @@ public class SubmissionChallengeResult {
     @Column(name = "is_correct", nullable = false)
     private boolean isCorrect = false;
 
+    @Column(name = "score", nullable = false, precision = 6, scale = 2)
+    private BigDecimal score = BigDecimal.ZERO;
+
     public SubmissionChallengeResult() {}
 
     public UUID getId() { return id; }
@@ -53,4 +57,7 @@ public class SubmissionChallengeResult {
 
     public boolean isCorrect() { return isCorrect; }
     public void setCorrect(boolean correct) { isCorrect = correct; }
+
+    public BigDecimal getScore() { return score; }
+    public void setScore(BigDecimal score) { this.score = score == null ? BigDecimal.ZERO : score; }
 }

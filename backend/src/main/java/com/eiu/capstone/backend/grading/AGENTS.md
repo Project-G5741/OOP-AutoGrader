@@ -75,7 +75,7 @@ Each expected element is matched against parsed student classes using **direct a
 
 | Entity | Stores |
 |---|---|
-| `SubmissionChallengeResult` | Per-challenge score |
+| `SubmissionChallengeResult` | Per-challenge `is_correct` flag and `score` (0–100 percent, 2 decimal places) |
 | `SubmissionFieldResult` | Field match outcome |
 | `SubmissionMethodResult` | Method match outcome |
 | `SubmissionConstructorResult` | Constructor match outcome |
