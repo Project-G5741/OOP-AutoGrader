@@ -1,4 +1,3 @@
-import React from 'react';
 import { Eye } from 'lucide-react';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 
@@ -10,7 +9,7 @@ export default function SubmissionTable({ submissions, summary, pagination, onPa
       <table className="w-full table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            {['Student', 'ID', 'Score', 'Attempt', 'Submitted At', 'Best', 'Action'].map((col) => (
+            {['Student', 'ID', 'Score', 'Attempt', 'Submitted At', 'Action'].map((col) => (
               <th key={col} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                 {col}
               </th>
@@ -20,7 +19,7 @@ export default function SubmissionTable({ submissions, summary, pagination, onPa
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                 No student data found
               </td>
             </tr>
@@ -32,9 +31,6 @@ export default function SubmissionTable({ submissions, summary, pagination, onPa
                 <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(submission.score)}</td>
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatNumber(submission.attempt)}</td>
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.submittedAt)}</td>
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
-                  {submission.bestSubmission ? 'Yes' : 'No'}
-                </td>
                 <td className="px-4 py-3">
                   <button className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-green-700" type="button">
                     <Eye className="h-3 w-3" />
@@ -45,25 +41,21 @@ export default function SubmissionTable({ submissions, summary, pagination, onPa
             ))
           )}
 
-          <tr className="border-t border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20">
-            <td className="px-4 py-4 text-sm font-bold text-blue-900 dark:text-blue-100">SUMMARY</td>
-            <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-              Submissions: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.submissionCount)}</span>
-            </td>
-            <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-              Average: <span className="text-blue-900 dark:text-blue-100">{formatPercent(summary?.averageScore)}</span>
-            </td>
-            <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-              Lowest: <span className="text-blue-900 dark:text-blue-100">{formatPercent(summary?.lowestScore)}</span>
-            </td>
-            <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-              Students: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.studentCount)}</span>
-            </td>
-            <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-              Completion: <span className="text-blue-900 dark:text-blue-100">{formatPercent(summary?.completionRate)}</span>
-            </td>
-            <td className="px-4 py-4" />
-          </tr>
+          {(summary?.submissionCount != null || summary?.studentCount != null || summary?.completionRate != null) && (
+            <tr className="border-t border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20">
+              <td className="px-4 py-4 text-sm font-bold text-blue-900 dark:text-blue-100">SUMMARY</td>
+              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                Submissions: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.submissionCount)}</span>
+              </td>
+              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                Enrolled: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.studentCount)}</span>
+              </td>
+              <td className="px-4 py-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                Completion: <span className="text-blue-900 dark:text-blue-100">{formatPercent(summary?.completionRate)}</span>
+              </td>
+              <td className="px-4 py-4" />
+            </tr>
+          )}
         </tbody>
       </table>
 

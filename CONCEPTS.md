@@ -20,3 +20,12 @@ Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into
 
 - A **lab submission** owns many **submission results** (one per rubric element graded).
 - Grading compares compiled student classes against a **rubric snapshot**, then writes **submission results**.
+
+### Student lab progress
+A per-(student, lab) tracking row holding highest score, attempt count, and best/latest submission metadata. Updated on upload; used as enrichment for lecturer analytics, not as the roster denominator when enrolled non-submitters must appear.
+
+### Term enrollment
+Maps an active student to a term (`term_enrollment`). The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
+
+### Lecturer lab roster
+The unique set of enrolled/active students for a lab's term/course. Challenge and overview tables paginate this population; submission and progress data are LEFT JOINed per student afterward.
