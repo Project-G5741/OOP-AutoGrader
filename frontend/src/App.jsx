@@ -11,7 +11,7 @@ import ResetPasswordUI from "./pages/ResetPasswordUI";
 import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import RequireRole from "./components/auth/RequireRole";
-import { defaultDashboardPath, ROUTES } from "./utils/authRoutes";
+import { defaultDashboardPath, normalizeRoleList, readStoredUser, ROUTES } from "./utils/authRoutes";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -22,17 +22,6 @@ function clearResetTokenFromUrl() {
   url.searchParams.delete("resetToken");
   const next = url.pathname + (url.search ? url.search : "") + url.hash;
   window.history.replaceState({}, "", next);
-}
-
-function readStoredUser() {
-  try {
-    const saved = sessionStorage.getItem("user");
-    if (!saved) return null;
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed?.roles) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 function AuthenticatedLanding({ user }) {
@@ -47,10 +36,12 @@ export default function App() {
   const [user, setUser] = useState(readStoredUser);
 
   const handleLoginSuccess = useCallback((data) => {
+    const roles = normalizeRoleList(data.roles);
+    const userPayload = { ...data, roles };
     sessionStorage.setItem("accessToken", data.accessToken);
-    sessionStorage.setItem("user", JSON.stringify(data));
-    setUser(data);
-    navigate(defaultDashboardPath(data.roles));
+    sessionStorage.setItem("user", JSON.stringify(userPayload));
+    setUser(userPayload);
+    navigate(defaultDashboardPath(roles));
   }, [navigate]);
 
   const handleLogout = useCallback(() => {

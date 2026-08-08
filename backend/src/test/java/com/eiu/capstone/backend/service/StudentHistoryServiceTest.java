@@ -43,27 +43,17 @@ class StudentHistoryServiceTest {
     private StudentHistoryService studentHistoryService;
 
     @Test
-    void deriveStatus_allChallengesFailed_returnsFailed() {
-        List<StudentChallengeResultDTO> challenges = List.of(
-                new StudentChallengeResultDTO("Challenge 1", false, 0),
-                new StudentChallengeResultDTO("Challenge 2", false, 0));
-
-        assertEquals("failed", studentHistoryService.deriveStatus(BigDecimal.ZERO, challenges));
-    }
-
-    @Test
-    void deriveStatus_mixedChallenges_returnsPartial() {
-        List<StudentChallengeResultDTO> challenges = List.of(
-                new StudentChallengeResultDTO("Challenge 1", true, 100),
-                new StudentChallengeResultDTO("Challenge 2", false, 40));
-
-        assertEquals("partial", studentHistoryService.deriveStatus(new BigDecimal("70.00"), challenges));
-    }
-
-    @Test
-    void deriveStatus_noChallengeData_usesOverallScore() {
-        assertEquals("partial", studentHistoryService.deriveStatus(new BigDecimal("74.47"), List.of()));
+    void deriveStatus_scoreBands() {
+        assertEquals("failed", studentHistoryService.deriveStatus(new BigDecimal("49.99"), List.of()));
         assertEquals("failed", studentHistoryService.deriveStatus(BigDecimal.ZERO, List.of()));
+
+        assertEquals("partial", studentHistoryService.deriveStatus(new BigDecimal("50"), List.of()));
+        assertEquals("partial", studentHistoryService.deriveStatus(new BigDecimal("74.47"), List.of()));
+        assertEquals("partial", studentHistoryService.deriveStatus(new BigDecimal("80"), List.of()));
+
+        assertEquals("passed", studentHistoryService.deriveStatus(new BigDecimal("80.01"), List.of()));
+        assertEquals("passed", studentHistoryService.deriveStatus(new BigDecimal("100"), List.of()));
+
         assertEquals("unknown", studentHistoryService.deriveStatus(null, List.of()));
     }
 

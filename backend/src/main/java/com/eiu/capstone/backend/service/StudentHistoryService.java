@@ -31,7 +31,8 @@ import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
 @Service
 public class StudentHistoryService {
 
-    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    private static final BigDecimal PASS_THRESHOLD = new BigDecimal("80");
+    private static final BigDecimal FAIL_THRESHOLD = new BigDecimal("50");
 
     private final StudentLabProgressRepository studentLabProgressRepository;
     private final LabSubmissionRepository labSubmissionRepository;
@@ -136,26 +137,13 @@ public class StudentHistoryService {
     }
 
     String deriveStatus(BigDecimal overallScore, List<StudentChallengeResultDTO> challengeResults) {
-        if (challengeResults != null && !challengeResults.isEmpty()) {
-            int correctCount = challengeResults.stream()
-                    .filter(StudentChallengeResultDTO::isCorrect)
-                    .mapToInt(ignored -> 1)
-                    .sum();
-            if (correctCount == challengeResults.size()) {
-                return "passed";
-            }
-            if (correctCount == 0) {
-                return "failed";
-            }
-            return "partial";
-        }
         if (overallScore == null) {
             return "unknown";
         }
-        if (overallScore.compareTo(BigDecimal.ZERO) <= 0) {
+        if (overallScore.compareTo(FAIL_THRESHOLD) < 0) {
             return "failed";
         }
-        if (overallScore.compareTo(ONE_HUNDRED) >= 0) {
+        if (overallScore.compareTo(PASS_THRESHOLD) > 0) {
             return "passed";
         }
         return "partial";

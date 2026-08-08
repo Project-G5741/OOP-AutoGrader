@@ -7,21 +7,20 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-function deriveSubmissionStatus(score, challengeResults, apiStatus) {
-  if (apiStatus === 'passed' || apiStatus === 'partial' || apiStatus === 'failed' || apiStatus === 'unknown') {
-    return apiStatus;
-  }
-  if (challengeResults?.length > 0) {
-    const correctCount = challengeResults.filter((c) => c.isCorrect).length;
-    if (correctCount === challengeResults.length) return 'passed';
-    if (correctCount === 0) return 'failed';
-    return 'partial';
-  }
+function deriveSubmissionStatus(score) {
   const numericScore = score != null ? Number(score) : null;
   if (numericScore == null || Number.isNaN(numericScore)) return 'unknown';
-  if (numericScore <= 0) return 'failed';
-  if (numericScore >= 100) return 'passed';
+  if (numericScore < 50) return 'failed';
+  if (numericScore > 80) return 'passed';
   return 'partial';
+}
+
+function formatScore(value) {
+  if (value === null || value === undefined) return '--';
+  const num = Number(value);
+  if (Number.isNaN(num)) return '--';
+  if (Number.isInteger(num)) return String(num);
+  return num.toFixed(2).replace(/\.?0+$/, '');
 }
 
 // ==================== SUB-COMPONENTS ====================
@@ -44,14 +43,15 @@ function ScorePill({ score }) {
   if (score === null || score === undefined) {
     return <span className="text-gray-400 dark:text-gray-600 text-sm">--</span>;
   }
-  const color = score >= 90 
+  const numericScore = Number(score);
+  const color = numericScore >= 90 
     ? 'text-green-600 dark:text-green-300' 
-    : score >= 75 
+    : numericScore >= 75 
       ? 'text-blue-600 dark:text-blue-300' 
-      : score >= 60 
+      : numericScore >= 60 
         ? 'text-yellow-600 dark:text-yellow-300' 
         : 'text-red-600 dark:text-red-300';
-  return <span className={`font-semibold ${color}`}>{score}%</span>;
+  return <span className={`font-semibold ${color}`}>{formatScore(score)}</span>;
 }
 
 function ScoreBar({ score }) {
@@ -86,110 +86,101 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   const [labsSummary, setLabsSummary] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [hasData, setHasData] = useState(false);
 
-  // ===== Fetch Functions =====
+  const emptyStats = {
+    totalSubmissions: 0,
+    averageScore: null,
+    bestScore: null,
+    labsAttempted: 0,
+  };
 
-  const fetchHistory = useCallback(async (labId = null) => {
+  const fetchHistoryData = useCallback(async (labId = null) => {
+    const url = labId 
+      ? `${API_BASE}/api/submissions/my-history?labId=${labId}`
+      : `${API_BASE}/api/submissions/my-history`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.info('History API not available yet, using empty data');
+      return { submissions: [], stats: emptyStats };
+    }
+
+    const data = await response.json();
+    return {
+      submissions: data.submissions || [],
+      stats: data.stats || emptyStats,
+    };
+  }, []);
+
+  const fetchLabsSummaryData = useCallback(async () => {
+    const response = await fetch(`${API_BASE}/api/submissions/my-labs`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.info('Labs summary API not available yet');
+      return { labsSummary: [], labOptions: ['All Labs'] };
+    }
+
+    const data = await response.json();
+    const labs = ['All Labs', ...data.map((lab) => lab.name)];
+    return { labsSummary: data || [], labOptions: labs };
+  }, []);
+
+  const loadPageData = useCallback(async (labId = null) => {
     setLoading(true);
     try {
-      const url = labId 
-        ? `${API_BASE}/api/submissions/my-history?labId=${labId}`
-        : `${API_BASE}/api/submissions/my-history`;
-      
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-        },
-      });
-
-      // Nếu API chưa implement (404) hoặc lỗi khác, chỉ set data rỗng
-      if (!response.ok) {
-        console.info('History API not available yet, using empty data');
-        setSubmissions([]);
-        setStats({ totalSubmissions: 0, averageScore: null, bestScore: null, labsAttempted: 0 });
-        setHasData(false);
-        return;
-      }
-
-      const data = await response.json();
-      setSubmissions(data.submissions || []);
-      setStats(data.stats || { totalSubmissions: 0, averageScore: null, bestScore: null, labsAttempted: 0 });
-      setHasData(true);
+      const [historyData, labsData] = await Promise.all([
+        fetchHistoryData(labId),
+        fetchLabsSummaryData(),
+      ]);
+      setSubmissions(historyData.submissions);
+      setStats(historyData.stats);
+      setLabsSummary(labsData.labsSummary);
+      setLabOptions(labsData.labOptions);
     } catch (err) {
       console.info('Could not fetch submission history:', err.message);
       setSubmissions([]);
-      setStats({ totalSubmissions: 0, averageScore: null, bestScore: null, labsAttempted: 0 });
-      setHasData(false);
+      setStats(emptyStats);
+      setLabsSummary([]);
+      setLabOptions(['All Labs']);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const fetchLabsSummary = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/submissions/my-labs`, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.info('Labs summary API not available yet');
-        setLabsSummary([]);
-        setLabOptions(['All Labs']);
-        return;
-      }
-
-      const data = await response.json();
-      setLabsSummary(data || []);
-      
-      // Tạo lab options từ dữ liệu
-      const labs = ['All Labs', ...data.map(lab => lab.name)];
-      setLabOptions(labs);
-    } catch (err) {
-      console.info('Could not fetch labs summary:', err.message);
-      setLabsSummary([]);
-      setLabOptions(['All Labs']);
-    }
-  }, []);
-
-  // ===== Effects =====
+  }, [fetchHistoryData, fetchLabsSummaryData]);
 
   useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchHistory(),
-        fetchLabsSummary(),
-      ]);
-    };
-    loadData();
-  }, [fetchHistory, fetchLabsSummary]);
-
-  // ===== Handlers =====
+    void loadPageData();
+  }, [loadPageData]);
 
   const handleFilterChange = (labName) => {
     setSelectedLab(labName);
     if (labName === 'All Labs') {
-      fetchHistory();
+      void loadPageData();
     } else {
-      const lab = labsSummary.find(l => l.name === labName);
+      const lab = labsSummary.find((l) => l.name === labName);
       if (lab) {
-        fetchHistory(lab.id);
+        void loadPageData(lab.id);
       }
     }
   };
 
   const handleRefresh = () => {
     if (selectedLab === 'All Labs') {
-      fetchHistory();
+      void loadPageData();
     } else {
-      const lab = labsSummary.find(l => l.name === selectedLab);
+      const lab = labsSummary.find((l) => l.name === selectedLab);
       if (lab) {
-        fetchHistory(lab.id);
+        void loadPageData(lab.id);
       }
     }
-    fetchLabsSummary();
   };
 
   const toggleRow = (id) => {
@@ -204,21 +195,44 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
 
   // ===== Render =====
 
-  // Format stats value - hiển thị -- nếu null/undefined
   const formatStatValue = (value) => {
     if (value === null || value === undefined) return '--';
     if (typeof value === 'number') {
-      if (Number.isInteger(value)) return value;
-      return Math.round(value);
+      return formatScore(value);
     }
     return value;
   };
 
-  // Format stat with percent
-  const formatStatPercent = (value) => {
-    if (value === null || value === undefined) return '--';
-    return `${Math.round(value)}%`;
-  };
+  const statCards = [
+    { 
+      label: 'Labs Attempted', 
+      displayValue: formatStatValue(stats.labsAttempted ?? 0),
+      icon: <Award className="w-4 h-4" />,
+      tone: 'text-purple-400', 
+      bg: 'bg-purple-900/30' 
+    },
+    { 
+      label: 'Total Submissions', 
+      displayValue: formatStatValue(stats.totalSubmissions ?? 0),
+      icon: <Clock className="w-4 h-4" />,
+      tone: 'text-blue-400', 
+      bg: 'bg-blue-900/30' 
+    },
+    { 
+      label: 'Average Score', 
+      displayValue: formatStatValue(stats.averageScore),
+      icon: <TrendingUp className="w-4 h-4" />,
+      tone: 'text-green-400', 
+      bg: 'bg-green-900/30' 
+    },
+    { 
+      label: 'Best Score', 
+      displayValue: formatStatValue(stats.bestScore),
+      icon: <Award className="w-4 h-4" />,
+      tone: 'text-yellow-400', 
+      bg: 'bg-yellow-900/30' 
+    },
+  ];
 
   return (
     <div className="w-full flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-8 max-w-full overflow-x-hidden">
@@ -253,56 +267,48 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
         </div>
       </div>
 
-      {/* ===== Stats Cards - hiển thị -- khi không có dữ liệu ===== */}
+      {/* ===== Stats Cards ===== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { 
-            label: 'Labs Attempted', 
-            value: stats.labsAttempted ?? 0,
-            displayValue: formatStatValue(stats.labsAttempted),
-            icon: <Award className="w-4 h-4" />,
-            tone: 'text-purple-400', 
-            bg: 'bg-purple-900/30' 
-          },
-          { 
-            label: 'Total Submissions', 
-            value: stats.totalSubmissions ?? 0,
-            displayValue: formatStatValue(stats.totalSubmissions),
-            icon: <Clock className="w-4 h-4" />,
-            tone: 'text-blue-400', 
-            bg: 'bg-blue-900/30' 
-          },
-          { 
-            label: 'Average Score', 
-            value: stats.averageScore,
-            displayValue: formatStatPercent(stats.averageScore),
-            icon: <TrendingUp className="w-4 h-4" />,
-            tone: 'text-green-400', 
-            bg: 'bg-green-900/30' 
-          },
-          { 
-            label: 'Best Score', 
-            value: stats.bestScore,
-            displayValue: formatStatPercent(stats.bestScore),
-            icon: <Award className="w-4 h-4" />,
-            tone: 'text-yellow-400', 
-            bg: 'bg-yellow-900/30' 
-          },
-        ].map((card) => (
-          <div key={card.label} className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{card.label}</p>
-              <div className={`rounded-2xl p-3 ${card.bg}`}>
-                {card.icon}
-              </div>
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-5 animate-pulse">
+              <div className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="mt-4 h-9 w-16 rounded bg-gray-200 dark:bg-gray-700" />
             </div>
-            <p className={`mt-4 text-3xl font-semibold ${card.tone}`}>{card.displayValue}</p>
-          </div>
-        ))}
+          ))
+        ) : (
+          statCards.map((card) => (
+            <div key={card.label} className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{card.label}</p>
+                <div className={`rounded-2xl p-3 ${card.bg}`}>
+                  {card.icon}
+                </div>
+              </div>
+              <p className={`mt-4 text-3xl font-semibold ${card.tone}`}>{card.displayValue}</p>
+            </div>
+          ))
+        )}
       </div>
 
       {/* ===== Labs Summary Sidebar + Submissions Table ===== */}
       <div className="grid gap-6 xl:grid-cols-[0.6fr_1fr]">
+        {loading ? (
+          <>
+            <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6 animate-pulse">
+              <div className="h-4 w-40 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="mt-6 space-y-4">
+                <div className="h-10 rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="h-10 rounded bg-gray-200 dark:bg-gray-700" />
+              </div>
+            </section>
+            <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6 animate-pulse">
+              <div className="h-4 w-32 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="mt-6 h-48 rounded bg-gray-200 dark:bg-gray-700" />
+            </section>
+          </>
+        ) : (
+          <>
         {/* Labs Summary */}
         <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6">
           <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
@@ -322,7 +328,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                         lab.bestScore >= 75 ? 'text-blue-600 dark:text-blue-300' :
                         lab.bestScore >= 60 ? 'text-yellow-600 dark:text-yellow-300' :
                         'text-red-600 dark:text-red-300'
-                      }`}>{Math.round(lab.bestScore)}%</span>
+                      }`}>{formatScore(lab.bestScore)}</span>
                     ) : (
                       <span className="text-gray-400 dark:text-gray-600">--</span>
                     )}
@@ -373,11 +379,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                 <tbody>
                   {filteredSubmissions.map((item, index) => {
                     const isExpanded = expandedRow === item.id;
-                    const status = deriveSubmissionStatus(
-                      item.score,
-                      item.challengeResults,
-                      item.status,
-                    );
+                    const status = deriveSubmissionStatus(item.score);
 
                     return (
                       <Fragment key={item.id}>
@@ -434,7 +436,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                                           </div>
                                           {cr.score !== undefined && cr.score !== null && (
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                                              Score: {Math.round(cr.score)}%
+                                              Score: {formatScore(cr.score)}
                                             </span>
                                           )}
                                         </div>
@@ -460,6 +462,8 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
             </div>
           )}
         </section>
+          </>
+        )}
       </div>
     </div>
   );
