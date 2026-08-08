@@ -15,7 +15,7 @@ Render deployment steps (Docker)
    - `BREVO_API_KEY` = <Brevo API key from Settings → SMTP & API>
    - `MAIL_FROM` = projectg5741@gmail.com (must be verified as a sender in Brevo)
 
-   Brevo setup (one-time): sign up at https://www.brevo.com → **Senders** → add and verify `projectg5741@gmail.com` → **SMTP & API** → create API key.
+   Brevo setup (one-time): sign up at https://www.brevo.com → **Senders** → add and verify `projectg5741@gmail.com` → **SMTP & API** → **API keys** tab → **Generate a new API key** (must start with `xkeysib-`, not `xsmtpsib-`).
 
    **Local dev** keeps `MAIL_PROVIDER=smtp` with `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
 
