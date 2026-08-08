@@ -15,7 +15,7 @@ React 18 + Vite 7 SPA for the OOP AutoGrader: Google/IRN login, role-based dashb
 ### Stack
 
 - React 18, Vite 7, Tailwind CSS 3 (`darkMode: 'class'`)
-- `react-router-dom` installed but **not used** — navigation is conditional rendering + local state
+- `react-router-dom` installed; `App.jsx` uses URL routes with role guards (`RequireRole`)
 - `@react-oauth/google` for Google sign-in
 - `lucide-react` for icons
 
@@ -39,7 +39,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 - No `AuthContext` — auth state lives in `App.jsx` `useState` + `sessionStorage`
 - Keys: `accessToken`, `user` (JSON with `roles` array)
-- Role gate in `App.jsx`: `LECTURER` → `LecturerDashboard`, `STUDENT` → `StudentDashboard`
+- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration

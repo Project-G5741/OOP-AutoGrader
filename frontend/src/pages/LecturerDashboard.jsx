@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
@@ -8,16 +9,19 @@ import OverviewPanel from '../components/lecturer/OverviewPanel';
 import ReportsPage from './Reports';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
+import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverviewSubmissionHistory';
 import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
 import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
-import { exportRosterRows } from '../components/lecturer/exportRoster';
+import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
 import { formatNumber, formatText, hasItems } from '../utils/formatters';
+import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
+const GRADE_OVERVIEW_EXPORT_PAGE_SIZE = 100;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,
   totalLabs: 0,
@@ -60,9 +64,37 @@ async function fetchAllLabSubmissions(labId) {
   return response.json();
 }
 
+async function fetchAllGradeOverview() {
+  let page = 0;
+  let totalPages = 1;
+  let labs = [];
+  const students = [];
+
+  while (page < totalPages) {
+    const response = await fetch(
+      `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_EXPORT_PAGE_SIZE}`,
+      { headers: authHeaders() },
+    );
+    if (!response.ok) {
+      return { labs: [], students: [] };
+    }
+    const data = await response.json();
+    if (page === 0) {
+      labs = data.labs ?? [];
+    }
+    students.push(...(data.content ?? []));
+    totalPages = Math.max(data.totalPages ?? 1, 1);
+    page += 1;
+  }
+
+  return { labs, students };
+}
+
 export default function LecturerDashboard({ user, onLogout }) {
   const { isDark } = useTheme();
-  const [activeNav, setActiveNav] = useState('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeNav = LECTURER_ROUTE_TO_NAV[location.pathname] || 'dashboard';
   const [showProfile, setShowProfile] = useState(false);
 
   const [labs, setLabs] = useState([]);
@@ -107,6 +139,12 @@ export default function LecturerDashboard({ user, onLogout }) {
   });
   const [loadingGradeOverview, setLoadingGradeOverview] = useState(false);
   const [gradeOverviewError, setGradeOverviewError] = useState(null);
+  const [selectedGradeStudent, setSelectedGradeStudent] = useState(null);
+  const [gradeStudentHistory, setGradeStudentHistory] = useState([]);
+  const [loadingGradeStudentHistory, setLoadingGradeStudentHistory] = useState(false);
+  const [gradeStudentHistoryError, setGradeStudentHistoryError] = useState(null);
+  const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
+  const [historySortDirection, setHistorySortDirection] = useState('desc');
   const [challenges, setChallenges] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -374,6 +412,62 @@ export default function LecturerDashboard({ user, onLogout }) {
     fetchGradeOverview(newPage);
   };
 
+  const fetchStudentSubmissionHistory = useCallback(async (studentId) => {
+    setLoadingGradeStudentHistory(true);
+    setGradeStudentHistoryError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/analytics/student/${studentId}`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load submission history');
+      }
+      const data = await response.json();
+      setGradeStudentHistory(Array.isArray(data.submissionHistory) ? data.submissionHistory : []);
+    } catch (err) {
+      setGradeStudentHistory([]);
+      setGradeStudentHistoryError(err.message || 'Unable to load submission history');
+    } finally {
+      setLoadingGradeStudentHistory(false);
+    }
+  }, []);
+
+  const handleGradeStudentSelect = (student) => {
+    setSelectedGradeStudent(student);
+    setHistoryLabFilter('All Labs');
+    setHistorySortDirection('desc');
+    if (student?.studentId) {
+      void fetchStudentSubmissionHistory(student.studentId);
+    }
+  };
+
+  const gradeStudentHistoryLabOptions = useMemo(() => {
+    const labNames = gradeStudentHistory
+      .map((item) => item.labName)
+      .filter((name) => name != null && String(name).trim().length > 0);
+    return ['All Labs', ...Array.from(new Set(labNames))];
+  }, [gradeStudentHistory]);
+
+  const filteredGradeStudentHistoryRows = useMemo(() => {
+    if (!selectedGradeStudent) return [];
+    const filtered = gradeStudentHistory.filter((item) => {
+      if (historyLabFilter === 'All Labs') return true;
+      return item.labName === historyLabFilter;
+    });
+    const sorted = [...filtered].sort((a, b) => {
+      const aTime = Date.parse(a.submittedAt ?? '') || 0;
+      const bTime = Date.parse(b.submittedAt ?? '') || 0;
+      return historySortDirection === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+    return sorted.map((item) => ({
+      studentName: selectedGradeStudent.studentName,
+      irn: selectedGradeStudent.irn,
+      labName: item.labName,
+      submittedAt: item.submittedAt,
+      score: item.score,
+    }));
+  }, [gradeStudentHistory, historyLabFilter, historySortDirection, selectedGradeStudent]);
+
   const selectedLab = useMemo(
     () => labs.find((lab) => lab.id === selectedLabId),
     [labs, selectedLabId]
@@ -413,6 +507,12 @@ export default function LecturerDashboard({ user, onLogout }) {
       labName,
       fileBase: `lab_${String(labName).replace(/\s+/g, '_')}_roster`,
     });
+  };
+
+  const handleExportGradeOverview = async (format) => {
+    const { labs, students } = await fetchAllGradeOverview();
+    if (!students.length) return;
+    await exportGradeOverview(format, { labs, students });
   };
 
   const handleRosterView = (student) => {
@@ -457,10 +557,15 @@ export default function LecturerDashboard({ user, onLogout }) {
   ], [overview]);
 
   const handleShellCommand = useCallback((cmd) => {
-    if (cmd === 'home') setActiveNav('dashboard');
-    else if (cmd === 'history') setActiveNav('projects');
+    if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
+    else if (cmd === 'history') navigate(ROUTES.lecturerSolution);
     else if (cmd === 'editProfile') setShowProfile(true);
-  }, []);
+  }, [navigate]);
+
+  const handleNavChange = useCallback((navId) => {
+    const target = LECTURER_NAV_TO_ROUTE[navId];
+    if (target) navigate(target);
+  }, [navigate]);
 
   const isInitialLoading = loadingLabs || loadingOverview;
 
@@ -472,7 +577,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         showNav
         hideUserMenu
         activeNav={activeNav}
-        onNavigate={setActiveNav}
+        onNavigate={handleNavChange}
         onCommand={handleShellCommand}
       >
         {isInitialLoading ? (
@@ -679,13 +784,19 @@ export default function LecturerDashboard({ user, onLogout }) {
               title="Grading"
               subtitle="Cross-lab grade overview for all students"
               actions={
-                <button
-                  onClick={() => fetchGradeOverview(gradeOverviewPagination.page)}
-                  className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
-                  title="Refresh"
-                >
-                  <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loadingGradeOverview ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <ExportMenu
+                    onExport={handleExportGradeOverview}
+                    disabled={loadingGradeOverview || gradeOverviewPagination.total === 0}
+                  />
+                  <button
+                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page)}
+                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+                    title="Refresh"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loadingGradeOverview ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               }
             >
               <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
@@ -700,7 +811,22 @@ export default function LecturerDashboard({ user, onLogout }) {
                 loading={loadingGradeOverview}
                 pagination={gradeOverviewPagination}
                 onPageChange={handleGradeOverviewPageChange}
+                selectedStudentId={selectedGradeStudent?.studentId}
+                onStudentSelect={handleGradeStudentSelect}
               />
+              {selectedGradeStudent && (
+                <GradeOverviewSubmissionHistory
+                  student={selectedGradeStudent}
+                  rows={filteredGradeStudentHistoryRows}
+                  loading={loadingGradeStudentHistory}
+                  error={gradeStudentHistoryError}
+                  labFilter={historyLabFilter}
+                  onLabFilterChange={setHistoryLabFilter}
+                  sortDirection={historySortDirection}
+                  onSortDirectionChange={setHistorySortDirection}
+                  labOptions={gradeStudentHistoryLabOptions}
+                />
+              )}
             </DashboardSection>
           </div>
         ) : activeNav === 'users' ? (

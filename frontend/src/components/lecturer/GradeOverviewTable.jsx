@@ -6,6 +6,8 @@ export default function GradeOverviewTable({
   pagination,
   onPageChange,
   loading,
+  selectedStudentId,
+  onStudentSelect,
 }) {
   const labColumns = Array.isArray(labs) ? labs : [];
   const rows = Array.isArray(students) ? students : [];
@@ -40,8 +42,16 @@ export default function GradeOverviewTable({
               </td>
             </tr>
           ) : (
-            rows.map((student) => (
-              <tr key={student.studentId} className="border-b border-gray-200 dark:border-gray-700">
+            rows.map((student) => {
+              const isSelected = selectedStudentId != null && student.studentId === selectedStudentId;
+              return (
+              <tr
+                key={student.studentId}
+                onClick={() => onStudentSelect?.(student)}
+                className={`border-b border-gray-200 dark:border-gray-700 cursor-pointer transition-colors hover:bg-purple-50/70 dark:hover:bg-purple-900/10 ${
+                  isSelected ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                }`}
+              >
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(student.studentName)}</td>
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(student.irn)}</td>
                 <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(student.totalScore)}</td>
@@ -51,7 +61,8 @@ export default function GradeOverviewTable({
                   </td>
                 ))}
               </tr>
-            ))
+              );
+            })
           )}
         </tbody>
       </table>

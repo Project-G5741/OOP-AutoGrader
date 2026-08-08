@@ -3,11 +3,13 @@ package com.eiu.capstone.backend.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -83,11 +85,11 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setIsActive(true);
 
-        if (request.roleNames() != null && !request.roleNames().isEmpty()) {
-            user.setRoles(resolveRoles(request.roleNames()));
-        } else {
-            user.setRoles(resolveRoles(Set.of("STUDENT")));
-        }
+        Set<String> roleNames = normalizeIncomingRoleNames(request.roleNames(), null);
+        validateRoleNames(roleNames);
+        validateCodesForRoles(roleNames, request.studentCode(), request.teacherCode());
+        applyCodesForRoles(user, roleNames, request.studentCode(), request.teacherCode());
+        user.setRoles(resolveRoles(roleNames));
 
         return userRepository.save(user);
     }
@@ -218,60 +220,100 @@ public class UserService {
         UserAccount user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "User not found: " + userId));
- 
-        // Enforce email uniqueness, excluding the current user.
-        // Uses findByEmail instead of existsByEmailAndIdNot so no new
-        // repository method is required; swap this back if you'd rather
-        // add existsByEmailAndIdNot(String, UUID) to the repository.
+
         userRepository.findByEmail(request.getEmail())
                 .filter(existing -> !existing.getId().equals(userId))
                 .ifPresent(existing -> {
                     throw new ResponseStatusException(
                             HttpStatus.CONFLICT, "Email already in use: " + request.getEmail());
                 });
- 
-        // Resolve the role first, since it decides where the IRN goes
-        String roleName = normalizeRoleName(request.getRole());
-        Role role = roleRepository.findByName(roleName)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Role not found: " + roleName));
- 
-        // Route the IRN to the correct field based on role, clearing the other
-        if ("STUDENT".equals(roleName)) {
-            user.setStudentCode(request.getIrn());
-            user.setTeacherCode(null);
-        } else if ("LECTURER".equals(roleName)) {
-            user.setTeacherCode(request.getIrn());
-            user.setStudentCode(null);
-        } else {
-            // e.g. ADMIN or other roles with no code convention yet;
-            // defaults to studentCode, adjust if your schema differs
-            user.setStudentCode(request.getIrn());
-            user.setTeacherCode(null);
+
+        Set<String> roleNames = normalizeIncomingRoleNames(request.getRoleNames(), request.getRole());
+        String legacyIrn = blankToNull(request.getIrn());
+        String studentCode = blankToNull(request.getStudentCode());
+        String teacherCode = blankToNull(request.getTeacherCode());
+
+        if (studentCode == null && legacyIrn != null && roleNames.contains("STUDENT") && !roleNames.contains("LECTURER")) {
+            studentCode = legacyIrn;
         }
- 
+        if (teacherCode == null && legacyIrn != null && roleNames.contains("LECTURER") && !roleNames.contains("STUDENT")) {
+            teacherCode = legacyIrn;
+        }
+        if (studentCode == null && legacyIrn != null && roleNames.contains("STUDENT") && roleNames.contains("LECTURER")
+                && teacherCode == null) {
+            studentCode = legacyIrn;
+        }
+
+        validateRoleNames(roleNames);
+        validateCodesForRoles(roleNames, studentCode, teacherCode);
+
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
- 
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            if (request.getPassword().length() < 6) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
-            }
-            if (request.getPassword().length() > 100) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be less than 100 characters");
-            }
-            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        }
- 
-        HashSet<Role> roles = new HashSet<>();
-        roles.add(role);
-        user.setRoles(roles);
- 
+        applyCodesForRoles(user, roleNames, studentCode, teacherCode);
+        applyOptionalPassword(user, request.getPassword());
+        user.setRoles(resolveRoles(roleNames));
+
         UserAccount saved = userRepository.save(user);
- 
-        // Built here, still inside @Transactional, so the lazy `roles`
-        // collection is safe to read
         return UserDTO.UserResponse.fromEntity(saved);
+    }
+
+    private Set<String> normalizeIncomingRoleNames(Set<String> roleNames, String legacyRole) {
+        if (roleNames != null && !roleNames.isEmpty()) {
+            return roleNames.stream()
+                    .map(this::normalizeRoleName)
+                    .filter(name -> "STUDENT".equals(name) || "LECTURER".equals(name))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        if (legacyRole != null && !legacyRole.isBlank()) {
+            return Set.of(normalizeRoleName(legacyRole));
+        }
+        return Set.of("STUDENT");
+    }
+
+    private void validateRoleNames(Set<String> roleNames) {
+        if (roleNames == null || roleNames.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one role is required");
+        }
+        for (String roleName : roleNames) {
+            if (!"STUDENT".equals(roleName) && !"LECTURER".equals(roleName)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported role: " + roleName);
+            }
+        }
+    }
+
+    private void validateCodesForRoles(Set<String> roleNames, String studentCode, String teacherCode) {
+        if (roleNames.contains("STUDENT") && (studentCode == null || studentCode.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Student IRN is required for STUDENT role");
+        }
+        if (roleNames.contains("LECTURER") && (teacherCode == null || teacherCode.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lecturer IRN is required for LECTURER role");
+        }
+    }
+
+    private void applyCodesForRoles(UserAccount user, Set<String> roleNames, String studentCode, String teacherCode) {
+        if (roleNames.contains("STUDENT")) {
+            user.setStudentCode(studentCode);
+        } else {
+            user.setStudentCode(null);
+        }
+        if (roleNames.contains("LECTURER")) {
+            user.setTeacherCode(teacherCode);
+        } else {
+            user.setTeacherCode(null);
+        }
+    }
+
+    private void applyOptionalPassword(UserAccount user, String password) {
+        if (password == null || password.isBlank()) {
+            return;
+        }
+        if (password.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
+        }
+        if (password.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be less than 100 characters");
+        }
+        user.setPasswordHash(passwordEncoder.encode(password));
     }
 
     private Set<Role> resolveRoles(Set<String> roleNames) {

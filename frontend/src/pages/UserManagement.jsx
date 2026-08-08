@@ -4,8 +4,16 @@ import AppShell from '../components/layout/AppShell';
 import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
+import { authHeaders } from '../utils/authHeaders';
 
-const EMPTY_FORM = { irn: '', fullname: '', email: '', password: '', role: 'STUDENT' };
+const EMPTY_FORM = {
+  studentIrn: '',
+  lecturerIrn: '',
+  fullname: '',
+  email: '',
+  password: '',
+  roles: [],
+};
 
 const ROLE_COLORS = {
   STUDENT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -18,17 +26,23 @@ const normalizeUser = (user) => {
     ? rawRoles
         .map((role) => (typeof role === 'string' ? role : role?.name))
         .filter(Boolean)
-        .map((role) => role.toUpperCase())
+        .map((role) => {
+          const upper = role.toUpperCase();
+          return upper === 'TEACHER' ? 'LECTURER' : upper;
+        })
     : [];
-  const mainRole = normalizedRoles[0] || '';
+  const uniqueRoles = [...new Set(normalizedRoles)];
   return {
     ...user,
     irn: user.irn || user.studentCode || user.teacherCode || '',
+    studentCode: user.studentCode || '',
+    teacherCode: user.teacherCode || '',
     fullname: user.fullName || user.fullname || '',
-    role: mainRole,
+    role: uniqueRoles[0] || '',
+    roles: uniqueRoles.map((name) => ({ name })),
+    roleNames: uniqueRoles,
     dob: user.dateOfBirth || '',
     dateOfBirth: user.dateOfBirth || '',
-    roles: normalizedRoles.map((name) => ({ name })),
   };
 };
 
@@ -58,7 +72,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const filteredUsers = useMemo(() => {
     const loweredSearch = search.toLowerCase();
     const matched = users.filter((item) =>
-      `${item.irn || ''} ${item.fullname || ''} ${item.email || ''}`.toLowerCase().includes(loweredSearch)
+      `${item.irn || ''} ${item.studentCode || ''} ${item.teacherCode || ''} ${item.fullname || ''} ${item.email || ''}`
+        .toLowerCase()
+        .includes(loweredSearch)
     );
     return sortUsers(matched);
   }, [users, search, sortDirection]);
@@ -88,20 +104,19 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
 
   const openEdit = (item) => {
     setSelected(item);
-    const rawRoles = item.roles || [];
-    const normalizedRoles = Array.isArray(rawRoles)
-      ? rawRoles.map((role) => (typeof role === 'string' ? role : role?.name)).filter(Boolean).map((role) => role.toUpperCase())
-      : [];
-
-    const initialRole = (item.role || normalizedRoles[0] || 'STUDENT').toUpperCase();
-    const roleValue = initialRole === 'TEACHER' ? 'LECTURER' : initialRole;
+    const roleNames = item.roleNames || (item.roles || []).map((role) => role.name).filter(Boolean);
+    const normalizedRoles = roleNames.map((role) => {
+      const upper = String(role).toUpperCase();
+      return upper === 'TEACHER' ? 'LECTURER' : upper;
+    });
 
     setForm({
-      irn: item.irn || item.studentCode || item.teacherCode || '',
+      studentIrn: item.studentCode || (normalizedRoles.length === 1 && normalizedRoles[0] === 'STUDENT' ? item.irn : '') || '',
+      lecturerIrn: item.teacherCode || (normalizedRoles.length === 1 && normalizedRoles[0] === 'LECTURER' ? item.irn : '') || '',
       fullname: item.fullname || item.fullName || '',
       email: item.email || '',
       password: '',
-      role: roleValue,
+      roles: normalizedRoles.length ? normalizedRoles : ['STUDENT'],
     });
     setModal('edit');
   };
@@ -111,12 +126,74 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     setModal('delete');
   };
 
+  const handleRoleToggle = (roleName) => {
+    setForm((prev) => {
+      const current = prev.roles || [];
+      const next = current.includes(roleName)
+        ? current.filter((role) => role !== roleName)
+        : [...current, roleName];
+      return { ...prev, roles: next.length ? next : current };
+    });
+  };
+
+  const buildPayload = () => {
+    const roleNames = [...(form.roles || [])];
+    if (!roleNames.length) {
+      throw new Error('Select at least one role.');
+    }
+    const studentCode = roleNames.includes('STUDENT')
+      ? (form.studentIrn || selected?.studentCode || selected?.irn || '').trim()
+      : null;
+    const teacherCode = roleNames.includes('LECTURER')
+      ? (form.lecturerIrn || selected?.teacherCode || '').trim()
+      : null;
+    const legacyRole = roleNames.includes('LECTURER') && !roleNames.includes('STUDENT')
+      ? 'LECTURER'
+      : 'STUDENT';
+    const legacyIrn = legacyRole === 'LECTURER' ? teacherCode : studentCode;
+
+    const payload = {
+      fullName: form.fullname?.trim(),
+      email: form.email?.trim(),
+      roleNames,
+      role: legacyRole,
+      irn: legacyIrn,
+    };
+    if (studentCode) payload.studentCode = studentCode;
+    if (teacherCode) payload.teacherCode = teacherCode;
+    const trimmedPassword = form.password?.trim();
+    if (trimmedPassword) {
+      if (trimmedPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+      if (trimmedPassword.length > 100) {
+        throw new Error('Password must be less than 100 characters.');
+      }
+      payload.password = trimmedPassword;
+    }
+    return payload;
+  };
+
+  const readErrorMessage = async (resp, fallback) => {
+    try {
+      const data = await resp.json();
+      return data?.message || data?.error || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-        const resp = await fetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`);
+        const resp = await fetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`, {
+          headers: authHeaders(),
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error('You are not authorized to manage users.');
+        }
         if (!resp.ok) throw new Error(`Failed to load users: ${resp.status}`);
         const data = await resp.json();
         const items = Array.isArray(data) ? data : (data.content ?? []);
@@ -136,49 +213,48 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const handleSave = async () => {
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+      const requestBody = buildPayload();
+
       if (modal === 'edit' && selected) {
-        const requestBody = {
-          irn: form.irn,
-          fullName: form.fullname,
-          email: form.email,
-          role: form.role,
-        };
-        if (form.password) {
-          requestBody.password = form.password;
-          requestBody.newPassword = form.password;
-        }
         const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(requestBody),
         });
-        if (!resp.ok) throw new Error(`Update failed: ${resp.status}`);
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error('You are not authorized to update users.');
+        }
+        if (!resp.ok) {
+          throw new Error(await readErrorMessage(resp, `Update failed: ${resp.status}`));
+        }
         const updatedData = await resp.json();
         setUsers((prev) => prev.map((item) => (item.id === selected.id ? normalizeUser(updatedData) : item)));
       } else {
-        const normalizedRole = form.role === 'TEACHER' ? 'LECTURER' : form.role;
-      const userPayload = {
-          fullName: form.fullname,
-          email: form.email,
+        const createPayload = {
+          ...requestBody,
           password: form.password,
-          studentCode: normalizedRole === 'STUDENT' ? form.irn : null,
-          teacherCode: normalizedRole === 'LECTURER' ? form.irn : null,
-          dateOfBirth: null,
-          roleNames: [normalizedRole],
         };
+        if (!createPayload.password) {
+          throw new Error('Password is required for new users.');
+        }
         const resp = await fetch(`${API_BASE}/api/users/addUser`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userPayload),
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(createPayload),
         });
-        if (!resp.ok) throw new Error(`Create failed: ${resp.status}`);
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error('You are not authorized to create users.');
+        }
+        if (!resp.ok) {
+          throw new Error(await readErrorMessage(resp, `Create failed: ${resp.status}`));
+        }
         const createdData = await resp.json();
         setUsers((prev) => [...prev, normalizeUser(createdData)]);
       }
       setModal(null);
     } catch (error) {
       console.error('Failed to save user', error);
-      alert('Unable to save user.');
+      alert(error.message || 'Unable to save user.');
     }
   };
 
@@ -188,12 +264,16 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
       const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
         method: 'DELETE',
+        headers: authHeaders(),
       });
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error('You are not authorized to delete users.');
+      }
       if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
       setUsers((prev) => prev.filter((item) => item.id !== selected.id));
     } catch (error) {
       console.error('Failed to delete user', error);
-      alert('Unable to delete user.');
+      alert(error.message || 'Unable to delete user.');
     } finally {
       setModal(null);
     }
@@ -201,8 +281,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
 
   const stats = [
     { label: 'Total Users', value: users.length, color: 'text-purple-500' },
-    { label: 'Students', value: users.filter((item) => (item.roles || []).some((role) => role.name?.toUpperCase() === 'STUDENT')).length, color: 'text-blue-500' },
-    { label: 'Lecturers', value: users.filter((item) => (item.roles || []).some((role) => role.name?.toUpperCase() === 'LECTURER')).length, color: 'text-green-500' },
+    { label: 'Students', value: users.filter((item) => (item.roleNames || []).includes('STUDENT') || (item.roles || []).some((role) => role.name?.toUpperCase() === 'STUDENT')).length, color: 'text-blue-500' },
+    { label: 'Lecturers', value: users.filter((item) => (item.roleNames || []).includes('LECTURER') || (item.roles || []).some((role) => ['LECTURER', 'TEACHER'].includes(role.name?.toUpperCase()))).length, color: 'text-green-500' },
   ];
 
   const inner = (
@@ -253,7 +333,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         onSave={handleSave}
         onDelete={handleDelete}
         onFieldChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
-        onRoleChange={(value) => setForm((prev) => ({ ...prev, role: value }))}
+        onRoleToggle={handleRoleToggle}
       />
     </div>
   );

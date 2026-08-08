@@ -80,9 +80,19 @@ export default function UserTable({
                 <td className="px-6 py-4 text-gray-600 dark:text-gray-400 break-words">{u.dob}</td>
                 <td className="px-6 py-4 text-gray-600 dark:text-gray-400 break-words">{u.email}</td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[u.role]}`}>
-                    {u.role}
-                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(u.roleNames || (u.roles || []).map((role) => role?.name).filter(Boolean)).map((roleName) => {
+                      const normalized = String(roleName).toUpperCase() === 'TEACHER' ? 'LECTURER' : String(roleName).toUpperCase();
+                      return (
+                        <span
+                          key={`${u.id}-${normalized}`}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[normalized] || roleColors.STUDENT}`}
+                        >
+                          {normalized}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">

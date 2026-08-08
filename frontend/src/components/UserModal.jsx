@@ -1,7 +1,26 @@
 import { Check, Trash2, X } from 'lucide-react';
 
-export default function UserModal({ modal, selected, form, isDark, onClose, onSave, onDelete, onFieldChange, onRoleChange }) {
+const ROLE_OPTIONS = [
+  { value: 'STUDENT', label: 'STUDENT' },
+  { value: 'LECTURER', label: 'LECTURER' },
+];
+
+export default function UserModal({
+  modal,
+  selected,
+  form,
+  isDark,
+  onClose,
+  onSave,
+  onDelete,
+  onFieldChange,
+  onRoleToggle,
+}) {
   if (!modal) return null;
+
+  const roles = form.roles || [];
+  const hasStudent = roles.includes('STUDENT');
+  const hasLecturer = roles.includes('LECTURER');
 
   return (
     <div className={isDark ? 'dark' : ''}>
@@ -31,11 +50,56 @@ export default function UserModal({ modal, selected, form, isDark, onClose, onSa
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Roles</label>
+                <div className="flex flex-wrap gap-4">
+                  {ROLE_OPTIONS.map(({ value, label }) => (
+                    <label key={value} className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={roles.includes(value)}
+                        onChange={() => onRoleToggle(value)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Select roles first — IRN fields appear based on your selection.
+                </p>
+              </div>
+
+              {hasStudent && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Student IRN</label>
+                  <input
+                    type="text"
+                    value={form.studentIrn || ''}
+                    onChange={(e) => onFieldChange('studentIrn', e.target.value)}
+                    placeholder="e.g. 20521234"
+                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm transition-all"
+                  />
+                </div>
+              )}
+
+              {hasLecturer && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Lecturer IRN</label>
+                  <input
+                    type="text"
+                    value={form.lecturerIrn || ''}
+                    onChange={(e) => onFieldChange('lecturerIrn', e.target.value)}
+                    placeholder="e.g. lan.cao"
+                    className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm transition-all"
+                  />
+                </div>
+              )}
+
               {[
-                { label: 'IRN', key: 'irn', type: 'text', placeholder: 'e.g. 20521234' },
                 { label: 'Full Name', key: 'fullname', type: 'text', placeholder: 'Enter full name' },
                 { label: 'Email', key: 'email', type: 'email', placeholder: 'user@university.edu' },
-                { label: 'Password', key: 'password', type: 'password', placeholder: 'Enter password' },
+                { label: 'Password', key: 'password', type: 'password', placeholder: modal === 'edit' ? 'Leave blank to keep current password' : 'Enter password' },
               ].map(({ label, key, type, placeholder }) => (
                 <div key={key}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>
@@ -48,18 +112,6 @@ export default function UserModal({ modal, selected, form, isDark, onClose, onSa
                   />
                 </div>
               ))}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Role</label>
-                <select
-                  value={form.role}
-                  onChange={(e) => onRoleChange(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm transition-all"
-                >
-                  <option value="STUDENT">STUDENT</option>
-                  <option value="LECTURER">TEACHER</option>
-                </select>
-              </div>
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
               <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors">Cancel</button>

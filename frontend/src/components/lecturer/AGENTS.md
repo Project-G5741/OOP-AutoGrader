@@ -32,9 +32,10 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker |
 
-| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page (student, IRN, total + per-lab scores) |
+| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page (student, IRN, total + per-lab scores); clickable rows |
+| `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, date sort) |
 
-| `exportRoster.js` | Shared export helpers for roster and challenge breakdown |
+| `exportRoster.js` | Shared export helpers for roster, challenge breakdown, and grade overview |
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
@@ -59,6 +60,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Challenge tab **View** opens `LecturerSubmissionDrawer` with class breakdown (`GET .../challenges/{id}/class?studentId=`)
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
+- Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
+- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; newest/oldest sort)
 
 
 
@@ -80,6 +83,14 @@ LecturerDashboard
 
        → ExportMenu (overview export)
 
+  → DashboardSection (activeNav === 'grading')
+
+       → GradeOverviewTable
+
+       → ExportMenu (grade overview export)
+
+       → GradeOverviewSubmissionHistory (row click)
+
        → LabAttemptHistoryDrawer
 
        → LecturerSubmissionDrawer
@@ -98,7 +109,7 @@ User management and submission management are separate pages (`UserManagement`, 
 
 - Data fetching stays in `LecturerDashboard.jsx`; keep table/drawer components presentational
 
-- `exportOverview` paginates through `/submissions` until all enrolled students are exported
+- `exportOverview` fetches all enrolled students via `GET /api/labs/{labId}/submissions/export`, then exports via `exportRosterRows`
 
 - Challenge export includes student name, incorrect class, and incorrect methods only
 

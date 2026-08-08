@@ -28,6 +28,7 @@ import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
 import com.eiu.capstone.backend.model.ChangePasswordRequest;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.UserService;
 
@@ -39,16 +40,26 @@ import jakarta.validation.Valid;
 public class UserController {
 
     private final UserService userService;
-    private final JwtService jwtService;  // ← THÊM DÒNG NÀY
+    private final JwtService jwtService;
+    private final JwtAuthHelper jwtAuthHelper;
 
-    public UserController(UserService userService, JwtService jwtService) {  // ← SỬA CONSTRUCTOR
+    public UserController(UserService userService, JwtService jwtService, JwtAuthHelper jwtAuthHelper) {
         this.userService = userService;
         this.jwtService = jwtService;
+        this.jwtAuthHelper = jwtAuthHelper;
+    }
+
+    private void requireLecturer(String authHeader) {
+        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
+        jwtAuthHelper.requireRole(claims, "LECTURER");
     }
 
     @GetMapping("getAllUser")
-    public ResponseEntity<?> getAllUser(@RequestParam(required = false) Integer page,
-                                        @RequestParam(required = false) Integer size) {
+    public ResponseEntity<?> getAllUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        requireLecturer(authHeader);
         if (page != null || size != null) {
             int safePage = page != null ? Math.max(page, 0) : 0;
             int safeSize = size != null && size > 0 ? Math.min(size, 100) : 50;
@@ -60,57 +71,69 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserAccount> getUser(@PathVariable UUID id) {
+    public ResponseEntity<UserAccount> getUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID id) {
+        requireLecturer(authHeader);
         UserAccount user = userService.getUser(id);
         return ResponseEntity.ok(user);
     }
 
     @PostMapping("addUser")
-    public ResponseEntity<UserAccount> addUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<UserAccount> addUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody CreateUserRequest request) {
+        requireLecturer(authHeader);
         UserAccount created = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PostMapping("/bulk")
-    public ResponseEntity<List<BulkCreateResult>> addUsers(@RequestBody List<CreateUserRequest> requests) {
+    public ResponseEntity<List<BulkCreateResult>> addUsers(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody List<CreateUserRequest> requests) {
+        requireLecturer(authHeader);
         List<BulkCreateResult> results = userService.createUser(requests);
         return ResponseEntity.status(HttpStatus.CREATED).body(results);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<UserAccount> deleteUser(@PathVariable UUID id) {
+    public ResponseEntity<UserAccount> deleteUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID id) {
+        requireLecturer(authHeader);
         UserAccount user = userService.deleteUser(id);
         return ResponseEntity.ok(user);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<UserDTO.UserResponse> updateUser(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable("id") UUID id,
             @Valid @RequestBody UserDTO.UpdateUserRequest request) {
- 
+        requireLecturer(authHeader);
         UserDTO.UserResponse updated = userService.updateUser(id, request);
         return ResponseEntity.ok(updated);
     }
 
-    // change password endpoint
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @Valid @RequestBody ChangePasswordRequest request) {
-        
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid token");
         }
-        
+
         try {
             String token = authHeader.substring(7);
             Claims claims = jwtService.parseToken(token);
             String email = claims.get("email", String.class);
-            
+
             if (email == null || email.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token: email not found");
             }
-            
+
             userService.changePassword(email, request.currentPassword(), request.newPassword());
             return ResponseEntity.ok(Map.of(
                 "message", "Password changed successfully",
@@ -122,7 +145,6 @@ public class UserController {
                 "success", false
             ));
         } catch (ResponseStatusException e) {
-            // Trả về message lỗi chi tiết
             return ResponseEntity.status(e.getStatusCode()).body(Map.of(
                 "message", e.getReason(),
                 "success", false
@@ -134,5 +156,4 @@ public class UserController {
             ));
         }
     }
-    
 }

@@ -49,7 +49,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
 | `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
-| `UserController` | `/api/users` | CRUD + bulk create (soft-delete) |
+| `UserController` | `/api/users` | CRUD + bulk create (soft-delete); **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html`
@@ -57,7 +57,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 ### Security posture
 
 - `SecurityConfig` permits all requests; CSRF disabled
-- JWT is parsed manually in `SubmissionController` for upload and student history reads — other endpoints are unauthenticated
+- JWT is parsed manually in `SubmissionController` for upload and student history reads — other endpoints are unauthenticated except `/api/users/*` (lecturer JWT via `JwtAuthHelper`)
 - `JwtService` regenerates signing key on every restart (tokens invalidated on restart)
 - Google auth enforces `@eiu.edu.vn` domain via `GoogleTokenVerifier`
 
@@ -109,7 +109,7 @@ Grading tuning properties (`application.properties`):
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter)
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
-- `GET /api/lecturer/overview` — lecturer dashboard overview cards
+- `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of latest lab scores, missing labs as 0; threshold < 70)
 - `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from latest submission; total = sum ÷ lab count)
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 

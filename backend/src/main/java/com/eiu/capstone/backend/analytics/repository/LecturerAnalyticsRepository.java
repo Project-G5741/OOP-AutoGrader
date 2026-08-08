@@ -43,6 +43,51 @@ public class LecturerAnalyticsRepository {
             SELECT DISTINCT s.user_id FROM lab_submission s
             """;
 
+    /**
+     * Count active students whose grade-overview total (average of latest lab scores, missing labs as 0) is below 70.
+     */
+    private static final String AT_RISK_STUDENT_COUNT = """
+            SELECT COUNT(*) FROM (
+                WITH lab_total AS (
+                    SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab
+                ),
+                roster AS (
+                    SELECT DISTINCT u.id
+                    FROM user_account u
+                    JOIN user_role ur ON ur.user_id = u.id
+                    JOIN role r ON r.id = ur.role_id
+                    WHERE u.is_active = true
+                      AND LOWER(r.name) = 'student'
+                      AND u.id IN (
+            """ + GRADE_OVERVIEW_STUDENT_IDS + """
+                      )
+                ),
+                latest_scores AS (
+                    SELECT s.user_id, s.lab_id, s.score
+                    FROM lab_submission s
+                    INNER JOIN (
+                        SELECT ls.user_id, ls.lab_id, MAX(ls.attempt_number) AS max_attempt
+                        FROM lab_submission ls
+                        GROUP BY ls.user_id, ls.lab_id
+                    ) latest ON latest.user_id = s.user_id
+                        AND latest.lab_id = s.lab_id
+                        AND latest.max_attempt = s.attempt_number
+                ),
+                student_totals AS (
+                    SELECT r.id,
+                           CASE WHEN lt.lab_count > 0 THEN
+                               (SELECT COALESCE(SUM(COALESCE(ls.score, 0)), 0) / lt.lab_count
+                                FROM lab l
+                                LEFT JOIN latest_scores ls
+                                    ON ls.user_id = r.id AND ls.lab_id = l.id)
+                           END AS total_score
+                    FROM roster r
+                    CROSS JOIN lab_total lt
+                )
+                SELECT id FROM student_totals WHERE total_score < 70
+            ) at_risk
+            """;
+
     public Object[] findOverviewMetrics() {
         String sql = """
                 SELECT
@@ -53,16 +98,10 @@ public class LecturerAnalyticsRepository {
                      WHERE u.is_active = true AND LOWER(r.name) = 'student') AS active_students,
                     (SELECT COUNT(*) FROM lab) AS total_labs,
                     (SELECT AVG(p.highest_score) FROM student_lab_progress p) AS average_score,
-                    (SELECT COUNT(*) FROM (
-                        SELECT u.id
-                        FROM user_account u
-                        JOIN user_role ur ON ur.user_id = u.id
-                        JOIN role r ON r.id = ur.role_id
-                        JOIN student_lab_progress p ON p.user_id = u.id
-                        WHERE u.is_active = true AND LOWER(r.name) = 'student'
-                        GROUP BY u.id
-                        HAVING AVG(p.highest_score) < 70
-                    ) at_risk) AS at_risk_students,
+                    ("""
+                + AT_RISK_STUDENT_COUNT
+                + """
+                    ) AS at_risk_students,
                     (SELECT COUNT(DISTINCT u.id)
                      FROM user_account u
                      JOIN user_role ur ON ur.user_id = u.id

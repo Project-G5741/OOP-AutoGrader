@@ -9,7 +9,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | IRN/password login, Google OAuth, forgot-password entry, JWT decode |
+| `LoginUI.jsx` | Student/lecturer code + password login, Google OAuth, forgot-password entry, JWT decode |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
@@ -22,16 +22,29 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 ## Local Contracts
 
-### Top-level navigation (no URL routes)
+### Top-level navigation (URL routes)
 
-`App.jsx` gates by `sessionStorage` user roles. Pages do not use `<Routes>` or `useNavigate`.
+`App.jsx` gates by `sessionStorage` user roles and React Router paths:
+
+| Path | Role required | Screen |
+|---|---|---|
+| `/` | — | Login (redirects if already signed in) |
+| `/lecturer-dashboard` | LECTURER | Lecturer grading overview |
+| `/lecturer-grading` | LECTURER | Grade overview matrix |
+| `/lecturer-users` | LECTURER | User Management |
+| `/lecturer-solution` | LECTURER | Solution Management |
+| `/lecturer-report` | LECTURER | Reports |
+| `/student-dashboard` | STUDENT | Student main |
+| `/student-history` | STUDENT | Student history |
+
+Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard.
 
 ### Lecturer in-dashboard sections (`activeNav`)
 
 | Value | Renders | API |
 |---|---|---|
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`, `/api/labs/{id}/challenges/{id}/students` |
-| `grading` | Cross-lab `GradeOverviewTable` | Live `GET /api/lecturer/grade-overview` |
+| `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `projects` | `SubmissionManagement` | Local mock |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
@@ -58,7 +71,7 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `POST /api/auth/google/upsert` | `FirstTimeSetupUI.jsx` |
 | `GET /api/users/getAllUser` | `UserManagement.jsx` |
 | `POST /api/users/addUser` | `UserManagement.jsx` |
-| `PUT /api/users/{id}` | `UserManagement.jsx` |
+| `PUT /api/users/{id}` | `UserManagement.jsx` — body: `roleNames`, `studentCode`, `teacherCode`, optional `password` |
 | `DELETE /api/users/{id}` | `UserManagement.jsx` |
 | `GET /api/labs` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges?studentId=` | `StudentDashboard.jsx` |
@@ -71,7 +84,7 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `GET /api/labs/{labId}/students/{studentId}/attempts` | `LecturerDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{challengeId}/students` | `LecturerDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{challengeId}/class?studentId=` | `LecturerDashboard.jsx` (drawer) |
-| `GET /api/analytics/dashboard` | `Reports.jsx` |
+| `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 

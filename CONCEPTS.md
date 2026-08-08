@@ -29,3 +29,6 @@ Maps an active student to a term (`term_enrollment`). The lecturer lab roster pa
 
 ### Lecturer lab roster
 The unique set of enrolled/active students for a lab's term/course. Challenge and overview tables paginate this population; submission and progress data are LEFT JOINed per student afterward.
+
+### Dual-role user
+A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.

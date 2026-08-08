@@ -41,11 +41,11 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
     }
   }, []);
 
-  // Local login with IRN and password
+  // Local login with student code, lecturer code, or legacy IRN
   const handleLocalLogin = async (e) => {
     e.preventDefault();
     if (!irn || !password) {
-      alert('Please enter your IRN and password.');
+      alert('Please enter your student code or lecturer code and password.');
       return;
     }
 
@@ -228,14 +228,14 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
             )}
             <form onSubmit={handleLocalLogin} className="login-form">
               <div className="form-group">
-                <label className="field-label">IRN (Student ID)</label>
+                <label className="field-label">Student Code or Lecturer Code</label>
                 <div className="input-wrapper">
                   <User className="input-icon" />
                   <input
                     type="text"
                     value={irn}
                     onChange={(e) => setIrn(e.target.value)}
-                    placeholder="e.g. 20521234"
+                    placeholder="e.g. 20521234 or lan.cao"
                     className="input-field"
                   />
                 </div>

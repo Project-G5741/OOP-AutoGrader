@@ -1,4 +1,5 @@
 import { collectIncorrectExportRows } from './ClassScoreBreakdown';
+import { formatPercent, formatText } from '../../utils/formatters';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -93,5 +94,33 @@ export async function exportRosterRows(format, { rows, labName, fileBase }) {
     rows,
     title: `Lab Student Roster — ${labName}`,
     fileBase: fileBase || `lab_${String(labName).replace(/\s+/g, '_')}_roster`,
+  });
+}
+
+export function buildGradeOverviewExportRows({ labs, students }) {
+  const labColumns = Array.isArray(labs) ? labs : [];
+  const studentRows = Array.isArray(students) ? students : [];
+  return studentRows.map((student) => {
+    const row = {
+      Student: formatText(student.studentName),
+      IRN: formatText(student.irn),
+      'Total Score': formatPercent(student.totalScore),
+    };
+    (student.labScores ?? []).forEach((score, index) => {
+      const lab = labColumns[index];
+      if (lab) {
+        row[formatText(lab.labName)] = formatPercent(score);
+      }
+    });
+    return row;
+  });
+}
+
+export async function exportGradeOverview(format, { labs, students, fileBase }) {
+  const rows = buildGradeOverviewExportRows({ labs, students });
+  await exportDataset(format, {
+    rows,
+    title: 'Cross-lab Grade Overview',
+    fileBase: fileBase || 'grade_overview_export',
   });
 }

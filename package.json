@@ -11,15 +11,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuankiet2005-art/Capstone_Project.git"
+    "url": "git+https://github.com/Project-G5741/OOP-AutoGrader.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/tuankiet2005-art/Capstone_Project/issues"
+    "url": "https://github.com/Project-G5741/OOP-AutoGrader/issues"
   },
-  "homepage": "https://github.com/tuankiet2005-art/Capstone_Project#readme",
+  "homepage": "https://github.com/Project-G5741/OOP-AutoGrader#readme",
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
