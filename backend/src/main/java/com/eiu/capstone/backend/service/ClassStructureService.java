@@ -110,16 +110,28 @@ public class ClassStructureService {
         Map<UUID, List<ClassRelation>> relationsBySourceClass = allRelations.stream()
                 .collect(Collectors.groupingBy(r -> r.getClassEntity().getId()));
 
+        boolean effectiveMmdSubmitted = resolveEffectiveMmdSubmitted(submissionId, mmdMeta, correctIds);
+
         List<MmdClassDTO> result = new ArrayList<>();
         for (ClassEntity classEntity : classes) {
+            UUID classId = classEntity.getId();
+            String classIdStr = classId.toString();
+            boolean stereotypeOk = mmdMeta.classStereotypeCorrect.getOrDefault(classIdStr, false);
+            if (!stereotypeOk && effectiveMmdSubmitted && mmdMeta.classStereotypeCorrect.isEmpty()) {
+                stereotypeOk = classHasMergedCorrectMember(
+                        classId,
+                        fieldsByClass,
+                        methodsByClass,
+                        constructorsByClass,
+                        correctIds);
+            }
+
             List<MmdAttributeDTO> attributes = new ArrayList<>();
             attributes.add(new MmdAttributeDTO(
                     "<<" + resolveClassTypeLabel(classEntity, masterData).toLowerCase() + ">>",
                     "stereotype",
-                    mmdMeta.classStereotypeCorrect.getOrDefault(classEntity.getId().toString(), false),
-                    mmdMeta.classStereotypeCorrect.getOrDefault(classEntity.getId().toString(), false)
-                            ? null
-                            : (mmdMeta.mmdSubmitted ? "Class missing from diagram" : "Missing MMD file")));
+                    stereotypeOk,
+                    stereotypeOk ? null : (effectiveMmdSubmitted ? "Class missing from diagram" : "Missing MMD file")));
 
             fieldsByClass.getOrDefault(classEntity.getId(), List.of()).forEach(field ->
                     attributes.add(new MmdAttributeDTO(
@@ -149,7 +161,7 @@ public class ClassStructureService {
                                 ? null
                                 : mmdMeta.relationErrors.getOrDefault(
                                         relation.getId().toString(),
-                                        mmdMeta.mmdSubmitted ? "Relation mismatch" : "Missing relationship");
+                                        effectiveMmdSubmitted ? "Relation mismatch" : "Missing relationship");
                         return new MmdRelationDTO(
                                 relation.getClassEntity().getName(),
                                 relation.getTargetClassEntity().getName(),
@@ -162,6 +174,46 @@ public class ClassStructureService {
             result.add(new MmdClassDTO(classEntity.getName(), attributes, relations));
         }
         return result;
+    }
+
+    /**
+     * MMD meta is stored in ephemeral {@code SUBMISSION_BASE_DIR/_mmd_meta}. When that file is
+     * missing (deploy wipe, submissions graded before meta existed), infer submission from persisted
+     * grading results so the MMD tab does not show "Missing MMD file" for every class.
+     */
+    private boolean resolveEffectiveMmdSubmitted(UUID submissionId,
+                                                 ChallengeMmdMeta mmdMeta,
+                                                 SubmissionCorrectIds correctIds) {
+        if (mmdMeta.mmdSubmitted) {
+            return true;
+        }
+        if (!mmdMeta.relationErrors.isEmpty()) {
+            return true;
+        }
+        if (!mmdMeta.classStereotypeCorrect.isEmpty()) {
+            return mmdMeta.mmdSubmitted;
+        }
+        if (!correctIds.fieldIds().isEmpty()
+                || !correctIds.methodIds().isEmpty()
+                || !correctIds.constructorIds().isEmpty()
+                || !correctIds.relationIds().isEmpty()) {
+            return true;
+        }
+        return submissionResultLoader.hasAnyResults(submissionId);
+    }
+
+    private static boolean classHasMergedCorrectMember(
+            UUID classId,
+            Map<UUID, List<Field>> fieldsByClass,
+            Map<UUID, List<Method>> methodsByClass,
+            Map<UUID, List<Constructor>> constructorsByClass,
+            SubmissionCorrectIds correctIds) {
+        return fieldsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(f -> correctIds.fieldIds().contains(f.getId()))
+                || methodsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(m -> correctIds.methodIds().contains(m.getId()))
+                || constructorsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(c -> correctIds.constructorIds().contains(c.getId()));
     }
 
     private String resolveClassTypeLabel(ClassEntity classEntity, Map<Integer, String> masterData) {

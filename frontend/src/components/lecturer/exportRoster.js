@@ -1,4 +1,5 @@
 import { collectIncorrectExportRows } from './ClassScoreBreakdown';
+import { collectIncorrectMmdExportRows } from './MmdScoreBreakdown';
 import { formatPercent, formatText } from '../../utils/formatters';
 
 function downloadBlob(blob, filename) {
@@ -73,18 +74,24 @@ export async function exportDataset(format, { rows, title, fileBase }) {
   }
 }
 
-export async function exportChallengeBreakdown(format, { studentName, classData, fileBase }) {
-  const rows = collectIncorrectExportRows(classData, studentName);
+export async function exportChallengeBreakdown(format, { studentName, classData, mmdData, fileBase }) {
+  const rows = [
+    ...collectIncorrectExportRows(classData, studentName),
+    ...collectIncorrectMmdExportRows(mmdData ?? [], studentName),
+  ];
   if (!rows.length) {
     rows.push({
       'Student Name': studentName,
+      Source: '—',
       'Incorrect Class': '—',
-      'Incorrect Method': 'No incorrect methods found',
+      'Item Type': '—',
+      'Incorrect Item': 'No incorrect items found',
+      Error: '',
     });
   }
   await exportDataset(format, {
     rows,
-    title: `Incorrect methods — ${studentName}`,
+    title: `Incorrect breakdown — ${studentName}`,
     fileBase,
   });
 }

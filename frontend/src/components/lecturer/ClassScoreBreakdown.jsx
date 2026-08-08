@@ -173,8 +173,11 @@ export function collectIncorrectExportRows(classData, studentName) {
     cls.methods.filter((method) => !method.ok).forEach((method) => {
       rows.push({
         'Student Name': studentName,
+        Source: 'Class',
         'Incorrect Class': cls.name,
-        'Incorrect Method': method.name,
+        'Item Type': 'Method',
+        'Incorrect Item': method.name,
+        Error: '',
       });
     });
   });

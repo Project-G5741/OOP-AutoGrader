@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import ClassScoreBreakdown from './ClassScoreBreakdown';
+import MmdScoreBreakdown from './MmdScoreBreakdown';
 import ExportMenu from './ExportMenu';
 import { exportChallengeBreakdown } from './exportRoster';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
@@ -13,6 +14,14 @@ function authHeaders() {
   };
 }
 
+function tabClass(active) {
+  return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+    active
+      ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+  }`;
+}
+
 export default function LecturerSubmissionDrawer({
   open,
   onClose,
@@ -21,14 +30,25 @@ export default function LecturerSubmissionDrawer({
   challengeLabel,
   student,
 }) {
+  const [activeTab, setActiveTab] = useState('class');
   const [classData, setClassData] = useState([]);
+  const [mmdData, setMmdData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [mmdError, setMmdError] = useState(null);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveTab('class');
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || !labId || !challengeId || !student?.studentId) {
       setClassData([]);
+      setMmdData([]);
       setError(null);
+      setMmdError(null);
       return;
     }
 
@@ -36,31 +56,52 @@ export default function LecturerSubmissionDrawer({
     const load = async () => {
       setLoading(true);
       setError(null);
+      setMmdError(null);
+      setClassData([]);
+      setMmdData([]);
+
+      const params = new URLSearchParams({ studentId: student.studentId });
+      if (student.submissionId) {
+        params.set('submissionId', student.submissionId);
+      }
+      const query = params.toString();
+      const classUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class?${query}`;
+      const mmdUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd?${query}`;
+
       try {
-        const params = new URLSearchParams({ studentId: student.studentId });
-        if (student.submissionId) {
-          params.set('submissionId', student.submissionId);
-        }
-        const response = await fetch(
-          `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class?${params.toString()}`,
-          { headers: authHeaders() },
-        );
-        if (!response.ok) {
+        const classResponse = await fetch(classUrl, { headers: authHeaders() });
+        if (!classResponse.ok) {
           throw new Error('Unable to load class breakdown');
         }
-        const data = await response.json();
+        const classJson = await classResponse.json();
         if (!cancelled) {
-          setClassData(Array.isArray(data) ? data : []);
+          setClassData(Array.isArray(classJson) ? classJson : []);
         }
       } catch (err) {
         if (!cancelled) {
           setClassData([]);
           setError(err.message || 'Unable to load class breakdown');
         }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
+      }
+
+      try {
+        const mmdResponse = await fetch(mmdUrl, { headers: authHeaders() });
+        if (!mmdResponse.ok) {
+          throw new Error('Unable to load MMD breakdown');
         }
+        const mmdJson = await mmdResponse.json();
+        if (!cancelled) {
+          setMmdData(Array.isArray(mmdJson) ? mmdJson : []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setMmdData([]);
+          setMmdError(err.message || 'Unable to load MMD breakdown');
+        }
+      }
+
+      if (!cancelled) {
+        setLoading(false);
       }
     };
 
@@ -86,6 +127,7 @@ export default function LecturerSubmissionDrawer({
     await exportChallengeBreakdown(format, {
       studentName: student.studentName,
       classData,
+      mmdData,
       fileBase,
     });
   };
@@ -93,7 +135,7 @@ export default function LecturerSubmissionDrawer({
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/40">
       <button type="button" className="flex-1" aria-label="Close drawer" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-[#1e2530]">
+      <aside className="flex h-full w-full max-w-2xl flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-[#1e2530]">
         <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-sm font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
@@ -128,20 +170,33 @@ export default function LecturerSubmissionDrawer({
           </div>
         </div>
 
+        <div className="flex border-b border-gray-200 px-5 dark:border-gray-700">
+          <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
+            Class
+          </button>
+          <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
+            MMD
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
             </div>
-          ) : error ? (
-            <p className="text-sm text-amber-700 dark:text-amber-300">{error}</p>
+          ) : activeTab === 'class' ? (
+            error ? (
+              <p className="text-sm text-amber-700 dark:text-amber-300">{error}</p>
+            ) : (
+              <ClassScoreBreakdown classData={classData} overallScore={student.score} />
+            )
           ) : (
-            <ClassScoreBreakdown classData={classData} overallScore={student.score} />
+            <MmdScoreBreakdown mmdData={mmdData} mmdError={mmdError} />
           )}
         </div>
 
         <div className="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
-          <ExportMenu onExport={handleExport} disabled={loading} />
+          <ExportMenu onExport={handleExport} disabled={loading} dropUp />
         </div>
       </aside>
     </div>

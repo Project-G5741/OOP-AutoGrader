@@ -44,4 +44,20 @@ public class SubmissionResultReadRepository {
                         Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
     }
+
+    public boolean hasAnyResults(UUID submissionId) {
+        MapSqlParameterSource params = new MapSqlParameterSource("submissionId", submissionId);
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM (
+                    SELECT 1 FROM submission_field_result WHERE submission_id = :submissionId
+                    UNION ALL
+                    SELECT 1 FROM submission_method_result WHERE submission_id = :submissionId
+                    UNION ALL
+                    SELECT 1 FROM submission_constructor_result WHERE submission_id = :submissionId
+                    UNION ALL
+                    SELECT 1 FROM submission_relation_result WHERE submission_id = :submissionId
+                ) t
+                """, params, Integer.class);
+        return count != null && count > 0;
+    }
 }
