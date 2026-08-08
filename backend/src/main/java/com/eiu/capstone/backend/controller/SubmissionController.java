@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -23,7 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.StudentHistoryResponse;
+import com.eiu.capstone.backend.DTO.StudentLabSummaryDTO;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
+import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingService;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
@@ -38,6 +43,7 @@ import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
+import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
@@ -67,6 +73,9 @@ public class SubmissionController {
     private final MmdPersistenceHook mmdPersistenceHook;
     private final SubmissionCompileErrorStore compileErrorStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
+    private final StudentHistoryService studentHistoryService;
+    private final LabStatisticsCache labStatisticsCache;
+    private final LecturerOverviewCache lecturerOverviewCache;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -80,6 +89,9 @@ public class SubmissionController {
                                  MmdPersistenceHook mmdPersistenceHook,
                                  SubmissionCompileErrorStore compileErrorStore,
                                  SubmissionMmdMetaStore submissionMmdMetaStore,
+                                 StudentHistoryService studentHistoryService,
+                                 LabStatisticsCache labStatisticsCache,
+                                 LecturerOverviewCache lecturerOverviewCache,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -92,7 +104,27 @@ public class SubmissionController {
         this.mmdPersistenceHook = mmdPersistenceHook;
         this.compileErrorStore = compileErrorStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
+        this.studentHistoryService = studentHistoryService;
+        this.labStatisticsCache = labStatisticsCache;
+        this.lecturerOverviewCache = lecturerOverviewCache;
         this.timingLog = timingLog;
+    }
+
+    @GetMapping("/my-labs")
+    public List<StudentLabSummaryDTO> getMyLabs(@RequestHeader("Authorization") String authHeader) {
+        UserAccount user = resolveStudentUser(authHeader);
+        return studentHistoryService.getLabSummaries(user.getId());
+    }
+
+    @GetMapping("/my-history")
+    public StudentHistoryResponse getMyHistory(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID labId) {
+        UserAccount user = resolveStudentUser(authHeader);
+        if (labId != null && !labRepository.existsById(labId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
+        }
+        return studentHistoryService.getHistory(user.getId(), labId);
     }
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
@@ -104,17 +136,8 @@ public class SubmissionController {
 
         long totalStart = System.currentTimeMillis();
 
-        Claims claims = parseAuthHeader(authHeader);
-        String irn = claims.get("irn", String.class);
-        String email = claims.get("email", String.class);
-
-        if (irn == null || irn.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "This account has no IRN on file (teacher accounts cannot submit labs)");
-        }
-
-        UserAccount userAccount = userAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
+        UserAccount userAccount = resolveStudentUser(authHeader);
+        String irn = parseAuthHeader(authHeader).get("irn", String.class);
 
         Lab lab = labRepository.findById(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
@@ -151,12 +174,14 @@ public class SubmissionController {
             submission = labSubmissionRepository.save(submission);
 
             StudentLabProgress progress = updateStudentProgress(
-                    userAccount, lab, submission, gradingOutcome.overallScore(), attemptNumber);
+                    userAccount, lab, submission, gradingOutcome.overallScore(), isNewSubmission);
 
             compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
             submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
+            labStatisticsCache.invalidate(labId);
+            lecturerOverviewCache.invalidate();
 
             Map<UUID, Integer> challengeResult = new LinkedHashMap<>();
             for (var graded : gradingOutcome.gradedChallenges()) {
@@ -192,7 +217,8 @@ public class SubmissionController {
                                                      Lab lab,
                                                      LabSubmission submission,
                                                      BigDecimal score,
-                                                     int attemptNumber) {
+                                                     boolean isNewSubmission) {
+        int attemptNumber = submission.getAttemptNumber() != null ? submission.getAttemptNumber() : 0;
         StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
                 .orElseGet(StudentLabProgress::new);
         progress.setUser(userAccount);
@@ -204,10 +230,12 @@ public class SubmissionController {
         }
         progress.setLastSubmittedAt(now);
 
-        labSubmissionRepository.flush();
-        int submissionRows = (int) labSubmissionRepository.countByUser_IdAndLab_Id(
-                userAccount.getId(), lab.getId());
-        progress.setAttemptsCount(Math.max(submissionRows, attemptNumber));
+        int priorCount = progress.getAttemptsCount() != null ? progress.getAttemptsCount() : 0;
+        if (isNewSubmission) {
+            progress.setAttemptsCount(Math.max(attemptNumber, priorCount + 1));
+        } else {
+            progress.setAttemptsCount(Math.max(priorCount, attemptNumber));
+        }
 
         if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
             progress.setHighestScore(score);
@@ -238,6 +266,18 @@ public class SubmissionController {
     private Integer extractChallengeNumber(String challengeFolderKey) {
         Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(challengeFolderKey);
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : null;
+    }
+
+    private UserAccount resolveStudentUser(String authHeader) {
+        Claims claims = parseAuthHeader(authHeader);
+        String irn = claims.get("irn", String.class);
+        if (irn == null || irn.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "This account has no IRN on file (teacher accounts cannot submit labs)");
+        }
+        String email = claims.get("email", String.class);
+        return userAccountRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
     }
 
     private Claims parseAuthHeader(String authHeader) {

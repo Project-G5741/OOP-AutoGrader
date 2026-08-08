@@ -22,4 +22,7 @@ public interface SubmissionChallengeResultRepository extends JpaRepository<Submi
 
     @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id = :submissionId")
     List<SubmissionChallengeResult> findBySubmission_IdWithChallenge(@Param("submissionId") UUID submissionId);
+
+    @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id IN :submissionIds")
+    List<SubmissionChallengeResult> findBySubmission_IdInWithChallenge(@Param("submissionIds") List<UUID> submissionIds);
 }

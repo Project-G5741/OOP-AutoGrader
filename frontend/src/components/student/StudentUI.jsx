@@ -59,7 +59,7 @@ function relationTypeStyle(type) {
   if (normalized.includes('associates') || normalized.includes('aggregates')) {
     return 'bg-purple-500/10 text-purple-500 dark:bg-purple-500/15 dark:text-purple-300';
   }
-  return 'bg-slate-100 text-slate-700 dark:bg-[#1a1e27] dark:text-slate-200';
+  return 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-slate-200';
 }
 
 function scoreColor(s) {
@@ -445,52 +445,56 @@ export default function StudentUI({
                     )}
                   </div>
 
-                  <div className="rounded-3xl bg-gray-50 p-4 dark:bg-[#11171f]">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                        <GitMerge className="w-4 h-4" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
+                  {resultsRevealed && (
+                    <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-[#151b24]">
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                          <GitMerge className="w-4 h-4" />
+                          <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
+                        </div>
+                        {relationScore.total > 0 && (
+                          <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
+                        )}
                       </div>
-                      {resultsRevealed && (
-                        <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
-                      )}
-                    </div>
-                    <div className="w-full overflow-hidden rounded-3xl border border-gray-200/40 dark:border-gray-700/50 bg-[#0f1320]">
-                      <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200/10 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                      <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         <span className="font-semibold">From</span>
                         <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
                         <span className="font-semibold">To</span>
                         <span className="font-semibold text-center">Status</span>
                       </div>
-                      <div className="divide-y divide-gray-200/10 dark:divide-gray-800 bg-transparent">
-                        {relations.map((r, index) => (
+                      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {relations.length > 0 ? relations.map((r, index) => (
                           <div key={index}>
-                            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-slate-100">
-                              <span className="font-mono text-purple-400">{r.from}</span>
+                            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
+                              <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
                               <div className="flex justify-center">
                                 <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
                                   {r.relType}
                                 </span>
                               </div>
-                              <span className="font-mono text-purple-400">{r.to}</span>
+                              <span className="font-mono text-purple-600 dark:text-purple-400">{r.to}</span>
                               <div className="flex justify-center">
                                 {r.ok ? (
-                                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                                  <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
                                 ) : (
                                   <XCircle className="h-5 w-5 text-red-500" />
                                 )}
                               </div>
                             </div>
                             {!r.ok && r.error && (
-                              <div className="grid grid-cols-4 px-4 py-2 text-xs font-mono text-red-300 bg-red-950/20">
+                              <div className="grid grid-cols-4 px-4 py-2 text-xs font-mono text-red-600 bg-red-50 dark:text-red-300 dark:bg-red-900/10">
                                 <div className="col-span-4 text-left">{r.from} → {r.to}: {r.error}</div>
                               </div>
                             )}
                           </div>
-                        ))}
+                        )) : (
+                          <div className="px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                            No relation data is available.
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
 

@@ -1,9 +1,11 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
+import { ROUTES } from '../utils/authRoutes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -27,8 +29,9 @@ function sessionChallengeScore(challengeScores, challengeId) {
   return challengeScores[String(challengeId)];
 }
 
-export default function StudentDashboard({ user, onLogout }) {
-  const [showHistory, setShowHistory] = useState(false);
+export default function StudentDashboard({ user, onLogout, view = 'dashboard' }) {
+  const navigate = useNavigate();
+  const showHistory = view === 'history';
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [labs, setLabs] = useState([]);
@@ -367,9 +370,9 @@ export default function StudentDashboard({ user, onLogout }) {
 
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
-      setShowHistory(false);
+      navigate(ROUTES.studentDashboard);
     } else if (cmd === 'history') {
-      setShowHistory(true);
+      navigate(ROUTES.studentHistory);
     } else if (cmd === 'changePassword') {
       setShowChangePassword(true);
     }
@@ -391,7 +394,7 @@ export default function StudentDashboard({ user, onLogout }) {
             <StudentHistoryPage
               user={user}
               onLogout={onLogout}
-              onNavigate={() => setShowHistory(false)}
+              onNavigate={() => navigate(ROUTES.studentDashboard)}
             />
           ) : (
             <StudentUI

@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -29,4 +31,12 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     java.util.Optional<LabSubmission> findFirstByUser_IdAndLab_IdOrderByAttemptNumberDesc(UUID userId, UUID labId);
 
     long countByUser_IdAndLab_Id(UUID userId, UUID labId);
+
+    @Query("SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId ORDER BY s.submittedAt DESC")
+    List<LabSubmission> findByUser_IdWithLabOrderBySubmittedAtDesc(@Param("userId") UUID userId);
+
+    @Query("SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId AND s.lab.id = :labId ORDER BY s.attemptNumber DESC")
+    List<LabSubmission> findByUser_IdAndLab_IdWithLabOrderByAttemptNumberDesc(
+            @Param("userId") UUID userId,
+            @Param("labId") UUID labId);
 }

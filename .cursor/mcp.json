@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@ahmetkca/mcp-server-postgres",
+        "postgresql://readonly_diagnostic:ReadOnly123SecurePass987xyz@ep-delicate-wave-at7y3ky9-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
+      ]
+    }
+  }
+}

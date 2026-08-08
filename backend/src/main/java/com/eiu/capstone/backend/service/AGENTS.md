@@ -14,7 +14,11 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn) |
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete |
+| `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
+| `PasswordResetEmailService` | Sends reset links via Gmail SMTP (`app.mail.from`) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
+| `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
+| `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 
 ## Local Contracts
 
@@ -48,6 +52,7 @@ Per upload request (unique `requestId` prevents collisions):
 - `GoogleTokenVerifier`: calls `https://oauth2.googleapis.com/tokeninfo`, checks audience, expiry, `email_verified`, domain `eiu.edu.vn`
 - `JwtService`: signing key generated in-memory on startup — **not** loaded from `jwt.secret` in config
 - `UserService.resolveRoles()`: maps DB roles to `STUDENT` / `LECTURER` strings
+- `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
 
 ### User management
 

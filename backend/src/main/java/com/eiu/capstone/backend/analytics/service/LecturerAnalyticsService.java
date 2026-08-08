@@ -14,6 +14,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
+import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.analytics.dto.ChallengeStudentRowDTO;
 import com.eiu.capstone.backend.analytics.dto.GradeOverviewLabColumnDTO;
 import com.eiu.capstone.backend.analytics.dto.GradeOverviewResponse;
@@ -34,14 +36,38 @@ public class LecturerAnalyticsService {
 
     private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
     private final ChallengeService challengeService;
+    private final LecturerOverviewCache lecturerOverviewCache;
+    private final LabStatisticsCache labStatisticsCache;
 
     public LecturerAnalyticsService(LecturerAnalyticsRepository lecturerAnalyticsRepository,
-                                    ChallengeService challengeService) {
+                                    ChallengeService challengeService,
+                                    LecturerOverviewCache lecturerOverviewCache,
+                                    LabStatisticsCache labStatisticsCache) {
         this.lecturerAnalyticsRepository = lecturerAnalyticsRepository;
         this.challengeService = challengeService;
+        this.lecturerOverviewCache = lecturerOverviewCache;
+        this.labStatisticsCache = labStatisticsCache;
     }
 
     public LecturerOverviewResponse getOverview() {
+        return lecturerOverviewCache.get(this::loadOverview);
+    }
+
+    private LecturerOverviewResponse loadOverview() {
+        Object[] metrics = lecturerAnalyticsRepository.findOverviewMetrics();
+        long totalStudents = 0L;
+        long totalLabs = 0L;
+        BigDecimal averageScore = null;
+        long atRiskStudents = 0L;
+        long activeStudents = 0L;
+        if (metrics != null && metrics.length >= 5) {
+            totalStudents = AnalyticsMapper.toLong(metrics[0]);
+            totalLabs = AnalyticsMapper.toLong(metrics[1]);
+            averageScore = AnalyticsMapper.toBigDecimal(metrics[2]);
+            atRiskStudents = AnalyticsMapper.toLong(metrics[3]);
+            activeStudents = AnalyticsMapper.toLong(metrics[4]);
+        }
+
         List<LecturerOverviewResponse.RecentSubmissionItem> recentSubmissions = new ArrayList<>();
         for (Object[] row : lecturerAnalyticsRepository.findRecentSubmissions(10)) {
             LecturerOverviewResponse.RecentSubmissionItem item = toRecentSubmission(row);
@@ -51,16 +77,20 @@ public class LecturerAnalyticsService {
         }
 
         return new LecturerOverviewResponse(
-                lecturerAnalyticsRepository.countActiveStudents(),
-                lecturerAnalyticsRepository.countLabs(),
-                AnalyticsMapper.toBigDecimal(lecturerAnalyticsRepository.findAverageScore()),
-                lecturerAnalyticsRepository.countAtRiskStudents(),
+                totalStudents,
+                totalLabs,
+                averageScore,
+                atRiskStudents,
                 recentSubmissions,
-                lecturerAnalyticsRepository.countActiveStudentsWithSubmissions()
+                activeStudents
         );
     }
 
     public LabStatisticsResponse getLabStatistics(UUID labId) {
+        return labStatisticsCache.get(labId, () -> loadLabStatistics(labId));
+    }
+
+    private LabStatisticsResponse loadLabStatistics(UUID labId) {
         Object[] summary = lecturerAnalyticsRepository.findLabStatisticsSummary(labId);
         long activeEnrolledCount = lecturerAnalyticsRepository.countActiveEnrolledStudentsForLab(labId);
         long studentsSubmitted = lecturerAnalyticsRepository.countActiveStudentsSubmittedForLab(labId);
@@ -108,7 +138,12 @@ public class LecturerAnalyticsService {
         );
     }
 
-    public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId, int page, int size, String sort) {
+    public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId,
+                                                        int page,
+                                                        int size,
+                                                        String sort,
+                                                        String afterName,
+                                                        UUID afterId) {
         int safeSize = size <= 0 ? 5 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveLabSort(sort);
@@ -116,9 +151,16 @@ public class LecturerAnalyticsService {
         long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId);
         List<SubmissionSummaryDTO> items = new ArrayList<>();
         if (total > 0) {
-            int offset = safePage * safeSize;
-            for (Object[] row : lecturerAnalyticsRepository.findLabStudentRoster(
-                    labId, sortSpec.column(), sortSpec.direction(), offset, safeSize)) {
+            List<Object[]> rows;
+            if (afterName != null && afterId != null) {
+                rows = lecturerAnalyticsRepository.findLabStudentRosterAfter(
+                        labId, sortSpec.column(), sortSpec.direction(), afterName, afterId, safeSize);
+            } else {
+                int offset = safePage * safeSize;
+                rows = lecturerAnalyticsRepository.findLabStudentRoster(
+                        labId, sortSpec.column(), sortSpec.direction(), offset, safeSize);
+            }
+            for (Object[] row : rows) {
                 SubmissionSummaryDTO item = toLabRosterRow(row);
                 if (item != null) {
                     items.add(item);
@@ -127,6 +169,19 @@ public class LecturerAnalyticsService {
         }
 
         return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
+    }
+
+    public List<SubmissionSummaryDTO> getLabSubmissionsExport(UUID labId, String sort) {
+        SortSpec sortSpec = resolveLabSort(sort);
+        List<SubmissionSummaryDTO> items = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findLabStudentRosterExport(
+                labId, sortSpec.column(), sortSpec.direction())) {
+            SubmissionSummaryDTO item = toLabRosterRow(row);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+        return items;
     }
 
     public Page<ChallengeStudentRowDTO> getChallengeStudentRoster(UUID labId,
