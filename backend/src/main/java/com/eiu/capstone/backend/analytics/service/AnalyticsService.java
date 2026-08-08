@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.analytics.cache.AnalyticsDashboardCache;
 import com.eiu.capstone.backend.analytics.dto.AnalyticsDashboardResponse;
 import com.eiu.capstone.backend.analytics.dto.StudentReportResponse;
 import com.eiu.capstone.backend.analytics.mapper.AnalyticsMapper;
@@ -18,12 +19,21 @@ import com.eiu.capstone.backend.analytics.repository.AnalyticsRepository;
 public class AnalyticsService {
 
     private final AnalyticsRepository analyticsRepository;
+    private final AnalyticsDashboardCache analyticsDashboardCache;
 
-    public AnalyticsService(AnalyticsRepository analyticsRepository) {
+    public AnalyticsService(AnalyticsRepository analyticsRepository,
+                            AnalyticsDashboardCache analyticsDashboardCache) {
         this.analyticsRepository = analyticsRepository;
+        this.analyticsDashboardCache = analyticsDashboardCache;
     }
 
     public AnalyticsDashboardResponse getDashboard(UUID academicYearId, UUID semesterId, UUID labId, String course) {
+        AnalyticsDashboardCache.CacheKey key = new AnalyticsDashboardCache.CacheKey(
+                academicYearId, semesterId, labId, course);
+        return analyticsDashboardCache.get(key, () -> loadDashboard(academicYearId, semesterId, labId, course));
+    }
+
+    private AnalyticsDashboardResponse loadDashboard(UUID academicYearId, UUID semesterId, UUID labId, String course) {
         Object[] summary = safeFindDashboardSummary(labId, semesterId, academicYearId, course);
         BigDecimal overallAverage = null;
         BigDecimal lowestAverageScore = null;

@@ -116,12 +116,11 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setLoading(true);
       try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-        const resp = await fetch(`${API_BASE}/api/users/getAllUser`);
+        const resp = await fetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`);
         if (!resp.ok) throw new Error(`Failed to load users: ${resp.status}`);
         const data = await resp.json();
-        // console.log('Raw data from API:', data); for testing DB
-        const normalized = (data || []).map(normalizeUser);
-        // console.log('Normalized users:', normalized); for testing DB
+        const items = Array.isArray(data) ? data : (data.content ?? []);
+        const normalized = items.map(normalizeUser);
         setUsers(normalized);
       } catch (error) {
         console.error('Error fetching users', error);

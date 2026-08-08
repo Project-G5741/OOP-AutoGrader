@@ -3,7 +3,7 @@ Render deployment steps (Docker)
 1. In Render dashboard, create a new Web Service -> "Docker" or "Connect a repo" and select this repository.
 2. Set the root directory to `backend` (Render will use the Dockerfile in that folder).
 3. Environment variables to add:
-   - `SPRING_DATASOURCE_URL` = jdbc:postgresql://<HOST>:<PORT>/<DB_NAME>?sslmode=require
+   - `SPRING_DATASOURCE_URL` = `jdbc:postgresql://<POOLER-HOST>-pooler.<region>.aws.neon.tech:5432/<DB_NAME>?sslmode=require` — use the **pooler** hostname (`-pooler` in the host) for long-lived JVM deployments on Render. See `backend/.env.backend.example` for a working Neon pooler URL. The direct (non-pooler) endpoint can exhaust Neon connection limits with default Hikari pool size (~10).
    - `DB_USERNAME` = <db user>
    - `DB_PASSWORD` = <db pass>
    - `FRONTEND_URL` = https://oop-autograder.vercel.app

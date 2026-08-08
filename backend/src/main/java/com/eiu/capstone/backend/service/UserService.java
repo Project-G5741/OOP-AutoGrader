@@ -9,6 +9,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,6 +46,11 @@ public class UserService {
     @Transactional
     public List<UserAccount> getAllUser() {
         return userRepository.findAllWithRoles();
+    }
+
+    @Transactional
+    public Page<UserAccount> getAllUser(Pageable pageable) {
+        return userRepository.findAllWithRoles(pageable);
     }
 
     @Transactional

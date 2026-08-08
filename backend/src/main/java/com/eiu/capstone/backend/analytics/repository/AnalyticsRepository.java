@@ -14,6 +14,15 @@ import jakarta.persistence.Query;
 @Repository
 public class AnalyticsRepository {
 
+    private static final String LATEST_SUBMISSION_PER_LAB = """
+            WITH latest AS (
+                SELECT DISTINCT ON (lab_id) id
+                FROM lab_submission
+                WHERE user_id = :studentId
+                ORDER BY lab_id, attempt_number DESC
+            )
+            """;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -51,56 +60,51 @@ public class AnalyticsRepository {
     }
 
     public Object[] findDashboardSummary(UUID labId, UUID semesterId, UUID academicYearId, String course) {
-        StringBuilder sql = new StringBuilder();
-        sql.append("SELECT AVG(p.highest_score) AS overall_avg, ")
-           .append("MIN(lab_avg.avg_score) AS lowest_avg_score, ")
-           .append("lab_avg.lab_name AS lowest_avg_lab ")
-           .append("FROM student_lab_progress p ")
-           .append("JOIN lab l ON p.lab_id = l.id ")
-           .append("JOIN term t ON l.term_id = t.id ")
-           .append("JOIN academic_years ay ON t.academic_year_id = ay.id ")
-           .append("LEFT JOIN ( ")
-           .append("  SELECT l2.id AS lab_id, l2.name AS lab_name, AVG(p2.highest_score) AS avg_score ")
-           .append("  FROM student_lab_progress p2 ")
-           .append("  JOIN lab l2 ON p2.lab_id = l2.id ")
-           .append("  JOIN term t2 ON l2.term_id = t2.id ")
-           .append("  JOIN academic_years ay2 ON t2.academic_year_id = ay2.id ")
-           .append("  WHERE 1=1 ");
-
+        StringBuilder filter = new StringBuilder(" WHERE 1=1 ");
         if (labId != null) {
-            sql.append(" AND l2.id = :labId ");
+            filter.append(" AND l2.id = :labId ");
         }
         if (semesterId != null) {
-            sql.append(" AND t2.id = :semesterId ");
+            filter.append(" AND t2.id = :semesterId ");
         }
         if (academicYearId != null) {
-            sql.append(" AND ay2.id = :academicYearId ");
+            filter.append(" AND ay2.id = :academicYearId ");
         }
         if (course != null && !course.isBlank()) {
-            sql.append(" AND LOWER(l2.name) LIKE :course ");
-        }
-        sql.append(" GROUP BY l2.id, l2.name ORDER BY avg_score ASC LIMIT 1")
-           .append(") lab_avg ON TRUE ")
-           .append("WHERE 1=1 ");
-
-        if (labId != null) {
-            sql.append(" AND l.id = :labId ");
-        }
-        if (semesterId != null) {
-            sql.append(" AND t.id = :semesterId ");
-        }
-        if (academicYearId != null) {
-            sql.append(" AND ay.id = :academicYearId ");
-        }
-        if (course != null && !course.isBlank()) {
-            sql.append(" AND LOWER(l.name) LIKE :course ");
+            filter.append(" AND LOWER(l2.name) LIKE :course ");
         }
 
-        Query query = entityManager.createNativeQuery(sql.toString());
+        String sql = """
+                WITH lab_avgs AS (
+                    SELECT l2.name AS lab_name, AVG(p2.highest_score) AS avg_score
+                    FROM student_lab_progress p2
+                    JOIN lab l2 ON p2.lab_id = l2.id
+                    JOIN term t2 ON l2.term_id = t2.id
+                    JOIN academic_years ay2 ON t2.academic_year_id = ay2.id
+                """ + filter + """
+                    GROUP BY l2.id, l2.name
+                ),
+                overall AS (
+                    SELECT AVG(avg_score) AS overall_avg FROM lab_avgs
+                ),
+                lowest AS (
+                    SELECT lab_name, avg_score
+                    FROM lab_avgs
+                    ORDER BY avg_score ASC NULLS LAST, lab_name
+                    LIMIT 1
+                )
+                SELECT overall.overall_avg, lowest.avg_score, lowest.lab_name
+                FROM overall
+                CROSS JOIN lowest
+                """;
+
+        Query query = entityManager.createNativeQuery(sql);
         if (labId != null) query.setParameter("labId", labId);
         if (semesterId != null) query.setParameter("semesterId", semesterId);
         if (academicYearId != null) query.setParameter("academicYearId", academicYearId);
-        if (course != null && !course.isBlank()) query.setParameter("course", "%" + course.trim().toLowerCase() + "%");
+        if (course != null && !course.isBlank()) {
+            query.setParameter("course", "%" + course.trim().toLowerCase() + "%");
+        }
 
         List<?> result = query.getResultList();
         if (result.isEmpty()) {
@@ -192,28 +196,32 @@ public class AnalyticsRepository {
     }
 
     public List<Object[]> findStudentChallengeBreakdown(UUID studentId) {
-        String sql = "SELECT c.name, SUM(CASE WHEN scr.is_correct THEN 1 ELSE 0 END) AS correct_count, COUNT(scr.id) AS total_count " +
-                "FROM submission_challenge_result scr " +
-                "JOIN lab_submission s ON scr.submission_id = s.id " +
-                "JOIN challenge c ON scr.challenge_id = c.id " +
-                "WHERE s.user_id = :studentId " +
-                "GROUP BY c.name " +
-                "ORDER BY (SUM(CASE WHEN scr.is_correct THEN 1 ELSE 0 END) * 1.0 / COUNT(scr.id)) ASC, c.name";
+        String sql = LATEST_SUBMISSION_PER_LAB + """
+                SELECT c.name,
+                       SUM(CASE WHEN scr.is_correct THEN 1 ELSE 0 END) AS correct_count,
+                       COUNT(scr.id) AS total_count
+                FROM submission_challenge_result scr
+                JOIN latest ON scr.submission_id = latest.id
+                JOIN challenge c ON scr.challenge_id = c.id
+                GROUP BY c.name
+                ORDER BY (SUM(CASE WHEN scr.is_correct THEN 1 ELSE 0 END) * 1.0 / COUNT(scr.id)) ASC, c.name
+                """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentId", studentId);
         return query.getResultList();
     }
 
     public List<Object[]> findStudentWeakSkills(UUID studentId) {
-        String sql = "SELECT c.name, SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) AS failure_count " +
-                "FROM submission_challenge_result scr " +
-                "JOIN lab_submission s ON scr.submission_id = s.id " +
-                "JOIN challenge c ON scr.challenge_id = c.id " +
-                "WHERE s.user_id = :studentId " +
-                "GROUP BY c.name " +
-                "HAVING SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) > 0 " +
-                "ORDER BY failure_count DESC, c.name " +
-                "LIMIT 5";
+        String sql = LATEST_SUBMISSION_PER_LAB + """
+                SELECT c.name, SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) AS failure_count
+                FROM submission_challenge_result scr
+                JOIN latest ON scr.submission_id = latest.id
+                JOIN challenge c ON scr.challenge_id = c.id
+                GROUP BY c.name
+                HAVING SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) > 0
+                ORDER BY failure_count DESC, c.name
+                LIMIT 5
+                """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentId", studentId);
         return query.getResultList();
@@ -249,18 +257,26 @@ public class AnalyticsRepository {
 
     public List<Object[]> findAtRiskLabs(UUID academicYearId, UUID semesterId) {
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT l.id, l.name, AVG(p.highest_score) AS avg_score, MIN(scr_failure.failure_count) AS failure_count, scr_failure.challenge_name ")
-           .append("FROM student_lab_progress p ")
-           .append("JOIN lab l ON p.lab_id = l.id ")
-           .append("JOIN term t ON l.term_id = t.id ")
-           .append("LEFT JOIN ( ")
-           .append("  SELECT s.lab_id, c.name AS challenge_name, SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) AS failure_count ")
-           .append("  FROM submission_challenge_result scr ")
-           .append("  JOIN lab_submission s ON scr.submission_id = s.id ")
-           .append("  JOIN challenge c ON scr.challenge_id = c.id ")
-           .append("  GROUP BY s.lab_id, c.name ")
-           .append(") scr_failure ON scr_failure.lab_id = l.id ")
-           .append("WHERE 1=1 ");
+        sql.append("""
+                SELECT l.id, l.name, AVG(p.highest_score) AS avg_score,
+                       MIN(scr_failure.failure_count) AS failure_count, scr_failure.challenge_name
+                FROM student_lab_progress p
+                JOIN lab l ON p.lab_id = l.id
+                JOIN term t ON l.term_id = t.id
+                LEFT JOIN (
+                    SELECT s.lab_id, c.name AS challenge_name,
+                           SUM(CASE WHEN scr.is_correct THEN 0 ELSE 1 END) AS failure_count
+                    FROM (
+                        SELECT DISTINCT ON (user_id, lab_id) id, lab_id
+                        FROM lab_submission
+                        ORDER BY user_id, lab_id, attempt_number DESC
+                    ) s
+                    JOIN submission_challenge_result scr ON scr.submission_id = s.id
+                    JOIN challenge c ON scr.challenge_id = c.id
+                    GROUP BY s.lab_id, c.name
+                ) scr_failure ON scr_failure.lab_id = l.id
+                WHERE 1=1
+                """);
         if (academicYearId != null) {
             sql.append("AND t.academic_year_id = :academicYearId ");
         }

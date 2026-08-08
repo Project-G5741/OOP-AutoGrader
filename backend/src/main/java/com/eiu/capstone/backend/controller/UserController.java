@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -43,7 +47,14 @@ public class UserController {
     }
 
     @GetMapping("getAllUser")
-    public ResponseEntity<List<UserAccount>> getAllUser() {
+    public ResponseEntity<?> getAllUser(@RequestParam(required = false) Integer page,
+                                        @RequestParam(required = false) Integer size) {
+        if (page != null || size != null) {
+            int safePage = page != null ? Math.max(page, 0) : 0;
+            int safeSize = size != null && size > 0 ? Math.min(size, 100) : 50;
+            Page<UserAccount> userPage = userService.getAllUser(PageRequest.of(safePage, safeSize));
+            return ResponseEntity.ok(userPage);
+        }
         List<UserAccount> userList = userService.getAllUser();
         return ResponseEntity.ok(userList);
     }

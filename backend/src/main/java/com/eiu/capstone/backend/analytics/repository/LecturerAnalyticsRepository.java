@@ -33,59 +33,51 @@ public class LecturerAnalyticsRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public long countActiveStudents() {
+    private static final String GRADE_OVERVIEW_STUDENT_IDS = """
+            SELECT p.user_id FROM student_lab_progress p
+            UNION
+            SELECT te.user_id
+            FROM term_enrollment te
+            JOIN lab l ON l.term_id = te.term_id
+            UNION
+            SELECT DISTINCT s.user_id FROM lab_submission s
+            """;
+
+    public Object[] findOverviewMetrics() {
         String sql = """
-                SELECT COUNT(DISTINCT u.id)
-                FROM user_account u
-                JOIN user_role ur ON ur.user_id = u.id
-                JOIN role r ON r.id = ur.role_id
-                WHERE u.is_active = true AND LOWER(r.name) = 'student'
+                SELECT
+                    (SELECT COUNT(DISTINCT u.id)
+                     FROM user_account u
+                     JOIN user_role ur ON ur.user_id = u.id
+                     JOIN role r ON r.id = ur.role_id
+                     WHERE u.is_active = true AND LOWER(r.name) = 'student') AS active_students,
+                    (SELECT COUNT(*) FROM lab) AS total_labs,
+                    (SELECT AVG(p.highest_score) FROM student_lab_progress p) AS average_score,
+                    (SELECT COUNT(*) FROM (
+                        SELECT u.id
+                        FROM user_account u
+                        JOIN user_role ur ON ur.user_id = u.id
+                        JOIN role r ON r.id = ur.role_id
+                        JOIN student_lab_progress p ON p.user_id = u.id
+                        WHERE u.is_active = true AND LOWER(r.name) = 'student'
+                        GROUP BY u.id
+                        HAVING AVG(p.highest_score) < 70
+                    ) at_risk) AS at_risk_students,
+                    (SELECT COUNT(DISTINCT u.id)
+                     FROM user_account u
+                     JOIN user_role ur ON ur.user_id = u.id
+                     JOIN role r ON r.id = ur.role_id
+                     JOIN student_lab_progress p ON p.user_id = u.id
+                     WHERE u.is_active = true
+                       AND LOWER(r.name) = 'student'
+                       AND p.last_submitted_at IS NOT NULL) AS active_submitters
                 """;
-        return singleLong(sql, Map.of());
-    }
-
-    public long countLabs() {
-        String sql = "SELECT COUNT(*) FROM lab";
-        return singleLong(sql, Map.of());
-    }
-
-    public Object findAverageScore() {
-        String sql = "SELECT AVG(p.highest_score) FROM student_lab_progress p";
-        List<?> result = entityManager.createNativeQuery(sql).getResultList();
-        if (result.isEmpty() || result.get(0) == null) {
+        Query query = entityManager.createNativeQuery(sql);
+        List<?> result = query.getResultList();
+        if (result.isEmpty()) {
             return null;
         }
-        return result.get(0);
-    }
-
-    public long countAtRiskStudents() {
-        String sql = """
-                SELECT COUNT(*) FROM (
-                    SELECT u.id
-                    FROM user_account u
-                    JOIN user_role ur ON ur.user_id = u.id
-                    JOIN role r ON r.id = ur.role_id
-                    JOIN student_lab_progress p ON p.user_id = u.id
-                    WHERE u.is_active = true AND LOWER(r.name) = 'student'
-                    GROUP BY u.id
-                    HAVING AVG(p.highest_score) < 70
-                ) at_risk
-                """;
-        return singleLong(sql, Map.of());
-    }
-
-    public long countActiveStudentsWithSubmissions() {
-        String sql = """
-                SELECT COUNT(DISTINCT u.id)
-                FROM user_account u
-                JOIN user_role ur ON ur.user_id = u.id
-                JOIN role r ON r.id = ur.role_id
-                JOIN student_lab_progress p ON p.user_id = u.id
-                WHERE u.is_active = true
-                  AND LOWER(r.name) = 'student'
-                  AND p.last_submitted_at IS NOT NULL
-                """;
-        return singleLong(sql, Map.of());
+        return (Object[]) result.get(0);
     }
 
     public List<Object[]> findRecentSubmissions(int limit) {
@@ -144,19 +136,6 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of("labId", labId));
     }
 
-    public long countStudentsSubmittedForLab(UUID labId) {
-        String sql = """
-                SELECT COUNT(DISTINCT u.id)
-                """ + ROSTER_STUDENT_BASE + """
-                AND EXISTS (
-                    SELECT 1
-                    FROM lab_submission s
-                    WHERE s.user_id = u.id AND s.lab_id = l.id
-                )
-                """;
-        return singleLong(sql, Map.of("labId", labId));
-    }
-
     public Object[] findLabStatisticsSummary(UUID labId) {
         String sql = """
                 SELECT l.id,
@@ -199,7 +178,51 @@ public class LecturerAnalyticsRepository {
     }
 
     public List<Object[]> findLabStudentRoster(UUID labId, String sortColumn, String sortDirection, int offset, int pageSize) {
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, offset, pageSize, null, null);
+    }
+
+    public List<Object[]> findLabStudentRosterAfter(UUID labId,
+                                                  String sortColumn,
+                                                  String sortDirection,
+                                                  String afterName,
+                                                  UUID afterId,
+                                                  int pageSize) {
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, pageSize, afterName, afterId);
+    }
+
+    public List<Object[]> findLabStudentRosterExport(UUID labId, String sortColumn, String sortDirection) {
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, Integer.MAX_VALUE, null, null);
+    }
+
+    private List<Object[]> findLabStudentRosterInternal(UUID labId,
+                                                        String sortColumn,
+                                                        String sortDirection,
+                                                        int offset,
+                                                        int pageSize,
+                                                        String afterName,
+                                                        UUID afterId) {
+        String keysetClause = "";
+        if (afterName != null && afterId != null) {
+            keysetClause = """
+                    AND (
+                        %s > :afterName
+                        OR (%s = :afterName AND u.id > :afterId)
+                    )
+                    """.formatted(sortColumn, sortColumn);
+        }
+
         String sql = """
+                WITH latest_sub AS (
+                    SELECT DISTINCT ON (s.user_id)
+                           s.user_id,
+                           s.id,
+                           s.score,
+                           s.attempt_number,
+                           s.submitted_at
+                    FROM lab_submission s
+                    WHERE s.lab_id = :labId
+                    ORDER BY s.user_id, s.attempt_number DESC
+                )
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
@@ -210,13 +233,9 @@ public class LecturerAnalyticsRepository {
                        latest_sub.id AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
-                LEFT JOIN LATERAL (
-                    SELECT s.id, s.score, s.attempt_number, s.submitted_at
-                    FROM lab_submission s
-                    WHERE s.user_id = u.id AND s.lab_id = l.id
-                    ORDER BY s.attempt_number DESC
-                    LIMIT 1
-                ) latest_sub ON true
+                LEFT JOIN latest_sub ON latest_sub.user_id = u.id
+                WHERE 1=1
+                """ + keysetClause + """
                 ORDER BY %s %s
                 LIMIT :pageSize OFFSET :offset
                 """.formatted(sortColumn, sortDirection);
@@ -224,6 +243,10 @@ public class LecturerAnalyticsRepository {
         query.setParameter("labId", labId);
         query.setParameter("pageSize", pageSize);
         query.setParameter("offset", offset);
+        if (afterName != null && afterId != null) {
+            query.setParameter("afterName", afterName);
+            query.setParameter("afterId", afterId);
+        }
         return query.getResultList();
     }
 
@@ -258,6 +281,10 @@ public class LecturerAnalyticsRepository {
             )
             """;
 
+    private static String challengeGradedSubmissionExists(String submissionAlias) {
+        return CHALLENGE_GRADED_SUBMISSION_EXISTS.replace("s2.", submissionAlias + ".");
+    }
+
     public List<Object[]> findChallengeStudentRoster(UUID labId,
                                                      UUID challengeId,
                                                      String sortColumn,
@@ -280,30 +307,7 @@ public class LecturerAnalyticsRepository {
                     LEFT JOIN submission_challenge_result scr
                         ON scr.submission_id = s.id AND scr.challenge_id = :challengeId
                     WHERE s.user_id = u.id AND s.lab_id = l.id
-                      AND (
-                          scr.id IS NOT NULL
-                          OR EXISTS (
-                              SELECT 1
-                              FROM submission_field_result sfr
-                              JOIN field f ON f.id = sfr.field_id
-                              JOIN class_entity ce ON ce.id = f.class_id
-                              WHERE sfr.submission_id = s.id AND ce.challenge_id = :challengeId
-                          )
-                          OR EXISTS (
-                              SELECT 1
-                              FROM submission_method_result smr
-                              JOIN method m ON m.id = smr.method_id
-                              JOIN class_entity ce ON ce.id = m.class_id
-                              WHERE smr.submission_id = s.id AND ce.challenge_id = :challengeId
-                          )
-                          OR EXISTS (
-                              SELECT 1
-                              FROM submission_constructor_result scr_c
-                              JOIN "constructor" c ON c.id = scr_c.constructor_id
-                              JOIN class_entity ce ON ce.id = c.class_id
-                              WHERE scr_c.submission_id = s.id AND ce.challenge_id = :challengeId
-                          )
-                      )
+                      AND """ + challengeGradedSubmissionExists("s") + """
                     ORDER BY s.attempt_number DESC
                     LIMIT 1
                 ) challenge_sub ON true
@@ -364,13 +368,7 @@ public class LecturerAnalyticsRepository {
                 SELECT COUNT(*)
                 FROM user_account u
                 WHERE u.id IN (
-                    SELECT p.user_id FROM student_lab_progress p
-                    UNION
-                    SELECT te.user_id
-                    FROM term_enrollment te
-                    JOIN lab l ON l.term_id = te.term_id
-                    UNION
-                    SELECT DISTINCT s.user_id FROM lab_submission s
+                """ + GRADE_OVERVIEW_STUDENT_IDS + """
                 )
                 """;
         return singleLong(sql, Map.of());
@@ -381,13 +379,7 @@ public class LecturerAnalyticsRepository {
                 SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code)
                 FROM user_account u
                 WHERE u.id IN (
-                    SELECT p.user_id FROM student_lab_progress p
-                    UNION
-                    SELECT te.user_id
-                    FROM term_enrollment te
-                    JOIN lab l ON l.term_id = te.term_id
-                    UNION
-                    SELECT DISTINCT s.user_id FROM lab_submission s
+                """ + GRADE_OVERVIEW_STUDENT_IDS + """
                 )
                 ORDER BY u.full_name
                 LIMIT :pageSize OFFSET :offset

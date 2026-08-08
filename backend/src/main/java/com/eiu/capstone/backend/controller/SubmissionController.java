@@ -27,6 +27,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.StudentHistoryResponse;
 import com.eiu.capstone.backend.DTO.StudentLabSummaryDTO;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
+import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingService;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
@@ -72,6 +74,8 @@ public class SubmissionController {
     private final SubmissionCompileErrorStore compileErrorStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final StudentHistoryService studentHistoryService;
+    private final LabStatisticsCache labStatisticsCache;
+    private final LecturerOverviewCache lecturerOverviewCache;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -86,6 +90,8 @@ public class SubmissionController {
                                  SubmissionCompileErrorStore compileErrorStore,
                                  SubmissionMmdMetaStore submissionMmdMetaStore,
                                  StudentHistoryService studentHistoryService,
+                                 LabStatisticsCache labStatisticsCache,
+                                 LecturerOverviewCache lecturerOverviewCache,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -99,6 +105,8 @@ public class SubmissionController {
         this.compileErrorStore = compileErrorStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.studentHistoryService = studentHistoryService;
+        this.labStatisticsCache = labStatisticsCache;
+        this.lecturerOverviewCache = lecturerOverviewCache;
         this.timingLog = timingLog;
     }
 
@@ -166,12 +174,14 @@ public class SubmissionController {
             submission = labSubmissionRepository.save(submission);
 
             StudentLabProgress progress = updateStudentProgress(
-                    userAccount, lab, submission, gradingOutcome.overallScore(), attemptNumber);
+                    userAccount, lab, submission, gradingOutcome.overallScore(), isNewSubmission);
 
             compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
             submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
+            labStatisticsCache.invalidate(labId);
+            lecturerOverviewCache.invalidate();
 
             Map<UUID, Integer> challengeResult = new LinkedHashMap<>();
             for (var graded : gradingOutcome.gradedChallenges()) {
@@ -207,7 +217,8 @@ public class SubmissionController {
                                                      Lab lab,
                                                      LabSubmission submission,
                                                      BigDecimal score,
-                                                     int attemptNumber) {
+                                                     boolean isNewSubmission) {
+        int attemptNumber = submission.getAttemptNumber() != null ? submission.getAttemptNumber() : 0;
         StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
                 .orElseGet(StudentLabProgress::new);
         progress.setUser(userAccount);
@@ -219,10 +230,12 @@ public class SubmissionController {
         }
         progress.setLastSubmittedAt(now);
 
-        labSubmissionRepository.flush();
-        int submissionRows = (int) labSubmissionRepository.countByUser_IdAndLab_Id(
-                userAccount.getId(), lab.getId());
-        progress.setAttemptsCount(Math.max(submissionRows, attemptNumber));
+        int priorCount = progress.getAttemptsCount() != null ? progress.getAttemptsCount() : 0;
+        if (isNewSubmission) {
+            progress.setAttemptsCount(Math.max(attemptNumber, priorCount + 1));
+        } else {
+            progress.setAttemptsCount(Math.max(priorCount, attemptNumber));
+        }
 
         if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
             progress.setHighestScore(score);

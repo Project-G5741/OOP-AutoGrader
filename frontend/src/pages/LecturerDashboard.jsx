@@ -52,24 +52,12 @@ function tabClass(active) {
   }`;
 }
 
-async function fetchAllLabSubmissions(labId, pageSize = 50) {
-  const all = [];
-  let page = 0;
-  while (true) {
-    const response = await fetch(
-      `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${pageSize}`,
-      { headers: authHeaders() }
-    );
-    if (!response.ok) break;
-    const data = await response.json();
-    all.push(...(data.content ?? []));
-    if (data.totalPages != null && page < data.totalPages - 1) {
-      page += 1;
-    } else {
-      break;
-    }
-  }
-  return all;
+async function fetchAllLabSubmissions(labId) {
+  const response = await fetch(`${API_BASE}/api/labs/${labId}/submissions/export`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) return [];
+  return response.json();
 }
 
 export default function LecturerDashboard({ user, onLogout }) {
@@ -411,7 +399,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const exportOverview = async (format) => {
     if (!selectedLabId) return;
-    const all = await fetchAllLabSubmissions(selectedLabId, ROSTER_PAGE_SIZE);
+    const all = await fetchAllLabSubmissions(selectedLabId);
     const rows = all.map((r) => ({
       'Student Name': r.studentName ?? '',
       'Student ID': r.studentCode ?? '',

@@ -60,8 +60,16 @@ public class LabController {
     public Page<SubmissionSummaryDTO> getSubmissions(@PathVariable UUID labId,
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "5") int size,
-                                                     @RequestParam(required = false) String sort) {
-        return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort);
+                                                     @RequestParam(required = false) String sort,
+                                                     @RequestParam(required = false) String afterName,
+                                                     @RequestParam(required = false) UUID afterId) {
+        return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort, afterName, afterId);
+    }
+
+    @GetMapping("/{labId}/submissions/export")
+    public List<SubmissionSummaryDTO> exportSubmissions(@PathVariable UUID labId,
+                                                        @RequestParam(required = false) String sort) {
+        return lecturerAnalyticsService.getLabSubmissionsExport(labId, sort);
     }
 
     @GetMapping("/{labId}/students/{studentId}/attempts")
