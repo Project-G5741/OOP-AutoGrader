@@ -21,6 +21,7 @@ public class BrevoTransactionalEmailSender implements TransactionalEmailSender {
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
     private final RestClient restClient;
+    private final String apiKey;
     private final String fromAddress;
     private final String fromName;
 
@@ -32,10 +33,12 @@ public class BrevoTransactionalEmailSender implements TransactionalEmailSender {
             throw new IllegalStateException("BREVO_API_KEY is required when MAIL_PROVIDER=brevo");
         }
         if (apiKey.startsWith("xsmtpsib-")) {
-            throw new IllegalStateException(
+            log.error(
                     "BREVO_API_KEY looks like an SMTP key (xsmtpsib-). "
-                            + "Create a v3 API key (xkeysib-) under Brevo → SMTP & API → API keys.");
+                            + "Password-reset email will fail until you replace it with a v3 API key "
+                            + "(xkeysib-) from Brevo → SMTP & API → API keys.");
         }
+        this.apiKey = apiKey;
         this.fromAddress = fromAddress;
         this.fromName = fromName;
         this.restClient = RestClient.builder()
@@ -46,6 +49,12 @@ public class BrevoTransactionalEmailSender implements TransactionalEmailSender {
 
     @Override
     public void sendPlainText(String toEmail, String subject, String body) {
+        if (apiKey.startsWith("xsmtpsib-")) {
+            throw new MailSendException(
+                    "BREVO_API_KEY is an SMTP key (xsmtpsib-). "
+                            + "Create a v3 API key (xkeysib-) under Brevo → SMTP & API → API keys.");
+        }
+
         Map<String, Object> payload = Map.of(
                 "sender", Map.of("email", fromAddress, "name", fromName),
                 "to", List.of(Map.of("email", toEmail)),
