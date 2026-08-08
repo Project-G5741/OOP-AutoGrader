@@ -30,7 +30,11 @@ cors:
 
 app:
   mail:
+    provider: ${MAIL_PROVIDER:smtp}
     from: ${MAIL_FROM:projectg5741@gmail.com}
+    from-name: ${MAIL_FROM_NAME:OOP AutoGrader}
+    brevo:
+      api-key: ${BREVO_API_KEY:}
   password-reset:
     expiry-minutes: 15
     frontend-url: ${RESET_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}
