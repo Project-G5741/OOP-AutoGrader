@@ -15,7 +15,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
-| `PasswordResetEmailService` | Sends reset links via Gmail SMTP (`app.mail.from`) |
+| `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
