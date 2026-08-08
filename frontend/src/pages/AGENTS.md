@@ -84,6 +84,7 @@ Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
 | `GET /api/labs/{labId}/students/{studentId}/attempts` | `LecturerDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{challengeId}/students` | `LecturerDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{challengeId}/class?studentId=` | `LecturerDashboard.jsx` (drawer) |
+| `GET /api/labs/{labId}/challenges/{challengeId}/mmd?studentId=` | `LecturerDashboard.jsx` (drawer) |
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.

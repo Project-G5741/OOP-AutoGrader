@@ -24,13 +24,15 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `SubmissionTable.jsx` | Enrolled-student roster / challenge submission table |
 
-| `ClassScoreBreakdown.jsx` | Expandable class/member grading breakdown (StudentUI pattern) |
+| `ClassScoreBreakdown.jsx` | Expandable Java class/member grading breakdown |
 
-| `LecturerSubmissionDrawer.jsx` | Right drawer: challenge submission detail + export |
+| `MmdScoreBreakdown.jsx` | Expandable MMD class + relations breakdown for lecturer drawer |
+
+| `LecturerSubmissionDrawer.jsx` | Right drawer: Class | MMD tabs, challenge detail + export |
 
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View |
 
-| `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker |
+| `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page (student, IRN, total + per-lab scores); clickable rows |
 | `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, date sort) |
@@ -57,7 +59,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster **View** opens `LabAttemptHistoryDrawer` (`GET /api/labs/{labId}/students/{studentId}/attempts`)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with class breakdown (`GET .../challenges/{id}/class?studentId=`)
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`)
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
 - Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
@@ -111,7 +113,7 @@ User management and submission management are separate pages (`UserManagement`, 
 
 - `exportOverview` fetches all enrolled students via `GET /api/labs/{labId}/submissions/export`, then exports via `exportRosterRows`
 
-- Challenge export includes student name, incorrect class, and incorrect methods only
+- Challenge export merges incorrect Java methods and incorrect MMD attributes/relations (`Source`, `Item Type`, `Incorrect Item`, `Error` columns); title `Incorrect breakdown — {studentName}`
 
 - `UploadPanel.jsx` is dead code; remove or wire up when lecturer upload flow is defined
 
