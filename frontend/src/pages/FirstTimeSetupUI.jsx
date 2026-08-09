@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Moon, Sun, BarChart3, Eye, EyeOff, Lock, CreditCard, Calendar, CheckCircle2 } from 'lucide-react';
+import { Moon, Sun, BarChart3, Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
+import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
 
 export default function FirstTimeSetupUI({ token, profile = {}, onClose, onComplete }) {
   const [isDark, setIsDark] = useState(true);
@@ -10,21 +11,27 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   const [showConfirm, setShowConfirm] = useState(false);
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const passwordMatch = password && confirm && password === confirm;
-  const passwordMismatch = password && confirm && password !== confirm;
+  const [formError, setFormError] = useState('');
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+  const fieldErrors = getFirstTimeSetupErrors(irn, password, confirm);
+  const canSubmit = isFormValid(fieldErrors);
+  const passwordMatch = password && confirm && !fieldErrors.password && !fieldErrors.confirm;
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!irn || !passwordMatch) return;
+    if (!canSubmit) {
+      return;
+    }
+
+    setFormError('');
     setIsSubmitting(true);
     try {
       const resp = await fetch(`${API_BASE}/api/auth/google/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, irn, password, role: 'STUDENT'}),
+        body: JSON.stringify({ token, irn: irn.trim(), password, role: 'STUDENT' }),
       });
       if (!resp.ok) {
         const text = await resp.text();
@@ -35,11 +42,21 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
       onComplete?.(data);
     } catch (err) {
       console.error('Upsert failed', err);
-      alert(err.message || 'Setup failed');
+      setFormError(err.message || 'Setup failed');
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  const borderClass = (hasError, isMatch = false) => {
+    if (hasError) {
+      return 'border-red-400 dark:border-red-500 focus:ring-red-400';
+    }
+    if (isMatch) {
+      return 'border-green-400 dark:border-green-500 focus:ring-green-400';
+    }
+    return 'border-gray-200 dark:border-gray-700 focus:ring-purple-500';
+  };
 
   return (
     <div className={isDark ? 'dark' : ''}>
@@ -97,12 +114,19 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                     <input
                       type="text"
                       value={irn}
-                      onChange={(e) => setIrn(e.target.value)}
-                      placeholder="e.g. 20521234"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
+                      onChange={(e) => {
+                        setIrn(e.target.value);
+                        setFormError('');
+                      }}
+                      placeholder="e.g. 2052123456"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#151b24] border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.irn)}`}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-600">Your student identification number</p>
+                  {fieldErrors.irn ? (
+                    <p className="mt-1 text-xs text-red-500">{fieldErrors.irn}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-600">10-digit student identification number</p>
+                  )}
                 </div>
 
                 <div>
@@ -112,14 +136,18 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFormError('');
+                      }}
                       placeholder="Create a password"
-                      className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
+                      className={`w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-[#151b24] border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.password)}`}
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
                 </div>
 
                 <div>
@@ -129,27 +157,26 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                     <input
                       type={showConfirm ? 'text' : 'password'}
                       value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
+                      onChange={(e) => {
+                        setConfirm(e.target.value);
+                        setFormError('');
+                      }}
                       placeholder="Re-enter your password"
-                      className={`w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-[#151b24] border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${
-                        passwordMismatch
-                          ? 'border-red-400 dark:border-red-500 focus:ring-red-400'
-                          : passwordMatch
-                          ? 'border-green-400 dark:border-green-500 focus:ring-green-400'
-                          : 'border-gray-200 dark:border-gray-700 focus:ring-purple-500'
-                      }`}
+                      className={`w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-[#151b24] border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.confirm, passwordMatch)}`}
                     />
                     <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
                       {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {passwordMismatch && <p className="mt-1 text-xs text-red-500">Passwords do not match</p>}
+                  {fieldErrors.confirm && <p className="mt-1 text-xs text-red-500">{fieldErrors.confirm}</p>}
                   {passwordMatch && (
                     <p className="mt-1 text-xs text-green-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Passwords match</p>
                   )}
                 </div>
 
-                <button type="submit" disabled={!irn || !passwordMatch || isSubmitting} className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition-all duration-200 shadow-md shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed mt-2">
+                {formError && <p className="text-xs text-red-500">{formError}</p>}
+
+                <button type="submit" disabled={!canSubmit || isSubmitting} className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg font-medium hover:from-purple-700 hover:to-purple-600 transition-all duration-200 shadow-md shadow-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed mt-2">
                   {isSubmitting ? 'Processing...' : 'Complete Setup'}
                 </button>
               </form>

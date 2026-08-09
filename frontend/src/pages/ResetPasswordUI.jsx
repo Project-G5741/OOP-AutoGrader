@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Moon, Sun, BarChart3, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import './LoginUI.css';
+import { getResetPasswordErrors, isFormValid } from '../utils/validation';
 
 export default function ResetPasswordUI({ token, onComplete }) {
   const [isDark, setIsDark] = useState(true);
@@ -9,28 +10,19 @@ export default function ResetPasswordUI({ token, onComplete }) {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-  const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword;
-  const passwordsMismatch = newPassword && confirmPassword && newPassword !== confirmPassword;
+  const fieldErrors = getResetPasswordErrors(newPassword, confirmPassword);
+  const canSubmit = isFormValid(fieldErrors);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setFormError('');
 
-    if (!newPassword || newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    if (newPassword.length > 100) {
-      setError('Password must be less than 100 characters.');
-      return;
-    }
-    if (!passwordsMatch) {
-      setError('Passwords do not match.');
+    if (!canSubmit) {
       return;
     }
 
@@ -56,7 +48,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
         onComplete?.();
       }, 2000);
     } catch (err) {
-      setError(err.message || 'Unable to reset password. Please request a new link.');
+      setFormError(err.message || 'Unable to reset password. Please request a new link.');
     } finally {
       setIsLoading(false);
     }
@@ -121,10 +113,10 @@ export default function ResetPasswordUI({ token, onComplete }) {
                       value={newPassword}
                       onChange={(e) => {
                         setNewPassword(e.target.value);
-                        setError('');
+                        setFormError('');
                       }}
                       placeholder="At least 6 characters"
-                      className="input-field"
+                      className={`input-field${fieldErrors.newPassword ? ' input-error' : ''}`}
                       autoComplete="new-password"
                     />
                     <button
@@ -136,6 +128,11 @@ export default function ResetPasswordUI({ token, onComplete }) {
                       {showNew ? <EyeOff className="toggle-icon" /> : <Eye className="toggle-icon" />}
                     </button>
                   </div>
+                  {fieldErrors.newPassword && (
+                    <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
+                      {fieldErrors.newPassword}
+                    </p>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -147,10 +144,10 @@ export default function ResetPasswordUI({ token, onComplete }) {
                       value={confirmPassword}
                       onChange={(e) => {
                         setConfirmPassword(e.target.value);
-                        setError('');
+                        setFormError('');
                       }}
                       placeholder="Re-enter your password"
-                      className="input-field"
+                      className={`input-field${fieldErrors.confirmPassword ? ' input-error' : ''}`}
                       autoComplete="new-password"
                     />
                     <button
@@ -162,20 +159,20 @@ export default function ResetPasswordUI({ token, onComplete }) {
                       {showConfirm ? <EyeOff className="toggle-icon" /> : <Eye className="toggle-icon" />}
                     </button>
                   </div>
-                  {passwordsMismatch && (
+                  {fieldErrors.confirmPassword && (
                     <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                      Passwords do not match
+                      {fieldErrors.confirmPassword}
                     </p>
                   )}
                 </div>
 
-                {error && (
+                {formError && (
                   <p className="info-text" style={{ color: '#f87171', marginBottom: '0.75rem' }}>
-                    {error}
+                    {formError}
                   </p>
                 )}
 
-                <button type="submit" className="primary-btn" disabled={isLoading || passwordsMismatch}>
+                <button type="submit" className="primary-btn" disabled={isLoading || !canSubmit}>
                   {isLoading ? 'Saving...' : 'Reset password'}
                 </button>
               </form>
