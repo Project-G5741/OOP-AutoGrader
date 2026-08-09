@@ -29,6 +29,11 @@ public class SubmissionResultLoader {
                 toSet(grouped.get("relation")));
     }
 
+    @Transactional(readOnly = true)
+    public boolean hasAnyResults(UUID submissionId) {
+        return submissionResultReadRepository.hasAnyResults(submissionId);
+    }
+
     private static Set<UUID> toSet(List<UUID> ids) {
         return ids == null ? Set.of() : new HashSet<>(ids);
     }

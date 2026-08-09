@@ -34,7 +34,9 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 | `RESET_FRONTEND_URL` | Optional override for fallback reset-link base (defaults to `FRONTEND_URL`) |
 
 Password-reset emails use the request `Origin` when it matches an allowed frontend (localhost or `https://oop-autograder.vercel.app`), so one backend can serve both local and production SPAs.
-| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Gmail SMTP for password-reset emails (`projectg5741@gmail.com`) |
+| `MAIL_PROVIDER` | `smtp` (local) or `brevo` (Render free tier — SMTP ports blocked) |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Gmail SMTP when `MAIL_PROVIDER=smtp` |
+| `BREVO_API_KEY`, `MAIL_FROM` | Brevo HTTPS API when `MAIL_PROVIDER=brevo` (verify sender in Brevo dashboard) |
 | `SUBMISSION_BASE_DIR` | Upload temp root (default `submissions/`) |
 | `PORT` | Server port (default `8002`) |
 
@@ -100,6 +102,7 @@ Grading tuning properties (`application.properties`):
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
 - `attemptsCount` on progress is maintained incrementally on upload (new attempt increments; re-upload of same attempt does not recount)
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
+- Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
 - `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5)
