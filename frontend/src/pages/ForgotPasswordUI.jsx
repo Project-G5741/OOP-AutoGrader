@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Moon, Sun, BarChart3, Mail, ArrowLeft } from 'lucide-react';
 import './LoginUI.css';
+import { validateEmail } from '../utils/validation';
+import { readApiErrorMessage } from '../utils/apiError';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
   const [isDark, setIsDark] = useState(true);
@@ -10,26 +12,19 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
   const [sent, setSent] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+  const emailError = validateEmail(email);
+  const canSubmit = !emailError;
 
-  const parseErrorMessage = async (response) => {
-    const text = await response.text();
-    if (!text) {
-      return 'Unable to send reset email. Please try again.';
-    }
-    try {
-      const data = JSON.parse(text);
-      return data.message || data.error || text;
-    } catch {
-      return text;
-    }
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!email.trim()) {
-      setError('Please enter your email address.');
+    if (emailError) {
       return;
     }
 
@@ -41,12 +36,8 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
         body: JSON.stringify({ email: email.trim() }),
       });
 
-      if (response.status === 404) {
-        throw new Error(await parseErrorMessage(response));
-      }
-
       if (!response.ok) {
-        throw new Error(await parseErrorMessage(response));
+        throw new Error(await readApiErrorMessage(response, 'Unable to send reset email. Please try again.'));
       }
 
       setSent(true);
@@ -105,15 +96,17 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setError('');
-                      }}
+                      onChange={(e) => handleEmailChange(e.target.value)}
                       placeholder="you@eiu.edu.vn"
-                      className="input-field"
+                      className={`input-field${emailError ? ' input-error' : ''}`}
                       autoComplete="email"
                     />
                   </div>
+                  {emailError && (
+                    <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
+                      {emailError}
+                    </p>
+                  )}
                 </div>
 
                 {error && (
@@ -122,7 +115,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
                   </p>
                 )}
 
-                <button type="submit" className="primary-btn" disabled={isLoading}>
+                <button type="submit" className="primary-btn" disabled={isLoading || !canSubmit}>
                   {isLoading ? 'Sending...' : 'Send reset link'}
                 </button>
 

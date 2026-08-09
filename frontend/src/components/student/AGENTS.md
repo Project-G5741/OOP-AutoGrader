@@ -9,7 +9,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
-| `ProfileEditModal.jsx` | Edit profile modal — used by both student and lecturer dashboards |
+| `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
 
@@ -20,10 +20,11 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - Expanded rows show challenge-level results only
 - Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score)
 
-### ProfileEditModal
+### ChangePasswordModal
 
 - Opened via `Header` `editProfile` command
 - Shared across `StudentDashboard` and `LecturerDashboard`
+- Client validation via `frontend/src/utils/validation.js` (password length, confirm match, new ≠ current)
 
 ### Upload inputs (from parent page)
 
