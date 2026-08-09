@@ -12,6 +12,7 @@ import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository
 import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
 
 @Component
 class GradingResultStore {
@@ -21,17 +22,20 @@ class GradingResultStore {
     private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
     private final SubmissionRelationResultRepository submissionRelationResultRepository;
     private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
+    private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
 
     GradingResultStore(SubmissionFieldResultRepository submissionFieldResultRepository,
                        SubmissionMethodResultRepository submissionMethodResultRepository,
                        SubmissionConstructorResultRepository submissionConstructorResultRepository,
                        SubmissionRelationResultRepository submissionRelationResultRepository,
-                       SubmissionChallengeResultRepository submissionChallengeResultRepository) {
+                       SubmissionChallengeResultRepository submissionChallengeResultRepository,
+                       SubmissionTestcaseResultRepository submissionTestcaseResultRepository) {
         this.submissionFieldResultRepository = submissionFieldResultRepository;
         this.submissionMethodResultRepository = submissionMethodResultRepository;
         this.submissionConstructorResultRepository = submissionConstructorResultRepository;
         this.submissionRelationResultRepository = submissionRelationResultRepository;
         this.submissionChallengeResultRepository = submissionChallengeResultRepository;
+        this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +52,8 @@ class GradingResultStore {
                 .stream().collect(Collectors.toMap(r -> r.getClassRelation().getId(), r -> r));
         existing.challengeResults = submissionChallengeResultRepository.findBySubmission_IdWithChallenge(submissionId)
                 .stream().collect(Collectors.toMap(r -> r.getChallenge().getId(), r -> r));
+        existing.testcaseResults = submissionTestcaseResultRepository.findBySubmission_IdWithTestcase(submissionId)
+                .stream().collect(Collectors.toMap(r -> r.getTestcase().getId(), r -> r));
         return existing;
     }
 
@@ -58,5 +64,6 @@ class GradingResultStore {
         submissionConstructorResultRepository.saveAll(computed.constructorResults);
         submissionRelationResultRepository.saveAll(computed.relationResults);
         submissionChallengeResultRepository.saveAll(computed.challengeResults);
+        submissionTestcaseResultRepository.saveAll(computed.testcaseResults);
     }
 }

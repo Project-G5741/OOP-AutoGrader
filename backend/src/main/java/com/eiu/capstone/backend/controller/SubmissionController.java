@@ -3,7 +3,6 @@ package com.eiu.capstone.backend.controller;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,9 +54,6 @@ import io.jsonwebtoken.JwtException;
 @RestController
 @RequestMapping("/api/submissions")
 public class SubmissionController {
-
-    private static final DateTimeFormatter LATEST_SUBMISSION_FORMAT =
-            DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm");
 
     private static final Pattern CHALLENGE_NUMBER_PATTERN =
             Pattern.compile("challenge_(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -173,8 +169,11 @@ public class SubmissionController {
             submission.setScore(gradingOutcome.overallScore());
             submission = labSubmissionRepository.save(submission);
 
+            int totalSubmissions = (int) labSubmissionRepository.countByUser_IdAndLab_Id(
+                    userAccount.getId(), labId);
+
             StudentLabProgress progress = updateStudentProgress(
-                    userAccount, lab, submission, gradingOutcome.overallScore(), isNewSubmission);
+                    userAccount, lab, submission, gradingOutcome.overallScore(), totalSubmissions);
 
             compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
             submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
@@ -201,10 +200,11 @@ public class SubmissionController {
                     challengeResult,
                     submission.getScore(),
                     attemptNumber,
-                    progress.getAttemptsCount(),
+                    totalSubmissions,
                     progress.getLastSubmittedAt() == null
                             ? null
-                            : LATEST_SUBMISSION_FORMAT.format(progress.getLastSubmittedAt())
+                            : TimeUtil.formatLatestSubmission(progress.getLastSubmittedAt()),
+                    gradingOutcome.labResult()
             ));
         } finally {
             if (submissionFolderToDelete != null) {
@@ -217,8 +217,7 @@ public class SubmissionController {
                                                      Lab lab,
                                                      LabSubmission submission,
                                                      BigDecimal score,
-                                                     boolean isNewSubmission) {
-        int attemptNumber = submission.getAttemptNumber() != null ? submission.getAttemptNumber() : 0;
+                                                     int submissionCount) {
         StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
                 .orElseGet(StudentLabProgress::new);
         progress.setUser(userAccount);
@@ -229,13 +228,7 @@ public class SubmissionController {
             progress.setFirstSubmittedAt(now);
         }
         progress.setLastSubmittedAt(now);
-
-        int priorCount = progress.getAttemptsCount() != null ? progress.getAttemptsCount() : 0;
-        if (isNewSubmission) {
-            progress.setAttemptsCount(Math.max(attemptNumber, priorCount + 1));
-        } else {
-            progress.setAttemptsCount(Math.max(priorCount, attemptNumber));
-        }
+        progress.setAttemptsCount(submissionCount);
 
         if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
             progress.setHighestScore(score);

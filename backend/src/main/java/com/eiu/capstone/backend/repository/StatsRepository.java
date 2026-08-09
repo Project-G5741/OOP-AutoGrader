@@ -1,6 +1,8 @@
 package com.eiu.capstone.backend.repository;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -12,6 +14,8 @@ import jakarta.persistence.PersistenceContext;
 
 import org.springframework.stereotype.Repository;
 
+import com.eiu.capstone.backend.utility.TimeUtil;
+
 @Repository
 public class StatsRepository {
 
@@ -22,7 +26,7 @@ public class StatsRepository {
         String sql = """
                 SELECT p.attempts_count,
                        latest_sub.score,
-                       latest_sub.submitted_at,
+                       COALESCE(latest_sub.submitted_at, p.last_submitted_at) AS latest_submitted_at,
                        COALESCE((
                            SELECT COUNT(*)
                            FROM lab_submission ls
@@ -65,15 +69,27 @@ public class StatsRepository {
             int submissionCount) {
 
         public OffsetDateTime latestSubmittedAtOffset() {
-            if (latestSubmittedAt instanceof OffsetDateTime offsetDateTime) {
-                return offsetDateTime;
-            }
-            return null;
+            return toOffsetDateTime(latestSubmittedAt);
         }
 
-        public LocalDateTime latestSubmittedAtLocal() {
-            if (latestSubmittedAt instanceof LocalDateTime localDateTime) {
-                return localDateTime;
+        private static OffsetDateTime toOffsetDateTime(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof OffsetDateTime offsetDateTime) {
+                return offsetDateTime;
+            }
+            if (value instanceof LocalDateTime localDateTime) {
+                return localDateTime.atZone(TimeUtil.VIETNAM_ZONE).toOffsetDateTime();
+            }
+            if (value instanceof Instant instant) {
+                return instant.atZone(TimeUtil.VIETNAM_ZONE).toOffsetDateTime();
+            }
+            if (value instanceof Timestamp timestamp) {
+                return timestamp.toInstant().atZone(TimeUtil.VIETNAM_ZONE).toOffsetDateTime();
+            }
+            if (value instanceof java.util.Date date) {
+                return date.toInstant().atZone(TimeUtil.VIETNAM_ZONE).toOffsetDateTime();
             }
             return null;
         }

@@ -2,6 +2,8 @@ package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.*;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
+import com.eiu.capstone.backend.grading.MmdGradingOutcome;
+import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
@@ -56,6 +58,81 @@ public class ClassStructureService {
         this.timingLog = timingLog;
     }
 
+    /**
+     * Loads rubric structure for many challenges in batched queries (one round-trip per entity type).
+     */
+    public LabChallengeStructureBundle loadChallengeStructures(Collection<UUID> challengeIds) {
+        if (challengeIds == null || challengeIds.isEmpty()) {
+            return emptyStructureBundle();
+        }
+
+        List<Challenge> challenges = challengeRepository.findAllById(challengeIds);
+        if (challenges.isEmpty()) {
+            return emptyStructureBundle();
+        }
+
+        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
+        if (classes.isEmpty()) {
+            return new LabChallengeStructureBundle(
+                    masterDataCache.get(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of());
+        }
+
+        List<Field> allFields = fieldRepository.findByClassEntityInWithDeclaration(classes);
+        List<Method> allMethods = methodRepository.findByClassEntityInWithDeclaration(classes);
+        List<Constructor> allConstructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
+        List<ClassRelation> allRelations = classRelationRepository.findByClassEntityInWithEndpoints(classes);
+        List<Parameter> constructorParams = allConstructors.isEmpty()
+                ? List.of()
+                : parameterRepository.findByConstructorEntityIn(allConstructors);
+        List<Parameter> methodParams = allMethods.isEmpty()
+                ? List.of()
+                : parameterRepository.findByMethodIn(allMethods);
+
+        Map<UUID, List<ClassEntity>> classesByChallengeId = classes.stream()
+                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        Map<UUID, List<Field>> fieldsByClassId = allFields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClassId = allMethods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClassId = allConstructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        Map<UUID, List<Parameter>> paramsByConstructorId = constructorParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
+        Map<UUID, List<Parameter>> paramsByMethodId = methodParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
+        Map<UUID, List<ClassRelation>> relationsBySourceClassId = allRelations.stream()
+                .collect(Collectors.groupingBy(r -> r.getClassEntity().getId()));
+
+        return new LabChallengeStructureBundle(
+                masterDataCache.get(),
+                classesByChallengeId,
+                fieldsByClassId,
+                methodsByClassId,
+                constructorsByClassId,
+                paramsByConstructorId,
+                paramsByMethodId,
+                relationsBySourceClassId);
+    }
+
+    private static LabChallengeStructureBundle emptyStructureBundle() {
+        return new LabChallengeStructureBundle(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of());
+    }
+
     public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionId != null
@@ -72,58 +149,58 @@ public class ClassStructureService {
     }
 
     public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId, UUID challengeId) {
+        return buildMmdDataForSubmission(submissionId, challengeId, null, null);
+    }
+
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId,
+                                                      UUID challengeId,
+                                                      MmdGradingOutcome mmdOutcome,
+                                                      Boolean mmdSubmittedOverride) {
         Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
         if (challenge == null) {
             return List.of();
         }
+        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
+        return buildMmdData(structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId);
+    }
 
-        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(List.of(challenge));
+    public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
+                                          UUID challengeId,
+                                          SubmissionCorrectIds correctIds,
+                                          MmdGradingOutcome mmdOutcome,
+                                          Boolean mmdSubmittedOverride,
+                                          ChallengeMmdMeta mmdMeta,
+                                          UUID submissionId) {
+        List<ClassEntity> classes = structure.classesForChallenge(challengeId);
         if (classes.isEmpty()) {
             return List.of();
         }
 
-        Map<Integer, String> masterData = masterDataCache.get();
-        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
-        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
-
-        List<Field> allFields = fieldRepository.findByClassEntityInWithDeclaration(classes);
-        List<Method> allMethods = methodRepository.findByClassEntityInWithDeclaration(classes);
-        List<Constructor> allConstructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
-        List<ClassRelation> allRelations = classRelationRepository.findByClassEntityInWithEndpoints(classes);
-        List<Parameter> constructorParams = allConstructors.isEmpty()
-                ? List.of()
-                : parameterRepository.findByConstructorEntityIn(allConstructors);
-        List<Parameter> methodParams = allMethods.isEmpty()
-                ? List.of()
-                : parameterRepository.findByMethodIn(allMethods);
-
-        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
-                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
-        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
-                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
-        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
-                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
-        Map<UUID, List<Parameter>> paramsByConstructor = constructorParams.stream()
-                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
-        Map<UUID, List<Parameter>> paramsByMethod = methodParams.stream()
-                .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
-        Map<UUID, List<ClassRelation>> relationsBySourceClass = allRelations.stream()
-                .collect(Collectors.groupingBy(r -> r.getClassEntity().getId()));
-
-        boolean effectiveMmdSubmitted = resolveEffectiveMmdSubmitted(submissionId, mmdMeta, correctIds);
+        Map<Integer, String> masterData = structure.masterData();
+        ChallengeMmdMeta effectiveMeta = mmdMeta != null ? mmdMeta : new ChallengeMmdMeta();
+        boolean effectiveMmdSubmitted = mmdSubmittedOverride != null
+                ? mmdSubmittedOverride
+                : resolveEffectiveMmdSubmitted(submissionId, effectiveMeta, correctIds);
 
         List<MmdClassDTO> result = new ArrayList<>();
         for (ClassEntity classEntity : classes) {
             UUID classId = classEntity.getId();
             String classIdStr = classId.toString();
-            boolean stereotypeOk = mmdMeta.classStereotypeCorrect.getOrDefault(classIdStr, false);
-            if (!stereotypeOk && effectiveMmdSubmitted && mmdMeta.classStereotypeCorrect.isEmpty()) {
-                stereotypeOk = classHasMergedCorrectMember(
-                        classId,
-                        fieldsByClass,
-                        methodsByClass,
-                        constructorsByClass,
-                        correctIds);
+            boolean stereotypeOk;
+            if (mmdOutcome != null) {
+                stereotypeOk = mmdOutcome.isClassPresent(classId) && mmdOutcome.isClassCorrect(classId);
+            } else {
+                stereotypeOk = effectiveMeta.classStereotypeCorrect.getOrDefault(classIdStr, false);
+                if (!stereotypeOk && effectiveMmdSubmitted && effectiveMeta.classStereotypeCorrect.isEmpty()) {
+                    stereotypeOk = classHasMergedCorrectMember(
+                            classId,
+                            structure.fieldsByClassId(),
+                            structure.methodsByClassId(),
+                            structure.constructorsByClassId(),
+                            correctIds);
+                }
             }
 
             List<MmdAttributeDTO> attributes = new ArrayList<>();
@@ -133,33 +210,50 @@ public class ClassStructureService {
                     stereotypeOk,
                     stereotypeOk ? null : (effectiveMmdSubmitted ? "Class missing from diagram" : "Missing MMD file")));
 
-            fieldsByClass.getOrDefault(classEntity.getId(), List.of()).forEach(field ->
-                    attributes.add(new MmdAttributeDTO(
-                            formatFieldName(field),
-                            "field",
-                            correctIds.fieldIds().contains(field.getId()),
-                            correctIds.fieldIds().contains(field.getId()) ? null : "Field mismatch")));
+            structure.fieldsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(field -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isFieldCorrect(field.getId())
+                        : correctIds.fieldIds().contains(field.getId());
+                attributes.add(new MmdAttributeDTO(
+                        formatFieldName(field),
+                        "field",
+                        ok,
+                        ok ? null : "Field mismatch"));
+            });
 
-            constructorsByClass.getOrDefault(classEntity.getId(), List.of()).forEach(constructor ->
-                    attributes.add(new MmdAttributeDTO(
-                            formatConstructorName(constructor, paramsByConstructor.getOrDefault(constructor.getId(), List.of())),
-                            "constructor",
-                            correctIds.constructorIds().contains(constructor.getId()),
-                            correctIds.constructorIds().contains(constructor.getId()) ? null : "Constructor mismatch")));
+            structure.constructorsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(constructor -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isConstructorCorrect(constructor.getId())
+                        : correctIds.constructorIds().contains(constructor.getId());
+                attributes.add(new MmdAttributeDTO(
+                        formatConstructorName(constructor,
+                                structure.paramsByConstructorId().getOrDefault(constructor.getId(), List.of())),
+                        "constructor",
+                        ok,
+                        ok ? null : "Constructor mismatch"));
+            });
 
-            methodsByClass.getOrDefault(classEntity.getId(), List.of()).forEach(method ->
-                    attributes.add(new MmdAttributeDTO(
-                            formatMethodName(method, paramsByMethod.getOrDefault(method.getId(), List.of())),
-                            "method",
-                            correctIds.methodIds().contains(method.getId()),
-                            correctIds.methodIds().contains(method.getId()) ? null : "Method mismatch")));
+            structure.methodsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(method -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isMethodCorrect(method.getId())
+                        : correctIds.methodIds().contains(method.getId());
+                attributes.add(new MmdAttributeDTO(
+                        formatMethodName(method,
+                                structure.paramsByMethodId().getOrDefault(method.getId(), List.of())),
+                        "method",
+                        ok,
+                        ok ? null : "Method mismatch"));
+            });
 
-            List<MmdRelationDTO> relations = relationsBySourceClass.getOrDefault(classEntity.getId(), List.of()).stream()
+            List<MmdRelationDTO> relations = structure.relationsBySourceClassId()
+                    .getOrDefault(classEntity.getId(), List.of()).stream()
                     .map(relation -> {
-                        boolean ok = correctIds.relationIds().contains(relation.getId());
+                        boolean ok = mmdOutcome != null
+                                ? mmdOutcome.isRelationCorrect(relation.getId())
+                                : correctIds.relationIds().contains(relation.getId());
                         String error = ok
                                 ? null
-                                : mmdMeta.relationErrors.getOrDefault(
+                                : effectiveMeta.relationErrors.getOrDefault(
                                         relation.getId().toString(),
                                         effectiveMmdSubmitted ? "Relation mismatch" : "Missing relationship");
                         return new MmdRelationDTO(
@@ -262,36 +356,25 @@ public class ClassStructureService {
         if (challenge == null) {
             return List.of();
         }
+        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        String compileError = compileErrorStore.get(submissionId, challengeId);
+        return buildClassData(structure, challengeId, correctIds, compileError);
+    }
 
-        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(List.of(challenge));
+    public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
+                                               UUID challengeId,
+                                               SubmissionCorrectIds correctIds,
+                                               String compileError) {
+        List<ClassEntity> classes = structure.classesForChallenge(challengeId);
         if (classes.isEmpty()) {
             return List.of();
         }
 
-        Map<Integer, String> masterData = masterDataCache.get();
-        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
-
-        List<Field> allFields = fieldRepository.findByClassEntityInWithDeclaration(classes);
-        List<Method> allMethods = methodRepository.findByClassEntityInWithDeclaration(classes);
-        List<Constructor> allConstructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
-        List<Parameter> constructorParams = allConstructors.isEmpty()
-                ? List.of()
-                : parameterRepository.findByConstructorEntityIn(allConstructors);
-
-        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
-                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
-        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
-                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
-        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
-                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
-        Map<UUID, List<Parameter>> paramsByConstructor = constructorParams.stream()
-                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
-
-        String compileError = compileErrorStore.get(submissionId, challengeId);
-
+        Map<Integer, String> masterData = structure.masterData();
         List<ClassDetailDTO> result = new ArrayList<>();
         for (ClassEntity ce : classes) {
-            List<ClassFieldDetailDTO> fields = fieldsByClass.getOrDefault(ce.getId(), List.of()).stream()
+            List<ClassFieldDetailDTO> fields = structure.fieldsByClassId().getOrDefault(ce.getId(), List.of()).stream()
                     .map(f -> new ClassFieldDetailDTO(
                             f.getName(),
                             resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
@@ -299,15 +382,16 @@ public class ClassStructureService {
                             correctIds.fieldIds().contains(f.getId())))
                     .toList();
 
-            List<ClassConstructorDetailDTO> constructors = constructorsByClass.getOrDefault(ce.getId(), List.of()).stream()
+            List<ClassConstructorDetailDTO> constructors = structure.constructorsByClassId()
+                    .getOrDefault(ce.getId(), List.of()).stream()
                     .map(c -> new ClassConstructorDetailDTO(
                             c.getName(),
                             resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
-                            formatParams(paramsByConstructor.getOrDefault(c.getId(), List.of()), true),
+                            formatParams(structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()), true),
                             correctIds.constructorIds().contains(c.getId())))
                     .toList();
 
-            List<ClassMethodDetailDTO> methods = methodsByClass.getOrDefault(ce.getId(), List.of()).stream()
+            List<ClassMethodDetailDTO> methods = structure.methodsByClassId().getOrDefault(ce.getId(), List.of()).stream()
                     .map(m -> new ClassMethodDetailDTO(
                             m.getName(),
                             resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),

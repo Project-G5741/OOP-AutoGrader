@@ -17,7 +17,16 @@ A persisted per-element grading outcome (field, method, constructor, or challeng
 An in-memory, immutable graph of the lab's expected OOP structure (challenges, classes, members, class relations) loaded once per grading request, optionally from cache.
 
 ### MMD grading
-Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. When both `.java` and `.mmd` are present, a rubric element counts correct only if both sources pass.
+Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
+
+### Grading pillar
+One of three equal scoring slices per challenge in the rebuilt engine: `.class` reflection, `.mmd` diagram, or structural `testcase` rows. Challenge score is the arithmetic mean of the three pillar percentages.
+
+### Structural testcase
+A rubric-linked grading check stored in `testcase` with `EXISTENCE` or `DECLARATION` semantics pointing at a `class_entity`, `field`, `method`, or `constructor` row. Outcomes persist in `submission_testcase_result`; not runtime method execution.
+
+### lab_result bundle
+Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and testcase detail arrays so the student UI renders tabs without follow-up read API calls.
 
 ## Relationships
 

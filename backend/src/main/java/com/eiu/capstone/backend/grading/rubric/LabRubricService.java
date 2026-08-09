@@ -20,6 +20,7 @@ import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
 import com.eiu.capstone.backend.model.Parameter;
+import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
 import com.eiu.capstone.backend.repository.ClassRelationRepository;
@@ -27,6 +28,7 @@ import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
+import com.eiu.capstone.backend.repository.TestcaseRepository;
 
 @Service
 public class LabRubricService {
@@ -38,6 +40,7 @@ public class LabRubricService {
     private final ConstructorRepository constructorRepository;
     private final ParameterRepository parameterRepository;
     private final ClassRelationRepository classRelationRepository;
+    private final TestcaseRepository testcaseRepository;
 
     public LabRubricService(ChallengeRepository challengeRepository,
                             ClassEntityRepository classEntityRepository,
@@ -45,7 +48,8 @@ public class LabRubricService {
                             MethodRepository methodRepository,
                             ConstructorRepository constructorRepository,
                             ParameterRepository parameterRepository,
-                            ClassRelationRepository classRelationRepository) {
+                            ClassRelationRepository classRelationRepository,
+                            TestcaseRepository testcaseRepository) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
@@ -53,6 +57,7 @@ public class LabRubricService {
         this.constructorRepository = constructorRepository;
         this.parameterRepository = parameterRepository;
         this.classRelationRepository = classRelationRepository;
+        this.testcaseRepository = testcaseRepository;
     }
 
     public LabRubricSnapshot loadForLab(Lab lab) {
@@ -74,6 +79,12 @@ public class LabRubricService {
                 : parameterRepository.findByConstructorEntityIn(allConstructors);
         List<ClassRelation> allRelations = allClasses.isEmpty() ? List.of()
                 : classRelationRepository.findByClassEntityInWithEndpoints(allClasses);
+
+        List<UUID> challengeIds = challenges.stream().map(Challenge::getId).toList();
+        List<Testcase> allTestcases = challengeIds.isEmpty() ? List.of()
+                : testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(challengeIds);
+        Map<UUID, List<Testcase>> testcasesByChallenge = allTestcases.stream()
+                .collect(Collectors.groupingBy(t -> t.getChallenge().getId()));
 
         Map<UUID, List<Field>> fieldsByClass = allFields.stream()
                 .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
@@ -105,9 +116,13 @@ public class LabRubricService {
                     .stream()
                     .map(this::toRelationRubric)
                     .toList();
+            List<TestcaseRubric> testcaseRubrics = testcasesByChallenge.getOrDefault(challenge.getId(), List.of())
+                    .stream()
+                    .map(this::toTestcaseRubric)
+                    .toList();
             byNumber.put(challenge.getChallengeNumber(),
                     new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
-                            classRubrics, relationRubrics));
+                            classRubrics, relationRubrics, testcaseRubrics));
         }
 
         return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));
@@ -171,5 +186,16 @@ public class LabRubricService {
                 relation.getTargetClassEntity().getId(),
                 relation.getTargetClassEntity().getName(),
                 relation.getRelationType().getName());
+    }
+
+    private TestcaseRubric toTestcaseRubric(Testcase testcase) {
+        return new TestcaseRubric(
+                testcase.getId(),
+                testcase.getName(),
+                testcase.getCheckType(),
+                testcase.getTargetType(),
+                testcase.getTargetId(),
+                testcase.getWeight(),
+                testcase.getOrderIndex());
     }
 }

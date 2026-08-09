@@ -8,4 +8,14 @@ public record ChallengeRubric(
         int challengeNumber,
         String name,
         List<ClassRubric> classes,
-        List<RelationRubric> relations) {}
+        List<RelationRubric> relations,
+        List<TestcaseRubric> testcases) {
+
+    public ChallengeRubric(UUID challengeId,
+                           int challengeNumber,
+                           String name,
+                           List<ClassRubric> classes,
+                           List<RelationRubric> relations) {
+        this(challengeId, challengeNumber, name, classes, relations, List.of());
+    }
+}

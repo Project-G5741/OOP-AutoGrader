@@ -77,13 +77,16 @@ public class SubmissionStorageService {
         public final Path submissionFolder;
         public final List<ChallengeResult> challenges;
         public final Map<String, List<MultipartFile>> mmdByChallenge;
+        public final long compileWallMs;
 
         public ProcessResult(Path submissionFolder,
                              List<ChallengeResult> challenges,
-                             Map<String, List<MultipartFile>> mmdByChallenge) {
+                             Map<String, List<MultipartFile>> mmdByChallenge,
+                             long compileWallMs) {
             this.submissionFolder = submissionFolder;
             this.challenges = challenges;
             this.mmdByChallenge = mmdByChallenge;
+            this.compileWallMs = compileWallMs;
         }
     }
 
@@ -107,6 +110,7 @@ public class SubmissionStorageService {
         challengeKeys.addAll(grouped.javaByChallenge().keySet());
         challengeKeys.addAll(grouped.mmdByChallenge().keySet());
 
+        long compileStart = System.currentTimeMillis();
         List<CompletableFuture<ChallengeResult>> futures = challengeKeys.stream()
                 .map(challengeKey -> CompletableFuture.supplyAsync(
                         () -> processChallenge(
@@ -117,7 +121,8 @@ public class SubmissionStorageService {
                 .collect(Collectors.toList());
 
         List<ChallengeResult> results = CompletableFutures.joinAll(futures);
-        return new ProcessResult(submissionFolder, results, Map.copyOf(grouped.mmdByChallenge()));
+        long compileWallMs = System.currentTimeMillis() - compileStart;
+        return new ProcessResult(submissionFolder, results, Map.copyOf(grouped.mmdByChallenge()), compileWallMs);
     }
 
     private GroupedUpload validateAndGroup(List<MultipartFile> files) {

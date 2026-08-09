@@ -11,3 +11,8 @@ record PendingConstructorResult(UUID constructorId, boolean correct) {}
 record PendingRelationResult(UUID relationId, boolean correct) {}
 
 record PendingChallengeResult(UUID challengeId, boolean correct) {}
+
+record PendingTestcaseResult(
+        UUID testcaseId,
+        com.eiu.capstone.backend.model.TestcaseResultStatus status,
+        String feedback) {}

@@ -158,7 +158,37 @@ public class MmdParser {
             field.name = rest.substring(0, colon).trim();
             field.dataType = rest.substring(colon + 1).trim();
             current.fields.add(field);
+            return;
         }
+
+        if (tryParseTypeNameField(current, scope, rest)) {
+            return;
+        }
+    }
+
+    /**
+     * Mermaid-style member line: {@code -int yearModel} ({@code visibility type name}).
+     */
+    private boolean tryParseTypeNameField(ParsedMmdClass current, String scope, String rest) {
+        int lastSpace = rest.lastIndexOf(' ');
+        if (lastSpace <= 0) {
+            return false;
+        }
+        String dataType = rest.substring(0, lastSpace).trim();
+        String name = rest.substring(lastSpace + 1).trim();
+        if (dataType.isEmpty() || !isJavaIdentifier(name)) {
+            return false;
+        }
+        ParsedField field = new ParsedField();
+        field.scope = scope;
+        field.name = name;
+        field.dataType = dataType;
+        current.fields.add(field);
+        return true;
+    }
+
+    private static boolean isJavaIdentifier(String value) {
+        return value != null && value.matches("[A-Za-z_]\\w*");
     }
 
     private List<String> parseParameterTypes(String paramsPart) {
@@ -168,11 +198,27 @@ public class MmdParser {
         List<String> types = new ArrayList<>();
         for (String segment : splitParams(paramsPart)) {
             String trimmed = segment.trim();
-            if (trimmed.isEmpty()) continue;
-            int space = trimmed.lastIndexOf(' ');
-            types.add(space > 0 ? trimmed.substring(0, space).trim() : trimmed);
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            types.add(extractParameterType(trimmed));
         }
         return types;
+    }
+
+    /**
+     * Supports {@code name: type} ({@code yearModel: int}) and {@code type name} ({@code int yearModel}).
+     */
+    private String extractParameterType(String param) {
+        int colon = param.indexOf(':');
+        if (colon > 0) {
+            return param.substring(colon + 1).trim();
+        }
+        int lastSpace = param.lastIndexOf(' ');
+        if (lastSpace > 0) {
+            return param.substring(0, lastSpace).trim();
+        }
+        return param;
     }
 
     private List<String> splitParams(String paramsPart) {

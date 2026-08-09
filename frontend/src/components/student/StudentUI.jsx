@@ -87,6 +87,13 @@ function sessionChallengeScore(challengeScores, challengeId) {
   return challengeScores[String(challengeId)];
 }
 
+function bundleScore(bundle, key, fallback) {
+  const raw = bundle?.scores?.[key];
+  if (raw == null) return fallback;
+  const pct = Math.round(Number(raw));
+  return { ok: pct, total: 100, pct };
+}
+
 function formatScopeDetail(scope, detail) {
   const normalizedScope = scope?.trim();
   const normalizedDetail = detail?.trim() ?? '';
@@ -130,6 +137,7 @@ export default function StudentUI({
   isRefreshingResults = false,
   resultsRevealed = false,
   sessionChallengeScores = {},
+  sessionChallengeBundles = {},
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -170,6 +178,7 @@ export default function StudentUI({
   // Xác định challenge hiện tại
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
   const currentLab = labs.find(l => l.id === selectedLabId) || labs[0];
+  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
   const relations = relationData;
@@ -180,7 +189,7 @@ export default function StudentUI({
     pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
   };
 
-  const mmdScore = {
+  const mmdScore = bundleScore(currentBundle, 'mmd', {
     ok: mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0),
     total: mmdData.reduce((sum, cls) => sum + (cls.attributes?.length || 0), 0),
     pct: (() => {
@@ -188,9 +197,9 @@ export default function StudentUI({
       const ok = mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0);
       return total ? Math.round((ok / total) * 100) : 0;
     })(),
-  };
+  });
 
-  const classScore = {
+  const classScore = bundleScore(currentBundle, 'class', {
     ok: classData.reduce((sum, cls) => {
       const fieldsOk = cls.fields?.filter((f) => f.ok).length || 0;
       const ctorsOk = cls.constructors?.filter((c) => c.ok).length || 0;
@@ -208,29 +217,21 @@ export default function StudentUI({
       const ok = classData.reduce((sum, cls) => sum + (cls.fields?.filter((f) => f.ok).length || 0) + (cls.constructors?.filter((c) => c.ok).length || 0) + (cls.methods?.filter((m) => m.ok).length || 0), 0);
       return total ? Math.round((ok / total) * 100) : 0;
     })(),
-  };
+  });
 
   const testCasesData = testCases || [];
-  const testScore = {
-    ok: testCasesData.filter((tc) => !tc.isExample && tc.passed).length,
-    total: testCasesData.filter((tc) => !tc.isExample).length,
+  const scoredTestcases = (() => {
+    const hidden = testCasesData.filter((tc) => !tc.isExample);
+    return hidden.length > 0 ? hidden : testCasesData;
+  })();
+  const testScore = bundleScore(currentBundle, 'testcase', {
+    ok: scoredTestcases.filter((tc) => tc.passed).length,
+    total: scoredTestcases.length,
     pct: (() => {
-      const scored = testCasesData.filter((tc) => !tc.isExample);
-      const ok = scored.filter((tc) => tc.passed).length;
-      return scored.length ? Math.round((ok / scored.length) * 100) : 0;
+      const ok = scoredTestcases.filter((tc) => tc.passed).length;
+      return scoredTestcases.length ? Math.round((ok / scoredTestcases.length) * 100) : 0;
     })(),
-  };
-
-  const issueErrors = [
-    ...mmdData.flatMap((cls) => cls.attributes?.filter((a) => !a.ok && a.error).map((a) => ({ type: 'MMD', message: a.error, location: `${cls.name} • ${a.name}` })) || []),
-    ...relations.filter((r) => !r.ok && r.error).map((r) => ({ type: 'Relation', message: r.error, location: `${r.from} → ${r.to}` })),
-    ...classData.flatMap((cls) => [
-      ...(cls.fields?.filter((f) => !f.ok && f.error).map((f) => ({ type: 'Class', message: f.error, location: `${cls.name} • ${f.name}` })) || []),
-      ...(cls.constructors?.filter((c) => !c.ok && c.error).map((c) => ({ type: 'Class', message: c.error, location: `${cls.name} • ${c.name}` })) || []),
-      ...(cls.methods?.filter((m) => !m.ok && m.error).map((m) => ({ type: 'Class', message: m.error, location: `${cls.name} • ${m.name}` })) || []),
-    ]),
-    ...testCasesData.filter((tc) => !tc.passed && tc.error).map((tc) => ({ type: 'Testcase', message: tc.error, location: tc.name })),
-  ];
+  });
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1a1f2e] transition-colors">
@@ -339,7 +340,13 @@ export default function StudentUI({
               ) : (
                 challenges.map((ch) => {
                   const chHasScore = resultsRevealed && hasSessionChallengeScore(sessionChallengeScores, ch.id);
-                  const chScore = chHasScore ? sessionChallengeScore(sessionChallengeScores, ch.id) : null;
+                  const bundle = sessionChallengeBundles[ch.id];
+                  const bundleTotal = bundle?.scores?.total;
+                  const chScore = chHasScore
+                    ? (bundleTotal != null
+                      ? Math.round(Number(bundleTotal))
+                      : sessionChallengeScore(sessionChallengeScores, ch.id))
+                    : null;
                   return (
                   <li key={ch.id}>
                     <button
@@ -609,7 +616,7 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Example testcases are visible; normal testcases remain hidden.</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Structural testcase checks from the grading rubric.</p>
                     </div>
                     {resultsRevealed && testScore.total > 0 && (
                       <ScorePill ok={testScore.ok} total={testScore.total} pct={testScore.pct} />
@@ -618,22 +625,6 @@ export default function StudentUI({
 
                   {testCasesData.length > 0 ? (
                     <div className="space-y-4">
-                      <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#11171f]">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 mb-3">Errors</p>
-                        {issueErrors.filter((issue) => issue.type === 'Testcase').length > 0 ? (
-                          <div className="space-y-2">
-                            {issueErrors.filter((issue) => issue.type === 'Testcase').map((issue, index) => (
-                              <div key={index} className="rounded-2xl bg-white dark:bg-[#161b22] px-3 py-2 text-xs text-red-600 dark:text-red-300 border border-red-100 dark:border-red-800">
-                                <p className="font-semibold">{issue.location}</p>
-                                <p>{issue.message}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">No detailed testcase errors available yet.</p>
-                        )}
-                      </div>
-
                       <div className="space-y-2">
                         {testCasesData.map((tc) => (
                           <div key={tc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">

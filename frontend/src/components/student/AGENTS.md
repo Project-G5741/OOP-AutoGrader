@@ -30,14 +30,16 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 `StudentDashboard.jsx` passes to `DropZone`:
 
 - `labId` — from selected lab in `GET /api/labs` response
-- `attemptNumber` — hardcoded to `1`
+- `attemptNumber` — `totalSubmissions + 1` from backend stats / upload response
 - `authToken` — from `user.accessToken`
+
+After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
 ## Work Guidance
 
 - Student history uses live APIs in `StudentHistoryPage.jsx`
 - Profile modal changes affect both roles — test both dashboards
-- `attemptNumber` logic will need backend support for multiple attempts per lab
+- `attemptNumber` is derived from backend `totalSubmissions` after each upload
 
 ## Verification
 
