@@ -16,6 +16,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -63,7 +64,7 @@ public class GradingService {
                           ReflectionClassParser reflectionClassParser,
                           MmdParser mmdParser,
                           MmdComparisonService mmdComparisonService,
-                          ExecutorService gradingExecutor,
+                          @Qualifier("gradingExecutor") ExecutorService gradingExecutor,
                           GradingResultStore gradingResultStore,
                           ClassRelationRepository classRelationRepository) {
         this.challengeRepository = challengeRepository;

@@ -4,6 +4,9 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 ## Grading pipeline
 
+### Submission upload compile
+The pre-grading slice that receives a multipart folder, validates path structure, compiles each challenge's `.java` files in parallel, and writes `.class` output under `challenge_N/classes/`. Sources are compiled from memory; MMD files stay in the multipart map for grading without disk staging on the hot path.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`; re-uploading the same attempt updates scores in place rather than creating a new attempt row.
 
@@ -19,6 +22,7 @@ Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into
 ## Relationships
 
 - A **lab submission** owns many **submission results** (one per rubric element graded).
+- **Submission upload compile** produces on-disk `classes/` trees that reflection grading reads; it runs on `compileExecutor`, not the grading pool.
 - Grading compares compiled student classes against a **rubric snapshot**, then writes **submission results**.
 
 ### Student lab progress

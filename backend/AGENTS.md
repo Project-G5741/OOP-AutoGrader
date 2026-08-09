@@ -76,13 +76,14 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel save + compile per challenge) → `GradingService` (parallel reflect + MMD parse/compare + merge) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → MMD hook (no-op by default) → cleanup temp folder.
 
 Grading tuning properties (`application.properties`):
 
 | Property | Default | Purpose |
 |---|---|---|
-| `app.grading.parallelism` | `4` | Max concurrent challenge workers (capped at CPU count) |
+| `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
+| `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Log upload (`rubric_ms`, `process_ms`, `grade_ms`, `total_ms`) and read paths (`challenges_ms`, `class_ms`, `stats_ms`) |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
@@ -125,7 +126,7 @@ Grading tuning properties (`application.properties`):
 
 ## Verification
 
-- No automated tests exist (`src/test/` empty, `-DskipTests` in Docker build)
+- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `SubmissionStorageServiceTest` and `JavaCompilerServiceTest`
 - Manual: Swagger UI, `GET /api/health`, submission upload from frontend `DropZone`
 
 ## Child DOX Index

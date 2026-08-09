@@ -7,10 +7,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class GradingExecutorConfig {
+public class CompileExecutorConfig {
 
     @Bean(destroyMethod = "shutdown")
-    public ExecutorService gradingExecutor(@Value("${app.grading.parallelism:4}") int parallelism) {
-        return FixedExecutorFactory.newPool(parallelism, "grading-worker");
+    public ExecutorService compileExecutor(@Value("${app.compile.parallelism:4}") int parallelism) {
+        return FixedExecutorFactory.newPool(parallelism, "compile-worker");
     }
 }
