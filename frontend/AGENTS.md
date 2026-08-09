@@ -71,6 +71,8 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Match existing Tailwind utility patterns; login screens use custom CSS (`LoginUI.css`)
 - Pass `user` and `onLogout` props from `App.jsx` down to dashboards
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
+- Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
+- API error bodies: `src/utils/apiError.js` (`readApiErrorMessage`) — text or JSON `message`/`error`/`detail`
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 

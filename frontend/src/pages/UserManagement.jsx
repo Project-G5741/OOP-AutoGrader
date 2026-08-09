@@ -5,6 +5,11 @@ import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
 import { authHeaders } from '../utils/authHeaders';
+import { readApiErrorMessage } from '../utils/apiError';
+import {
+  getUserFormErrors,
+  isFormValid,
+} from '../utils/validation';
 
 const EMPTY_FORM = {
   studentIrn: '',
@@ -55,6 +60,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [sortDirection, setSortDirection] = useState('asc');
@@ -79,15 +85,20 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     return sortUsers(matched);
   }, [users, search, sortDirection]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-
   const currentPageUsers = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredUsers.slice(start, start + PAGE_SIZE);
   }, [filteredUsers, page]);
 
+  const currentFieldErrors = useMemo(
+    () => getUserFormErrors(form, modal),
+    [form, modal]
+  );
+  const canSave = modal === 'create' || modal === 'edit' ? isFormValid(currentFieldErrors) : false;
+
   const openCreate = () => {
-    setForm({ ...EMPTY_FORM });
+    setForm({ ...EMPTY_FORM, roles: ['STUDENT'] });
+    setFormError('');
     setSelected(null);
     setModal('create');
   };
@@ -118,6 +129,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       password: '',
       roles: normalizedRoles.length ? normalizedRoles : ['STUDENT'],
     });
+    setFormError('');
     setModal('edit');
   };
 
@@ -132,15 +144,19 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       const next = current.includes(roleName)
         ? current.filter((role) => role !== roleName)
         : [...current, roleName];
-      return { ...prev, roles: next.length ? next : current };
+      const nextForm = { ...prev, roles: next.length ? next : current };
+      return nextForm;
     });
+    setFormError('');
+  };
+
+  const handleFieldChange = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFormError('');
   };
 
   const buildPayload = () => {
     const roleNames = [...(form.roles || [])];
-    if (!roleNames.length) {
-      throw new Error('Select at least one role.');
-    }
     const studentCode = roleNames.includes('STUDENT')
       ? (form.studentIrn || selected?.studentCode || selected?.irn || '').trim()
       : null;
@@ -163,24 +179,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     if (teacherCode) payload.teacherCode = teacherCode;
     const trimmedPassword = form.password?.trim();
     if (trimmedPassword) {
-      if (trimmedPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
-      }
-      if (trimmedPassword.length > 100) {
-        throw new Error('Password must be less than 100 characters.');
-      }
       payload.password = trimmedPassword;
     }
     return payload;
-  };
-
-  const readErrorMessage = async (resp, fallback) => {
-    try {
-      const data = await resp.json();
-      return data?.message || data?.error || fallback;
-    } catch {
-      return fallback;
-    }
   };
 
   useEffect(() => {
@@ -211,9 +212,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   }, []);
 
   const handleSave = async () => {
+    const nextErrors = getUserFormErrors(form, modal);
+    if (!isFormValid(nextErrors)) {
+      return;
+    }
+
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
       const requestBody = buildPayload();
+      setFormError('');
 
       if (modal === 'edit' && selected) {
         const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
@@ -225,18 +232,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           throw new Error('You are not authorized to update users.');
         }
         if (!resp.ok) {
-          throw new Error(await readErrorMessage(resp, `Update failed: ${resp.status}`));
+          throw new Error(await readApiErrorMessage(resp, `Update failed: ${resp.status}`));
         }
         const updatedData = await resp.json();
         setUsers((prev) => prev.map((item) => (item.id === selected.id ? normalizeUser(updatedData) : item)));
       } else {
         const createPayload = {
           ...requestBody,
-          password: form.password,
+          password: form.password?.trim(),
         };
-        if (!createPayload.password) {
-          throw new Error('Password is required for new users.');
-        }
         const resp = await fetch(`${API_BASE}/api/users/addUser`, {
           method: 'POST',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -246,15 +250,16 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           throw new Error('You are not authorized to create users.');
         }
         if (!resp.ok) {
-          throw new Error(await readErrorMessage(resp, `Create failed: ${resp.status}`));
+          throw new Error(await readApiErrorMessage(resp, `Create failed: ${resp.status}`));
         }
         const createdData = await resp.json();
         setUsers((prev) => [...prev, normalizeUser(createdData)]);
       }
       setModal(null);
+      setFormError('');
     } catch (error) {
       console.error('Failed to save user', error);
-      alert(error.message || 'Unable to save user.');
+      setFormError(error.message || 'Unable to save user.');
     }
   };
 
@@ -328,11 +333,17 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         modal={modal}
         selected={selected}
         form={form}
+        fieldErrors={currentFieldErrors}
+        formError={formError}
+        canSave={canSave}
         isDark={isDark}
-        onClose={() => setModal(null)}
+        onClose={() => {
+          setModal(null);
+          setFormError('');
+        }}
         onSave={handleSave}
         onDelete={handleDelete}
-        onFieldChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
+        onFieldChange={handleFieldChange}
         onRoleToggle={handleRoleToggle}
       />
     </div>

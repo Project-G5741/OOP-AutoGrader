@@ -58,7 +58,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home`, `history`, `editProfile` (opens `ProfileEditModal`).
+Shared: `home`, `history`, `editProfile` (opens `ChangePasswordModal`).
 
 ### API endpoints used from pages
 

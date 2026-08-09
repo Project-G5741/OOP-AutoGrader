@@ -1,24 +1,9 @@
 import { Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Button from './Button';
+import { readApiErrorMessage } from '../../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-
-async function readUploadErrorMessage(response) {
-  const text = await response.text();
-  if (!text) {
-    return `Upload failed with status ${response.status}`;
-  }
-  try {
-    const body = JSON.parse(text);
-    if (typeof body.message === 'string' && body.message.trim()) {
-      return body.message.trim();
-    }
-  } catch {
-    // Plain-text error body
-  }
-  return text.trim();
-}
 
 export default function DropZone({
   title = "Drop or drag your folder here",
@@ -174,7 +159,7 @@ export default function DropZone({
       });
 
       if (!res.ok) {
-        const message = await readUploadErrorMessage(res);
+        const message = await readApiErrorMessage(res, `Upload failed with status ${res.status}`);
         throw new Error(message);
       }
 

@@ -4,6 +4,7 @@ import './LoginUI.css';
 import { Moon, Sun, BarChart3, Eye, EyeOff, User, Lock } from 'lucide-react';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
+import { getLoginFieldErrors, isFormValid } from '../utils/validation';
 
 function decodeJwtPayload(token) {
   try {
@@ -24,6 +25,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -41,14 +43,26 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
     }
   }, []);
 
+  const fieldErrors = getLoginFieldErrors(irn, password);
+  const canSubmitLogin = isFormValid(fieldErrors);
+
+  const handleFieldChange = (field, value) => {
+    if (field === 'irn') {
+      setIrn(value);
+    } else {
+      setPassword(value);
+    }
+    setFormError('');
+  };
+
   // Local login with student code, lecturer code, or legacy IRN
   const handleLocalLogin = async (e) => {
     e.preventDefault();
-    if (!irn || !password) {
-      alert('Please enter your student code or lecturer code and password.');
+    if (!canSubmitLogin) {
       return;
     }
 
+    setFormError('');
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
@@ -77,7 +91,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       onLoginSuccess?.(data);
     } catch (error) {
       console.error('Local authentication failed', error);
-      alert(error.message || 'Login failed. Please try again.');
+      setFormError(error.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -234,11 +248,16 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                   <input
                     type="text"
                     value={irn}
-                    onChange={(e) => setIrn(e.target.value)}
+                    onChange={(e) => handleFieldChange('irn', e.target.value)}
                     placeholder="e.g. 20521234 or lan.cao"
-                    className="input-field"
+                    className={`input-field${fieldErrors.irn ? ' input-error' : ''}`}
                   />
                 </div>
+                {fieldErrors.irn && (
+                  <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
+                    {fieldErrors.irn}
+                  </p>
+                )}
               </div>
 
               <div className="form-group">
@@ -248,9 +267,9 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => handleFieldChange('password', e.target.value)}
                     placeholder="Enter your password"
-                    className="input-field"
+                    className={`input-field${fieldErrors.password ? ' input-error' : ''}`}
                   />
                   <button
                     type="button"
@@ -261,7 +280,18 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                     {showPassword ? <EyeOff className="toggle-icon" /> : <Eye className="toggle-icon" />}
                   </button>
                 </div>
+                {fieldErrors.password && (
+                  <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
+                    {fieldErrors.password}
+                  </p>
+                )}
               </div>
+
+              {formError && (
+                <p className="info-text" style={{ color: '#f87171', marginBottom: '0.75rem' }}>
+                  {formError}
+                </p>
+              )}
 
               <div className="options-row">
                 <label className="remember-option">
@@ -277,7 +307,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                 </button>
               </div>
 
-              <button type="submit" className="primary-btn" disabled={isLoading}>
+              <button type="submit" className="primary-btn" disabled={isLoading || !canSubmitLogin}>
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
 
