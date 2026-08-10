@@ -121,6 +121,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const sessionResults = selectedLabId ? sessionResultsByLab[selectedLabId] : null;
   const sessionChallengeScores = sessionResults?.challengeScores ?? {};
   const sessionChallengeBundles = sessionResults?.challengeBundles ?? {};
+  const sessionOverallScore = sessionResults?.overallScore ?? null;
 
   const fetchChallenges = useCallback(async (labId, { silent = false } = {}) => {
     if (!labId) return;
@@ -173,7 +174,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       if (statsRes.ok) {
         const fresh = await statsRes.json();
         setStats({
-          currentGrade: fresh.currentGrade ?? null,
+          currentGrade: null,
           totalSubmissions: fresh.totalSubmissions ?? null,
           latestSubmission: fresh.latestSubmission ?? null,
         });
@@ -346,6 +347,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   ]);
 
   const handleLabChange = (labId) => {
+    statsFetchGenRef.current += 1;
+    setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
     setSelectedLabId(labId);
     setSelectedChallengeId(null);
     classDataCacheRef.current = {};
@@ -408,15 +411,16 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       ...prev,
       [selectedLabId]: {
         submissionId,
+        overallScore: uploadResponse?.score != null
+          ? Math.round(Number(uploadResponse.score))
+          : null,
         challengeScores,
         challengeBundles: indexedLabResult,
       },
     }));
 
     setStats({
-      currentGrade: uploadResponse?.score != null
-        ? Math.round(Number(uploadResponse.score))
-        : null,
+      currentGrade: null,
       totalSubmissions: uploadResponse?.totalSubmissions ?? null,
       latestSubmission: uploadResponse?.latestSubmission ?? null,
     });
@@ -506,6 +510,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               resultsRevealed={resultsRevealed}
               sessionChallengeScores={sessionChallengeScores}
               sessionChallengeBundles={sessionChallengeBundles}
+              sessionOverallScore={sessionOverallScore}
               error={labsError || challengesError}
             />
           )}

@@ -138,6 +138,7 @@ export default function StudentUI({
   resultsRevealed = false,
   sessionChallengeScores = {},
   sessionChallengeBundles = {},
+  sessionOverallScore = null,
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -271,7 +272,7 @@ export default function StudentUI({
           />
         </div>
 
-        {/* Stats row — latest attempt from DB on login; updates after each upload */}
+        {/* Stats row — attempts/latest from DB; grade only after session upload */}
         <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
@@ -280,9 +281,9 @@ export default function StudentUI({
               </div>
               <span className="text-white/90 text-sm">Current Grade</span>
             </div>
-            {hasValue(stats.currentGrade) ? (
+            {resultsRevealed && hasValue(sessionOverallScore) ? (
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl text-white font-bold">{stats.currentGrade}</span>
+                <span className="text-4xl text-white font-bold">{sessionOverallScore}</span>
                 <span className="text-white/70 text-sm">/100</span>
               </div>
             ) : (
@@ -307,7 +308,7 @@ export default function StudentUI({
               </div>
               <span className="text-gray-500 dark:text-gray-400 text-sm">Latest Submission</span>
             </div>
-            <span className="text-gray-900 dark:text-white text-sm font-medium">
+            <span className="text-gray-900 dark:text-white text-lg font-semibold">
               {hasValue(stats.latestSubmission) ? stats.latestSubmission : '--/--'}
             </span>
           </div>

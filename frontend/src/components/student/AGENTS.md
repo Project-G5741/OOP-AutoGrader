@@ -36,6 +36,12 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
+### Dashboard stats row (`StudentUI.jsx`)
+
+- Stats are lab-scoped; `StudentDashboard` clears attempt/latest on lab change and reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API).
+- **Total Submissions** and **Latest Submission** always reflect DB history for the selected lab.
+- **Current Grade** follows the same session-reveal rule as challenge sidebar scores: `--/--` until the student completes an upload in the current browser session for that lab; then shows the score from the upload response. Switching labs resets the grade until that lab is uploaded again in-session.
+
 ## Work Guidance
 
 - Student history uses live APIs in `StudentHistoryPage.jsx`

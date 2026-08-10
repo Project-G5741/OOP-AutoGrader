@@ -53,7 +53,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (labs, upload, stats from latest DB attempt, challenge sidebar + tab shell) | `GET /api/labs`, `GET /api/labs/{id}/stats` on login/lab change; challenge scores + class/MMD detail only after upload in session |
+| `showHistory === false` | Main dashboard (labs, upload, stats) | `GET /api/labs`, `GET /api/labs/{id}/stats` on login/lab change for attempts + latest timestamp only; **Current Grade** and challenge scores + class/MMD detail only after upload in session |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` / `my-labs` APIs |
 
 ### Header commands (`Header.jsx` → `onCommand`)
