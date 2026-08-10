@@ -11,6 +11,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
 | `Select.jsx` | Dropdown select |
+| `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 
 ## Local Contracts

@@ -1,24 +1,11 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, GitMerge } from 'lucide-react';
+import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 
 function Tick({ ok }) {
   return ok
     ? <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
     : <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
-}
-
-function ScorePill({ ok, total, pct }) {
-  const color = pct >= 80
-    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700'
-    : pct >= 60
-      ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700'
-      : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700';
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${color}`}>
-      {ok}/{total} · {pct}%
-    </span>
-  );
 }
 
 function relationTypeStyle(type) {
@@ -85,14 +72,11 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
-        </div>
-        {attrTotal > 0 && (
-          <ScorePill ok={attrPass} total={attrTotal} pct={attrPct} />
-        )}
-      </div>
+      <ScoreSectionHeader
+        title="MMD Score"
+        score={{ ok: attrPass, total: attrTotal, pct: attrPct }}
+        showPill={attrTotal > 0}
+      />
 
       {classes.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">

@@ -11,6 +11,7 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
+import { ScorePill, ScoreSectionHeader, hasScoreToShow } from '../ui/ScorePill';
 
 // Component con dùng chung
 function Tick({ ok }) {
@@ -27,20 +28,6 @@ function StatusBadge({ status }) {
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || colors.info}`}>
       {status?.toUpperCase() || 'UNKNOWN'}
-    </span>
-  );
-}
-
-function ScorePill({ ok, total, pct }) {
-  const color = pct >= 80
-    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700'
-    : pct >= 60
-      ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700'
-      : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700';
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-semibold ${color}`}>
-      {ok}/{total} · {pct}%
     </span>
   );
 }
@@ -413,14 +400,11 @@ export default function StudentUI({
                 <>
               {activeTab === 'mmd' && (
                 <>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
-                    </div>
-                    {resultsRevealed && mmdScore.total > 0 && (
-                      <ScorePill ok={mmdScore.ok} total={mmdScore.total} pct={mmdScore.pct} />
-                    )}
-                  </div>
+                  <ScoreSectionHeader
+                    title="MMD Score"
+                    score={mmdScore}
+                    showPill={resultsRevealed && hasScoreToShow(mmdScore, currentBundle, 'mmd')}
+                  />
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
                     {mmdData.length > 0 ? mmdData.map((cls) => (
@@ -503,14 +487,11 @@ export default function StudentUI({
 
               {activeTab === 'class' && (
                 <>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
-                    </div>
-                    {resultsRevealed && classScore.total > 0 && (
-                      <ScorePill ok={classScore.ok} total={classScore.total} pct={classScore.pct} />
-                    )}
-                  </div>
+                  <ScoreSectionHeader
+                    title="Class Score"
+                    score={classScore}
+                    showPill={resultsRevealed && hasScoreToShow(classScore, currentBundle, 'class')}
+                  />
 
                   {classData.length > 0 ? (
                     <div className="space-y-3">
@@ -608,14 +589,11 @@ export default function StudentUI({
 
               {activeTab === 'testcase' && (
                 <>
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
-                    </div>
-                    {resultsRevealed && testScore.total > 0 && (
-                      <ScorePill ok={testScore.ok} total={testScore.total} pct={testScore.pct} />
-                    )}
-                  </div>
+                  <ScoreSectionHeader
+                    title="Testcase Score"
+                    score={testScore}
+                    showPill={resultsRevealed && hasScoreToShow(testScore, currentBundle, 'testcase')}
+                  />
 
                   {testCasesData.length > 0 ? (
                     <div className="space-y-4">
