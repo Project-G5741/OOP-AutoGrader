@@ -1,4 +1,4 @@
-import { formatPercent, formatText } from '../../utils/formatters';
+import { formatNumber, formatText } from '../../utils/formatters';
 
 export default function GradeOverviewTable({
   labs,
@@ -54,10 +54,10 @@ export default function GradeOverviewTable({
               >
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(student.studentName)}</td>
                 <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(student.irn)}</td>
-                <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(student.totalScore)}</td>
+                <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(student.totalScore)}</td>
                 {(student.labScores ?? []).map((score, index) => (
                   <td key={`${student.studentId}-${labColumns[index]?.labId ?? index}`} className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
-                    {formatPercent(score)}
+                    {formatNumber(score)}
                   </td>
                 ))}
               </tr>

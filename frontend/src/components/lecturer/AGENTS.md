@@ -65,6 +65,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
 - Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
+- Grade overview supports server-side sort via `sort` query param (`studentName`, `score`); default `studentName,asc`; **Sort by name** and **Sort by score** buttons above the grade matrix (highlighted when active; chevron shows direction)
 - Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; newest/oldest sort)
 
 

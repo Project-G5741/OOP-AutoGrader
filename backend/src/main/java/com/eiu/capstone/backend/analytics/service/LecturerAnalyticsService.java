@@ -209,9 +209,10 @@ public class LecturerAnalyticsService {
         return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
     }
 
-    public GradeOverviewResponse getGradeOverview(int page, int size) {
+    public GradeOverviewResponse getGradeOverview(int page, int size, String sort) {
         int safeSize = size <= 0 ? 5 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
+        SortSpec sortSpec = resolveGradeOverviewSort(sort);
 
         List<GradeOverviewLabColumnDTO> labs = new ArrayList<>();
         List<UUID> labIds = new ArrayList<>();
@@ -229,7 +230,8 @@ public class LecturerAnalyticsService {
         int labCount = labIds.size();
         if (totalStudents > 0) {
             int offset = safePage * safeSize;
-            List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudents(offset, safeSize);
+            List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudents(
+                    sortSpec.column(), sortSpec.direction(), offset, safeSize);
             List<UUID> studentIds = new ArrayList<>();
             for (Object[] row : students) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);
@@ -424,6 +426,21 @@ public class LecturerAnalyticsService {
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
             case "submittedat", "submitted_at" -> "latest_sub.submitted_at";
             default -> "u.full_name";
+        };
+        return new SortSpec(column, direction);
+    }
+
+    private SortSpec resolveGradeOverviewSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return new SortSpec("full_name", "ASC");
+        }
+        String[] parts = sort.split(",", 2);
+        String field = parts[0].trim().toLowerCase();
+        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+        String column = switch (field) {
+            case "score" -> "total_score";
+            case "studentname", "student_name" -> "full_name";
+            default -> "full_name";
         };
         return new SortSpec(column, direction);
     }

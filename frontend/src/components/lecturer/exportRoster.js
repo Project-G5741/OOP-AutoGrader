@@ -1,6 +1,6 @@
 import { collectIncorrectExportRows } from './ClassScoreBreakdown';
 import { collectIncorrectMmdExportRows } from './MmdScoreBreakdown';
-import { formatPercent, formatText } from '../../utils/formatters';
+import { formatNumber, formatText } from '../../utils/formatters';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -111,12 +111,12 @@ export function buildGradeOverviewExportRows({ labs, students }) {
     const row = {
       Student: formatText(student.studentName),
       IRN: formatText(student.irn),
-      'Total Score': formatPercent(student.totalScore),
+      'Total Score': formatNumber(student.totalScore),
     };
     (student.labScores ?? []).forEach((score, index) => {
       const lab = labColumns[index];
       if (lab) {
-        row[formatText(lab.labName)] = formatPercent(score);
+        row[formatText(lab.labName)] = formatNumber(score);
       }
     });
     return row;
