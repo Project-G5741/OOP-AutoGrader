@@ -17,4 +17,8 @@ public interface ClassRelationRepository extends JpaRepository<ClassRelation, UU
             + "JOIN FETCH r.relationType "
             + "WHERE r.classEntity IN :classEntities")
     List<ClassRelation> findByClassEntityInWithEndpoints(@Param("classEntities") List<ClassEntity> classEntities);
+
+    List<ClassRelation> findByClassEntity_Id(UUID classId);
+
+    List<ClassRelation> findByTargetClassEntity_Id(UUID targetClassId);
 }

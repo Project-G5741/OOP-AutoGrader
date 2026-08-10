@@ -244,7 +244,6 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Submission History</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Review all your lab attempts and performance</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -353,9 +352,6 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
                 All Submissions
               </h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''} found
-              </p>
             </div>
           </div>
 

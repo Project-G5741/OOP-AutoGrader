@@ -233,6 +233,13 @@ public class LecturerAnalyticsRepository {
         return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, Integer.MAX_VALUE, null, null);
     }
 
+    private static String formatRosterOrderBy(String sortColumn, String sortDirection) {
+        if ("p.highest_score".equals(sortColumn)) {
+            return "p.highest_score " + sortDirection + " NULLS LAST";
+        }
+        return sortColumn + " " + sortDirection;
+    }
+
     private List<Object[]> findLabStudentRosterInternal(UUID labId,
                                                         String sortColumn,
                                                         String sortDirection,
@@ -265,7 +272,7 @@ public class LecturerAnalyticsRepository {
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
-                       latest_sub.score,
+                       CASE WHEN latest_sub.id IS NOT NULL THEN p.highest_score ELSE NULL END,
                        COALESCE(latest_sub.attempt_number, 0),
                        latest_sub.submitted_at,
                        (p.best_submission_id IS NOT NULL AND p.best_submission_id = latest_sub.id) AS best_submission,
@@ -275,9 +282,9 @@ public class LecturerAnalyticsRepository {
                 LEFT JOIN latest_sub ON latest_sub.user_id = u.id
                 WHERE 1=1
                 """ + keysetClause + """
-                ORDER BY %s %s
+                ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
-                """.formatted(sortColumn, sortDirection);
+                """.formatted(formatRosterOrderBy(sortColumn, sortDirection));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("labId", labId);
         query.setParameter("pageSize", pageSize);
@@ -413,20 +420,58 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of());
     }
 
-    public List<Object[]> findGradeOverviewStudents(int offset, int pageSize) {
+    public List<Object[]> findGradeOverviewStudents(String sortColumn, String sortDirection, int offset, int pageSize) {
         String sql = """
-                SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code)
-                FROM user_account u
-                WHERE u.id IN (
+                WITH grade_students AS (
+                    SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code) AS irn
+                    FROM user_account u
+                    WHERE u.id IN (
                 """ + GRADE_OVERVIEW_STUDENT_IDS + """
+                    )
+                ),
+                lab_total AS (
+                    SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab
+                ),
+                latest_scores AS (
+                    SELECT s.user_id, s.lab_id, s.score
+                    FROM lab_submission s
+                    INNER JOIN (
+                        SELECT ls.user_id, ls.lab_id, MAX(ls.attempt_number) AS max_attempt
+                        FROM lab_submission ls
+                        GROUP BY ls.user_id, ls.lab_id
+                    ) latest ON latest.user_id = s.user_id
+                        AND latest.lab_id = s.lab_id
+                        AND latest.max_attempt = s.attempt_number
+                ),
+                student_totals AS (
+                    SELECT gs.id,
+                           gs.full_name,
+                           gs.irn,
+                           CASE WHEN lt.lab_count > 0 THEN
+                               (SELECT COALESCE(SUM(COALESCE(ls.score, 0)), 0) / lt.lab_count
+                                FROM lab l
+                                LEFT JOIN latest_scores ls
+                                    ON ls.user_id = gs.id AND ls.lab_id = l.id)
+                           END AS total_score
+                    FROM grade_students gs
+                    CROSS JOIN lab_total lt
                 )
-                ORDER BY u.full_name
+                SELECT id, full_name, irn
+                FROM student_totals
+                ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
-                """;
+                """.formatted(formatGradeOverviewOrderBy(sortColumn, sortDirection));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("pageSize", pageSize);
         query.setParameter("offset", offset);
         return query.getResultList();
+    }
+
+    private static String formatGradeOverviewOrderBy(String sortColumn, String sortDirection) {
+        if ("total_score".equals(sortColumn)) {
+            return "total_score " + sortDirection + " NULLS LAST, full_name ASC";
+        }
+        return sortColumn + " " + sortDirection;
     }
 
     public List<Object[]> findLabScoresForStudents(List<UUID> studentIds) {

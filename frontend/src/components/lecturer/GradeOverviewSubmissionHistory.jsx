@@ -1,4 +1,4 @@
-import { formatDateTime, formatPercent, formatText } from '../../utils/formatters';
+import { formatDateTime, formatNumber, formatText } from '../../utils/formatters';
 
 export default function GradeOverviewSubmissionHistory({
   student,
@@ -19,11 +19,6 @@ export default function GradeOverviewSubmissionHistory({
       <div className="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Submission history</h3>
-          {student && (
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {formatText(student.studentName)} · IRN {formatText(student.irn)}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -74,7 +69,7 @@ export default function GradeOverviewSubmissionHistory({
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(row.irn)}</td>
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(row.labName)}</td>
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatDateTime(row.submittedAt)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(row.score)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(row.score)}</td>
                 </tr>
               ))}
             </tbody>

@@ -49,7 +49,9 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
-| `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT) |
+| `MasterDataController` | `/api/master-data` | Master data lookup by category |
+| `TermController` | `/api/terms` | Academic term list for lab creation |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create (soft-delete); **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
@@ -67,7 +69,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
-- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`
+- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Soft-delete: users set `isActive=false`
 
 ### Submission resolution
@@ -108,15 +110,15 @@ Grading tuning properties (`application.properties`):
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; when missing (legacy submissions or storage wipe), tabs fall back to rubric-template labels
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
-- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5)
-- `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export)
+- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** field is `highest_score`; sort by `studentName` or `score`
+- `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter)
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of latest lab scores, missing labs as 0; threshold < 70)
-- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from latest submission; total = sum ÷ lab count)
+- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from latest submission; total = sum ÷ lab count); sort by `studentName` or `score`
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
 ## Work Guidance

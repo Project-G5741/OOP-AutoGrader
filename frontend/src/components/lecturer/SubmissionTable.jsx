@@ -14,14 +14,28 @@ export default function SubmissionTable({
   const rows = Array.isArray(submissions) ? submissions : [];
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
 
+  const staticColumns = [
+    { key: 'id', label: 'ID' },
+    { key: 'attempt', label: attemptLabel },
+    { key: 'submittedAt', label: 'Submitted At' },
+    { key: 'action', label: 'Action' },
+  ];
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
       <table className="w-full table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            {['Student', 'ID', 'Score', attemptLabel, 'Submitted At', 'Action'].map((col) => (
-              <th key={col} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                {col}
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Student</th>
+            {staticColumns.slice(0, 1).map((col) => (
+              <th key={col.key} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                {col.label}
+              </th>
+            ))}
+            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Score</th>
+            {staticColumns.slice(1).map((col) => (
+              <th key={col.key} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                {col.label}
               </th>
             ))}
           </tr>

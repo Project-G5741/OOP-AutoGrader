@@ -46,7 +46,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`, `/api/labs/{id}/challenges/{id}/students` |
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
-| `projects` | `SubmissionManagement` | Local mock |
+| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`) |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections

@@ -12,7 +12,6 @@ export default function OverviewPanel({ overviewCards }) {
               {card.icon}
             </div>
           </div>
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">{card.subtitle}</p>
         </div>
       ))}
     </div>

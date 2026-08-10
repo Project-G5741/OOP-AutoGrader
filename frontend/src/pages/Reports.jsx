@@ -72,7 +72,6 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Reports & Analytics</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Detailed analytics and reports for your courses.</p>
             </div>
             <div>
               <button
