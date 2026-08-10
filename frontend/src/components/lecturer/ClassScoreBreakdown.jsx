@@ -36,7 +36,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
   return (
     <div>
       <ScoreSectionHeader
-        title="Class Score"
+        title="Declaration Score"
         score={{ ok: passCount, total: totalCount, pct: overallPct }}
         showPill={totalCount > 0}
       />

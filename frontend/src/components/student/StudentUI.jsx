@@ -380,7 +380,7 @@ export default function StudentUI({
                   onClick={() => setActiveTab(t)}
                   className={tabCls(t)}
                 >
-                  {t === 'mmd' ? 'MMD' : t === 'class' ? 'Class' : 'Testcase'}
+                  {t === 'mmd' ? 'MMD' : t === 'class' ? 'Declaration Test' : 'Operation Test'}
                 </button>
               ))}
               <div className="flex-1 flex items-center justify-end pr-4">
@@ -488,7 +488,7 @@ export default function StudentUI({
               {activeTab === 'class' && (
                 <>
                   <ScoreSectionHeader
-                    title="Class Score"
+                    title="Declaration Score"
                     score={classScore}
                     showPill={resultsRevealed && hasScoreToShow(classScore, currentBundle, 'class')}
                   />
@@ -590,7 +590,7 @@ export default function StudentUI({
               {activeTab === 'testcase' && (
                 <>
                   <ScoreSectionHeader
-                    title="Testcase Score"
+                    title="I/O Score"
                     score={testScore}
                     showPill={resultsRevealed && hasScoreToShow(testScore, currentBundle, 'testcase')}
                   />

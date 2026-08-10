@@ -49,7 +49,9 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
-| `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT) |
+| `MasterDataController` | `/api/master-data` | Master data lookup by category |
+| `TermController` | `/api/terms` | Academic term list for lab creation |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create (soft-delete); **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
@@ -67,7 +69,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
-- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`
+- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Soft-delete: users set `isActive=false`
 
 ### Submission resolution
