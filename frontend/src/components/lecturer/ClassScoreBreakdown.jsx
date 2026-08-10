@@ -51,7 +51,6 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Tap a class to inspect its members.</p>
         </div>
         {totalCount > 0 && (
           <ScorePill ok={passCount} total={totalCount} pct={overallPct} />

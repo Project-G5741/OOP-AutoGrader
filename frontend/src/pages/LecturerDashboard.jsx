@@ -529,28 +529,24 @@ export default function LecturerDashboard({ user, onLogout }) {
     {
       title: 'Total Students',
       value: formatNumber(overview.totalStudents),
-      subtitle: 'Active students in the system',
       icon: <Users className="h-5 w-5 text-amber-600" />,
       accent: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30',
     },
     {
       title: 'Average Score',
       value: formatNumber(overview.averageScore),
-      subtitle: 'Across all student lab progress',
       icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
       accent: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30',
     },
     {
       title: 'Total Labs',
       value: formatNumber(overview.totalLabs),
-      subtitle: 'Labs available for grading',
       icon: <FolderKanban className="h-5 w-5 text-purple-600" />,
       accent: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30',
     },
     {
       title: 'At-Risk Students',
       value: formatNumber(overview.atRiskStudents),
-      subtitle: `${formatNumber(overview.activeStudents)} active students`,
       icon: <FileText className="h-5 w-5 text-blue-600" />,
       accent: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30',
     },
@@ -594,7 +590,6 @@ export default function LecturerDashboard({ user, onLogout }) {
 
             <DashboardSection
               title="Grading overview"
-              subtitle="Select a lab to view submissions and statistics"
               actions={
                 <button
                   onClick={handleRefresh}
@@ -629,9 +624,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                         >
                           <div className="min-w-0">
                             <div className="font-medium truncate">{formatText(lab.name)}</div>
-                            {lab.description && (
-                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">{formatText(lab.description)}</div>
-                            )}
                           </div>
                           {selectedLabId === lab.id && (
                             <ChevronRight className="h-4 w-4 shrink-0 text-purple-500" />
@@ -648,7 +640,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                       <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                         {formatText(selectedLab?.name)}
                       </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Performance summary</p>
                     </div>
                   </div>
 
@@ -782,7 +773,6 @@ export default function LecturerDashboard({ user, onLogout }) {
           <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <DashboardSection
               title="Grading"
-              subtitle="Cross-lab grade overview for all students"
               actions={
                 <div className="flex items-center gap-2">
                   <ExportMenu
@@ -799,9 +789,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                 </div>
               }
             >
-              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                Total score is the average of each student&apos;s latest lab scores across all labs in the system.
-              </p>
               {gradeOverviewError && (
                 <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
               )}

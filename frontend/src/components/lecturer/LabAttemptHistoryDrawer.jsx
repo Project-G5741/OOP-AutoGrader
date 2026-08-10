@@ -68,7 +68,6 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
           <div>
             <p className="font-semibold text-gray-900 dark:text-white">{formatText(student.studentName)}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">ID: {formatText(student.studentCode)}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatText(labName)} submission history</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#151b24]">
             <X className="h-4 w-4" />

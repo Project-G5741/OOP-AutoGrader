@@ -178,7 +178,6 @@ export default function StudentUI({
 
   // Xác định challenge hiện tại
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
-  const currentLab = labs.find(l => l.id === selectedLabId) || labs[0];
   const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
@@ -329,9 +328,6 @@ export default function StudentUI({
           <div className="w-full lg:w-[30%] flex-shrink-0 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Challenges</h2>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                {currentLab?.name || 'No lab selected'}
-              </p>
             </div>
             <ul className="flex-1 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
               {challenges.length === 0 ? (
@@ -420,7 +416,6 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Object model checks for the selected challenge.</p>
                     </div>
                     {resultsRevealed && mmdScore.total > 0 && (
                       <ScorePill ok={mmdScore.ok} total={mmdScore.total} pct={mmdScore.pct} />
@@ -511,7 +506,6 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Class Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Tap a class to inspect its members.</p>
                     </div>
                     {resultsRevealed && classScore.total > 0 && (
                       <ScorePill ok={classScore.ok} total={classScore.total} pct={classScore.pct} />
@@ -617,7 +611,6 @@ export default function StudentUI({
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Testcase Score</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Structural testcase checks from the grading rubric.</p>
                     </div>
                     {resultsRevealed && testScore.total > 0 && (
                       <ScorePill ok={testScore.ok} total={testScore.total} pct={testScore.pct} />

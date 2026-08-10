@@ -88,7 +88,6 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">MMD Score</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Tap a class to inspect diagram members.</p>
         </div>
         {attrTotal > 0 && (
           <ScorePill ok={attrPass} total={attrTotal} pct={attrPct} />
