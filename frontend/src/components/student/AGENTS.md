@@ -36,6 +36,13 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
+### Testcase tab rows (`StudentUI.jsx`)
+
+- Each structural check row uses a full-row green or red background tint for pass/fail.
+- Passing rows show the check name and trailing green **PASS** only — not clickable, no expand chevron.
+- Failing rows show the check name, trailing red **FAIL**, and a chevron; click toggles an inline error message (grading feedback only — no Input/Expected Output columns).
+- Class and MMD tabs keep their existing icon/badge row pattern.
+
 ### Dashboard stats row (`StudentUI.jsx`)
 
 - Stats are lab-scoped; `StudentDashboard` clears attempt/latest on lab change and reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API).
