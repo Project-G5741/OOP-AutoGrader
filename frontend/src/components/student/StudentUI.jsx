@@ -138,6 +138,7 @@ export default function StudentUI({
   resultsRevealed = false,
   sessionChallengeScores = {},
   sessionChallengeBundles = {},
+  sessionOverallScore = null,
   error = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
@@ -271,7 +272,7 @@ export default function StudentUI({
           />
         </div>
 
-        {/* Stats row — latest attempt from DB on login; updates after each upload */}
+        {/* Stats row — attempts/latest from DB; grade only after session upload */}
         <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg shadow-green-500/20">
             <div className="flex items-center gap-3 mb-3">
@@ -280,9 +281,9 @@ export default function StudentUI({
               </div>
               <span className="text-white/90 text-sm">Current Grade</span>
             </div>
-            {hasValue(stats.currentGrade) ? (
+            {resultsRevealed && hasValue(sessionOverallScore) ? (
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl text-white font-bold">{stats.currentGrade}</span>
+                <span className="text-4xl text-white font-bold">{sessionOverallScore}</span>
                 <span className="text-white/70 text-sm">/100</span>
               </div>
             ) : (
@@ -307,7 +308,7 @@ export default function StudentUI({
               </div>
               <span className="text-gray-500 dark:text-gray-400 text-sm">Latest Submission</span>
             </div>
-            <span className="text-gray-900 dark:text-white text-sm font-medium">
+            <span className="text-gray-900 dark:text-white text-lg font-semibold">
               {hasValue(stats.latestSubmission) ? stats.latestSubmission : '--/--'}
             </span>
           </div>
@@ -626,48 +627,61 @@ export default function StudentUI({
                   {testCasesData.length > 0 ? (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        {testCasesData.map((tc) => (
-                          <div key={tc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                            <button
-                              onClick={() => tc.isExample && setExpandedTC(expandedTC === tc.id ? null : tc.id)}
-                              disabled={!tc.isExample}
-                              className={`w-full flex items-center justify-between px-4 py-3 transition-colors text-left ${tc.isExample ? 'hover:bg-gray-50 dark:hover:bg-[#151b24] cursor-pointer' : 'cursor-default opacity-70'}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                {tc.isExample ? <Tick ok={tc.passed} /> : <Lock className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />}
-                                <span className={`text-sm font-medium ${tc.isExample ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600'}`}>
-                                  {tc.name}
-                                </span>
-                                {!tc.isExample && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>}
-                                {tc.isExample && <StatusBadge status={tc.passed ? 'success' : 'error'} />}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {tc.isExample && <span className={`text-xs font-semibold ${tc.passed ? 'text-green-500' : 'text-red-500'}`}>{tc.passed ? 'PASS' : 'FAIL'}</span>}
-                                {tc.isExample && (expandedTC === tc.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />)}
-                              </div>
-                            </button>
+                        {testCasesData.map((tc) => {
+                          const rowBorder = !tc.isExample
+                            ? 'border-gray-200 dark:border-gray-700'
+                            : tc.passed
+                              ? 'border-green-200 dark:border-green-800/40'
+                              : 'border-red-200 dark:border-red-800/40';
 
-                            {tc.isExample && expandedTC === tc.id && (
-                              <div className="border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 gap-4 md:grid-cols-3 md:divide-x md:divide-gray-100 dark:md:divide-gray-700">
-                                <div className="p-4">
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Input</p>
-                                  <pre className="bg-gray-50 dark:bg-[#151b24] rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{tc.input || '—'}</pre>
+                          return (
+                          <div key={tc.id} className={`border rounded-xl overflow-hidden ${rowBorder}`}>
+                            {!tc.isExample ? (
+                              <div className="w-full flex items-center justify-between px-4 py-3 text-left cursor-default opacity-70">
+                                <div className="flex items-center gap-3">
+                                  <Lock className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />
+                                  <span className="text-sm font-medium text-gray-400 dark:text-gray-600">{tc.name}</span>
+                                  <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>
                                 </div>
-                                <div className="p-4">
-                                  <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2">Expected Output</p>
-                                  <pre className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40 rounded-lg p-3 text-xs font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap">{tc.expectedOutput || '—'}</pre>
+                              </div>
+                            ) : tc.passed ? (
+                              <div className="w-full flex items-center justify-between px-4 py-3 text-left bg-green-50 dark:bg-green-900/10">
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className="w-8 text-right text-xs font-semibold text-green-500">PASS</span>
+                                  <span className="w-4 h-4" aria-hidden="true" />
                                 </div>
-                                <div className="p-4">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Your Output</p>
-                                    <Tick ok={tc.passed} />
-                                  </div>
-                                  <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap border ${tc.passed ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400'}`}>{tc.studentOutput || '—'}</pre>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTC(expandedTC === tc.id ? null : tc.id)}
+                                className="w-full flex items-center justify-between px-4 py-3 text-left bg-red-50 dark:bg-red-900/10 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
+                              >
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className="w-8 text-right text-xs font-semibold text-red-500">FAIL</span>
+                                  <span className="w-4 h-4 flex items-center justify-center">
+                                    {expandedTC === tc.id ? (
+                                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    )}
+                                  </span>
                                 </div>
+                              </button>
+                            )}
+
+                            {tc.isExample && !tc.passed && expandedTC === tc.id && (
+                              <div className="border-t border-red-200/60 dark:border-red-800/40 px-4 py-3 bg-red-50/50 dark:bg-red-900/10">
+                                <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">
+                                  {tc.feedback || tc.error || tc.studentOutput || 'No error details available.'}
+                                </p>
                               </div>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ) : (

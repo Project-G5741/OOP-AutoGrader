@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Moon, Sun, BarChart3, Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
 import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
+import { readFriendlyAuthError } from '../utils/apiError';
 
 export default function FirstTimeSetupUI({ token, profile = {}, onClose, onComplete }) {
   const [isDark, setIsDark] = useState(true);
@@ -34,8 +35,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
         body: JSON.stringify({ token, irn: irn.trim(), password, role: 'STUDENT' }),
       });
       if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || `HTTP ${resp.status}`);
+        throw new Error(await readFriendlyAuthError(resp, 'setup'));
       }
       const data = await resp.json();
       setDone(true);

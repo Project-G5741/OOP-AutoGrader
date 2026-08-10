@@ -5,6 +5,7 @@ import { Moon, Sun, BarChart3, Eye, EyeOff, User, Lock } from 'lucide-react';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
 import { getLoginFieldErrors, isFormValid } from '../utils/validation';
+import { readFriendlyAuthError } from '../utils/apiError';
 
 function decodeJwtPayload(token) {
   try {
@@ -26,6 +27,8 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({ irn: false, password: false });
 
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -43,8 +46,16 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
     }
   }, []);
 
-  const fieldErrors = getLoginFieldErrors(irn, password);
-  const canSubmitLogin = isFormValid(fieldErrors);
+  const rawFieldErrors = getLoginFieldErrors(irn, password);
+  const fieldErrors = {
+    irn: hasAttemptedSubmit || touchedFields.irn ? rawFieldErrors.irn : '',
+    password: hasAttemptedSubmit || touchedFields.password ? rawFieldErrors.password : '',
+  };
+  const canSubmitLogin = isFormValid(rawFieldErrors);
+
+  const handleFieldBlur = (field) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
 
   const handleFieldChange = (field, value) => {
     if (field === 'irn') {
@@ -58,6 +69,8 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
   // Local login with student code, lecturer code, or legacy IRN
   const handleLocalLogin = async (e) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    setTouchedFields({ irn: true, password: true });
     if (!canSubmitLogin) {
       return;
     }
@@ -72,8 +85,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Invalid credentials');
+        throw new Error(await readFriendlyAuthError(response, 'login'));
       }
 
       const data = await response.json();
@@ -102,10 +114,11 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
     const idToken = credentialResponse?.credential;
     if (!idToken) {
       console.error('Google login response missing credential', credentialResponse);
-      alert('Google login did not receive the token. Please try again.');
+      setFormError('Google login did not receive the token. Please try again.');
       return;
     }
 
+    setFormError('');
     setIsLoading(true);
     try {
       const resp = await fetch(`${API_BASE}/api/auth/google`, {
@@ -139,11 +152,11 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
         return;
       }
 
-      const errorText = await resp.text();
-      throw new Error(errorText || `HTTP ${resp.status}`);
+      const errorText = await readFriendlyAuthError(resp, 'google');
+      throw new Error(errorText);
     } catch (error) {
       console.error('Backend authentication failed', error);
-      alert(error.message || 'Login failed. Please try again.');
+      setFormError(error.message || 'Unable to sign in with Google. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +164,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
   const handleGoogleError = () => {
     console.error('Google login error');
-    alert('Google login failed. Please try again.');
+    setFormError('Google login failed. Please try again.');
   };
 
   const handleCompleteFirstTime = async (createdData) => {
@@ -249,7 +262,8 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                     type="text"
                     value={irn}
                     onChange={(e) => handleFieldChange('irn', e.target.value)}
-                    placeholder="e.g. 20521234 or lan.cao"
+                    onBlur={() => handleFieldBlur('irn')}
+                    placeholder="e.g. 20521234"
                     className={`input-field${fieldErrors.irn ? ' input-error' : ''}`}
                   />
                 </div>
@@ -268,6 +282,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => handleFieldChange('password', e.target.value)}
+                    onBlur={() => handleFieldBlur('password')}
                     placeholder="Enter your password"
                     className={`input-field${fieldErrors.password ? ' input-error' : ''}`}
                   />
@@ -307,7 +322,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                 </button>
               </div>
 
-              <button type="submit" className="primary-btn" disabled={isLoading || !canSubmitLogin}>
+              <button type="submit" className="primary-btn" disabled={isLoading}>
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
 
