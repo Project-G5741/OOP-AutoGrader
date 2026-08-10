@@ -233,6 +233,13 @@ public class LecturerAnalyticsRepository {
         return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, Integer.MAX_VALUE, null, null);
     }
 
+    private static String formatRosterOrderBy(String sortColumn, String sortDirection) {
+        if ("p.highest_score".equals(sortColumn)) {
+            return "p.highest_score " + sortDirection + " NULLS LAST";
+        }
+        return sortColumn + " " + sortDirection;
+    }
+
     private List<Object[]> findLabStudentRosterInternal(UUID labId,
                                                         String sortColumn,
                                                         String sortDirection,
@@ -265,7 +272,7 @@ public class LecturerAnalyticsRepository {
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
-                       latest_sub.score,
+                       CASE WHEN latest_sub.id IS NOT NULL THEN p.highest_score ELSE NULL END,
                        COALESCE(latest_sub.attempt_number, 0),
                        latest_sub.submitted_at,
                        (p.best_submission_id IS NOT NULL AND p.best_submission_id = latest_sub.id) AS best_submission,
@@ -275,9 +282,9 @@ public class LecturerAnalyticsRepository {
                 LEFT JOIN latest_sub ON latest_sub.user_id = u.id
                 WHERE 1=1
                 """ + keysetClause + """
-                ORDER BY %s %s
+                ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
-                """.formatted(sortColumn, sortDirection);
+                """.formatted(formatRosterOrderBy(sortColumn, sortDirection));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("labId", labId);
         query.setParameter("pageSize", pageSize);

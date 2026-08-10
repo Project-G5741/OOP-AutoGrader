@@ -55,7 +55,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster pagination counts **unique enrolled students** for the lab's term (`term_enrollment`), page size **5**
 
-- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`)
+- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt
+
+- Student roster supports server-side sort via `sort` query param (`studentName`, `score`); default `studentName,asc`; **Sort by name** and **Sort by score** buttons above the roster table (highlighted when active; chevron shows direction)
 
 - Roster **View** opens `LabAttemptHistoryDrawer` (`GET /api/labs/{labId}/students/{studentId}/attempts`)
 
