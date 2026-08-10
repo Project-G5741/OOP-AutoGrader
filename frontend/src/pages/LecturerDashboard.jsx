@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight } from 'lucide-react';
+import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
@@ -56,8 +56,9 @@ function tabClass(active) {
   }`;
 }
 
-async function fetchAllLabSubmissions(labId) {
-  const response = await fetch(`${API_BASE}/api/labs/${labId}/submissions/export`, {
+async function fetchAllLabSubmissions(labId, sort = 'studentName,asc') {
+  const sortQuery = sort ? `?sort=${encodeURIComponent(sort)}` : '';
+  const response = await fetch(`${API_BASE}/api/labs/${labId}/submissions/export${sortQuery}`, {
     headers: authHeaders(),
   });
   if (!response.ok) return [];
@@ -116,6 +117,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     totalPages: 0,
   });
   const [selectedRosterStudent, setSelectedRosterStudent] = useState(null);
+  const [rosterSort, setRosterSort] = useState({ field: 'studentName', direction: 'asc' });
   const [selectedChallengeStudent, setSelectedChallengeStudent] = useState(null);
   const [showAttemptHistory, setShowAttemptHistory] = useState(false);
   const [showChallengeDrawer, setShowChallengeDrawer] = useState(false);
@@ -214,13 +216,13 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchSubmissions = useCallback(async (labId, page = 0) => {
+  const fetchSubmissions = useCallback(async (labId, page = 0, sort = 'studentName,asc') => {
     if (!labId) return;
     setLoadingSubmissions(true);
     setSubmissionsError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=submittedAt,desc`,
+        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() }
       );
 
@@ -355,8 +357,9 @@ export default function LecturerDashboard({ user, onLogout }) {
     if (selectedLabId) {
       setActiveTab('overview');
       setChallengePagination((prev) => ({ ...prev, page: 0 }));
+      setRosterSort({ field: 'studentName', direction: 'asc' });
       void Promise.all([
-        fetchSubmissions(selectedLabId),
+        fetchSubmissions(selectedLabId, 0, 'studentName,asc'),
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
@@ -377,7 +380,19 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
   const handlePageChange = (newPage) => {
     if (selectedLabId) {
-      fetchSubmissions(selectedLabId, newPage);
+      fetchSubmissions(selectedLabId, newPage, `${rosterSort.field},${rosterSort.direction}`);
+    }
+  };
+
+  const handleRosterSort = (field) => {
+    const next =
+      rosterSort.field === field
+        ? { field, direction: rosterSort.direction === 'asc' ? 'desc' : 'asc' }
+        : { field, direction: 'asc' };
+    setRosterSort(next);
+    setPagination((prev) => ({ ...prev, page: 0 }));
+    if (selectedLabId) {
+      fetchSubmissions(selectedLabId, 0, `${next.field},${next.direction}`);
     }
   };
 
@@ -399,7 +414,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     fetchLabs();
     if (selectedLabId) {
       void Promise.all([
-        fetchSubmissions(selectedLabId, pagination.page),
+        fetchSubmissions(selectedLabId, pagination.page, `${rosterSort.field},${rosterSort.direction}`),
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
@@ -493,7 +508,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const exportOverview = async (format) => {
     if (!selectedLabId) return;
-    const all = await fetchAllLabSubmissions(selectedLabId);
+    const all = await fetchAllLabSubmissions(selectedLabId, `${rosterSort.field},${rosterSort.direction}`);
     const rows = all.map((r) => ({
       'Student Name': r.studentName ?? '',
       'Student ID': r.studentCode ?? '',
@@ -529,28 +544,24 @@ export default function LecturerDashboard({ user, onLogout }) {
     {
       title: 'Total Students',
       value: formatNumber(overview.totalStudents),
-      subtitle: 'Active students in the system',
       icon: <Users className="h-5 w-5 text-amber-600" />,
       accent: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30',
     },
     {
       title: 'Average Score',
       value: formatNumber(overview.averageScore),
-      subtitle: 'Across all student lab progress',
       icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
       accent: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30',
     },
     {
       title: 'Total Labs',
       value: formatNumber(overview.totalLabs),
-      subtitle: 'Labs available for grading',
       icon: <FolderKanban className="h-5 w-5 text-purple-600" />,
       accent: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30',
     },
     {
       title: 'At-Risk Students',
       value: formatNumber(overview.atRiskStudents),
-      subtitle: `${formatNumber(overview.activeStudents)} active students`,
       icon: <FileText className="h-5 w-5 text-blue-600" />,
       accent: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30',
     },
@@ -594,7 +605,6 @@ export default function LecturerDashboard({ user, onLogout }) {
 
             <DashboardSection
               title="Grading overview"
-              subtitle="Select a lab to view submissions and statistics"
               actions={
                 <button
                   onClick={handleRefresh}
@@ -629,9 +639,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                         >
                           <div className="min-w-0">
                             <div className="font-medium truncate">{formatText(lab.name)}</div>
-                            {lab.description && (
-                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">{formatText(lab.description)}</div>
-                            )}
                           </div>
                           {selectedLabId === lab.id && (
                             <ChevronRight className="h-4 w-4 shrink-0 text-purple-500" />
@@ -648,7 +655,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                       <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                         {formatText(selectedLab?.name)}
                       </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Performance summary</p>
                     </div>
                   </div>
 
@@ -720,7 +726,43 @@ export default function LecturerDashboard({ user, onLogout }) {
                           )}
 
                           <div>
-                            <h4 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Student roster</h4>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Student roster</h4>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRosterSort('studentName')}
+                                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                                    rosterSort.field === 'studentName'
+                                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
+                                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
+                                  }`}
+                                >
+                                  {rosterSort.field === 'studentName' && rosterSort.direction === 'asc' ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : rosterSort.field === 'studentName' ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : null}
+                                  Sort by name
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRosterSort('score')}
+                                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                                    rosterSort.field === 'score'
+                                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
+                                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
+                                  }`}
+                                >
+                                  {rosterSort.field === 'score' && rosterSort.direction === 'asc' ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : rosterSort.field === 'score' ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : null}
+                                  Sort by score
+                                </button>
+                              </div>
+                            </div>
                             {submissionsError && (
                               <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{submissionsError}</p>
                             )}
@@ -782,7 +824,6 @@ export default function LecturerDashboard({ user, onLogout }) {
           <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <DashboardSection
               title="Grading"
-              subtitle="Cross-lab grade overview for all students"
               actions={
                 <div className="flex items-center gap-2">
                   <ExportMenu
@@ -799,9 +840,6 @@ export default function LecturerDashboard({ user, onLogout }) {
                 </div>
               }
             >
-              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                Total score is the average of each student&apos;s latest lab scores across all labs in the system.
-              </p>
               {gradeOverviewError && (
                 <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
               )}

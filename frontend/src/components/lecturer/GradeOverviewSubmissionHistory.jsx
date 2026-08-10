@@ -19,11 +19,6 @@ export default function GradeOverviewSubmissionHistory({
       <div className="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Submission history</h3>
-          {student && (
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {formatText(student.studentName)} · IRN {formatText(student.irn)}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select

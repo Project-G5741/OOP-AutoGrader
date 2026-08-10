@@ -418,7 +418,7 @@ public class LecturerAnalyticsService {
         String field = parts[0].trim().toLowerCase();
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
-            case "score" -> "latest_sub.score";
+            case "score" -> "p.highest_score";
             case "attempt" -> "latest_sub.attempt_number";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";

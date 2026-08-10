@@ -108,8 +108,8 @@ Grading tuning properties (`application.properties`):
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; when missing (legacy submissions or storage wipe), tabs fall back to rubric-template labels
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
-- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5)
-- `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export)
+- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** field is `highest_score`; sort by `studentName` or `score`
+- `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter)

@@ -79,7 +79,6 @@ export default function SolutionManagement() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Solution Management</h2>
-          <p className="text-sm text-gray-500">Upload grading solutions per lab</p>
         </div>
         <div className="inline-flex items-center gap-2">
           <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-4 py-2 text-white hover:bg-purple-500">

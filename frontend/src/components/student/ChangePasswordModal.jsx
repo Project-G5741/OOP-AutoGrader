@@ -82,7 +82,6 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
         <div className="flex items-center justify-between border-b border-gray-200/80 px-6 py-4 dark:border-gray-800">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Update your account password securely.</p>
           </div>
           <button
             onClick={onClose}
