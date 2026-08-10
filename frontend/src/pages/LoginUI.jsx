@@ -263,7 +263,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                     value={irn}
                     onChange={(e) => handleFieldChange('irn', e.target.value)}
                     onBlur={() => handleFieldBlur('irn')}
-                    placeholder="e.g. 20521234 or lan.cao"
+                    placeholder="e.g. 20521234"
                     className={`input-field${fieldErrors.irn ? ' input-error' : ''}`}
                   />
                 </div>
