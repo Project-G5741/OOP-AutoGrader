@@ -28,18 +28,18 @@ public class GradingPipeline {
     private final ClassReflectionGrader classReflectionGrader;
     private final MmdPillarGrader mmdPillarGrader;
     private final TestcaseGrader testcaseGrader;
-    private final ExecutorService gradingExecutor;
+    private final ExecutorService pillarExecutor;
 
     public GradingPipeline(ReflectionClassParser reflectionClassParser,
                            ClassReflectionGrader classReflectionGrader,
                            MmdPillarGrader mmdPillarGrader,
                            TestcaseGrader testcaseGrader,
-                           @Qualifier("gradingExecutor") ExecutorService gradingExecutor) {
+                           @Qualifier("pillarExecutor") ExecutorService pillarExecutor) {
         this.reflectionClassParser = reflectionClassParser;
         this.classReflectionGrader = classReflectionGrader;
         this.mmdPillarGrader = mmdPillarGrader;
         this.testcaseGrader = testcaseGrader;
-        this.gradingExecutor = gradingExecutor;
+        this.pillarExecutor = pillarExecutor;
     }
 
     public ChallengePipelineResult gradeChallenge(
@@ -66,9 +66,9 @@ public class GradingPipeline {
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);
 
         CompletableFuture<MmdPillarGrader.MmdPillarResult> mmdFuture = CompletableFuture.supplyAsync(
-                () -> mmdPillarGrader.grade(challengeRubric, mmdFiles), gradingExecutor);
+                () -> mmdPillarGrader.grade(challengeRubric, mmdFiles), pillarExecutor);
         CompletableFuture<TestcaseGrader.TestcasePillarResult> testcaseFuture = CompletableFuture.supplyAsync(
-                () -> testcaseGrader.grade(context), gradingExecutor);
+                () -> testcaseGrader.grade(context), pillarExecutor);
 
         CompletableFuture.allOf(mmdFuture, testcaseFuture).join();
         MmdPillarGrader.MmdPillarResult mmdResult = mmdFuture.join();

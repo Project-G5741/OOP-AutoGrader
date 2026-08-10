@@ -41,7 +41,7 @@ Grading still reads `.class` files from disk via `ReflectionClassParser`. Only t
 
 ### Wire executors explicitly
 
-Two `ExecutorService` beans exist: `compileExecutor` and `gradingExecutor`. Inject with `@Qualifier("compileExecutor")` on `SubmissionStorageService` and `@Qualifier("gradingExecutor")` on `GradingService`. Pool sizing is shared via `FixedExecutorFactory` (CPU-capped fixed pool, daemon worker threads).
+Two `ExecutorService` beans exist for upload compile and per-challenge grading: `compileExecutor` and `gradingExecutor`. `GradingPipeline` runs MMD + testcase pillars on a separate `pillarExecutor` (`max(2, parallelism×2)` threads). Inject with `@Qualifier("compileExecutor")` on `SubmissionStorageService`, `@Qualifier("gradingExecutor")` on `GradingService`, and `@Qualifier("pillarExecutor")` on `GradingPipeline`. Challenge and compile pool sizing uses `FixedExecutorFactory` (CPU-capped fixed pool, daemon worker threads). Never schedule nested blocking work on `gradingExecutor` from a `gradingExecutor` worker — that deadlocks when pool size ≤ active challenge count (common on Render free tier).
 
 ### Isolate failures per challenge
 

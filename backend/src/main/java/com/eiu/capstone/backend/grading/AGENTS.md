@@ -36,7 +36,7 @@ SubmissionController
   → GradingService.gradeSubmission()
       → GradingPipeline.gradeChallenge() per folder
           → ClassReflectionGrader (sync)
-          → MmdPillarGrader + TestcaseGrader (parallel)
+          → MmdPillarGrader + TestcaseGrader (parallel on `pillarExecutor`, not `gradingExecutor`)
       → GradingResultStore.save()
       → LabResultAssembler.assemble() → upload response lab_result
   → MmdPersistenceHook.onUploadComplete()

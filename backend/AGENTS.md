@@ -84,6 +84,7 @@ Grading tuning properties (`application.properties`):
 |---|---|---|
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
+| `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Log upload (`rubric_ms`, `process_ms`, `grade_ms`, `total_ms`) and read paths (`challenges_ms`, `class_ms`, `stats_ms`) |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
