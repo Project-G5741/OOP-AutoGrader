@@ -1,4 +1,4 @@
-import { formatDateTime, formatPercent, formatText } from '../../utils/formatters';
+import { formatDateTime, formatNumber, formatText } from '../../utils/formatters';
 
 export default function GradeOverviewSubmissionHistory({
   student,
@@ -69,7 +69,7 @@ export default function GradeOverviewSubmissionHistory({
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(row.irn)}</td>
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(row.labName)}</td>
                   <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatDateTime(row.submittedAt)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(row.score)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(row.score)}</td>
                 </tr>
               ))}
             </tbody>

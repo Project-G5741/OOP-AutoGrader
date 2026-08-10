@@ -65,15 +65,16 @@ async function fetchAllLabSubmissions(labId, sort = 'studentName,asc') {
   return response.json();
 }
 
-async function fetchAllGradeOverview() {
+async function fetchAllGradeOverview(sort = 'studentName,asc') {
   let page = 0;
   let totalPages = 1;
   let labs = [];
   const students = [];
+  const sortQuery = sort ? `&sort=${encodeURIComponent(sort)}` : '';
 
   while (page < totalPages) {
     const response = await fetch(
-      `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_EXPORT_PAGE_SIZE}`,
+      `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_EXPORT_PAGE_SIZE}${sortQuery}`,
       { headers: authHeaders() },
     );
     if (!response.ok) {
@@ -147,6 +148,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [gradeStudentHistoryError, setGradeStudentHistoryError] = useState(null);
   const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
   const [historySortDirection, setHistorySortDirection] = useState('desc');
+  const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
   const [challenges, setChallenges] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -308,12 +310,12 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchGradeOverview = useCallback(async (page = 0) => {
+  const fetchGradeOverview = useCallback(async (page = 0, sort = 'studentName,asc') => {
     setLoadingGradeOverview(true);
     setGradeOverviewError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${ROSTER_PAGE_SIZE}`,
+        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() },
       );
       if (!response.ok) {
@@ -349,7 +351,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (activeNav === 'grading') {
-      fetchGradeOverview(0);
+      fetchGradeOverview(0, `${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
     }
   }, [activeNav, fetchGradeOverview]);
 
@@ -407,7 +409,10 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleRefresh = () => {
     if (activeNav === 'grading') {
-      fetchGradeOverview(gradeOverviewPagination.page);
+      fetchGradeOverview(
+        gradeOverviewPagination.page,
+        `${gradeOverviewSort.field},${gradeOverviewSort.direction}`,
+      );
       return;
     }
     fetchOverview();
@@ -424,7 +429,17 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   };
   const handleGradeOverviewPageChange = (newPage) => {
-    fetchGradeOverview(newPage);
+    fetchGradeOverview(newPage, `${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
+  };
+
+  const handleGradeOverviewSort = (field) => {
+    const next =
+      gradeOverviewSort.field === field
+        ? { field, direction: gradeOverviewSort.direction === 'asc' ? 'desc' : 'asc' }
+        : { field, direction: 'asc' };
+    setGradeOverviewSort(next);
+    setGradeOverviewPagination((prev) => ({ ...prev, page: 0 }));
+    fetchGradeOverview(0, `${next.field},${next.direction}`);
   };
 
   const fetchStudentSubmissionHistory = useCallback(async (studentId) => {
@@ -525,7 +540,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
 
   const handleExportGradeOverview = async (format) => {
-    const { labs, students } = await fetchAllGradeOverview();
+    const { labs, students } = await fetchAllGradeOverview(`${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
     if (!students.length) return;
     await exportGradeOverview(format, { labs, students });
   };
@@ -843,6 +858,40 @@ export default function LecturerDashboard({ user, onLogout }) {
               {gradeOverviewError && (
                 <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
               )}
+              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleGradeOverviewSort('studentName')}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    gradeOverviewSort.field === 'studentName'
+                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
+                  }`}
+                >
+                  {gradeOverviewSort.field === 'studentName' && gradeOverviewSort.direction === 'asc' ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : gradeOverviewSort.field === 'studentName' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : null}
+                  Sort by name
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGradeOverviewSort('score')}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    gradeOverviewSort.field === 'score'
+                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
+                  }`}
+                >
+                  {gradeOverviewSort.field === 'score' && gradeOverviewSort.direction === 'asc' ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : gradeOverviewSort.field === 'score' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : null}
+                  Sort by score
+                </button>
+              </div>
               <GradeOverviewTable
                 labs={gradeOverview.labs}
                 students={gradeOverview.content}
