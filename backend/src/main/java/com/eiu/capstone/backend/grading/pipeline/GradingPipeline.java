@@ -91,7 +91,8 @@ public class GradingPipeline {
                 fullyCorrect,
                 classResult,
                 mmdResult,
-                testcaseResult);
+                testcaseResult,
+                parsedClasses);
     }
 
     private Integer extractChallengeNumber(String challengeFolderKey) {
@@ -107,5 +108,6 @@ public class GradingPipeline {
             boolean fullyCorrect,
             ClassReflectionGrader.ClassPillarResult classResult,
             MmdPillarGrader.MmdPillarResult mmdResult,
-            TestcaseGrader.TestcasePillarResult testcaseResult) {}
+            TestcaseGrader.TestcasePillarResult testcaseResult,
+            List<com.eiu.capstone.backend.grading.ParsedClass> parsedClasses) {}
 }

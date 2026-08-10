@@ -15,7 +15,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/TestcaseGrader.java` | Structural testcase pillar (EXISTENCE / DECLARATION) |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of 3 pillars), and lab percentages |
 | `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for DECLARATION checks |
-| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response (batched rubric load + in-memory correct IDs) |
+| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response (batched rubric load + in-memory correct IDs + parsed snapshots) |
+| `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
 | `grading/rubric/LabRubricService.java` | Load full lab rubric (including testcases) in batched DB queries |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |

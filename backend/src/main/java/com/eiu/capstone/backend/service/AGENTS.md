@@ -19,6 +19,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
+| `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 
 ## Local Contracts
 

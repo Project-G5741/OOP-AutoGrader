@@ -43,6 +43,9 @@ import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
+import com.eiu.capstone.backend.service.ParsedSubmissionSnapshotStore;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 
 @Service
@@ -62,6 +65,8 @@ public class GradingService {
     private final GradingPipeline gradingPipeline;
     private final TestcaseRepository testcaseRepository;
     private final LabResultAssembler labResultAssembler;
+    private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
+    private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
 
     public GradingService(ChallengeRepository challengeRepository,
                           FieldRepository fieldRepository,
@@ -73,7 +78,9 @@ public class GradingService {
                           ClassRelationRepository classRelationRepository,
                           GradingPipeline gradingPipeline,
                           TestcaseRepository testcaseRepository,
-                          LabResultAssembler labResultAssembler) {
+                          LabResultAssembler labResultAssembler,
+                          ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
+                          ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
@@ -85,6 +92,8 @@ public class GradingService {
         this.gradingPipeline = gradingPipeline;
         this.testcaseRepository = testcaseRepository;
         this.labResultAssembler = labResultAssembler;
+        this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
+        this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
     }
 
     public GradingOutcome gradeSubmission(LabSubmission submission,
@@ -99,6 +108,7 @@ public class GradingService {
         GradingComputationResult computed = computeAgainstSnapshot(
                 rubric, challengeFolderResults, mmdByChallenge, submission, existing);
         gradingResultStore.save(computed);
+        parsedSubmissionSnapshotStore.save(submission.getId(), computed.snapshotsByChallengeId);
 
         var labResult = labResultAssembler.assemble(
                 submission.getId(),
@@ -151,6 +161,7 @@ public class GradingService {
         result.mmdMetaByChallengeId = new java.util.LinkedHashMap<>();
         result.pillarScoresByChallengeNumber = new java.util.LinkedHashMap<>();
         result.mmdResultsByChallengeNumber = new java.util.LinkedHashMap<>();
+        result.snapshotsByChallengeId = new java.util.LinkedHashMap<>();
 
         Map<Integer, BigDecimal> percentagesByChallengeNumber = new java.util.LinkedHashMap<>();
         for (ChallengeComputation cc : challengeComputations) {
@@ -199,6 +210,9 @@ public class GradingService {
             }
             if (cc.challengeNumber != null && cc.mmdResult != null) {
                 result.mmdResultsByChallengeNumber.put(cc.challengeNumber, cc.mmdResult);
+            }
+            if (cc.challengeId != null && cc.snapshot != null) {
+                result.snapshotsByChallengeId.put(cc.challengeId, cc.snapshot);
             }
             if (cc.challengeId != null && cc.percentage != null) {
                 result.gradedChallenges.add(new GradedChallengeSummary(
@@ -261,6 +275,10 @@ public class GradingService {
         computation.classPillarPct = pipelineResult.classResult().pillarPercentage();
         computation.mmdPillarPct = pipelineResult.mmdResult().pillarPercentage();
         computation.testcasePillarPct = pipelineResult.testcaseResult().pillarPercentage();
+        computation.snapshot = parsedSubmissionSnapshotBuilder.build(
+                challengeRubric,
+                pipelineResult.parsedClasses(),
+                pipelineResult.mmdResult().diagram());
         return computation;
     }
 
@@ -404,6 +422,7 @@ public class GradingService {
         Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
         Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
         Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;
+        Map<UUID, ChallengeSnapshot> snapshotsByChallengeId;
     }
 
     private static class ChallengeComputation {
@@ -421,5 +440,6 @@ public class GradingService {
         List<PendingRelationResult> pendingRelations;
         List<PendingTestcaseResult> pendingTestcases;
         com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta mmdMeta;
+        ChallengeSnapshot snapshot;
     }
 }

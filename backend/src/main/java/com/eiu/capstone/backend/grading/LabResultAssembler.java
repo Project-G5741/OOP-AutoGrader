@@ -18,6 +18,7 @@ import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
@@ -78,11 +79,16 @@ public class LabResultAssembler {
             int number = challengeRubric.challengeNumber();
             UUID challengeId = challengeRubric.challengeId();
 
+            ChallengeSnapshot snapshot = computed.snapshotsByChallengeId != null
+                    ? computed.snapshotsByChallengeId.get(challengeId)
+                    : null;
+
             List<ClassDetailDTO> classData = classStructureService.buildClassData(
                     structure,
                     challengeId,
                     correctIds,
-                    compileErrors.get(challengeId));
+                    compileErrors.get(challengeId),
+                    snapshot);
 
             MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
             ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
@@ -93,7 +99,8 @@ public class LabResultAssembler {
                     mmdResult != null ? mmdResult.outcome() : null,
                     mmdResult != null ? mmdResult.mmdSubmitted() : null,
                     mmdMeta,
-                    submissionId);
+                    submissionId,
+                    snapshot);
 
             List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
 

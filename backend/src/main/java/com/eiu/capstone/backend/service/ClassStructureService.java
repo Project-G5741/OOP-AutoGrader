@@ -3,6 +3,12 @@ package com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.DTO.*;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.MmdGradingOutcome;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassConstructorEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassFieldEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdRelationEntry;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 import com.eiu.capstone.backend.model.*;
@@ -28,6 +34,7 @@ public class ClassStructureService {
     private final MasterDataCache masterDataCache;
     private final SubmissionCompileErrorStore compileErrorStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
+    private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
     private final boolean timingLog;
 
     public ClassStructureService(ChallengeRepository challengeRepository,
@@ -42,6 +49,7 @@ public class ClassStructureService {
                                   MasterDataCache masterDataCache,
                                   SubmissionCompileErrorStore compileErrorStore,
                                   SubmissionMmdMetaStore submissionMmdMetaStore,
+                                  ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
                                   @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
@@ -55,6 +63,7 @@ public class ClassStructureService {
         this.masterDataCache = masterDataCache;
         this.compileErrorStore = compileErrorStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
+        this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
         this.timingLog = timingLog;
     }
 
@@ -163,7 +172,8 @@ public class ClassStructureService {
         LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
-        return buildMmdData(structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        return buildMmdData(structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, snapshot);
     }
 
     public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
@@ -173,6 +183,17 @@ public class ClassStructureService {
                                           Boolean mmdSubmittedOverride,
                                           ChallengeMmdMeta mmdMeta,
                                           UUID submissionId) {
+        return buildMmdData(structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, null);
+    }
+
+    public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
+                                          UUID challengeId,
+                                          SubmissionCorrectIds correctIds,
+                                          MmdGradingOutcome mmdOutcome,
+                                          Boolean mmdSubmittedOverride,
+                                          ChallengeMmdMeta mmdMeta,
+                                          UUID submissionId,
+                                          ChallengeSnapshot snapshot) {
         List<ClassEntity> classes = structure.classesForChallenge(challengeId);
         if (classes.isEmpty()) {
             return List.of();
@@ -183,6 +204,8 @@ public class ClassStructureService {
         boolean effectiveMmdSubmitted = mmdSubmittedOverride != null
                 ? mmdSubmittedOverride
                 : resolveEffectiveMmdSubmitted(submissionId, effectiveMeta, correctIds);
+
+        ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot = snapshot != null ? snapshot.mmdSnapshot : null;
 
         List<MmdClassDTO> result = new ArrayList<>();
         for (ClassEntity classEntity : classes) {
@@ -204,8 +227,13 @@ public class ClassStructureService {
             }
 
             List<MmdAttributeDTO> attributes = new ArrayList<>();
+            String stereotypeDisplay = mmdSnapshot != null
+                    ? mmdSnapshot.stereotypes.get(classIdStr)
+                    : null;
             attributes.add(new MmdAttributeDTO(
-                    "<<" + resolveClassTypeLabel(classEntity, masterData).toLowerCase() + ">>",
+                    stereotypeDisplay != null
+                            ? stereotypeDisplay
+                            : "<<" + resolveClassTypeLabel(classEntity, masterData).toLowerCase() + ">>",
                     "stereotype",
                     stereotypeOk,
                     stereotypeOk ? null : (effectiveMmdSubmitted ? "Class missing from diagram" : "Missing MMD file")));
@@ -214,8 +242,9 @@ public class ClassStructureService {
                 boolean ok = mmdOutcome != null
                         ? mmdOutcome.isFieldCorrect(field.getId())
                         : correctIds.fieldIds().contains(field.getId());
+                String displayName = snapshotAttributeName(mmdSnapshot, field.getId(), formatFieldName(field));
                 attributes.add(new MmdAttributeDTO(
-                        formatFieldName(field),
+                        displayName,
                         "field",
                         ok,
                         ok ? null : "Field mismatch"));
@@ -225,9 +254,10 @@ public class ClassStructureService {
                 boolean ok = mmdOutcome != null
                         ? mmdOutcome.isConstructorCorrect(constructor.getId())
                         : correctIds.constructorIds().contains(constructor.getId());
+                String rubricName = formatConstructorName(constructor,
+                        structure.paramsByConstructorId().getOrDefault(constructor.getId(), List.of()));
                 attributes.add(new MmdAttributeDTO(
-                        formatConstructorName(constructor,
-                                structure.paramsByConstructorId().getOrDefault(constructor.getId(), List.of())),
+                        snapshotAttributeName(mmdSnapshot, constructor.getId(), rubricName),
                         "constructor",
                         ok,
                         ok ? null : "Constructor mismatch"));
@@ -237,9 +267,10 @@ public class ClassStructureService {
                 boolean ok = mmdOutcome != null
                         ? mmdOutcome.isMethodCorrect(method.getId())
                         : correctIds.methodIds().contains(method.getId());
+                String rubricName = formatMethodName(method,
+                        structure.paramsByMethodId().getOrDefault(method.getId(), List.of()));
                 attributes.add(new MmdAttributeDTO(
-                        formatMethodName(method,
-                                structure.paramsByMethodId().getOrDefault(method.getId(), List.of())),
+                        snapshotAttributeName(mmdSnapshot, method.getId(), rubricName),
                         "method",
                         ok,
                         ok ? null : "Method mismatch"));
@@ -256,12 +287,19 @@ public class ClassStructureService {
                                 : effectiveMeta.relationErrors.getOrDefault(
                                         relation.getId().toString(),
                                         effectiveMmdSubmitted ? "Relation mismatch" : "Missing relationship");
-                        return new MmdRelationDTO(
-                                relation.getClassEntity().getName(),
-                                relation.getTargetClassEntity().getName(),
-                                MmdComparisonService.normalizeRelationTypeName(relation.getRelationType().getName()),
-                                ok,
-                                error);
+                        MmdRelationEntry relationEntry = mmdSnapshot != null
+                                ? mmdSnapshot.relations.get(relation.getId().toString())
+                                : null;
+                        String from = relationEntry != null
+                                ? relationEntry.from
+                                : relation.getClassEntity().getName();
+                        String to = relationEntry != null
+                                ? relationEntry.to
+                                : relation.getTargetClassEntity().getName();
+                        String relType = relationEntry != null
+                                ? relationEntry.relType
+                                : MmdComparisonService.normalizeRelationTypeName(relation.getRelationType().getName());
+                        return new MmdRelationDTO(from, to, relType, ok, error);
                     })
                     .toList();
 
@@ -335,6 +373,15 @@ public class ClassStructureService {
         return method.getName() + "(" + paramList + ") " + method.getMethodDeclaration().getReturnType();
     }
 
+    private String snapshotAttributeName(ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot,
+                                         UUID elementId,
+                                         String rubricFallback) {
+        if (mmdSnapshot == null || elementId == null) {
+            return rubricFallback;
+        }
+        return mmdSnapshot.attributes.getOrDefault(elementId.toString(), rubricFallback);
+    }
+
     /** Powers the "Class" tab for the student's latest attempt. */
     public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
@@ -359,44 +406,81 @@ public class ClassStructureService {
         LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         String compileError = compileErrorStore.get(submissionId, challengeId);
-        return buildClassData(structure, challengeId, correctIds, compileError);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        return buildClassData(structure, challengeId, correctIds, compileError, snapshot);
     }
 
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
                                                UUID challengeId,
                                                SubmissionCorrectIds correctIds,
                                                String compileError) {
+        return buildClassData(structure, challengeId, correctIds, compileError, null);
+    }
+
+    public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
+                                               UUID challengeId,
+                                               SubmissionCorrectIds correctIds,
+                                               String compileError,
+                                               ChallengeSnapshot snapshot) {
         List<ClassEntity> classes = structure.classesForChallenge(challengeId);
         if (classes.isEmpty()) {
             return List.of();
         }
 
         Map<Integer, String> masterData = structure.masterData();
+        ParsedSubmissionSnapshot.ClassSnapshot classSnapshot = snapshot != null ? snapshot.classSnapshot : null;
         List<ClassDetailDTO> result = new ArrayList<>();
         for (ClassEntity ce : classes) {
             List<ClassFieldDetailDTO> fields = structure.fieldsByClassId().getOrDefault(ce.getId(), List.of()).stream()
-                    .map(f -> new ClassFieldDetailDTO(
-                            f.getName(),
-                            resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
-                            f.getFieldDeclaration().getDataType(),
-                            correctIds.fieldIds().contains(f.getId())))
+                    .map(f -> {
+                        boolean ok = correctIds.fieldIds().contains(f.getId());
+                        ClassFieldEntry entry = classSnapshot != null
+                                ? classSnapshot.fields.get(f.getId().toString())
+                                : null;
+                        if (entry != null) {
+                            return new ClassFieldDetailDTO(entry.name, entry.scope, entry.dataType, ok);
+                        }
+                        return new ClassFieldDetailDTO(
+                                f.getName(),
+                                resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
+                                f.getFieldDeclaration().getDataType(),
+                                ok);
+                    })
                     .toList();
 
             List<ClassConstructorDetailDTO> constructors = structure.constructorsByClassId()
                     .getOrDefault(ce.getId(), List.of()).stream()
-                    .map(c -> new ClassConstructorDetailDTO(
-                            c.getName(),
-                            resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
-                            formatParams(structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()), true),
-                            correctIds.constructorIds().contains(c.getId())))
+                    .map(c -> {
+                        boolean ok = correctIds.constructorIds().contains(c.getId());
+                        ClassConstructorEntry entry = classSnapshot != null
+                                ? classSnapshot.constructors.get(c.getId().toString())
+                                : null;
+                        if (entry != null) {
+                            return new ClassConstructorDetailDTO(entry.name, entry.scope, entry.params, ok);
+                        }
+                        return new ClassConstructorDetailDTO(
+                                c.getName(),
+                                resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
+                                formatParams(structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()), true),
+                                ok);
+                    })
                     .toList();
 
             List<ClassMethodDetailDTO> methods = structure.methodsByClassId().getOrDefault(ce.getId(), List.of()).stream()
-                    .map(m -> new ClassMethodDetailDTO(
-                            m.getName(),
-                            resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),
-                            m.getMethodDeclaration().getReturnType(),
-                            correctIds.methodIds().contains(m.getId())))
+                    .map(m -> {
+                        boolean ok = correctIds.methodIds().contains(m.getId());
+                        ClassMethodEntry entry = classSnapshot != null
+                                ? classSnapshot.methods.get(m.getId().toString())
+                                : null;
+                        if (entry != null) {
+                            return new ClassMethodDetailDTO(entry.name, entry.scope, entry.returnType, ok);
+                        }
+                        return new ClassMethodDetailDTO(
+                                m.getName(),
+                                resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),
+                                m.getMethodDeclaration().getReturnType(),
+                                ok);
+                    })
                     .toList();
 
             result.add(new ClassDetailDTO(

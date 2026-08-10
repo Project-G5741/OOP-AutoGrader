@@ -28,6 +28,9 @@ A rubric-linked grading check stored in `testcase` with `EXISTENCE` or `DECLARAT
 ### lab_result bundle
 Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and testcase detail arrays so the student UI renders tabs without follow-up read API calls.
 
+### Parsed submission snapshot
+Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items and rubric expected labels for missing items, with existing per-element pass/fail flags.
+
 ## Relationships
 
 - A **lab submission** owns many **submission results** (one per rubric element graded).
