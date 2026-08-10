@@ -88,7 +88,11 @@ public class ChallengeService {
                             methodsByClass,
                             constructorsByClass,
                             correctIds);
-            result.add(new ChallengeDTO(challenge.getId(), challenge.getName(), score));
+            result.add(new ChallengeDTO(
+                    challenge.getId(),
+                    challenge.getChallengeNumber(),
+                    challenge.getName(),
+                    score));
         }
 
         if (timingLog) {

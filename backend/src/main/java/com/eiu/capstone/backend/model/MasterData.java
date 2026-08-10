@@ -15,8 +15,8 @@ public class MasterData {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "data_value")
-    private Integer dataValue;
+    @Column(name = "category", nullable = false)
+    private String category = "UNSPECIFIED";
 
     public MasterData() {}
 
@@ -36,11 +36,11 @@ public class MasterData {
         this.name = name;
     }
 
-    public Integer getDataValue() {
-        return dataValue;
+    public String getCategory() {
+        return category;
     }
 
-    public void setDataValue(Integer dataValue) {
-        this.dataValue = dataValue;
+    public void setCategory(String category) {
+        this.category = category;
     }
 }

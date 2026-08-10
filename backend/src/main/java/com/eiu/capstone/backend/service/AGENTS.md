@@ -19,6 +19,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
+| `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 
 ## Local Contracts
 
@@ -28,12 +29,11 @@ Per upload request (unique `requestId` prevents collisions):
 
 ```
 <SUBMISSION_BASE_DIR>/<sanitized_irn>/<requestId>/challenge_<N>/
-  classes/       → compiled .class output
-  _sources_tmp/  → temp .java sources (deleted after compile)
+  classes/       → compiled .class output (sources compiled from memory; no _sources_tmp)
 ```
 
 - `.mmd` files are accepted in uploads but not written to disk on the hot path; use `MmdPersistenceHook` for near-future archival
-- Challenges are compiled in parallel (`app.grading.parallelism`, default 4)
+- Challenges are compiled in parallel (`app.compile.parallelism`, default 4) on the dedicated `compileExecutor` pool
 
 - Multipart filenames carry relative paths from the dropped folder (see `DropZone.jsx`)
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
@@ -42,10 +42,12 @@ Per upload request (unique `requestId` prevents collisions):
 
 ### Java compilation
 
-- `JavaCompilerService.compile(sources, outputDir)` requires JDK (`ToolProvider.getSystemJavaCompiler()`)
+- `JavaCompilerService.compileSources(sources, outputDir)` compiles in-memory `JavaFileObject` sources to `classes/` via `javax.tools.JavaCompiler` (JDK required)
+- Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
 - Compile failures for a challenge folder are captured per challenge (upload continues); diagnostics appear on Class tab cards via `ClassDetailDTO.error`
-- Empty source list returns empty diagnostics (no-op)
+- Empty source list returns without invoking the compiler
+- With `app.grading.timing-log=true`, `SubmissionStorageService` logs `compile_timing` per challenge (`build_sources_ms`, `javac_ms`, `count_ms`)
 
 ### Authentication
 

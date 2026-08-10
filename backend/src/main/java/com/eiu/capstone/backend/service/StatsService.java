@@ -1,6 +1,5 @@
 package com.eiu.capstone.backend.service;
 
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -8,12 +7,10 @@ import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.DTO.StatsDTO;
 import com.eiu.capstone.backend.repository.StatsRepository;
+import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
 public class StatsService {
-
-    private static final DateTimeFormatter LATEST_SUBMISSION_FORMAT =
-            DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm");
 
     private final StatsRepository statsRepository;
     private final boolean timingLog;
@@ -49,16 +46,10 @@ public class StatsService {
                 ? null
                 : Math.round(row.latestScore().floatValue());
 
-        int attemptsFromProgress = row.attemptsFromProgress() != null ? row.attemptsFromProgress() : 0;
-        int total = Math.max(row.submissionCount(), attemptsFromProgress);
-        Integer totalSubmissions = total == 0 ? null : total;
+        int submissionCount = row.submissionCount();
+        Integer totalSubmissions = submissionCount == 0 ? null : submissionCount;
 
-        String latestSubmission = null;
-        if (row.latestSubmittedAtOffset() != null) {
-            latestSubmission = LATEST_SUBMISSION_FORMAT.format(row.latestSubmittedAtOffset());
-        } else if (row.latestSubmittedAtLocal() != null) {
-            latestSubmission = LATEST_SUBMISSION_FORMAT.format(row.latestSubmittedAtLocal());
-        }
+        String latestSubmission = TimeUtil.formatLatestSubmission(row.latestSubmittedAtOffset());
 
         StatsDTO result = new StatsDTO(currentGrade, totalSubmissions, latestSubmission);
 

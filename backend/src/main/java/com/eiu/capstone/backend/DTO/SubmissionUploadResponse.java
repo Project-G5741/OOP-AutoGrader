@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class SubmissionUploadResponse {
 
     private final UUID submissionId;
@@ -14,6 +16,7 @@ public class SubmissionUploadResponse {
     private final Integer attemptNumber;
     private final Integer totalSubmissions;
     private final String latestSubmission;
+    private final Map<String, ChallengeDetailBundleDTO> labResult;
 
     public SubmissionUploadResponse(UUID submissionId,
                                     String irn,
@@ -22,7 +25,8 @@ public class SubmissionUploadResponse {
                                     BigDecimal score,
                                     Integer attemptNumber,
                                     Integer totalSubmissions,
-                                    String latestSubmission) {
+                                    String latestSubmission,
+                                    Map<String, ChallengeDetailBundleDTO> labResult) {
         this.submissionId = submissionId;
         this.irn = irn;
         this.requestId = requestId;
@@ -31,6 +35,7 @@ public class SubmissionUploadResponse {
         this.attemptNumber = attemptNumber;
         this.totalSubmissions = totalSubmissions;
         this.latestSubmission = latestSubmission;
+        this.labResult = labResult;
     }
 
     public UUID getSubmissionId() { return submissionId; }
@@ -41,4 +46,7 @@ public class SubmissionUploadResponse {
     public Integer getAttemptNumber() { return attemptNumber; }
     public Integer getTotalSubmissions() { return totalSubmissions; }
     public String getLatestSubmission() { return latestSubmission; }
+
+    @JsonProperty("lab_result")
+    public Map<String, ChallengeDetailBundleDTO> getLabResult() { return labResult; }
 }

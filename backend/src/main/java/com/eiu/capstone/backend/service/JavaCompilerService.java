@@ -5,8 +5,8 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -20,48 +20,65 @@ import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 @Service
 public class JavaCompilerService {
 
-    public List<String> compile(List<Path> javaSourceFiles, Path outputDir) {
-        if (javaSourceFiles.isEmpty()) {
+    private JavaCompiler compiler;
+    private final ThreadLocal<StandardJavaFileManager> fileManagerHolder = new ThreadLocal<>();
+
+    @PostConstruct
+    void initCompiler() {
+        compiler = ToolProvider.getSystemJavaCompiler();
+        if (compiler == null) {
+            throw new IllegalStateException(
+                    "No system Java compiler available — the backend must run on a JDK, not a JRE.");
+        }
+    }
+
+    public List<String> compileSources(List<JavaFileObject> sources, Path outputDir) {
+        if (sources.isEmpty()) {
             return List.of();
         }
 
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        if (compiler == null) {
-            throw new SubmissionProcessingException(
-                    "No system Java compiler available — the backend must run on a JDK, not a JRE.");
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        StandardJavaFileManager fileManager = fileManagerHolder.get();
+        if (fileManager == null) {
+            fileManager = compiler.getStandardFileManager(null, Locale.getDefault(), null);
+            fileManagerHolder.set(fileManager);
         }
 
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        try (StandardJavaFileManager fileManager =
-                     compiler.getStandardFileManager(diagnostics, Locale.getDefault(), null)) {
+        List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8");
 
-            Iterable<? extends JavaFileObject> compilationUnits =
-                    fileManager.getJavaFileObjectsFromPaths(javaSourceFiles);
+        StringWriter errorOutput = new StringWriter();
+        JavaCompiler.CompilationTask task = compiler.getTask(
+                errorOutput, fileManager, diagnostics, options, null, sources);
 
-            List<String> options = List.of(
-                    // "-Xmx218m", 
-                    "-d", outputDir.toString()
-                    , "-encoding", "UTF-8"
-            );
+        boolean success;
+        try {
+            success = task.call();
+        } catch (RuntimeException e) {
+            resetFileManager();
+            throw e;
+        }
 
-            StringWriter errorOutput = new StringWriter();
-            JavaCompiler.CompilationTask task = compiler.getTask(
-                    errorOutput, fileManager, diagnostics, options, null, compilationUnits);
+        List<String> messages = diagnostics.getDiagnostics().stream()
+                .map(d -> String.format("%s: line %d: %s",
+                        d.getKind(), d.getLineNumber(), d.getMessage(Locale.getDefault())))
+                .toList();
 
-            boolean success = task.call();
+        if (!success) {
+            resetFileManager();
+            throw new SubmissionProcessingException("Compilation failed:\n" + String.join("\n", messages));
+        }
 
-            List<String> messages = diagnostics.getDiagnostics().stream()
-                    .map(d -> String.format("%s: line %d: %s",
-                            d.getKind(), d.getLineNumber(), d.getMessage(Locale.getDefault())))
-                    .collect(Collectors.toList());
+        return messages;
+    }
 
-            if (!success) {
-                throw new SubmissionProcessingException("Compilation failed:\n" + String.join("\n", messages));
+    private void resetFileManager() {
+        StandardJavaFileManager manager = fileManagerHolder.get();
+        if (manager != null) {
+            try {
+                manager.close();
+            } catch (IOException ignored) {
             }
-
-            return messages;
-        } catch (IOException e) {
-            throw new SubmissionProcessingException("Failed to compile submitted Java files", e);
+            fileManagerHolder.remove();
         }
     }
 }
