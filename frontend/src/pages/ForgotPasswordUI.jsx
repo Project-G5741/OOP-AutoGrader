@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Moon, Sun, BarChart3, Mail, ArrowLeft } from 'lucide-react';
 import './LoginUI.css';
 import { validateEmail } from '../utils/validation';
-import { readApiErrorMessage } from '../utils/apiError';
+import { readFriendlyAuthError } from '../utils/apiError';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
   const [isDark, setIsDark] = useState(true);
@@ -37,7 +37,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, 'Unable to send reset email. Please try again.'));
+        throw new Error(await readFriendlyAuthError(response, 'forgot-password'));
       }
 
       setSent(true);

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getChangePasswordErrors, isFormValid, validatePassword } from '../../utils/validation';
-import { readApiErrorMessage } from '../../utils/apiError';
+import { readFriendlyAuthError } from '../../utils/apiError';
 
 export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -54,7 +54,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
       });
 
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, 'Failed to change password'));
+        throw new Error(await readFriendlyAuthError(response, 'change-password'));
       }
 
       await response.json().catch(() => ({}));

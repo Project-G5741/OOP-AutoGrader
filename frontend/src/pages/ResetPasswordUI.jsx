@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Moon, Sun, BarChart3, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import './LoginUI.css';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
+import { readFriendlyAuthError } from '../utils/apiError';
 
 export default function ResetPasswordUI({ token, onComplete }) {
   const [isDark, setIsDark] = useState(true);
@@ -39,8 +40,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to reset password. The link may be invalid or expired.');
+        throw new Error(await readFriendlyAuthError(response, 'reset-password'));
       }
 
       setSuccess(true);
