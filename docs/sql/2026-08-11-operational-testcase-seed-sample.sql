@@ -11,7 +11,7 @@
 -- INSERT INTO testcase_assertion (testcase_id, assertion_kind, field_id, expected_value, comparison_mode, order_index)
 -- VALUES ('00000000-0000-0000-0000-000000000101', 'FIELD_STATE', '<balance-field-id>', '100', 'EXACT', 0);
 
--- Example: method return-value testcase
+-- Example: method return-value testcase (instance methods require a no-arg constructor on the class)
 -- INSERT INTO testcase (id, challenge_id, testcase_type, name, weight, order_index)
 -- VALUES ('00000000-0000-0000-0000-000000000102', '<challenge-id>', 'SINGLE_INVOCATION', 'Deposit returns new balance', 1, 1);
 --

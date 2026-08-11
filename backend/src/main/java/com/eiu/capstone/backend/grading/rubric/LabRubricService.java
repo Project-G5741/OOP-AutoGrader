@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.grading.rubric;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.ConstructorDeclaration;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.FieldDeclaration;
+import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
@@ -131,6 +133,13 @@ public class LabRubricService {
                 .collect(Collectors.toMap(Field::getId, field -> field));
         Map<UUID, List<String>> paramTypesByMethod = RubricParameterMaps.byMethod(methodParams);
         Map<UUID, List<String>> paramTypesByConstructorId = RubricParameterMaps.byConstructor(constructorParams);
+        TestcaseRubricContext testcaseContext = new TestcaseRubricContext(
+                classNameByConstructorId,
+                paramTypesByConstructorId,
+                paramTypesByMethod,
+                classNameByMethodId,
+                methodById,
+                fieldById);
         Map<UUID, List<Testcase>> testcasesByChallenge = allTestcases.stream()
                 .collect(Collectors.groupingBy(t -> t.getChallenge().getId()));
 
@@ -169,12 +178,7 @@ public class LabRubricService {
                             invocationByTestcaseId.get(testcase.getId()),
                             instancesByTestcaseId.getOrDefault(testcase.getId(), List.of()),
                             assertionsByTestcaseId.getOrDefault(testcase.getId(), List.of()),
-                            classNameByConstructorId,
-                            paramTypesByConstructorId,
-                            paramTypesByMethod,
-                            classNameByMethodId,
-                            methodById,
-                            fieldById))
+                            testcaseContext))
                     .toList();
             byNumber.put(challenge.getChallengeNumber(),
                     new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
@@ -248,49 +252,45 @@ public class LabRubricService {
                                             TestcaseInvocation invocation,
                                             List<TestcaseInstance> instances,
                                             List<TestcaseAssertion> assertions,
-                                            Map<UUID, String> classNameByConstructorId,
-                                            Map<UUID, List<String>> paramTypesByConstructorId,
-                                            Map<UUID, List<String>> paramTypesByMethodId,
-                                            Map<UUID, String> classNameByMethodId,
-                                            Map<UUID, Method> methodById,
-                                            Map<UUID, Field> fieldById) {
+                                            TestcaseRubricContext context) {
         InvocationRubric invocationRubric = null;
         if (invocation != null) {
-            if (invocation.getInvocationKind() == com.eiu.capstone.backend.model.InvocationKind.CONSTRUCTOR) {
+            if (invocation.getInvocationKind() == InvocationKind.CONSTRUCTOR) {
                 UUID constructorId = invocation.getConstructor().getId();
                 invocationRubric = new InvocationRubric(
                         invocation.getId(),
                         invocation.getInvocationKind(),
                         constructorId,
                         null,
-                        classNameByConstructorId.get(constructorId),
+                        context.classNameByConstructorId().get(constructorId),
                         null,
-                        paramTypesByConstructorId.getOrDefault(constructorId, List.of()),
+                        context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                         invocation.getParams());
             } else {
                 UUID methodId = invocation.getMethod().getId();
-                Method method = methodById.get(methodId);
+                Method method = context.methodById().get(methodId);
                 invocationRubric = new InvocationRubric(
                         invocation.getId(),
                         invocation.getInvocationKind(),
                         null,
                         methodId,
-                        classNameByMethodId.get(methodId),
+                        context.classNameByMethodId().get(methodId),
                         method != null ? method.getName() : null,
-                        paramTypesByMethodId.getOrDefault(methodId, List.of()),
+                        context.paramTypesByMethodId().getOrDefault(methodId, List.of()),
                         invocation.getParams());
             }
         }
 
         List<InstanceRubric> instanceRubrics = instances.stream()
+                .sorted(Comparator.comparing(TestcaseInstance::getLabel))
                 .map(inst -> {
                     UUID constructorId = inst.getConstructor().getId();
                     return new InstanceRubric(
                             inst.getId(),
                             inst.getLabel(),
                             constructorId,
-                            classNameByConstructorId.get(constructorId),
-                            paramTypesByConstructorId.getOrDefault(constructorId, List.of()),
+                            context.classNameByConstructorId().get(constructorId),
+                            context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                             inst.getParams());
                 })
                 .toList();
@@ -298,7 +298,7 @@ public class LabRubricService {
         List<AssertionRubric> assertionRubrics = assertions.stream()
                 .map(assertion -> {
                     Field field = assertion.getField() != null
-                            ? fieldById.get(assertion.getField().getId())
+                            ? context.fieldById().get(assertion.getField().getId())
                             : null;
                     return new AssertionRubric(
                             assertion.getId(),
@@ -324,4 +324,12 @@ public class LabRubricService {
                 instanceRubrics,
                 assertionRubrics);
     }
+
+    private record TestcaseRubricContext(
+            Map<UUID, String> classNameByConstructorId,
+            Map<UUID, List<String>> paramTypesByConstructorId,
+            Map<UUID, List<String>> paramTypesByMethodId,
+            Map<UUID, String> classNameByMethodId,
+            Map<UUID, Method> methodById,
+            Map<UUID, Field> fieldById) {}
 }

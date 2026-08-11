@@ -354,10 +354,17 @@ public class GradingService {
         result.setExpectedDisplay(pending.expectedDisplay());
         result.setActualDisplay(pending.actualDisplay());
 
+        Map<UUID, SubmissionTestcaseAssertionResult> existingAssertions = result.getAssertionResults().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> row.getTestcaseAssertion().getId(),
+                        row -> row,
+                        (left, right) -> left));
+
         result.getAssertionResults().clear();
         for (com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult assertionPending
                 : pending.assertions()) {
-            SubmissionTestcaseAssertionResult assertionResult = new SubmissionTestcaseAssertionResult();
+            SubmissionTestcaseAssertionResult assertionResult = existingAssertions.getOrDefault(
+                    assertionPending.assertionId(), new SubmissionTestcaseAssertionResult());
             assertionResult.setSubmissionTestcaseResult(result);
             assertionResult.setTestcaseAssertion(
                     testcaseAssertionRepository.getReferenceById(assertionPending.assertionId()));

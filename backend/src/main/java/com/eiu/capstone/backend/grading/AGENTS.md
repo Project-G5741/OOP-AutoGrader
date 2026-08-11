@@ -61,7 +61,7 @@ SubmissionController
 - Rubric tables: `testcase`, `testcase_invocation`, `testcase_instance`, `testcase_assertion`
 - SINGLE_INVOCATION: one invocation + one or more assertions
 - COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5)
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); invocations run on single-thread `testcaseInvokeExecutor`
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives
 

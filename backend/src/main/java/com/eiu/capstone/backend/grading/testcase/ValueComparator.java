@@ -16,6 +16,9 @@ public final class ValueComparator {
         if (actual == null || expected == null) {
             return false;
         }
+        if (actual instanceof Number actualNumber && expected instanceof Number expectedNumber) {
+            return Double.compare(actualNumber.doubleValue(), expectedNumber.doubleValue()) == 0;
+        }
         if (actual instanceof String actualText && expected instanceof String expectedText) {
             return compareText(actualText, expectedText, mode);
         }

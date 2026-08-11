@@ -2,7 +2,6 @@ package com.eiu.capstone.backend.grading.pipeline;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.scoring.MemberWeightCalculator;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
@@ -73,18 +71,14 @@ public class TestcaseGrader {
         ComparisonOutcome comparisonOutcome = null;
 
         if (testcase.testcaseType() == TestcaseType.COMPARISON) {
-            List<InstanceRubric> instances = testcase.instances().stream()
-                    .sorted(Comparator.comparing(InstanceRubric::label))
-                    .toList();
             comparisonOutcome = invocationRunner.invokeComparison(
-                    context.classesDir(), testcase.comparisonMethod(), instances);
+                    context.classesDir(), testcase.comparisonMethod(), testcase.instances());
             if (comparisonOutcome.kind() == InvocationOutcomeKind.ERROR) {
                 return infrastructureError(testcase, comparisonOutcome.errorMessage());
             }
+        } else if (testcase.invocation() == null) {
+            return infrastructureError(testcase, "Missing invocation rubric");
         } else {
-            if (testcase.invocation() == null) {
-                return infrastructureError(testcase, "Missing invocation rubric");
-            }
             invocationOutcome = invocationRunner.invokeSingle(context.classesDir(), testcase.invocation());
             if (invocationOutcome.kind() == InvocationOutcomeKind.TIMED_OUT
                     || invocationOutcome.kind() == InvocationOutcomeKind.ERROR) {
@@ -95,6 +89,10 @@ public class TestcaseGrader {
             }
         }
 
+        if (testcase.assertions().isEmpty()) {
+            return infrastructureError(testcase, "No assertions configured");
+        }
+
         Map<UUID, AssertionEvaluation> evaluations = new HashMap<>();
         for (AssertionRubric assertion : testcase.assertions()) {
             AssertionEvaluation evaluation = assertionEvaluator.evaluate(
@@ -102,36 +100,24 @@ public class TestcaseGrader {
             evaluations.put(assertion.id(), evaluation);
         }
 
-        boolean anyError = evaluations.values().stream()
-                .anyMatch(e -> e.status() == TestcaseResultStatus.ERROR);
         boolean allPassed = !evaluations.isEmpty() && evaluations.values().stream()
                 .allMatch(e -> e.status() == TestcaseResultStatus.PASSED);
 
         TestcaseResultStatus status;
         double accuracy;
         String feedback;
-        if (anyError) {
-            status = TestcaseResultStatus.ERROR;
-            accuracy = 0;
-            feedback = "Testcase error";
-        } else if (allPassed) {
+        if (allPassed) {
             status = TestcaseResultStatus.PASSED;
             accuracy = 1;
             feedback = "All assertions passed";
         } else {
             status = TestcaseResultStatus.FAILED;
             accuracy = 0;
-            feedback = firstFailureFeedback(evaluations);
+            feedback = firstFailureFeedback(testcase.assertions(), evaluations);
         }
 
-        AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
-        AssertionEvaluation primaryEvaluation = primary != null ? evaluations.get(primary.id()) : null;
-
-        String inputDisplay = displayFormatter.formatInput(testcase);
-        String expectedDisplay = primary != null ? displayFormatter.formatExpected(primary) : null;
-        String actualDisplay = primary != null
-                ? displayFormatter.formatActual(primary, primaryEvaluation, invocationOutcome, comparisonOutcome)
-                : null;
+        PrimaryDisplays displays = primaryDisplays(
+                testcase, evaluations, invocationOutcome, comparisonOutcome, null);
 
         List<PendingAssertionResult> assertionResults = testcase.assertions().stream()
                 .map(assertion -> {
@@ -148,9 +134,9 @@ public class TestcaseGrader {
                 testcase.id(),
                 status,
                 feedback,
-                inputDisplay,
-                expectedDisplay,
-                actualDisplay,
+                displays.input(),
+                displays.expected(),
+                displays.actual(),
                 assertionResults));
     }
 
@@ -166,26 +152,48 @@ public class TestcaseGrader {
     }
 
     private Evaluation infrastructureError(TestcaseRubric testcase, String message) {
-        AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
-        String inputDisplay = displayFormatter.formatInput(testcase);
-        String expectedDisplay = primary != null ? displayFormatter.formatExpected(primary) : null;
+        PrimaryDisplays displays = primaryDisplays(testcase, Map.of(), null, null, message);
         return new Evaluation(0, new PendingTestcaseResult(
                 testcase.id(),
                 TestcaseResultStatus.ERROR,
                 message,
-                inputDisplay,
-                expectedDisplay,
-                message,
+                displays.input(),
+                displays.expected(),
+                displays.actual(),
                 List.of()));
     }
 
-    private String firstFailureFeedback(Map<UUID, AssertionEvaluation> evaluations) {
-        return evaluations.values().stream()
-                .filter(e -> e.status() == TestcaseResultStatus.FAILED)
-                .map(AssertionEvaluation::feedback)
-                .findFirst()
-                .orElse("Assertion failed");
+    private PrimaryDisplays primaryDisplays(TestcaseRubric testcase,
+                                            Map<UUID, AssertionEvaluation> evaluations,
+                                            InvocationOutcome invocationOutcome,
+                                            ComparisonOutcome comparisonOutcome,
+                                            String fallbackActual) {
+        AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
+        String inputDisplay = displayFormatter.formatInput(testcase);
+        if (primary == null) {
+            return new PrimaryDisplays(inputDisplay, null, fallbackActual);
+        }
+        AssertionEvaluation primaryEvaluation = evaluations.get(primary.id());
+        String expectedDisplay = displayFormatter.formatExpected(primary);
+        String actualDisplay = fallbackActual != null
+                ? fallbackActual
+                : displayFormatter.formatActual(
+                        primary, primaryEvaluation, invocationOutcome, comparisonOutcome);
+        return new PrimaryDisplays(inputDisplay, expectedDisplay, actualDisplay);
     }
+
+    private String firstFailureFeedback(List<AssertionRubric> assertions,
+                                        Map<UUID, AssertionEvaluation> evaluations) {
+        for (AssertionRubric assertion : assertions) {
+            AssertionEvaluation evaluation = evaluations.get(assertion.id());
+            if (evaluation != null && evaluation.status() == TestcaseResultStatus.FAILED) {
+                return evaluation.feedback();
+            }
+        }
+        return "Assertion failed";
+    }
+
+    private record PrimaryDisplays(String input, String expected, String actual) {}
 
     private record Evaluation(double accuracy, PendingTestcaseResult pending) {}
 

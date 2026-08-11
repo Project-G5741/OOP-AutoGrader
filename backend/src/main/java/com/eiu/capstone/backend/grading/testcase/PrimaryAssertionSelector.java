@@ -23,10 +23,12 @@ public class PrimaryAssertionSelector {
             return null;
         }
         for (AssertionKind kind : PRIORITY) {
-            for (AssertionRubric assertion : assertions) {
-                if (assertion.kind() == kind) {
-                    return assertion;
-                }
+            AssertionRubric match = assertions.stream()
+                    .filter(assertion -> assertion.kind() == kind)
+                    .min(Comparator.comparingInt(AssertionRubric::orderIndex))
+                    .orElse(null);
+            if (match != null) {
+                return match;
             }
         }
         return assertions.stream()

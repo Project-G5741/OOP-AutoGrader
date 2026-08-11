@@ -46,6 +46,21 @@ public class JsonValueCoercer {
         return parseNode(json);
     }
 
+    public String parseExceptionType(String expectedValueJson) {
+        JsonNode node = parseNode(expectedValueJson);
+        if (node.isObject() && node.has("type")) {
+            return node.get("type").asText();
+        }
+        return node.asText();
+    }
+
+    public Object coerceFromNode(JsonNode node, String typeHint) {
+        if (typeHint == null || typeHint.isBlank()) {
+            return jsonToObject(node);
+        }
+        return coerceValue(node, typeHint);
+    }
+
     private JsonNode parseArray(String json) {
         try {
             JsonNode node = objectMapper.readTree(json == null || json.isBlank() ? "[]" : json);

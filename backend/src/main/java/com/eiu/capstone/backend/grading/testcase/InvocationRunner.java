@@ -5,17 +5,19 @@ import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -28,40 +30,63 @@ import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 public class InvocationRunner {
 
     private final JsonValueCoercer jsonValueCoercer;
+    private final ExecutorService invokeExecutor;
     private final int timeoutSeconds;
 
     public InvocationRunner(JsonValueCoercer jsonValueCoercer,
+                            @Qualifier("testcaseInvokeExecutor") ExecutorService invokeExecutor,
                             @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int timeoutSeconds) {
         this.jsonValueCoercer = jsonValueCoercer;
+        this.invokeExecutor = invokeExecutor;
         this.timeoutSeconds = timeoutSeconds;
     }
 
     public InvocationOutcome invokeSingle(Path classesDir, InvocationRubric invocation) {
-        if (classesDir == null || invocation == null) {
-            return InvocationOutcome.error("Missing classes directory or invocation rubric");
+        if (!isRunnableClassesDir(classesDir)) {
+            return InvocationOutcome.error("Missing compiled classes directory");
         }
-        try (URLClassLoader loader = classLoader(classesDir)) {
-            return runWithTimeout(() -> invokeSingleInternal(loader, invocation));
+        if (invocation == null) {
+            return InvocationOutcome.error("Missing invocation rubric");
+        }
+        try {
+            return runWithTimeout(() -> {
+                try (URLClassLoader loader = classLoader(classesDir)) {
+                    return invokeSingleInternal(loader, invocation);
+                }
+            });
+        } catch (TimeoutException e) {
+            return InvocationOutcome.timedOut("");
         } catch (Exception e) {
-            return InvocationOutcome.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            return InvocationOutcome.error(messageOrSimpleName(e));
         }
     }
 
     public ComparisonOutcome invokeComparison(Path classesDir,
                                               TestcaseComparisonMethod comparisonMethod,
                                               List<InstanceRubric> instances) {
-        if (classesDir == null || instances == null || instances.size() < 2) {
+        if (!isRunnableClassesDir(classesDir)) {
+            return ComparisonOutcome.error("Missing compiled classes directory");
+        }
+        if (instances == null || instances.size() < 2) {
             return ComparisonOutcome.error("Comparison testcase requires two instances");
         }
-        try (URLClassLoader loader = classLoader(classesDir)) {
-            Object instanceA = instantiate(loader, instances.get(0));
-            Object instanceB = instantiate(loader, instances.get(1));
-            Object result = comparisonMethod == TestcaseComparisonMethod.EQUALS
-                    ? Boolean.valueOf(instanceA.equals(instanceB))
-                    : Integer.valueOf(((Comparable<Object>) instanceA).compareTo(instanceB));
-            return ComparisonOutcome.normal(result);
+        try {
+            return runWithTimeout(() -> {
+                try (URLClassLoader loader = classLoader(classesDir)) {
+                    Object instanceA = instantiate(loader, instances.get(0));
+                    Object instanceB = instantiate(loader, instances.get(1));
+                    Object result = comparisonMethod == TestcaseComparisonMethod.EQUALS
+                            ? Boolean.valueOf(instanceA.equals(instanceB))
+                            : Integer.valueOf(((Comparable<Object>) instanceA).compareTo(instanceB));
+                    return ComparisonOutcome.normal(result);
+                } catch (ReflectiveOperationException e) {
+                    return ComparisonOutcome.error(messageOrSimpleName(e));
+                }
+            });
+        } catch (TimeoutException e) {
+            return ComparisonOutcome.error("Comparison invocation timed out");
         } catch (Exception e) {
-            return ComparisonOutcome.error(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            return ComparisonOutcome.error(messageOrSimpleName(e));
         }
     }
 
@@ -76,18 +101,18 @@ public class InvocationRunner {
             if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
                 Constructor<?> constructor = findConstructor(clazz, invocation.parameterTypes());
                 Object instance = constructor.newInstance(args);
-                return InvocationOutcome.normal(instance, instance, stdout(stdoutBuffer));
+                return InvocationOutcome.normal(instance, instance, stdoutBuffer.toString());
             }
             Method method = findMethod(clazz, invocation.methodName(), invocation.parameterTypes());
             Object receiver = null;
-            if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) {
-                receiver = instantiateDefault(loader, clazz);
+            if (!Modifier.isStatic(method.getModifiers())) {
+                receiver = instantiateDefault(clazz);
             }
             Object returnValue = method.invoke(receiver, args);
-            return InvocationOutcome.normal(receiver, returnValue, stdout(stdoutBuffer));
+            return InvocationOutcome.normal(receiver, returnValue, stdoutBuffer.toString());
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return InvocationOutcome.threw(null, cause, stdout(stdoutBuffer));
+            return InvocationOutcome.threw(null, cause, stdoutBuffer.toString());
         } finally {
             System.setOut(originalOut);
         }
@@ -101,22 +126,29 @@ public class InvocationRunner {
         return constructor.newInstance(args);
     }
 
-    private Object instantiateDefault(URLClassLoader loader, Class<?> clazz) throws ReflectiveOperationException {
-        Constructor<?> noArg = clazz.getDeclaredConstructor();
-        noArg.setAccessible(true);
-        return noArg.newInstance();
+    private Object instantiateDefault(Class<?> clazz) throws ReflectiveOperationException {
+        try {
+            Constructor<?> noArg = clazz.getDeclaredConstructor();
+            noArg.setAccessible(true);
+            return noArg.newInstance();
+        } catch (NoSuchMethodException e) {
+            throw new NoSuchMethodException(
+                    "Instance method requires a no-argument constructor on " + clazz.getSimpleName());
+        }
     }
 
-    private InvocationOutcome runWithTimeout(Callable<InvocationOutcome> task) throws Exception {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+    private <T> T runWithTimeout(Callable<T> task) throws Exception {
+        Future<T> future = invokeExecutor.submit(task);
         try {
-            Future<InvocationOutcome> future = executor.submit(task);
             return future.get(timeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-            return InvocationOutcome.timedOut("");
-        } finally {
-            executor.shutdownNow();
+            future.cancel(true);
+            throw e;
         }
+    }
+
+    private boolean isRunnableClassesDir(Path classesDir) {
+        return classesDir != null && Files.isDirectory(classesDir);
     }
 
     private URLClassLoader classLoader(Path classesDir) throws Exception {
@@ -191,7 +223,8 @@ public class InvocationRunner {
         return type;
     }
 
-    private String stdout(ByteArrayOutputStream buffer) {
-        return buffer.toString();
+    private static String messageOrSimpleName(Throwable throwable) {
+        String message = throwable.getMessage();
+        return message != null ? message : throwable.getClass().getSimpleName();
     }
 }
