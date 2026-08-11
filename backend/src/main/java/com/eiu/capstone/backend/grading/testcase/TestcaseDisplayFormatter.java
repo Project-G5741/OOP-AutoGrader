@@ -88,6 +88,11 @@ public class TestcaseDisplayFormatter {
         if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
             return "new " + invocation.className() + "(" + args + ")";
         }
+        if (invocation.hasReceiver()) {
+            String receiverSetup = "new " + invocation.receiverClassName()
+                    + "(" + formatArgs(invocation.receiverParamsJson()) + ")";
+            return receiverSetup + "\n" + invocation.className() + "." + invocation.methodName() + "(" + args + ")";
+        }
         return invocation.className() + "." + invocation.methodName() + "(" + args + ")";
     }
 
@@ -134,11 +139,12 @@ public class TestcaseDisplayFormatter {
     }
 
     private String stripQuotes(String json) {
-        if (json == null) {
+        if (json == null || json.isBlank()) {
             return "";
         }
         if (json.startsWith("\"") && json.endsWith("\"")) {
-            return json.substring(1, json.length() - 1);
+            Object parsed = jsonValueCoercer.coerceExpectedValue(json, AssertionEvaluator.STRING_TYPE);
+            return parsed != null ? String.valueOf(parsed) : "";
         }
         return json;
     }

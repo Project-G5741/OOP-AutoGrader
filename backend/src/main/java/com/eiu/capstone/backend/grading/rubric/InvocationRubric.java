@@ -13,4 +13,13 @@ public record InvocationRubric(
         String className,
         String methodName,
         List<String> parameterTypes,
-        String paramsJson) {}
+        String paramsJson,
+        UUID receiverConstructorId,
+        String receiverClassName,
+        List<String> receiverParameterTypes,
+        String receiverParamsJson) {
+
+    public boolean hasReceiver() {
+        return receiverConstructorId != null && receiverClassName != null && !receiverClassName.isBlank();
+    }
+}

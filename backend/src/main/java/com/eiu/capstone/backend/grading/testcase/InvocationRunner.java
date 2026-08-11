@@ -106,7 +106,9 @@ public class InvocationRunner {
             Method method = findMethod(clazz, invocation.methodName(), invocation.parameterTypes());
             Object receiver = null;
             if (!Modifier.isStatic(method.getModifiers())) {
-                receiver = instantiateDefault(clazz);
+                receiver = invocation.hasReceiver()
+                        ? instantiateReceiver(loader, invocation)
+                        : instantiateDefault(clazz);
             }
             Object returnValue = method.invoke(receiver, args);
             return InvocationOutcome.normal(receiver, returnValue, stdoutBuffer.toString());
@@ -120,9 +122,29 @@ public class InvocationRunner {
 
     private Object instantiate(URLClassLoader loader, InstanceRubric instanceRubric)
             throws ReflectiveOperationException {
-        Class<?> clazz = findClass(loader, instanceRubric.className());
-        Constructor<?> constructor = findConstructor(clazz, instanceRubric.parameterTypes());
-        Object[] args = jsonValueCoercer.coerceParams(instanceRubric.paramsJson(), instanceRubric.parameterTypes());
+        return instantiateWithConstructor(
+                loader,
+                instanceRubric.className(),
+                instanceRubric.parameterTypes(),
+                instanceRubric.paramsJson());
+    }
+
+    private Object instantiateReceiver(URLClassLoader loader, InvocationRubric invocation)
+            throws ReflectiveOperationException {
+        return instantiateWithConstructor(
+                loader,
+                invocation.receiverClassName(),
+                invocation.receiverParameterTypes(),
+                invocation.receiverParamsJson());
+    }
+
+    private Object instantiateWithConstructor(URLClassLoader loader,
+                                            String className,
+                                            List<String> parameterTypes,
+                                            String paramsJson) throws ReflectiveOperationException {
+        Class<?> clazz = findClass(loader, className);
+        Constructor<?> constructor = findConstructor(clazz, parameterTypes);
+        Object[] args = jsonValueCoercer.coerceParams(paramsJson, parameterTypes);
         return constructor.newInstance(args);
     }
 

@@ -265,19 +265,13 @@ public class LabRubricService {
                         context.classNameByConstructorId().get(constructorId),
                         null,
                         context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
-                        invocation.getParams());
-            } else {
-                UUID methodId = invocation.getMethod().getId();
-                Method method = context.methodById().get(methodId);
-                invocationRubric = new InvocationRubric(
-                        invocation.getId(),
-                        invocation.getInvocationKind(),
+                        invocation.getParams(),
                         null,
-                        methodId,
-                        context.classNameByMethodId().get(methodId),
-                        method != null ? method.getName() : null,
-                        context.paramTypesByMethodId().getOrDefault(methodId, List.of()),
-                        invocation.getParams());
+                        null,
+                        List.of(),
+                        null);
+            } else {
+                invocationRubric = methodInvocationRubric(invocation, context);
             }
         }
 
@@ -320,9 +314,37 @@ public class LabRubricService {
                 testcase.getComparisonMethod(),
                 testcase.getWeight(),
                 testcase.getOrderIndex(),
+                testcase.isHidden(),
                 invocationRubric,
                 instanceRubrics,
                 assertionRubrics);
+    }
+
+    private InvocationRubric methodInvocationRubric(TestcaseInvocation invocation, TestcaseRubricContext context) {
+        UUID methodId = invocation.getMethod().getId();
+        Method method = context.methodById().get(methodId);
+        UUID receiverConstructorId = invocation.getReceiverConstructor() != null
+                ? invocation.getReceiverConstructor().getId()
+                : null;
+        String receiverClassName = receiverConstructorId != null
+                ? context.classNameByConstructorId().get(receiverConstructorId)
+                : null;
+        List<String> receiverParameterTypes = receiverConstructorId != null
+                ? context.paramTypesByConstructorId().getOrDefault(receiverConstructorId, List.of())
+                : List.of();
+        return new InvocationRubric(
+                invocation.getId(),
+                invocation.getInvocationKind(),
+                null,
+                methodId,
+                context.classNameByMethodId().get(methodId),
+                method != null ? method.getName() : null,
+                context.paramTypesByMethodId().getOrDefault(methodId, List.of()),
+                invocation.getParams(),
+                receiverConstructorId,
+                receiverClassName,
+                receiverParameterTypes,
+                invocation.getReceiverParams());
     }
 
     private record TestcaseRubricContext(

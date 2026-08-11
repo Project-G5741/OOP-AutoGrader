@@ -47,6 +47,15 @@ public class TestcaseInvocation {
     @Column(name = "params", nullable = false, columnDefinition = "jsonb")
     private String params = "[]";
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_constructor_id",
+            foreignKey = @ForeignKey(name = "testcase_invocation_receiver_constructor_id_fkey"))
+    private Constructor receiverConstructor;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "receiver_params", nullable = false, columnDefinition = "jsonb")
+    private String receiverParams = "[]";
+
     public TestcaseInvocation() {}
 
     public UUID getId() { return id; }
@@ -65,4 +74,12 @@ public class TestcaseInvocation {
 
     public String getParams() { return params; }
     public void setParams(String params) { this.params = params; }
+
+    public Constructor getReceiverConstructor() { return receiverConstructor; }
+    public void setReceiverConstructor(Constructor receiverConstructor) {
+        this.receiverConstructor = receiverConstructor;
+    }
+
+    public String getReceiverParams() { return receiverParams; }
+    public void setReceiverParams(String receiverParams) { this.receiverParams = receiverParams; }
 }

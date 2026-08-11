@@ -14,7 +14,8 @@ public interface SubmissionTestcaseResultRepository extends JpaRepository<Submis
     @Query("""
             SELECT DISTINCT r FROM SubmissionTestcaseResult r
             JOIN FETCH r.testcase
-            LEFT JOIN FETCH r.assertionResults
+            LEFT JOIN FETCH r.assertionResults ar
+            LEFT JOIN FETCH ar.testcaseAssertion
             WHERE r.submission.id = :submissionId
             """)
     List<SubmissionTestcaseResult> findBySubmission_IdWithTestcase(@Param("submissionId") UUID submissionId);

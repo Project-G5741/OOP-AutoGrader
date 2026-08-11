@@ -23,6 +23,7 @@ import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
+import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.SubmissionMethodResult;
@@ -38,11 +39,14 @@ import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 public class LabResultAssembler {
 
     private final ClassStructureService classStructureService;
+    private final TestcaseResultMapper testcaseResultMapper;
     private final boolean timingLog;
 
     public LabResultAssembler(ClassStructureService classStructureService,
+                              TestcaseResultMapper testcaseResultMapper,
                               @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.classStructureService = classStructureService;
+        this.testcaseResultMapper = testcaseResultMapper;
         this.timingLog = timingLog;
     }
 
@@ -102,7 +106,7 @@ public class LabResultAssembler {
                     submissionId,
                     snapshot);
 
-            List<TestcaseResultDTO> testcases = List.of();
+            List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
@@ -160,10 +164,12 @@ public class LabResultAssembler {
     private List<TestcaseResultDTO> buildTestcaseResults(
             ChallengeRubric challengeRubric,
             Map<UUID, SubmissionTestcaseResult> testcaseResultsById) {
-        return List.of();
+        return testcaseResultMapper.mapChallengeTestcases(
+                challengeRubric.testcases(),
+                testcaseResultsById);
     }
 
-    static String toFrontendResult(TestcaseResultStatus status) {
+    public static String toFrontendResult(TestcaseResultStatus status) {
         return switch (status) {
             case PASSED -> "PASS";
             case FAILED -> "FAIL";

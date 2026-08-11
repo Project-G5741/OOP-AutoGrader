@@ -17,6 +17,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
+| `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of 3 pillars), and lab percentages |
 | `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for class-reflection DECLARATION checks |
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
@@ -58,8 +59,8 @@ SubmissionController
 
 ### Operational testcase grading
 
-- Rubric tables: `testcase`, `testcase_invocation`, `testcase_instance`, `testcase_assertion`
-- SINGLE_INVOCATION: one invocation + one or more assertions
+- Rubric tables: `testcase`, `testcase_invocation` (optional `receiver_constructor_id` + `receiver_params` for METHOD invocations), `testcase_instance`, `testcase_assertion`
+- SINGLE_INVOCATION: one invocation + one or more assertions; instance methods may seed the receiver via constructor params instead of a no-arg constructor
 - COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); invocations run on single-thread `testcaseInvokeExecutor`
 - Exception matching: exception class simple name only (not message)
@@ -76,7 +77,7 @@ SubmissionController
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (empty array in API phase 1), and `scores: { class, mmd, testcase, total }`. Testcase pillar score is included; testcase detail rows are omitted until a later frontend phase.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), and `scores: { class, mmd, testcase, total }`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
 
 ## Work Guidance
 
@@ -88,8 +89,8 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (empty a
 
 ## Verification
 
-- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `GradingServiceTest`
-- Manual: upload lab folder; confirm `scores.testcase` in response, empty `testcases` array, assertion rows in DB
+- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`
+- Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index
 

@@ -15,6 +15,7 @@ public record TestcaseRubric(
         TestcaseComparisonMethod comparisonMethod,
         int weight,
         int orderIndex,
+        boolean hidden,
         InvocationRubric invocation,
         List<InstanceRubric> instances,
         List<AssertionRubric> assertions) {}

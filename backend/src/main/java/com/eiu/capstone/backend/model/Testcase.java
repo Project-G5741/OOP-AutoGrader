@@ -47,6 +47,9 @@ public class Testcase {
     @Column(name = "order_index", nullable = false)
     private int orderIndex = 0;
 
+    @Column(name = "is_hidden", nullable = false)
+    private boolean hidden = false;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -73,6 +76,9 @@ public class Testcase {
 
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+
+    public boolean isHidden() { return hidden; }
+    public void setHidden(boolean hidden) { this.hidden = hidden; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

@@ -13,6 +13,12 @@ import {
 import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow } from '../ui/ScorePill';
 
+/** Strip trailing line endings from captured stdout for display only; grading is unchanged. */
+function formatIoDisplay(value) {
+  if (value == null || value === '') return '—';
+  return String(value).replace(/(?:\\r\\n|\\n|\\r|[\r\n])+$/g, '');
+}
+
 // Component con dùng chung
 function Tick({ ok }) {
   return ok ? <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" /> : <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />;
@@ -207,18 +213,9 @@ export default function StudentUI({
   });
 
   const testCasesData = testCases || [];
-  const scoredTestcases = (() => {
-    const hidden = testCasesData.filter((tc) => !tc.isExample);
-    return hidden.length > 0 ? hidden : testCasesData;
-  })();
-  const testScore = bundleScore(currentBundle, 'testcase', {
-    ok: scoredTestcases.filter((tc) => tc.passed).length,
-    total: scoredTestcases.length,
-    pct: (() => {
-      const ok = scoredTestcases.filter((tc) => tc.passed).length;
-      return scoredTestcases.length ? Math.round((ok / scoredTestcases.length) * 100) : 0;
-    })(),
-  });
+  const visibleTestcases = testCasesData.filter((tc) => !tc.isHidden);
+  const hiddenTestcases = testCasesData.filter((tc) => tc.isHidden);
+  const testScore = bundleScore(currentBundle, 'testcase', { ok: 0, total: 0, pct: 0 });
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-[#1a1f2e] transition-colors">
@@ -596,64 +593,125 @@ export default function StudentUI({
                   />
 
                   {testCasesData.length > 0 ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        {testCasesData.map((tc) => {
-                          const rowBorder = !tc.isExample
-                            ? 'border-gray-200 dark:border-gray-700'
-                            : tc.passed
-                              ? 'border-green-200 dark:border-green-800/40'
-                              : 'border-red-200 dark:border-red-800/40';
-
-                          return (
-                          <div key={tc.id} className={`border rounded-xl overflow-hidden ${rowBorder}`}>
-                            {!tc.isExample ? (
-                              <div className="w-full flex items-center justify-between px-4 py-3 text-left cursor-default opacity-70">
-                                <div className="flex items-center gap-3">
-                                  <Lock className="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                                  <span className="text-sm font-medium text-gray-400 dark:text-gray-600">{tc.name}</span>
-                                  <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">Hidden</span>
-                                </div>
-                              </div>
-                            ) : tc.passed ? (
-                              <div className="w-full flex items-center justify-between px-4 py-3 text-left bg-green-50 dark:bg-green-900/10">
-                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className="w-8 text-right text-xs font-semibold text-green-500">PASS</span>
-                                  <span className="w-4 h-4" aria-hidden="true" />
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedTC(expandedTC === tc.id ? null : tc.id)}
-                                className="w-full flex items-center justify-between px-4 py-3 text-left bg-red-50 dark:bg-red-900/10 hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
-                              >
-                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className="w-8 text-right text-xs font-semibold text-red-500">FAIL</span>
-                                  <span className="w-4 h-4 flex items-center justify-center">
+                    <div className="space-y-6">
+                      {visibleTestcases.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
+                            Example Testcases
+                          </p>
+                          <div className="space-y-2">
+                            {visibleTestcases.map((tc) => (
+                              <div key={tc.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTC(expandedTC === tc.id ? null : tc.id)}
+                                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors text-left"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <Tick ok={tc.passed} />
+                                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className={`text-xs font-semibold ${tc.passed ? 'text-green-500' : 'text-red-500'}`}>
+                                      {tc.passed ? 'PASS' : 'FAIL'}
+                                    </span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-600">Click to view details</span>
                                     {expandedTC === tc.id ? (
                                       <ChevronUp className="w-4 h-4 text-gray-400" />
                                     ) : (
                                       <ChevronDown className="w-4 h-4 text-gray-400" />
                                     )}
+                                  </div>
+                                </button>
+
+                                {expandedTC === tc.id && (
+                                  <div className="border-t border-gray-100 dark:border-gray-700">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100 dark:divide-gray-700">
+                                      <div className="p-4">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Input</p>
+                                        <pre className="bg-gray-50 dark:bg-[#151b24] rounded-lg p-3 text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{tc.input || '—'}</pre>
+                                      </div>
+                                      <div className="p-4">
+                                        <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-2">Expected Output</p>
+                                        <pre className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40 rounded-lg p-3 text-xs font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap">{tc.expectedOutput || '—'}</pre>
+                                      </div>
+                                      <div className="p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Your Output</p>
+                                          <Tick ok={tc.passed} />
+                                        </div>
+                                        <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap border ${
+                                          tc.passed
+                                            ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-400'
+                                            : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400'
+                                        }`}>{formatIoDisplay(tc.actualOutput)}</pre>
+                                      </div>
+                                    </div>
+                                    {tc.assertions?.length > 1 && (
+                                      <div className="border-t border-gray-100 dark:border-gray-700 p-4 space-y-3">
+                                        {tc.assertions.slice(1).map((assertion, index) => (
+                                          <div key={`${tc.id}-assertion-${index}`} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                              <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-1">
+                                                {assertion.kind} Expected
+                                              </p>
+                                              <pre className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40 rounded-lg p-2 text-xs font-mono text-green-700 dark:text-green-400 whitespace-pre-wrap">
+                                                {assertion.expected_output ?? assertion.expectedOutput ?? '—'}
+                                              </pre>
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                                {assertion.kind} Your Output
+                                              </p>
+                                              <pre className={`rounded-lg p-2 text-xs font-mono whitespace-pre-wrap border ${
+                                                assertion.result === 'PASS'
+                                                  ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-400'
+                                                  : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400'
+                                              }`}>
+                                                {formatIoDisplay(assertion.actual_output ?? assertion.actualOutput)}
+                                              </pre>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {hiddenTestcases.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
+                            Other Testcases
+                            <span className="ml-2 font-normal text-gray-300 dark:text-gray-600 normal-case">(input &amp; output hidden)</span>
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {hiddenTestcases.map((tc) => (
+                              <div
+                                key={tc.id}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+                                  tc.passed
+                                    ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/40'
+                                    : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40'
+                                }`}
+                              >
+                                <Tick ok={tc.passed} />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{tc.name}</span>
+                                <div className="ml-auto flex items-center gap-2">
+                                  <Lock className="w-3.5 h-3.5 text-gray-400 dark:text-gray-600" />
+                                  <span className={`text-xs font-bold ${tc.passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {tc.passed ? 'PASS' : 'FAIL'}
                                   </span>
                                 </div>
-                              </button>
-                            )}
-
-                            {tc.isExample && !tc.passed && expandedTC === tc.id && (
-                              <div className="border-t border-red-200/60 dark:border-red-800/40 px-4 py-3 bg-red-50/50 dark:bg-red-900/10">
-                                <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">
-                                  {tc.feedback || tc.error || tc.studentOutput || 'No error details available.'}
-                                </p>
                               </div>
-                            )}
+                            ))}
                           </div>
-                          );
-                        })}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
