@@ -22,8 +22,14 @@ Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into
 ### Grading pillar
 One of three equal scoring slices per challenge in the rebuilt engine: `.class` reflection, `.mmd` diagram, or structural `testcase` rows. Challenge score is the arithmetic mean of the three pillar percentages.
 
-### Structural testcase
-A rubric-linked grading check stored in `testcase` with `EXISTENCE` or `DECLARATION` semantics pointing at a `class_entity`, `field`, `method`, or `constructor` row. Outcomes persist in `submission_testcase_result`; not runtime method execution.
+### Operational testcase
+A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).
+
+### Primary assertion
+The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). Selected at grade time by priority: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT. Other assertions appear in the expanded stacked view only.
+
+### Testcase I/O card
+Student-facing expandable result card per testcase: INPUT (formatted invocation), EXPECTED OUTPUT, YOUR OUTPUT. Collapsed view uses primary assertion display fields; expanded view stacks every assertion's EXPECTED/YOUR pair under one shared INPUT.
 
 ### lab_result bundle
 Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and testcase detail arrays so the student UI renders tabs without follow-up read API calls.

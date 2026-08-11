@@ -15,4 +15,8 @@ record PendingChallengeResult(UUID challengeId, boolean correct) {}
 record PendingTestcaseResult(
         UUID testcaseId,
         com.eiu.capstone.backend.model.TestcaseResultStatus status,
-        String feedback) {}
+        String feedback,
+        String inputDisplay,
+        String expectedDisplay,
+        String actualDisplay,
+        java.util.List<com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult> assertions) {}

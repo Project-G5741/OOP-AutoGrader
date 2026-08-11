@@ -24,7 +24,7 @@ class TestcaseGraderTest {
                 List.of());
 
         ChallengeGradingContext context = ChallengeGradingContext.of(rubric, null, null, List.of());
-        TestcaseGrader grader = new TestcaseGrader();
+        TestcaseGrader grader = new TestcaseGrader(null, null, null, null);
 
         TestcaseGrader.TestcasePillarResult result = grader.grade(context);
 

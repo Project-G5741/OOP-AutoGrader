@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Grade lab submissions across three equal pillars per challenge: Java `.class` reflection, MMD diagram comparison, and structural testcase checks. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
+Grade lab submissions across three equal pillars per challenge: Java `.class` reflection, MMD diagram comparison, and operational testcase checks. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
 
 ## Ownership
 
@@ -12,13 +12,17 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
 | `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar with partial credit on declarations |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
-| `grading/pipeline/TestcaseGrader.java` | Structural testcase pillar (EXISTENCE / DECLARATION) |
+| `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
+| `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
+| `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
+| `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
+| `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of 3 pillars), and lab percentages |
-| `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for DECLARATION checks |
-| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response (batched rubric load + in-memory correct IDs + parsed snapshots) |
+| `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for class-reflection DECLARATION checks |
+| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (including testcases) in batched DB queries |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, instances, assertions) in batched DB queries |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Parse uploaded `.mmd` bytes into diagram DTOs |
@@ -48,8 +52,18 @@ SubmissionController
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`)
 - **Challenge percentage** = arithmetic mean of class, MMD, and testcase pillar percentages
 - **Lab percentage** = mean across all rubric challenges; missing challenges count as 0%
-- **EXISTENCE** testcase checks are all-or-nothing; **DECLARATION** checks use per-attribute partial credit
+- **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar
+- Compile errors short-circuit testcase grading: all testcases for that challenge → `ERROR` before invoke
+
+### Operational testcase grading
+
+- Rubric tables: `testcase`, `testcase_invocation`, `testcase_instance`, `testcase_assertion`
+- SINGLE_INVOCATION: one invocation + one or more assertions
+- COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5)
+- Exception matching: exception class simple name only (not message)
+- Value types v1: primitives, `String`, null, arrays of primitives
 
 ### Result persistence
 
@@ -57,11 +71,12 @@ SubmissionController
 |---|---|
 | `SubmissionChallengeResult` | Per-challenge score (0–100) |
 | `SubmissionFieldResult` / `Method` / `Constructor` / `Relation` | Element match outcomes |
-| `SubmissionTestcaseResult` | Structural testcase status + feedback |
+| `SubmissionTestcaseResult` | Testcase rollup + primary `input_display` / `expected_display` / `actual_display` |
+| `SubmissionTestcaseAssertionResult` | Per-assertion status, `actual_value` JSONB, feedback |
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases`, and `scores: { class, mmd, testcase, total }`. Returned on upload so the student UI does not need follow-up `/class` or `/mmd` fetches for fresh submissions.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (empty array in API phase 1), and `scores: { class, mmd, testcase, total }`. Testcase pillar score is included; testcase detail rows are omitted until a later frontend phase.
 
 ## Work Guidance
 
@@ -69,11 +84,12 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases`, and `sc
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations
+- Operator-run SQL migrations live in `docs/sql/` (no Flyway)
 
 ## Verification
 
 - `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `GradingServiceTest`
-- Manual: upload lab folder; confirm `lab_result` in response and student tabs render without extra API calls
+- Manual: upload lab folder; confirm `scores.testcase` in response, empty `testcases` array, assertion rows in DB
 
 ## Child DOX Index
 

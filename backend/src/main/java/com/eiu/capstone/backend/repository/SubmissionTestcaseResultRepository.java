@@ -11,6 +11,11 @@ import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 
 public interface SubmissionTestcaseResultRepository extends JpaRepository<SubmissionTestcaseResult, UUID> {
 
-    @Query("SELECT r FROM SubmissionTestcaseResult r JOIN FETCH r.testcase WHERE r.submission.id = :submissionId")
+    @Query("""
+            SELECT DISTINCT r FROM SubmissionTestcaseResult r
+            JOIN FETCH r.testcase
+            LEFT JOIN FETCH r.assertionResults
+            WHERE r.submission.id = :submissionId
+            """)
     List<SubmissionTestcaseResult> findBySubmission_IdWithTestcase(@Param("submissionId") UUID submissionId);
 }

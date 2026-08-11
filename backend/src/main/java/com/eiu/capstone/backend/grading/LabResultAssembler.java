@@ -102,7 +102,7 @@ public class LabResultAssembler {
                     submissionId,
                     snapshot);
 
-            List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
+            List<TestcaseResultDTO> testcases = List.of();
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
@@ -160,18 +160,7 @@ public class LabResultAssembler {
     private List<TestcaseResultDTO> buildTestcaseResults(
             ChallengeRubric challengeRubric,
             Map<UUID, SubmissionTestcaseResult> testcaseResultsById) {
-        List<TestcaseResultDTO> rows = new ArrayList<>();
-        for (TestcaseRubric testcaseRubric : challengeRubric.testcases()) {
-            SubmissionTestcaseResult saved = testcaseResultsById.get(testcaseRubric.id());
-            if (saved == null) {
-                continue;
-            }
-            rows.add(new TestcaseResultDTO(
-                    testcaseRubric.name(),
-                    toFrontendResult(saved.getResult()),
-                    saved.getFeedback()));
-        }
-        return rows;
+        return List.of();
     }
 
     static String toFrontendResult(TestcaseResultStatus status) {
