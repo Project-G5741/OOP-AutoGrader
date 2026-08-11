@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 
 @Service
@@ -23,6 +24,25 @@ public class SubmissionResolutionService {
         return labSubmissionRepository
                 .findFirstByUser_IdAndLab_IdOrderByAttemptNumberDesc(studentId, labId)
                 .map(s -> s.getId())
+                .orElse(null);
+    }
+
+    /**
+     * Resolves the submission to read for student-facing grading tabs.
+     * When {@code submissionId} is supplied it must belong to the same student and lab;
+     * otherwise returns {@code null} so callers yield empty results instead of leaking data.
+     */
+    public UUID resolveSubmissionId(UUID labId, UUID studentId, UUID submissionId) {
+        if (studentId == null || labId == null) {
+            return null;
+        }
+        if (submissionId == null) {
+            return resolveLatestSubmissionId(labId, studentId);
+        }
+        return labSubmissionRepository.findById(submissionId)
+                .filter(submission -> studentId.equals(submission.getUser().getId())
+                        && labId.equals(submission.getLab().getId()))
+                .map(LabSubmission::getId)
                 .orElse(null);
     }
 }

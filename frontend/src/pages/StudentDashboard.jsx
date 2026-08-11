@@ -23,15 +23,18 @@ function hasSessionChallengeScore(challengeScores, challengeId) {
     || Object.hasOwn(challengeScores, String(challengeId));
 }
 
-function mapStructuralTestcases(testcases = []) {
+function mapOperationalTestcases(testcases = []) {
   return testcases.map((testcase, index) => ({
-    id: `struct-${index}-${testcase.testcase_name || testcase.name || index}`,
+    id: `tc-${index}-${testcase.testcase_name || testcase.name || index}`,
     name: testcase.testcase_name || testcase.name || `Testcase ${index + 1}`,
-    isExample: true,
+    isHidden: testcase.is_hidden ?? testcase.isHidden ?? false,
     passed: testcase.result === 'PASS',
-    error: testcase.result !== 'PASS' ? (testcase.feedback || testcase.result) : undefined,
+    result: testcase.result,
+    input: testcase.input ?? '',
+    expectedOutput: testcase.expected_output ?? testcase.expectedOutput ?? '',
+    actualOutput: testcase.actual_output ?? testcase.actualOutput ?? '',
+    assertions: testcase.assertions ?? [],
     feedback: testcase.feedback,
-    studentOutput: testcase.feedback,
   }));
 }
 
@@ -42,7 +45,7 @@ function applyChallengeBundle(bundle) {
   return {
     classData: bundle.class ?? [],
     mmdData: bundle.mmd ?? [],
-    testCases: mapStructuralTestcases(bundle.testcases),
+    testCases: mapOperationalTestcases(bundle.testcases),
   };
 }
 
@@ -112,6 +115,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const classDataCacheRef = useRef({});
   const mmdDataCacheRef = useRef({});
+  const testcaseDataCacheRef = useRef({});
   const labResultCacheRef = useRef({});
   const statsFetchGenRef = useRef(0);
 
@@ -213,15 +217,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       const bundle = applyCachedBundleToState(cachedBundle, setClassData, setMmdData, setTestCases);
       classDataCacheRef.current[challengeId] = bundle.classData;
       mmdDataCacheRef.current[challengeId] = bundle.mmdData;
+      testcaseDataCacheRef.current[challengeId] = bundle.testCases;
       return;
     }
 
     const cachedClass = !force && classDataCacheRef.current[challengeId];
     const cachedMmd = !force && mmdDataCacheRef.current[challengeId];
-    if (cachedClass && cachedMmd) {
+    const cachedTestcases = !force && testcaseDataCacheRef.current[challengeId];
+    if (cachedClass && cachedMmd && cachedTestcases) {
       setClassData(cachedClass);
       setMmdData(cachedMmd);
-      setTestCases([]);
+      setTestCases(cachedTestcases);
       return;
     }
 
@@ -231,17 +237,21 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         query.set('submissionId', submissionId);
       }
       const qs = `?${query.toString()}`;
-      const [classRes, mmdRes] = await Promise.all([
+      const [classRes, mmdRes, testcaseRes] = await Promise.all([
         cachedClass
           ? Promise.resolve({ ok: true, json: async () => cachedClass })
           : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`),
         cachedMmd
           ? Promise.resolve({ ok: true, json: async () => cachedMmd })
           : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`),
+        cachedTestcases
+          ? Promise.resolve({ ok: true, json: async () => cachedTestcases })
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`),
       ]);
 
       const classJson = classRes.ok ? await classRes.json() : [];
       const mmdJson = mmdRes.ok ? await mmdRes.json() : [];
+      const testcaseJson = testcaseRes.ok ? await testcaseRes.json() : [];
 
       if (!cachedClass) {
         classDataCacheRef.current[challengeId] = classJson;
@@ -249,9 +259,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       if (!cachedMmd) {
         mmdDataCacheRef.current[challengeId] = mmdJson;
       }
+      if (!cachedTestcases) {
+        testcaseDataCacheRef.current[challengeId] = mapOperationalTestcases(testcaseJson);
+      }
       setClassData(classJson);
       setMmdData(mmdJson);
-      setTestCases([]);
+      setTestCases(mapOperationalTestcases(testcaseJson));
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
       setClassData([]);
@@ -317,10 +330,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
     const cachedClass = classDataCacheRef.current[selectedChallengeId];
     const cachedMmd = mmdDataCacheRef.current[selectedChallengeId];
-    if (cachedClass && cachedMmd) {
+    const cachedTestcases = testcaseDataCacheRef.current[selectedChallengeId];
+    if (cachedClass && cachedMmd && cachedTestcases) {
       setClassData(cachedClass);
       setMmdData(cachedMmd);
-      setTestCases([]);
+      setTestCases(cachedTestcases);
       return;
     }
 
@@ -353,6 +367,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setSelectedChallengeId(null);
     classDataCacheRef.current = {};
     mmdDataCacheRef.current = {};
+    testcaseDataCacheRef.current = {};
     labResultCacheRef.current = {};
     setMmdData([]);
     setClassData([]);
@@ -381,11 +396,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
     const cachedClass = classDataCacheRef.current[challengeId];
     const cachedMmd = mmdDataCacheRef.current[challengeId];
-    if (cachedClass && cachedMmd) {
-      setClassData(cachedClass);
-      setMmdData(cachedMmd);
-      setTestCases([]);
-    }
+    const cachedTestcases = testcaseDataCacheRef.current[challengeId];
+    setClassData(cachedClass ?? []);
+    setMmdData(cachedMmd ?? []);
+    setTestCases(cachedTestcases ?? []);
   };
 
   const handleUploadComplete = async (uploadResponse) => {
@@ -405,6 +419,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
     classDataCacheRef.current = {};
     mmdDataCacheRef.current = {};
+    testcaseDataCacheRef.current = {};
     labResultCacheRef.current = indexedLabResult;
 
     setSessionResultsByLab((prev) => ({
@@ -444,6 +459,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           const bundle = applyCachedBundleToState(cachedBundle, setClassData, setMmdData, setTestCases);
           classDataCacheRef.current[selectedChallengeId] = bundle.classData;
           mmdDataCacheRef.current[selectedChallengeId] = bundle.mmdData;
+          testcaseDataCacheRef.current[selectedChallengeId] = bundle.testCases;
         } else {
           await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
             force: true,

@@ -49,7 +49,9 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
-| `LecturerAnalyticsController` | `/api/lecturer` | `GET /api/lecturer/overview` |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT) |
+| `MasterDataController` | `/api/master-data` | Master data lookup by category |
+| `TermController` | `/api/terms` | Academic term list for lab creation |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create (soft-delete); **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
@@ -67,7 +69,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
-- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`
+- Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Soft-delete: users set `isActive=false`
 
 ### Submission resolution
@@ -84,6 +86,8 @@ Grading tuning properties (`application.properties`):
 |---|---|---|
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
+| `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases |
+| `testcaseInvokeExecutor` bean | single thread | Serializes student code invocation and stdout capture |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Log upload (`rubric_ms`, `process_ms`, `grade_ms`, `total_ms`) and read paths (`challenges_ms`, `class_ms`, `stats_ms`) |

@@ -35,12 +35,14 @@ import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.SubmissionMethodResult;
 import com.eiu.capstone.backend.model.SubmissionRelationResult;
+import com.eiu.capstone.backend.model.SubmissionTestcaseAssertionResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
+import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.service.ParsedSubmissionSnapshotStore;
@@ -64,6 +66,7 @@ public class GradingService {
     private final ClassRelationRepository classRelationRepository;
     private final GradingPipeline gradingPipeline;
     private final TestcaseRepository testcaseRepository;
+    private final TestcaseAssertionRepository testcaseAssertionRepository;
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
@@ -78,6 +81,7 @@ public class GradingService {
                           ClassRelationRepository classRelationRepository,
                           GradingPipeline gradingPipeline,
                           TestcaseRepository testcaseRepository,
+                          TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
                           ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore) {
@@ -91,6 +95,7 @@ public class GradingService {
         this.classRelationRepository = classRelationRepository;
         this.gradingPipeline = gradingPipeline;
         this.testcaseRepository = testcaseRepository;
+        this.testcaseAssertionRepository = testcaseAssertionRepository;
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
@@ -185,7 +190,7 @@ public class GradingService {
             }
             for (PendingTestcaseResult pending : cc.pendingTestcases) {
                 result.testcaseResults.add(buildTestcaseResult(
-                        existing.testcaseResults, submission, pending.testcaseId(), pending.status(), pending.feedback()));
+                        existing.testcaseResults, submission, pending));
             }
             if (cc.pendingChallenge != null) {
                 BigDecimal challengeScore = cc.percentage != null ? cc.percentage : BigDecimal.ZERO;
@@ -266,7 +271,14 @@ public class GradingService {
                 .map(r -> new PendingRelationResult(r.relationId(), r.correct()))
                 .toList();
         computation.pendingTestcases = pipelineResult.testcaseResult().results().stream()
-                .map(t -> new PendingTestcaseResult(t.testcaseId(), t.status(), t.feedback()))
+                .map(t -> new PendingTestcaseResult(
+                        t.testcaseId(),
+                        t.status(),
+                        t.feedback(),
+                        t.inputDisplay(),
+                        t.expectedDisplay(),
+                        t.actualDisplay(),
+                        t.assertions()))
                 .toList();
         computation.pendingChallenge = new PendingChallengeResult(
                 pipelineResult.challengeId(), pipelineResult.fullyCorrect());
@@ -332,14 +344,35 @@ public class GradingService {
 
     private SubmissionTestcaseResult buildTestcaseResult(Map<UUID, SubmissionTestcaseResult> existing,
                                                          LabSubmission submission,
-                                                         UUID testcaseId,
-                                                         com.eiu.capstone.backend.model.TestcaseResultStatus status,
-                                                         String feedback) {
-        SubmissionTestcaseResult result = existing.getOrDefault(testcaseId, new SubmissionTestcaseResult());
+                                                         PendingTestcaseResult pending) {
+        SubmissionTestcaseResult result = existing.getOrDefault(pending.testcaseId(), new SubmissionTestcaseResult());
         result.setSubmission(submission);
-        result.setTestcase(testcaseRepository.getReferenceById(testcaseId));
-        result.setResult(status);
-        result.setFeedback(feedback);
+        result.setTestcase(testcaseRepository.getReferenceById(pending.testcaseId()));
+        result.setResult(pending.status());
+        result.setFeedback(pending.feedback());
+        result.setInputDisplay(pending.inputDisplay());
+        result.setExpectedDisplay(pending.expectedDisplay());
+        result.setActualDisplay(pending.actualDisplay());
+
+        Map<UUID, SubmissionTestcaseAssertionResult> existingAssertions = result.getAssertionResults().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> row.getTestcaseAssertion().getId(),
+                        row -> row,
+                        (left, right) -> left));
+
+        result.getAssertionResults().clear();
+        for (com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult assertionPending
+                : pending.assertions()) {
+            SubmissionTestcaseAssertionResult assertionResult = existingAssertions.getOrDefault(
+                    assertionPending.assertionId(), new SubmissionTestcaseAssertionResult());
+            assertionResult.setSubmissionTestcaseResult(result);
+            assertionResult.setTestcaseAssertion(
+                    testcaseAssertionRepository.getReferenceById(assertionPending.assertionId()));
+            assertionResult.setResult(assertionPending.status());
+            assertionResult.setActualValue(assertionPending.actualValueJson());
+            assertionResult.setFeedback(assertionPending.feedback());
+            result.getAssertionResults().add(assertionResult);
+        }
         return result;
     }
 

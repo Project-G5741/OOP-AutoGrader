@@ -38,10 +38,10 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
-- Each structural check row uses a full-row green or red background tint for pass/fail.
-- Passing rows show the check name and trailing green **PASS** only — not clickable, no expand chevron.
-- Failing rows show the check name, trailing red **FAIL**, and a chevron; click toggles an inline error message (grading feedback only — no Input/Expected Output columns).
-- Class and MMD tabs keep their existing icon/badge row pattern.
+- **I/O Score** header uses backend pillar score from `lab_result.scores.testcase`.
+- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass and fail.
+- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL only — no I/O detail.
+- Multi-assertion visible rows stack additional Expected/Your pairs under the primary three-column panel.
 
 ### Dashboard stats row (`StudentUI.jsx`)
 

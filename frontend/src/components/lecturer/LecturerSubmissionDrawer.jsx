@@ -172,7 +172,7 @@ export default function LecturerSubmissionDrawer({
 
         <div className="flex border-b border-gray-200 px-5 dark:border-gray-700">
           <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
-            Class
+            Declaration Test
           </button>
           <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
             MMD

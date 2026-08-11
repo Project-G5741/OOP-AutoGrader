@@ -1,307 +1,395 @@
-import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import DropZone from '../components/ui/DropZone';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
+import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
+import MmdRelationsPanel from '../components/lecturer/structure/MmdRelationsPanel';
+import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
+import { authHeaders } from '../utils/authHeaders';
 
-const INITIAL_SOLUTIONS = [
-  { lab: 'Lab 01: Abstraction', uploaded: '2026-07-10', files: 4, status: 'Ready', description: 'Abstraction exercises for OOP basics' },
-  { lab: 'Lab 02: Polymorphism', uploaded: '2026-07-12', files: 3, status: 'Ready', description: 'Polymorphism examples and tests' },
-  { lab: 'Lab 03: Inheritance', uploaded: '-', files: 0, status: 'Missing', description: '' },
-  { lab: 'Lab 04: Interface', uploaded: '2026-07-15', files: 5, status: 'Ready', description: 'Interface-based design' },
-];
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-// Reusable Modal is provided by components/ui/Modal
+const emptyDraft = (lab) => ({
+  id: lab.id,
+  name: lab.name,
+  termId: lab.termId || null,
+  challenges: [],
+});
+
+function cloneDraft(data) {
+  return JSON.parse(JSON.stringify(data));
+}
 
 export default function SolutionManagement() {
-  const [solutions, setSolutions] = useState(INITIAL_SOLUTIONS);
-  const [showAdd, setShowAdd] = useState(false);
-  const [replaceFor, setReplaceFor] = useState(null);
-  const [addStep, setAddStep] = useState('form');
-  const [addLab, setAddLab] = useState('');
-  const [addDesc, setAddDesc] = useState('');
-  const [addTestLab, setAddTestLab] = useState('');
-  const [addTestChallenge, setAddTestChallenge] = useState('');
-  const [newChallengeName, setNewChallengeName] = useState('');
-  const [challengesByLab, setChallengesByLab] = useState({});
-  const [showAddTestcase, setShowAddTestcase] = useState(false);
-  const [testcaseInput, setTestcaseInput] = useState('');
-  const [testcaseOutput, setTestcaseOutput] = useState('');
-  const [testcases, setTestcases] = useState([]);
-  const [editingLab, setEditingLab] = useState(null);
-  const [editingName, setEditingName] = useState('');
+  const [labs, setLabs] = useState([]);
+  const [scopeOptions, setScopeOptions] = useState([]);
+  const [declaringTypeOptions, setDeclaringTypeOptions] = useState([]);
+  const [relationTypeOptions, setRelationTypeOptions] = useState([]);
+  const [terms, setTerms] = useState([]);
+  const [selectedLabId, setSelectedLabId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [savedSnapshot, setSavedSnapshot] = useState(null);
+  const [expandedLabs, setExpandedLabs] = useState({});
+  const [expandedChallenges, setExpandedChallenges] = useState({});
+  const [selectedClassRef, setSelectedClassRef] = useState(null);
+  const [selectedChallengeId, setSelectedChallengeId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [showCreateLab, setShowCreateLab] = useState(false);
+  const [newLabName, setNewLabName] = useState('');
+  const [newLabTermId, setNewLabTermId] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  const handleAddFiles = (files) => {
-    // Use addLab/addDesc from form step to create or update solution.
-    const now = new Date().toISOString().slice(0, 10);
-    const filesCount = files.length;
-    if (!addLab) {
-      // fallback: use Imported date
-      const updated = [{ lab: `Imported ${now}`, uploaded: now, files: filesCount, status: 'Ready', description: addDesc }, ...solutions];
-      setSolutions(updated);
-      setShowAdd(false);
-      setAddStep('form');
-      setAddLab('');
-      setAddDesc('');
-      return;
+  const isDirty = useMemo(() => {
+    if (!draft || !savedSnapshot) return false;
+    return JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
+  }, [draft, savedSnapshot]);
+
+  const isDirtyRef = useRef(isDirty);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  const loadLookups = useCallback(async () => {
+    const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
+      fetch(`${API_BASE}/api/master-data?category=SCOPE`),
+      fetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`),
+      fetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`),
+      fetch(`${API_BASE}/api/terms`),
+    ]);
+    if (scopeRes.ok) setScopeOptions(await scopeRes.json());
+    if (declaringRes.ok) setDeclaringTypeOptions(await declaringRes.json());
+    if (relationRes.ok) setRelationTypeOptions(await relationRes.json());
+    if (termsRes.ok) setTerms(await termsRes.json());
+  }, []);
+
+  const loadLabs = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to load labs');
+    return res.json();
+  }, []);
+
+  const loadStructure = useCallback(async (labId) => {
+    const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}/structure`, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to load lab structure');
+    return res.json();
+  }, []);
+
+  const selectLab = useCallback(async (labId, force = false) => {
+    if (!force && isDirtyRef.current) {
+      const proceed = window.confirm('You have unsaved changes. Discard them and switch labs?');
+      if (!proceed) return;
     }
+    setError('');
+    const structure = await loadStructure(labId);
+    const nextDraft = cloneDraft(structure);
+    nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
+      ...challenge,
+      relations: challenge.relations || [],
+    }));
+    setSelectedLabId(labId);
+    setDraft(nextDraft);
+    setSavedSnapshot(cloneDraft(structure));
+    setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
+    setSelectedClassRef(null);
+    setSelectedChallengeId(null);
+  }, [loadStructure]);
 
-    const existingIndex = solutions.findIndex((s) => s.lab === addLab);
-    const newEntry = { lab: addLab, uploaded: now, files: filesCount, status: 'Ready', description: addDesc };
-    if (existingIndex >= 0) {
-      const updated = [...solutions];
-      updated[existingIndex] = { ...updated[existingIndex], ...newEntry };
-      setSolutions(updated);
-    } else {
-      setSolutions([newEntry, ...solutions]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        await loadLookups();
+        const labList = await loadLabs();
+        if (!active) return;
+        setLabs(labList);
+        if (labList.length > 0) {
+          await selectLab(labList[0].id, true);
+        }
+      } catch (e) {
+        if (active) setError(e.message || 'Failed to initialize editor');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [loadLookups, loadLabs, selectLab]);
+
+  const selectedClass = useMemo(() => {
+    if (!draft || !selectedClassRef) return null;
+    const challenge = draft.challenges.find((c) => c.id === selectedClassRef.challengeId);
+    return challenge?.classes?.find((cls) => cls.id === selectedClassRef.classId) || null;
+  }, [draft, selectedClassRef]);
+
+  const selectedChallenge = useMemo(() => {
+    if (!draft || !selectedChallengeId || selectedClassRef) return null;
+    return draft.challenges.find((c) => c.id === selectedChallengeId) || null;
+  }, [draft, selectedChallengeId, selectedClassRef]);
+
+  const updateSelectedClass = (updatedClass) => {
+    if (!draft || !selectedClassRef) return;
+    const challenges = draft.challenges.map((challenge) => {
+      if (challenge.id !== selectedClassRef.challengeId) return challenge;
+      return {
+        ...challenge,
+        classes: challenge.classes.map((cls) => (cls.id === updatedClass.id ? updatedClass : cls)),
+      };
+    });
+    setDraft({ ...draft, challenges });
+  };
+
+  const updateSelectedChallenge = (updatedChallenge) => {
+    if (!draft || !selectedChallengeId) return;
+    const challenges = draft.challenges.map((challenge) => (
+      challenge.id === updatedChallenge.id ? updatedChallenge : challenge
+    ));
+    setDraft({ ...draft, challenges });
+  };
+
+  const handleSave = async () => {
+    if (!draft || !selectedLabId) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Save failed');
+      }
+      const saved = await res.json();
+      const nextDraft = cloneDraft(saved);
+      setDraft(nextDraft);
+      setSavedSnapshot(cloneDraft(saved));
+      setLabs((prev) => prev.map((lab) => (lab.id === saved.id ? { ...lab, name: saved.name } : lab)));
+      setMessage('Lab structure saved.');
+    } catch (e) {
+      setError(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
     }
-
-    setShowAdd(false);
-    setAddStep('form');
-    setAddLab('');
-    setAddDesc('');
   };
 
-  const handleReplaceFiles = (files) => {
-    if (!replaceFor) return;
-    const now = new Date().toISOString().slice(0, 10);
-    const updated = solutions.map((s) => (s.lab === replaceFor ? { ...s, uploaded: now, files: files.length, status: 'Ready' } : s));
-    setSolutions(updated);
-    setReplaceFor(null);
+  const handleCreateLab = async () => {
+    if (!newLabName.trim() || !newLabTermId) return;
+    const res = await fetch(`${API_BASE}/api/lecturer/labs`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: newLabName.trim(), termId: newLabTermId }),
+    });
+    if (!res.ok) throw new Error('Failed to create lab');
+    const created = await res.json();
+    setLabs((prev) => [...prev, { id: created.id, name: created.name }]);
+    setShowCreateLab(false);
+    setNewLabName('');
+    setNewLabTermId('');
+    await selectLab(created.id, true);
   };
 
-  const handleDelete = (lab) => {
-    setSolutions((prev) => prev.filter((s) => s.lab !== lab));
+  const runDelete = async () => {
+    if (!confirmDelete) return;
+    const { type, labId, challengeId, classId } = confirmDelete;
+    if (type === 'lab') {
+      const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed to delete lab');
+      const remaining = labs.filter((l) => l.id !== labId);
+      setLabs(remaining);
+      if (selectedLabId === labId) {
+        setDraft(null);
+        setSavedSnapshot(null);
+        setSelectedLabId(null);
+        if (remaining[0]) await selectLab(remaining[0].id, true);
+      }
+    } else if (type === 'challenge') {
+      setDraft({
+        ...draft,
+        challenges: draft.challenges.filter((c) => c.id !== challengeId),
+      });
+      if (selectedClassRef?.challengeId === challengeId) setSelectedClassRef(null);
+      if (selectedChallengeId === challengeId) setSelectedChallengeId(null);
+    } else if (type === 'class') {
+      setDraft({
+        ...draft,
+        challenges: draft.challenges.map((c) => (
+          c.id === challengeId
+            ? {
+                ...c,
+                classes: c.classes.filter((cls) => cls.id !== classId),
+                relations: (c.relations || []).filter(
+                  (rel) => rel.sourceClassId !== classId && rel.targetClassId !== classId,
+                ),
+              }
+            : c
+        )),
+      });
+      if (selectedClassRef?.classId === classId) setSelectedClassRef(null);
+    }
+    setConfirmDelete(null);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-500">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading structure editor...
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex min-h-[calc(100dvh-16rem)] flex-col">
+      <div className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold">Solution Management</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Solution Management</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Define lab rubric structure for grading.</p>
         </div>
-        <div className="inline-flex items-center gap-2">
-          <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-4 py-2 text-white hover:bg-purple-500">
-            <Plus className="h-4 w-4" />
-            Add Solution
-          </button>
-          <button onClick={() => setShowAddTestcase(true)} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-white hover:bg-blue-500">
-            <Plus className="h-4 w-4" />
-            Add Testcase
-          </button>
+
+        {error && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
+        {message && <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{message}</div>}
+
+        <div className="flex flex-col gap-4 lg:flex-row">
+        <StructureSidebar
+          labs={labs}
+          draft={draft}
+          selectedLabId={selectedLabId}
+          expandedLabs={expandedLabs}
+          expandedChallenges={expandedChallenges}
+          selectedChallengeId={selectedChallengeId}
+          selectedClassId={selectedClassRef?.classId}
+          onSelectLab={(labId) => selectLab(labId)}
+          onToggleLab={(labId) => setExpandedLabs((prev) => ({ ...prev, [labId]: !prev[labId] }))}
+          onToggleChallenge={(challengeId) => setExpandedChallenges((prev) => ({ ...prev, [challengeId]: !prev[challengeId] }))}
+          onSelectChallenge={(challengeId) => {
+            setSelectedChallengeId(challengeId);
+            setSelectedClassRef(null);
+            setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+          }}
+          onSelectClass={(challengeId, classId) => {
+            setSelectedClassRef({ challengeId, classId });
+            setSelectedChallengeId(challengeId);
+          }}
+          onAddLab={() => setShowCreateLab(true)}
+          onAddChallenge={() => {
+            if (!draft) return;
+            const nextNumber = (draft.challenges?.length || 0) + 1;
+            const challenge = {
+              id: crypto.randomUUID(),
+              name: `Problem ${nextNumber}`,
+              challengeNumber: nextNumber,
+              classes: [],
+              relations: [],
+            };
+            setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
+            setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
+          }}
+          onAddClass={(challengeId) => {
+            const cls = {
+              id: crypto.randomUUID(),
+              name: 'NewClass',
+              scopeId: scopeOptions[0]?.id,
+              declaringTypeId: declaringTypeOptions[0]?.id,
+              isAbstract: false,
+              fields: [],
+              methods: [],
+              constructors: [],
+            };
+            setDraft({
+              ...draft,
+              challenges: draft.challenges.map((c) => (
+                c.id === challengeId ? { ...c, classes: [...(c.classes || []), cls] } : c
+              )),
+            });
+            setSelectedClassRef({ challengeId, classId: cls.id });
+            setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+          }}
+          onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
+          onDeleteChallenge={(challengeId) => setConfirmDelete({ type: 'challenge', challengeId })}
+          onDeleteClass={(challengeId, classId) => setConfirmDelete({ type: 'class', challengeId, classId })}
+        />
+
+        <div className="min-w-0 flex-1">
+          {selectedClass ? (
+            <ClassDetailPanel
+              classData={selectedClass}
+              scopeOptions={scopeOptions}
+              declaringTypeOptions={declaringTypeOptions}
+              onChange={updateSelectedClass}
+            />
+          ) : (
+            <MmdRelationsPanel
+              challenge={selectedChallenge}
+              relationTypeOptions={relationTypeOptions}
+              onChange={updateSelectedChallenge}
+            />
+          )}
         </div>
       </div>
+      </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full table-auto text-sm min-w-full bg-white dark:bg-transparent">
-            <thead className="bg-white dark:bg-[#0f1720] text-gray-600 dark:text-gray-400">
-              <tr>
-                  <th className="w-1/4 px-4 py-4 text-left">Lab</th>
-                  <th className="w-1/6 px-4 py-4 text-left">Description</th>
-                <th className="w-1/8 px-4 py-4 text-left">Uploaded</th>
-                <th className="w-1/8 px-4 py-4 text-left">Files</th>
-                <th className="w-1/8 px-4 py-4 text-left">Status</th>
-                <th className="w-32 px-6 py-4"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {solutions.map((s) => (
-                <tr key={s.lab} className="border-t border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-[#0b0f14]">
-                  <td className="px-6 py-4 align-middle break-words">
-                    <div className="flex items-center gap-3">
-                      {editingLab === s.lab ? (
-                        <input
-                          className="w-52 rounded-md border border-gray-600 bg-[#0d1117] px-3 py-1 text-sm text-white"
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                        />
-                      ) : (
-                        <div className="max-w-[18rem] truncate text-gray-900 dark:text-gray-100 font-medium">{s.lab}</div>
-                      )}
-                      {editingLab === s.lab ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              if (editingName.trim()) {
-                                setSolutions((prev) => prev.map((x) => (x.lab === s.lab ? { ...x, lab: editingName.trim() } : x)));
-                              }
-                              setEditingLab(null);
-                              setEditingName('');
-                            }}
-                            className="rounded-md bg-green-600 px-3 py-1 text-xs text-white"
-                          >Save</button>
-                          <button onClick={() => { setEditingLab(null); setEditingName(''); }} className="rounded-md border border-gray-700 px-3 py-1 text-xs text-gray-200">Cancel</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => { setEditingLab(s.lab); setEditingName(s.lab); }} className="text-xs text-gray-400 hover:text-gray-200">Edit</button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-gray-700 dark:text-gray-300 break-words">
-                    <div className="max-w-full break-words text-sm" title={s.description || ''}>{s.description || '-'}</div>
-                  </td>
-                  <td className="px-4 py-4 text-gray-700 dark:text-gray-400">{s.uploaded}</td>
-                  <td className="px-4 py-4 text-gray-700 dark:text-gray-400">{s.files} files</td>
-                  <td className="px-6 py-4">
-                    {s.status === 'Ready' ? (
-                      <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-800/40 dark:text-emerald-300">✓ Ready</span>
-                    ) : (
-                      <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-800/40 dark:text-red-300">⚠ Missing</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-4 text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button onClick={() => setReplaceFor(s.lab)} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-white hover:bg-blue-500 text-sm">
-                        Replace
-                      </button>
-                      <button onClick={() => setConfirmDelete(s.lab)} className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="mt-6 flex flex-1 items-center justify-end py-8">
+        <button
+          type="button"
+          disabled={!isDirty || saving || !draft}
+          onClick={handleSave}
+          className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save Lab Structure
+        </button>
+      </div>
 
-        {confirmDelete && (
-            <Modal onClose={() => setConfirmDelete(null)}>
-              <div>
-                <h3 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Confirm delete</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Are you sure you want to delete <span className="font-semibold">{confirmDelete}</span>? This action cannot be undone.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => { handleDelete(confirmDelete); setConfirmDelete(null); }} className="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white">Delete</button>
-                  <button onClick={() => setConfirmDelete(null)} className="rounded-2xl border border-gray-700 px-4 py-2 text-sm text-gray-700 dark:text-gray-200">Cancel</button>
-                </div>
-              </div>
-            </Modal>
-        )}
-
-      {showAdd && (
-        <Modal onClose={() => { setShowAdd(false); setAddStep('form'); setAddLab(''); setAddDesc(''); }}>
-          {addStep === 'form' ? (
+      {showCreateLab && (
+        <Modal onClose={() => setShowCreateLab(false)}>
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Create Lab</h3>
+          <div className="space-y-4">
             <div>
-              <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Add Solution — Details</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2">Select Lab</label>
-                  <select value={addLab} onChange={(e) => setAddLab(e.target.value)} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white">
-                    <option value="">-- Select a lab --</option>
-                    {solutions.map((s) => <option key={s.lab} value={s.lab}>{s.lab}</option>)}
-                    <option value="__NEW__">Create new lab...</option>
-                  </select>
-                  {addLab === '__NEW__' && (
-                    <input
-                      placeholder="Enter new lab name"
-                      value={editingName || ''}
-                      onChange={(e) => { setEditingName(e.target.value); }}
-                      className="mt-3 w-full rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2">Description</label>
-                  <textarea value={addDesc} onChange={(e) => setAddDesc(e.target.value)} rows={3} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white" placeholder="Optional description for this solution" />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    disabled={!addLab && !(addLab === '__NEW__' && editingName && editingName.trim())}
-                    onClick={() => {
-                      if (addLab === '__NEW__') {
-                        setAddLab(editingName.trim());
-                      }
-                      setAddStep('upload');
-                    }}
-                    className="rounded-2xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >Continue to Upload</button>
-                  <button onClick={() => { setShowAdd(false); setAddLab(''); setAddDesc(''); }} className="rounded-2xl border border-gray-700 px-4 py-2 text-sm text-gray-200">Cancel</button>
-                </div>
-              </div>
+              <label className="mb-1 block text-xs text-gray-500">Lab name</label>
+              <input
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                value={newLabName}
+                onChange={(e) => setNewLabName(e.target.value)}
+              />
             </div>
-          ) : (
             <div>
-              <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Upload files for {addLab}</h3>
-              <p className="text-sm text-gray-400 mb-4">{addDesc}</p>
-              <DropZone title={`Drop .zip or .rar files for ${addLab}`} buttonText="Select files" onFilesSelected={handleAddFiles} />
-              <div className="mt-3 flex justify-between">
-                <button onClick={() => setAddStep('form')} className="rounded-2xl border border-gray-700 px-4 py-2 text-sm text-gray-200">Back</button>
-                <button onClick={() => { setShowAdd(false); setAddStep('form'); setAddLab(''); setAddDesc(''); }} className="rounded-2xl bg-gray-700 px-4 py-2 text-sm text-white">Close</button>
-              </div>
+              <label className="mb-1 block text-xs text-gray-500">Term</label>
+              <select
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                value={newLabTermId}
+                onChange={(e) => setNewLabTermId(e.target.value)}
+              >
+                <option value="">Select term</option>
+                {terms.map((term) => (
+                  <option key={term.id} value={term.id}>{term.label}</option>
+                ))}
+              </select>
             </div>
-          )}
-        </Modal>
-      )}
-
-      {showAddTestcase && (
-        <Modal onClose={() => { setShowAddTestcase(false); setTestcaseInput(''); setTestcaseOutput(''); }}>
-          <div>
-            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Add Testcase</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Lab</label>
-                <select value={addTestLab} onChange={(e) => { setAddTestLab(e.target.value); setAddTestChallenge(''); }} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white">
-                  <option value="">-- Select lab --</option>
-                  {solutions.map((s) => <option key={s.lab} value={s.lab}>{s.lab}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Challenge</label>
-                <div className="flex gap-2">
-                  <select value={addTestChallenge} onChange={(e) => setAddTestChallenge(e.target.value)} className="flex-1 rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white">
-                    <option value="">-- Select challenge --</option>
-                    {(challengesByLab[addTestLab] || []).map((c) => <option key={c} value={c}>{c}</option>)}
-                    <option value="__NEW__">Create new challenge...</option>
-                  </select>
-                  {addTestChallenge === '__NEW__' && (
-                    <input value={newChallengeName} onChange={(e) => setNewChallengeName(e.target.value)} placeholder="New challenge name" className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white" />
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Input</label>
-                <textarea value={testcaseInput} onChange={(e) => setTestcaseInput(e.target.value)} rows={4} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Expected Output</label>
-                <textarea value={testcaseOutput} onChange={(e) => setTestcaseOutput(e.target.value)} rows={4} className="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 outline-none dark:border-gray-700 dark:bg-[#0d1117] dark:text-white" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => {
-                  // Determine final lab and challenge
-                  const lab = addTestLab || (solutions[0] && solutions[0].lab) || '';
-                  const challenge = addTestChallenge === '__NEW__' ? newChallengeName.trim() : addTestChallenge;
-                  if (!lab || !challenge) {
-                    // simple validation: require both
-                    return alert('Please select a lab and challenge name for the testcase');
-                  }
-                  // persist challenge under lab
-                  setChallengesByLab((prev) => {
-                    const existing = prev[lab] || [];
-                    const updated = existing.includes(challenge) ? existing : [challenge, ...existing];
-                    return { ...prev, [lab]: updated };
-                  });
-                  setTestcases((prev) => [{ lab, challenge, input: testcaseInput, output: testcaseOutput }, ...prev]);
-                  setShowAddTestcase(false);
-                  setTestcaseInput('');
-                  setTestcaseOutput('');
-                  setAddTestLab('');
-                  setAddTestChallenge('');
-                  setNewChallengeName('');
-                }} className="rounded-2xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white">Save Testcase</button>
-                <button onClick={() => { setShowAddTestcase(false); }} className="rounded-2xl border border-gray-700 px-4 py-2 text-sm text-gray-700 dark:text-gray-200">Cancel</button>
-              </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={handleCreateLab} className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white">Create</button>
+              <button type="button" onClick={() => setShowCreateLab(false)} className="rounded-lg border border-gray-600 px-4 py-2 text-sm">Cancel</button>
             </div>
           </div>
         </Modal>
       )}
 
-      {replaceFor && (
-        <Modal onClose={() => setReplaceFor(null)}>
-          <h3 className="mb-4 text-lg font-semibold text-white">Replace Solution for {replaceFor} — Drag & Drop or select files</h3>
-          <DropZone title={`Drop files for ${replaceFor}`} buttonText="Select files" onFilesSelected={handleReplaceFiles} />
+      {confirmDelete && (
+        <Modal onClose={() => setConfirmDelete(null)}>
+          <h3 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Confirm delete</h3>
+          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            This will remove the selected item from the lab structure
+            {confirmDelete.type === 'lab' ? ' and delete all problems, classes, and related grading references after save.' : '.'}
+            {' '}Student submission data may be orphaned. Continue?
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={runDelete} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white">Delete</button>
+            <button type="button" onClick={() => setConfirmDelete(null)} className="rounded-lg border border-gray-600 px-4 py-2 text-sm">Cancel</button>
+          </div>
         </Modal>
       )}
     </div>

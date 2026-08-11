@@ -20,13 +20,28 @@ An in-memory, immutable graph of the lab's expected OOP structure (challenges, c
 Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
 
 ### Grading pillar
-One of three equal scoring slices per challenge in the rebuilt engine: `.class` reflection, `.mmd` diagram, or structural `testcase` rows. Challenge score is the arithmetic mean of the three pillar percentages.
+One of three equal scoring slices per challenge in the rebuilt engine: `.class` reflection, `.mmd` diagram, or operational `testcase` invocations. Challenge score is the arithmetic mean of the three pillar percentages.
 
-### Structural testcase
-A rubric-linked grading check stored in `testcase` with `EXISTENCE` or `DECLARATION` semantics pointing at a `class_entity`, `field`, `method`, or `constructor` row. Outcomes persist in `submission_testcase_result`; not runtime method execution.
+### Operational testcase
+A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).
+
+### is_hidden (testcase)
+Rubric flag on `testcase` controlling student visibility. When `false`, the testcase appears in **Example Testcases** with full I/O card expand. When `true`, it appears in **Other Testcases** as pass/fail only — input and output are withheld.
+
+### Primary assertion
+The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). Selected at grade time by priority: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only.
+
+### Testcase invoke executor
+Dedicated single-worker executor for operational testcase reflection. All student-code invocations and stdout capture run through this queue so parallel challenge grading does not interleave `System.out` or race on timeout cancellation.
+
+### Assertion kind
+The category of check applied to an invoke or comparison outcome: return value, field state, stdout, exception type, or comparison result. A testcase passes only when every configured assertion kind passes.
+
+### Testcase I/O card
+Student-facing expandable result card per testcase: INPUT (formatted invocation), EXPECTED OUTPUT, YOUR OUTPUT. Collapsed view uses primary assertion display fields; expanded view stacks every assertion's EXPECTED/YOUR pair under one shared INPUT.
 
 ### lab_result bundle
-Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and testcase detail arrays so the student UI renders tabs without follow-up read API calls.
+Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and operational testcase I/O card arrays so the student UI renders tabs without follow-up read API calls. Revisit read paths return the same testcase shape when the upload cache is absent.
 
 ### Parsed submission snapshot
 Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items and rubric expected labels for missing items, with existing per-element pass/fail flags.

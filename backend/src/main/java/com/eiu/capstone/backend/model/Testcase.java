@@ -31,15 +31,12 @@ public class Testcase {
     private Challenge challenge;
 
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "check_type", nullable = false, columnDefinition = "testcase_check_type")
-    private TestcaseCheckType checkType;
+    @Column(name = "testcase_type", nullable = false, columnDefinition = "testcase_type")
+    private TestcaseType testcaseType;
 
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "target_type", nullable = false, columnDefinition = "testcase_target_type")
-    private TestcaseTargetType targetType;
-
-    @Column(name = "target_id", nullable = false)
-    private UUID targetId;
+    @Column(name = "comparison_method", columnDefinition = "testcase_comparison_method")
+    private TestcaseComparisonMethod comparisonMethod;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -49,6 +46,9 @@ public class Testcase {
 
     @Column(name = "order_index", nullable = false)
     private int orderIndex = 0;
+
+    @Column(name = "is_hidden", nullable = false)
+    private boolean hidden = false;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
@@ -60,14 +60,13 @@ public class Testcase {
     public Challenge getChallenge() { return challenge; }
     public void setChallenge(Challenge challenge) { this.challenge = challenge; }
 
-    public TestcaseCheckType getCheckType() { return checkType; }
-    public void setCheckType(TestcaseCheckType checkType) { this.checkType = checkType; }
+    public TestcaseType getTestcaseType() { return testcaseType; }
+    public void setTestcaseType(TestcaseType testcaseType) { this.testcaseType = testcaseType; }
 
-    public TestcaseTargetType getTargetType() { return targetType; }
-    public void setTargetType(TestcaseTargetType targetType) { this.targetType = targetType; }
-
-    public UUID getTargetId() { return targetId; }
-    public void setTargetId(UUID targetId) { this.targetId = targetId; }
+    public TestcaseComparisonMethod getComparisonMethod() { return comparisonMethod; }
+    public void setComparisonMethod(TestcaseComparisonMethod comparisonMethod) {
+        this.comparisonMethod = comparisonMethod;
+    }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -77,6 +76,9 @@ public class Testcase {
 
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+
+    public boolean isHidden() { return hidden; }
+    public void setHidden(boolean hidden) { this.hidden = hidden; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

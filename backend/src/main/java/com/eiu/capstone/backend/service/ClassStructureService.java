@@ -1,6 +1,10 @@
 package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.*;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.MmdGradingOutcome;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
@@ -35,6 +39,9 @@ public class ClassStructureService {
     private final SubmissionCompileErrorStore compileErrorStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
+    private final LabRubricCache labRubricCache;
+    private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+    private final TestcaseResultMapper testcaseResultMapper;
     private final boolean timingLog;
 
     public ClassStructureService(ChallengeRepository challengeRepository,
@@ -50,6 +57,9 @@ public class ClassStructureService {
                                   SubmissionCompileErrorStore compileErrorStore,
                                   SubmissionMmdMetaStore submissionMmdMetaStore,
                                   ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
+                                  LabRubricCache labRubricCache,
+                                  SubmissionTestcaseResultRepository submissionTestcaseResultRepository,
+                                  TestcaseResultMapper testcaseResultMapper,
                                   @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
@@ -64,6 +74,9 @@ public class ClassStructureService {
         this.compileErrorStore = compileErrorStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
+        this.labRubricCache = labRubricCache;
+        this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
+        this.testcaseResultMapper = testcaseResultMapper;
         this.timingLog = timingLog;
     }
 
@@ -144,9 +157,7 @@ public class ClassStructureService {
 
     public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
-        UUID resolvedSubmissionId = submissionId != null
-                ? submissionId
-                : submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
             return List.of();
         }
@@ -385,9 +396,7 @@ public class ClassStructureService {
     /** Powers the "Class" tab for the student's latest attempt. */
     public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
-        UUID resolvedSubmissionId = submissionId != null
-                ? submissionId
-                : submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
             return List.of();
         }
@@ -396,6 +405,51 @@ public class ClassStructureService {
             System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
         }
         return result;
+    }
+
+    /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet. */
+    public List<TestcaseResultDTO> getTestcaseData(UUID labId,
+                                                   UUID challengeId,
+                                                   UUID studentId,
+                                                   UUID submissionId) {
+        long start = System.currentTimeMillis();
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
+        if (resolvedSubmissionId == null) {
+            return List.of();
+        }
+        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
+        if (timingLog) {
+            System.out.printf("read_timing testcase_ms=%d%n", System.currentTimeMillis() - start);
+        }
+        return result;
+    }
+
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID submissionId,
+                                                                  UUID challengeId) {
+        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge == null) {
+            return List.of();
+        }
+        LabRubricSnapshot rubricSnapshot = labRubricCache.get(challenge.getLab());
+        ChallengeRubric challengeRubric = rubricSnapshot.byChallengeNumber().get(challenge.getChallengeNumber());
+        if (challengeRubric == null) {
+            return List.of();
+        }
+
+        Map<UUID, SubmissionTestcaseResult> resultsByTestcaseId = submissionTestcaseResultRepository
+                .findBySubmission_IdWithTestcase(submissionId)
+                .stream()
+                .filter(result -> result.getTestcase() != null
+                        && challengeId.equals(result.getTestcase().getChallenge().getId()))
+                .collect(Collectors.toMap(
+                        result -> result.getTestcase().getId(),
+                        result -> result,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+
+        return testcaseResultMapper.mapChallengeTestcases(
+                challengeRubric.testcases(),
+                resultsByTestcaseId);
     }
 
     public List<ClassDetailDTO> buildClassDataForSubmission(UUID submissionId, UUID challengeId) {

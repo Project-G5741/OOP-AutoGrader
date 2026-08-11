@@ -15,6 +15,7 @@ import com.eiu.capstone.backend.DTO.ChallengeDTO;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.StatsDTO;
+import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.analytics.dto.ChallengeStudentRowDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
 import com.eiu.capstone.backend.service.ChallengeService;
@@ -70,6 +71,17 @@ public class ChallengeController {
         return classStructureService.getClassData(labId, challengeId, studentId, submissionId);
     }
 
+    /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet.
+     *  submissionId pins the response to a specific submission (e.g. the one just graded);
+     *  when omitted, falls back to the student's latest submission for this lab. */
+    @GetMapping("/{challengeId}/testcases")
+    public List<TestcaseResultDTO> getTestcases(@PathVariable UUID labId,
+                                                @PathVariable UUID challengeId,
+                                                @RequestParam(required = false) UUID studentId,
+                                                @RequestParam(required = false) UUID submissionId) {
+        return classStructureService.getTestcaseData(labId, challengeId, studentId, submissionId);
+    }
+
     /**
      * Powers the 3 stat cards (Current Grade / Total Submissions / Latest
      * Submission). challengeId is accepted for route symmetry with the
@@ -92,9 +104,5 @@ public class ChallengeController {
                                                            @RequestParam(required = false) String sort) {
         return lecturerAnalyticsService.getChallengeStudentRoster(labId, challengeId, page, size, sort);
     }
-
-    // NOTE: no /{challengeId}/testcases endpoint yet — there's no table in
-    // DbContext.docx backing test cases (input/expectedOutput/hidden flag),
-    // so it's skipped per your instruction until that model exists.
 }
 
