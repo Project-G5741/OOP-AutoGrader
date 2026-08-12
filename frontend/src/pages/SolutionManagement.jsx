@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
+import Toast from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
 import MmdRelationsPanel from '../components/lecturer/structure/MmdRelationsPanel';
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
@@ -36,7 +37,7 @@ export default function SolutionManagement() {
   const [structureLoading, setStructureLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [toast, setToast] = useState(null);
   const [showCreateLab, setShowCreateLab] = useState(false);
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
@@ -178,8 +179,7 @@ export default function SolutionManagement() {
   const handleSave = async () => {
     if (!draft || !selectedLabId) return;
     setSaving(true);
-    setError('');
-    setMessage('');
+    setToast(null);
     try {
       const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
@@ -210,9 +210,9 @@ export default function SolutionManagement() {
         if (!challenge) setSelectedChallengeId(null);
       }
       setLabs((prev) => prev.map((lab) => (lab.id === saved.id ? { ...lab, name: saved.name } : lab)));
-      setMessage('Lab structure saved.');
+      setToast({ message: 'Lab structure saved.', type: 'success' });
     } catch (e) {
-      setError(e.message || 'Save failed');
+      setToast({ message: e.message || 'Save failed', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -292,7 +292,6 @@ export default function SolutionManagement() {
         </div>
 
         {error && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
-        {message && <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{message}</div>}
 
         <div className="relative flex flex-col gap-4 lg:flex-row">
         {structureLoading && (
@@ -433,6 +432,14 @@ export default function SolutionManagement() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
       )}
 
       {confirmDelete && (

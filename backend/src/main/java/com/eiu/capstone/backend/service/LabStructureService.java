@@ -512,7 +512,7 @@ public class LabStructureService {
     }
 
     private void syncClasses(SaveContext ctx, Challenge challenge, List<ClassStructureDTO> classDtos) {
-        List<ClassEntity> existingClasses = ctx.classesByChallengeId.getOrDefault(challenge.getId(), List.of());
+        List<ClassEntity> existingClasses = List.copyOf(ctx.classesByChallengeId.getOrDefault(challenge.getId(), List.of()));
         Set<UUID> keptClassIds = new HashSet<>();
         List<ClassStructureDTO> payloads = classDtos != null ? classDtos : List.of();
 
@@ -535,7 +535,7 @@ public class LabStructureService {
     private void syncRelations(SaveContext ctx, Challenge challenge, List<RelationStructureDTO> relationDtos) {
         List<ClassEntity> challengeClasses = ctx.classesByChallengeId.getOrDefault(challenge.getId(), List.of());
         Set<UUID> classIds = challengeClasses.stream().map(ClassEntity::getId).collect(Collectors.toSet());
-        List<ClassRelation> existing = ctx.relationsByChallengeId.getOrDefault(challenge.getId(), List.of());
+        List<ClassRelation> existing = List.copyOf(ctx.relationsByChallengeId.getOrDefault(challenge.getId(), List.of()));
         Set<UUID> kept = new HashSet<>();
 
         for (RelationStructureDTO dto : relationDtos != null ? relationDtos : List.<RelationStructureDTO>of()) {
@@ -626,7 +626,7 @@ public class LabStructureService {
     }
 
     private void syncFields(SaveContext ctx, ClassEntity classEntity, List<FieldStructureDTO> fieldDtos) {
-        List<Field> existing = ctx.fieldsByClassId.getOrDefault(classEntity.getId(), List.of());
+        List<Field> existing = List.copyOf(ctx.fieldsByClassId.getOrDefault(classEntity.getId(), List.of()));
         Set<UUID> kept = new HashSet<>();
         for (FieldStructureDTO dto : fieldDtos != null ? fieldDtos : List.<FieldStructureDTO>of()) {
             Field field;
@@ -674,7 +674,7 @@ public class LabStructureService {
     }
 
     private void syncMethods(SaveContext ctx, ClassEntity classEntity, List<MethodStructureDTO> methodDtos) {
-        List<Method> existing = ctx.methodsByClassId.getOrDefault(classEntity.getId(), List.of());
+        List<Method> existing = List.copyOf(ctx.methodsByClassId.getOrDefault(classEntity.getId(), List.of()));
         Set<UUID> kept = new HashSet<>();
         List<MethodStructureDTO> payloads = methodDtos != null ? methodDtos : List.of();
         List<Method> savedMethods = new ArrayList<>();
@@ -744,7 +744,7 @@ public class LabStructureService {
     }
 
     private void syncConstructors(SaveContext ctx, ClassEntity classEntity, List<ConstructorStructureDTO> constructorDtos) {
-        List<Constructor> existing = ctx.constructorsByClassId.getOrDefault(classEntity.getId(), List.of());
+        List<Constructor> existing = List.copyOf(ctx.constructorsByClassId.getOrDefault(classEntity.getId(), List.of()));
         Set<UUID> kept = new HashSet<>();
         List<ConstructorStructureDTO> payloads = constructorDtos != null ? constructorDtos : List.of();
         List<Constructor> savedConstructors = new ArrayList<>();

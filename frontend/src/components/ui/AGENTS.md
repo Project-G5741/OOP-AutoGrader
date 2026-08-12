@@ -13,6 +13,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `Select.jsx` | Dropdown select |
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
+| `Toast.jsx` | Fixed viewport toast (`success` / `error`), auto-dismiss (default 3s) |
 
 ## Local Contracts
 

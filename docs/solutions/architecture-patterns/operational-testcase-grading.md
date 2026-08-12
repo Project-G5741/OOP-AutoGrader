@@ -54,7 +54,7 @@ Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`; invoca
 
 **Stdout:** `System.setOut` is mutated during invoke. The single-thread invoke executor serializes all invocations app-wide so parallel challenge grading does not interleave stdout capture.
 
-**Instance methods:** Non-static methods require a no-arg constructor on the student class. Surface a clear error (`Instance method requires a no-argument constructor on …`) rather than a raw `NoSuchMethodException`.
+**Instance methods:** Non-static methods need a receiver object. When `testcase_invocation.receiver_constructor_id` is set, `InvocationRunner` constructs the receiver via that rubric constructor and `receiver_params` JSON before calling the method. When receiver columns are null, the runner falls back to a no-arg constructor (`instantiateDefault`); missing no-arg ctor surfaces `Instance method requires a no-argument constructor on …`. See `docs/solutions/logic-errors/method-invocation-receiver-constructor.md`.
 
 ### Assertion evaluation edge cases
 
@@ -72,7 +72,7 @@ Infrastructure failures (compile error, timeout, missing rubric) currently persi
 
 ### API phase 1
 
-Scores include the testcase pillar; `LabResultAssembler` still returns empty testcase arrays in read bundles. Display fields are persisted at grade time for a future student I/O card UI.
+Scores include the testcase pillar; `LabResultAssembler` maps operational testcase I/O cards into upload and revisit bundles. Display fields are persisted at grade time and surfaced on the student Operation Test tab.
 
 ## Why This Matters
 
@@ -89,7 +89,7 @@ Operational grading executes untrusted student bytecode in-process. Correct laye
 - Adding a new `AssertionKind` or changing invoke semantics.
 - Debugging upload failures in `LabRubricService` or grading failures in `TestcaseGrader` / `InvocationRunner`.
 - Changing how testcase results persist on re-upload.
-- Writing rubric seed SQL — instance methods need no-arg constructors; COMPARISON testcases need exactly two instances and a `COMPARISON_RESULT` assertion.
+- Writing rubric seed SQL — METHOD rows on classes without no-arg constructors need `receiver_constructor_id` + `receiver_params`; void mutators need `FIELD_STATE` assertions; COMPARISON testcases need exactly two instances and a `COMPARISON_RESULT` assertion.
 
 ## Examples
 
@@ -130,4 +130,4 @@ result.getAssertionResults().clear();
 - `docs/sql/2026-08-11-operational-testcase-grading.sql` — destructive schema migration.
 - `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md` — why MMD + testcase pillars use `pillarExecutor`, not `gradingExecutor`.
 - `docs/solutions/architecture-patterns/in-memory-challenge-compile-path.md` — compile vs grading executor split.
-- `backend/src/main/java/com/eiu/capstone/backend/grading/AGENTS.md` — local grading contracts and tuning properties.
+- `docs/solutions/logic-errors/method-invocation-receiver-constructor.md` — receiver construction for METHOD invocations without no-arg constructors
