@@ -9,13 +9,23 @@ public record ChallengeRubric(
         String name,
         List<ClassRubric> classes,
         List<RelationRubric> relations,
-        List<TestcaseRubric> testcases) {
+        List<TestcaseRubric> testcases,
+        boolean hasMmd) {
 
     public ChallengeRubric(UUID challengeId,
                            int challengeNumber,
                            String name,
                            List<ClassRubric> classes,
                            List<RelationRubric> relations) {
-        this(challengeId, challengeNumber, name, classes, relations, List.of());
+        this(challengeId, challengeNumber, name, classes, relations, List.of(), true);
+    }
+
+    public ChallengeRubric(UUID challengeId,
+                           int challengeNumber,
+                           String name,
+                           List<ClassRubric> classes,
+                           List<RelationRubric> relations,
+                           List<TestcaseRubric> testcases) {
+        this(challengeId, challengeNumber, name, classes, relations, testcases, true);
     }
 }

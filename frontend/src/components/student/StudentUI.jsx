@@ -1,5 +1,5 @@
 // StudentUI.jsx - Không còn dữ liệu cứng, hoàn toàn nhận từ props
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -11,7 +11,10 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
-import { ScorePill, ScoreSectionHeader, hasScoreToShow } from '../ui/ScorePill';
+import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
+
+const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
+const TAB_ORDER = Object.keys(TAB_LABELS);
 
 /** Strip trailing line endings from captured stdout for display only; grading is unchanged. */
 function formatIoDisplay(value) {
@@ -144,6 +147,20 @@ export default function StudentUI({
     setExpandedClassName(null);
   }, [selectedChallengeId]);
 
+  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  const visibleTabs = useMemo(
+    () => TAB_ORDER.filter((t) => !(resultsRevealed && isPillarNotApplicable(currentBundle, t))),
+    [resultsRevealed, currentBundle],
+  );
+
+  // If the active tab's pillar is inapplicable for the newly selected challenge (hidden from
+  // the tab bar), fall back to the first pillar that's still visible.
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0]);
+    }
+  }, [visibleTabs, activeTab]);
+
   const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-purple-500 text-purple-500 dark:text-purple-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`;
 
   // Render loading state
@@ -171,7 +188,6 @@ export default function StudentUI({
 
   // Xác định challenge hiện tại
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
-  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
   const relations = relationData;
@@ -371,13 +387,13 @@ export default function StudentUI({
           <div className="flex-1 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             {/* Tabs */}
             <div className="flex border-b border-gray-100 dark:border-gray-700 px-2">
-              {['mmd', 'class', 'testcase'].map((t) => (
+              {visibleTabs.map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   className={tabCls(t)}
                 >
-                  {t === 'mmd' ? 'MMD' : t === 'class' ? 'Declaration Test' : 'Operation Test'}
+                  {TAB_LABELS[t]}
                 </button>
               ))}
               <div className="flex-1 flex items-center justify-end pr-4">

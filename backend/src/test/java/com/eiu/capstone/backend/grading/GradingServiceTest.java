@@ -16,7 +16,9 @@ class GradingServiceTest {
         BigDecimal result = PillarScoreAggregator.challengePercentage(
                 new BigDecimal("100.00"),
                 new BigDecimal("100.00"),
-                BigDecimal.ZERO);
+                true,
+                BigDecimal.ZERO,
+                true);
 
         assertEquals(new BigDecimal("66.67"), result);
     }

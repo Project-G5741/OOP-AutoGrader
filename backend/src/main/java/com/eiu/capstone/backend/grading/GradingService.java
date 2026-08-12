@@ -211,7 +211,9 @@ public class GradingService {
                                 cc.classPillarPct != null ? cc.classPillarPct : BigDecimal.ZERO,
                                 cc.mmdPillarPct != null ? cc.mmdPillarPct : BigDecimal.ZERO,
                                 cc.testcasePillarPct != null ? cc.testcasePillarPct : BigDecimal.ZERO,
-                                cc.percentage != null ? cc.percentage : BigDecimal.ZERO));
+                                cc.percentage != null ? cc.percentage : BigDecimal.ZERO,
+                                cc.mmdApplicable,
+                                cc.testcaseApplicable));
             }
             if (cc.challengeNumber != null && cc.mmdResult != null) {
                 result.mmdResultsByChallengeNumber.put(cc.challengeNumber, cc.mmdResult);
@@ -287,6 +289,8 @@ public class GradingService {
         computation.classPillarPct = pipelineResult.classResult().pillarPercentage();
         computation.mmdPillarPct = pipelineResult.mmdResult().pillarPercentage();
         computation.testcasePillarPct = pipelineResult.testcaseResult().pillarPercentage();
+        computation.mmdApplicable = pipelineResult.mmdApplicable();
+        computation.testcaseApplicable = pipelineResult.testcaseApplicable();
         computation.snapshot = parsedSubmissionSnapshotBuilder.build(
                 challengeRubric,
                 pipelineResult.parsedClasses(),
@@ -465,6 +469,8 @@ public class GradingService {
         BigDecimal classPillarPct;
         BigDecimal mmdPillarPct;
         BigDecimal testcasePillarPct;
+        boolean mmdApplicable;
+        boolean testcaseApplicable;
         MmdPillarGrader.MmdPillarResult mmdResult;
         PendingChallengeResult pendingChallenge;
         List<PendingFieldResult> pendingFields;

@@ -84,6 +84,7 @@ export default function SolutionManagement() {
     nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
       ...challenge,
       relations: challenge.relations || [],
+      hasMmd: challenge.hasMmd !== false,
     }));
     const snapshot = cloneDraft(structure);
     structureCacheRef.current[labId] = { draft: cloneDraft(nextDraft), snapshot };
@@ -195,6 +196,7 @@ export default function SolutionManagement() {
       nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
         ...challenge,
         relations: challenge.relations || [],
+        hasMmd: challenge.hasMmd !== false,
       }));
       const snapshot = cloneDraft(saved);
       structureCacheRef.current[selectedLabId] = { draft: cloneDraft(nextDraft), snapshot };
@@ -341,6 +343,7 @@ export default function SolutionManagement() {
               challengeNumber: nextNumber,
               classes: [],
               relations: [],
+              hasMmd: true,
             };
             setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
             setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));

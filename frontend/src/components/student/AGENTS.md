@@ -36,6 +36,11 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
+### Result tabs (`StudentUI.jsx`)
+
+- Tab bar shows MMD / Declaration Test / Operation Test, filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown. Filtering only applies once `resultsRevealed` — before any upload this session, all three tabs remain visible.
+- If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
+
 ### Testcase tab rows (`StudentUI.jsx`)
 
 - **I/O Score** header uses backend pillar score from `lab_result.scores.testcase`.

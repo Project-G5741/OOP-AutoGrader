@@ -197,7 +197,15 @@ public class TestcaseGrader {
 
     private record Evaluation(double accuracy, PendingTestcaseResult pending) {}
 
-    public record TestcasePillarResult(BigDecimal pillarPercentage, List<PendingTestcaseResult> results) {}
+    public record TestcasePillarResult(BigDecimal pillarPercentage, List<PendingTestcaseResult> results) {
+        /**
+         * Canonical result for a challenge with no operational testcases — matches what
+         * {@link #grade} would return for an empty testcase list, without invoking the grader.
+         */
+        public static TestcasePillarResult empty() {
+            return new TestcasePillarResult(BigDecimal.ZERO, List.of());
+        }
+    }
 
     public record PendingTestcaseResult(
             UUID testcaseId,

@@ -114,6 +114,14 @@ public class MmdPillarGrader {
                 .orElse(null);
     }
 
+    /**
+     * Canonical result for a challenge where {@code has_mmd} is false — the grader is never
+     * invoked, so this returns a zero/empty result rather than a computed-and-discarded score.
+     */
+    public static MmdPillarResult notApplicable() {
+        return new MmdPillarResult(BigDecimal.ZERO, new MmdGradingOutcome(), null, false, List.of());
+    }
+
     public record MmdPillarResult(
             BigDecimal pillarPercentage,
             MmdGradingOutcome outcome,

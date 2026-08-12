@@ -8,4 +8,14 @@ public record ChallengeStructureDTO(
         String name,
         Integer challengeNumber,
         List<ClassStructureDTO> classes,
-        List<RelationStructureDTO> relations) {}
+        List<RelationStructureDTO> relations,
+        boolean hasMmd) {
+
+    public ChallengeStructureDTO(UUID id,
+                                 String name,
+                                 Integer challengeNumber,
+                                 List<ClassStructureDTO> classes,
+                                 List<RelationStructureDTO> relations) {
+        this(id, name, challengeNumber, classes, relations, true);
+    }
+}

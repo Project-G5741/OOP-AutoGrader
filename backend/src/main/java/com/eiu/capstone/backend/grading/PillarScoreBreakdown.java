@@ -6,4 +6,6 @@ public record PillarScoreBreakdown(
         BigDecimal classPillar,
         BigDecimal mmdPillar,
         BigDecimal testcasePillar,
-        BigDecimal total) {}
+        BigDecimal total,
+        boolean mmdApplicable,
+        boolean testcaseApplicable) {}

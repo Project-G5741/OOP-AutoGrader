@@ -182,7 +182,7 @@ public class LabRubricService {
                     .toList();
             byNumber.put(challenge.getChallengeNumber(),
                     new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
-                            classRubrics, relationRubrics, testcaseRubrics));
+                            classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd()));
         }
 
         return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));

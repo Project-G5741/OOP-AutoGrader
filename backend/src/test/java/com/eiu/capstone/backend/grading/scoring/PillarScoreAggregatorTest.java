@@ -10,12 +10,39 @@ import org.junit.jupiter.api.Test;
 class PillarScoreAggregatorTest {
 
     @Test
-    void challengePercentage_averagesThreePillars() {
+    void challengePercentage_bothApplicable_averagesThreePillars() {
         BigDecimal result = PillarScoreAggregator.challengePercentage(
                 BigDecimal.valueOf(100),
-                BigDecimal.valueOf(50),
-                BigDecimal.ZERO);
+                BigDecimal.valueOf(50), true,
+                BigDecimal.ZERO, true);
         assertEquals(new BigDecimal("50.00"), result);
+    }
+
+    @Test
+    void challengePercentage_mmdNotApplicable_averagesClassAndTestcase() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(999), false,
+                BigDecimal.valueOf(50), true);
+        assertEquals(new BigDecimal("75.00"), result);
+    }
+
+    @Test
+    void challengePercentage_testcaseNotApplicable_averagesClassAndMmd() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(50), true,
+                BigDecimal.valueOf(999), false);
+        assertEquals(new BigDecimal("75.00"), result);
+    }
+
+    @Test
+    void challengePercentage_onlyClassApplicable_equalsClassPillar() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(80),
+                BigDecimal.valueOf(999), false,
+                BigDecimal.valueOf(999), false);
+        assertEquals(new BigDecimal("80.00"), result);
     }
 
     @Test
