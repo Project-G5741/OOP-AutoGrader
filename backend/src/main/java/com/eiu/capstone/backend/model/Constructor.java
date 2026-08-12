@@ -37,6 +37,7 @@ public class Constructor {
     public Constructor() {}
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public ClassEntity getClassEntity() { return classEntity; }
     public void setClassEntity(ClassEntity classEntity) { this.classEntity = classEntity; }

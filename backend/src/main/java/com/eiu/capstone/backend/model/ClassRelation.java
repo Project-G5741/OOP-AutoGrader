@@ -32,6 +32,10 @@ public class ClassRelation {
         return id;
     }
 
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public ClassEntity getClassEntity() {
         return classEntity;
     }

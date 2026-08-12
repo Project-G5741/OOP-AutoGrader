@@ -33,6 +33,7 @@ export default function SolutionManagement() {
   const [selectedClassRef, setSelectedClassRef] = useState(null);
   const [selectedChallengeId, setSelectedChallengeId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [structureLoading, setStructureLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -47,6 +48,7 @@ export default function SolutionManagement() {
   }, [draft, savedSnapshot]);
 
   const isDirtyRef = useRef(isDirty);
+  const structureCacheRef = useRef({});
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
@@ -76,25 +78,48 @@ export default function SolutionManagement() {
     return res.json();
   }, []);
 
+  const applyStructure = useCallback((labId, structure) => {
+    const nextDraft = cloneDraft(structure);
+    nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
+      ...challenge,
+      relations: challenge.relations || [],
+    }));
+    const snapshot = cloneDraft(structure);
+    structureCacheRef.current[labId] = { draft: cloneDraft(nextDraft), snapshot };
+    setSelectedLabId(labId);
+    setDraft(nextDraft);
+    setSavedSnapshot(snapshot);
+    setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
+  }, []);
+
   const selectLab = useCallback(async (labId, force = false) => {
     if (!force && isDirtyRef.current) {
       const proceed = window.confirm('You have unsaved changes. Discard them and switch labs?');
       if (!proceed) return;
     }
     setError('');
-    const structure = await loadStructure(labId);
-    const nextDraft = cloneDraft(structure);
-    nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
-      ...challenge,
-      relations: challenge.relations || [],
-    }));
-    setSelectedLabId(labId);
-    setDraft(nextDraft);
-    setSavedSnapshot(cloneDraft(structure));
-    setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
-    setSelectedClassRef(null);
-    setSelectedChallengeId(null);
-  }, [loadStructure]);
+    const cached = structureCacheRef.current[labId];
+    if (cached) {
+      setSelectedLabId(labId);
+      setDraft(cloneDraft(cached.draft));
+      setSavedSnapshot(cloneDraft(cached.snapshot));
+      setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
+      setSelectedClassRef(null);
+      setSelectedChallengeId(null);
+      return;
+    }
+    setStructureLoading(true);
+    try {
+      const structure = await loadStructure(labId);
+      applyStructure(labId, structure);
+      setSelectedClassRef(null);
+      setSelectedChallengeId(null);
+    } catch (e) {
+      setError(e.message || 'Failed to load lab structure');
+    } finally {
+      setStructureLoading(false);
+    }
+  }, [loadStructure, applyStructure]);
 
   useEffect(() => {
     let active = true;
@@ -167,8 +192,23 @@ export default function SolutionManagement() {
       }
       const saved = await res.json();
       const nextDraft = cloneDraft(saved);
+      nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
+        ...challenge,
+        relations: challenge.relations || [],
+      }));
+      const snapshot = cloneDraft(saved);
+      structureCacheRef.current[selectedLabId] = { draft: cloneDraft(nextDraft), snapshot };
       setDraft(nextDraft);
-      setSavedSnapshot(cloneDraft(saved));
+      setSavedSnapshot(snapshot);
+      if (selectedClassRef) {
+        const challenge = nextDraft.challenges.find((c) => c.id === selectedClassRef.challengeId);
+        const cls = challenge?.classes?.find((c) => c.id === selectedClassRef.classId);
+        if (!cls) setSelectedClassRef(null);
+      }
+      if (selectedChallengeId) {
+        const challenge = nextDraft.challenges.find((c) => c.id === selectedChallengeId);
+        if (!challenge) setSelectedChallengeId(null);
+      }
       setLabs((prev) => prev.map((lab) => (lab.id === saved.id ? { ...lab, name: saved.name } : lab)));
       setMessage('Lab structure saved.');
     } catch (e) {
@@ -254,7 +294,12 @@ export default function SolutionManagement() {
         {error && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
         {message && <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{message}</div>}
 
-        <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="relative flex flex-col gap-4 lg:flex-row">
+        {structureLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
+            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+          </div>
+        )}
         <StructureSidebar
           labs={labs}
           draft={draft}
@@ -275,10 +320,22 @@ export default function SolutionManagement() {
             setSelectedClassRef({ challengeId, classId });
             setSelectedChallengeId(challengeId);
           }}
+          onRenameChallenge={(challengeId, name) => {
+            if (!draft) return;
+            setDraft({
+              ...draft,
+              challenges: draft.challenges.map((c) => (
+                c.id === challengeId ? { ...c, name } : c
+              )),
+            });
+          }}
           onAddLab={() => setShowCreateLab(true)}
           onAddChallenge={() => {
             if (!draft) return;
-            const nextNumber = (draft.challenges?.length || 0) + 1;
+            const nextNumber = (draft.challenges || []).reduce(
+              (max, c) => Math.max(max, c.challengeNumber ?? 0),
+              0,
+            ) + 1;
             const challenge = {
               id: crypto.randomUUID(),
               name: `Problem ${nextNumber}`,
