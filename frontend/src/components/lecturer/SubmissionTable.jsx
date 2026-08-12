@@ -1,5 +1,16 @@
 import { Eye } from 'lucide-react';
+import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatText } from '../../utils/formatters';
+
+const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300';
+
+const ROSTER_COLUMNS = [
+  { key: 'studentName', label: 'Student' },
+  { key: 'studentCode', label: 'ID' },
+  { key: 'score', label: 'Score' },
+  { key: 'attempt', label: 'Attempt', labelKey: 'attemptLabel' },
+  { key: 'submittedAt', label: 'Submitted At' },
+];
 
 export default function SubmissionTable({
   submissions,
@@ -10,34 +21,29 @@ export default function SubmissionTable({
   attemptLabel = 'Attempt',
   viewLabel = 'View',
   requireSubmissionForView = true,
+  sortState,
+  onSort,
 }) {
   const rows = Array.isArray(submissions) ? submissions : [];
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
-
-  const staticColumns = [
-    { key: 'id', label: 'ID' },
-    { key: 'attempt', label: attemptLabel },
-    { key: 'submittedAt', label: 'Submitted At' },
-    { key: 'action', label: 'Action' },
-  ];
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
       <table className="w-full table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Student</th>
-            {staticColumns.slice(0, 1).map((col) => (
-              <th key={col.key} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                {col.label}
-              </th>
+            {ROSTER_COLUMNS.map((col) => (
+              <SortableTableHeader
+                key={col.key}
+                label={col.labelKey === 'attemptLabel' ? attemptLabel : col.label}
+                field={col.key}
+                activeField={sortState?.field}
+                direction={sortState?.direction}
+                onSort={onSort}
+                className={HEADER_CLASS}
+              />
             ))}
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Score</th>
-            {staticColumns.slice(1).map((col) => (
-              <th key={col.key} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                {col.label}
-              </th>
-            ))}
+            <SortableTableHeader label="Action" sortable={false} className={HEADER_CLASS} />
           </tr>
         </thead>
         <tbody>

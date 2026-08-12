@@ -8,6 +8,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 | File | Role |
 |---|---|
+| `SortableTableHeader.jsx` | Clickable table header with dual-chevron sort affordance (inactive faded pair; active direction highlighted) |
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
 | `Select.jsx` | Dropdown select |

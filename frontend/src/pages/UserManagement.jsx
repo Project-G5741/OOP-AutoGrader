@@ -10,6 +10,7 @@ import {
   getUserFormErrors,
   isFormValid,
 } from '../utils/validation';
+import { sortRows, toggleSortState } from '../utils/sort';
 
 const EMPTY_FORM = {
   studentIrn: '',
@@ -63,16 +64,13 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [sortDirection, setSortDirection] = useState('asc');
+  const [sortState, setSortState] = useState({ field: 'fullname', direction: 'asc' });
 
-  const sortUsers = (list) => {
-    return [...list].sort((a, b) => {
-      const left = a.fullname?.toLowerCase() || '';
-      const right = b.fullname?.toLowerCase() || '';
-      if (left < right) return sortDirection === 'asc' ? -1 : 1;
-      if (left > right) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
+  const userSortAccessor = (user, field) => {
+    if (field === 'role') {
+      return user.roleNames?.[0] || user.role || '';
+    }
+    return user[field] ?? '';
   };
 
   const filteredUsers = useMemo(() => {
@@ -82,8 +80,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         .toLowerCase()
         .includes(loweredSearch)
     );
-    return sortUsers(matched);
-  }, [users, search, sortDirection]);
+    return sortRows(matched, sortState.field, sortState.direction, (user) => userSortAccessor(user, sortState.field));
+  }, [users, search, sortState]);
 
   const currentPageUsers = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -108,8 +106,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     setPage(1);
   };
 
-  const handleSortByName = () => {
-    setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+  const handleSort = (field) => {
+    setSortState((prev) => toggleSortState(prev, field));
     setPage(1);
   };
 
@@ -308,8 +306,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         currentPage={page}
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
-        onSort={handleSortByName}
-        sortDirection={sortDirection}
+        onSort={handleSort}
+        sortState={sortState}
         loading={loading}
         onEdit={openEdit}
         onDelete={openDelete}

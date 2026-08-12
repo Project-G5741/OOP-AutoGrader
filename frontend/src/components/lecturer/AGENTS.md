@@ -57,7 +57,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt
 
-- Student roster supports server-side sort via `sort` query param (`studentName`, `score`); default `studentName,asc`; **Sort by name** and **Sort by score** buttons above the roster table (highlighted when active; chevron shows direction)
+- Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)
 
 - Roster **View** opens `LabAttemptHistoryDrawer` (`GET /api/labs/{labId}/students/{studentId}/attempts`)
 
@@ -65,8 +65,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
 - Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
-- Grade overview supports server-side sort via `sort` query param (`studentName`, `score`); default `studentName,asc`; **Sort by name** and **Sort by score** buttons above the grade matrix (highlighted when active; chevron shows direction)
-- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; newest/oldest sort)
+- Grade overview per-lab scores and total use **highest lab score** (`student_lab_progress.highest_score`); submission history panel still lists every attempt with its attempt score
+- Grade overview supports server-side sort via `sort` query param (`studentName`, `irn`, `score`, `labScore,<labUuid>`); default `studentName,asc`; **clickable column headers** on `GradeOverviewTable` (no toolbar sort buttons)
+- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort)
 
 
 

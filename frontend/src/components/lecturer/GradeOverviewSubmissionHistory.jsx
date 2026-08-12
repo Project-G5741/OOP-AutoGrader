@@ -1,4 +1,15 @@
 import { formatDateTime, formatNumber, formatText } from '../../utils/formatters';
+import SortableTableHeader from '../ui/SortableTableHeader';
+
+const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300';
+
+const HISTORY_COLUMNS = [
+  { key: 'studentName', label: 'Student' },
+  { key: 'irn', label: 'ID' },
+  { key: 'labName', label: 'Lab' },
+  { key: 'submittedAt', label: 'Submitted At' },
+  { key: 'score', label: 'Score' },
+];
 
 export default function GradeOverviewSubmissionHistory({
   student,
@@ -7,8 +18,8 @@ export default function GradeOverviewSubmissionHistory({
   error,
   labFilter,
   onLabFilterChange,
-  sortDirection,
-  onSortDirectionChange,
+  sortState,
+  onSort,
   labOptions,
 }) {
   const options = Array.isArray(labOptions) && labOptions.length > 0 ? labOptions : ['All Labs'];
@@ -32,13 +43,6 @@ export default function GradeOverviewSubmissionHistory({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => onSortDirectionChange?.(sortDirection === 'desc' ? 'asc' : 'desc')}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#151b24]"
-          >
-            {sortDirection === 'desc' ? 'Newest first' : 'Oldest first'}
-          </button>
         </div>
       </div>
 
@@ -55,10 +59,16 @@ export default function GradeOverviewSubmissionHistory({
           <table className="w-full min-w-[640px] table-auto">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700">
-                {['Student', 'ID', 'Lab', 'Submitted At', 'Score'].map((col) => (
-                  <th key={col} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {col}
-                  </th>
+                {HISTORY_COLUMNS.map((col) => (
+                  <SortableTableHeader
+                    key={col.key}
+                    label={col.label}
+                    field={col.key}
+                    activeField={sortState?.field}
+                    direction={sortState?.direction}
+                    onSort={onSort}
+                    className={HEADER_CLASS}
+                  />
                 ))}
               </tr>
             </thead>
