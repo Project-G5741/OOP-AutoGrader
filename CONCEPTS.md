@@ -31,6 +31,9 @@ Rubric flag on `testcase` controlling student visibility. When `false`, the test
 ### Primary assertion
 The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). Selected at grade time by priority: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only.
 
+### Receiver construction (testcase)
+Optional rubric configuration for METHOD invocations on classes that lack a no-arg constructor. The testcase invocation row names a rubric constructor and JSON parameter list used to build the receiver object before the method call. When absent, the runner falls back to a no-arg constructor on the method's declaring class.
+
 ### Testcase invoke executor
 Dedicated single-worker executor for operational testcase reflection. All student-code invocations and stdout capture run through this queue so parallel challenge grading does not interleave `System.out` or race on timeout cancellation.
 

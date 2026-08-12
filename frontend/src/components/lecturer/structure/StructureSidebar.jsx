@@ -14,6 +14,7 @@ export default function StructureSidebar({
   onToggleChallenge,
   onSelectChallenge,
   onSelectClass,
+  onRenameChallenge,
   onAddLab,
   onAddChallenge,
   onAddClass,
@@ -65,10 +66,16 @@ export default function StructureSidebar({
                           <button
                             type="button"
                             onClick={() => onSelectChallenge(challenge.id)}
-                            className="flex flex-1 items-center gap-2 text-left text-sm text-gray-700 dark:text-gray-300"
+                            className="flex flex-1 items-center gap-2 text-left text-sm text-gray-700 dark:text-gray-300 min-w-0"
                           >
-                            <Layers className="h-3.5 w-3.5 text-blue-400" />
-                            <span className="truncate">{challenge.name}</span>
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                            <input
+                              type="text"
+                              className="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-gray-700 hover:border-gray-300 focus:border-purple-500 focus:outline-none dark:text-gray-300 dark:hover:border-gray-600"
+                              value={challenge.name}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => onRenameChallenge(challenge.id, e.target.value)}
+                            />
                           </button>
                           <button type="button" onClick={() => onDeleteChallenge(challenge.id)} className="text-gray-400 hover:text-red-400">
                             <Trash2 className="h-3.5 w-3.5" />
