@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
@@ -17,6 +17,7 @@ import { exportGradeOverview, exportRosterRows } from '../components/lecturer/ex
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
 import { formatNumber, formatText, hasItems } from '../utils/formatters';
+import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -147,9 +148,11 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [loadingGradeStudentHistory, setLoadingGradeStudentHistory] = useState(false);
   const [gradeStudentHistoryError, setGradeStudentHistoryError] = useState(null);
   const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
-  const [historySortDirection, setHistorySortDirection] = useState('desc');
+  const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
   const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
+  const [challengeSort, setChallengeSort] = useState({ field: 'studentName', direction: 'asc' });
   const [challenges, setChallenges] = useState([]);
+  const [challengesLabId, setChallengesLabId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   const fetchLabs = useCallback(async () => {
@@ -203,18 +206,22 @@ export default function LecturerDashboard({ user, onLogout }) {
   const fetchChallengesForLab = useCallback(async (labId) => {
     if (!labId) {
       setChallenges([]);
+      setChallengesLabId(null);
       return;
     }
     try {
       const response = await fetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
       if (!response.ok) {
         setChallenges([]);
+        setChallengesLabId(null);
         return;
       }
       const data = await response.json();
       setChallenges(Array.isArray(data) ? data : []);
+      setChallengesLabId(labId);
     } catch {
       setChallenges([]);
+      setChallengesLabId(null);
     }
   }, []);
 
@@ -252,13 +259,13 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchChallengeSubmissions = useCallback(async (labId, challengeId, page = 0) => {
+  const fetchChallengeSubmissions = useCallback(async (labId, challengeId, page = 0, sort = 'studentName,asc') => {
     if (!labId || !challengeId) return;
     setLoadingChallengeSubmissions(true);
     setChallengeSubmissionsError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/students?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=submittedAt,desc`,
+        `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/students?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() },
       );
 
@@ -351,15 +358,18 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (activeNav === 'grading') {
-      fetchGradeOverview(0, `${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
+      fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort));
     }
-  }, [activeNav, fetchGradeOverview]);
+  }, [activeNav, fetchGradeOverview, gradeOverviewSort]);
 
   useEffect(() => {
     if (selectedLabId) {
       setActiveTab('overview');
+      setChallenges([]);
+      setChallengesLabId(null);
       setChallengePagination((prev) => ({ ...prev, page: 0 }));
       setRosterSort({ field: 'studentName', direction: 'asc' });
+      setChallengeSort({ field: 'studentName', direction: 'asc' });
       void Promise.all([
         fetchSubmissions(selectedLabId, 0, 'studentName,asc'),
         fetchLabStatistics(selectedLabId),
@@ -368,15 +378,28 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, [selectedLabId, fetchSubmissions, fetchLabStatistics, fetchChallengesForLab]);
 
+  const activeChallengeId = useMemo(() => {
+    if (activeTab === 'overview' || !selectedLabId || challengesLabId !== selectedLabId) {
+      return null;
+    }
+    return challenges.some((challenge) => challenge.id === activeTab) ? activeTab : null;
+  }, [activeTab, selectedLabId, challengesLabId, challenges]);
+
   useEffect(() => {
-    if (!selectedLabId || activeTab === 'overview') {
+    if (!selectedLabId || !activeChallengeId) {
       return;
     }
-    fetchChallengeSubmissions(selectedLabId, activeTab, challengePagination.page);
-  }, [selectedLabId, activeTab, challengePagination.page, fetchChallengeSubmissions]);
+    fetchChallengeSubmissions(
+      selectedLabId,
+      activeChallengeId,
+      challengePagination.page,
+      `${challengeSort.field},${challengeSort.direction}`,
+    );
+  }, [selectedLabId, activeChallengeId, challengePagination.page, challengeSort, fetchChallengeSubmissions]);
 
   const handleLabChange = (labId) => {
     if (labId === selectedLabId) return;
+    setActiveTab('overview');
     setSelectedLabId(labId);
     setPagination((prev) => ({ ...prev, page: 0 }));
   };
@@ -387,15 +410,18 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
 
   const handleRosterSort = (field) => {
-    const next =
-      rosterSort.field === field
-        ? { field, direction: rosterSort.direction === 'asc' ? 'desc' : 'asc' }
-        : { field, direction: 'asc' };
+    const next = toggleSortState(rosterSort, field);
     setRosterSort(next);
     setPagination((prev) => ({ ...prev, page: 0 }));
     if (selectedLabId) {
       fetchSubmissions(selectedLabId, 0, `${next.field},${next.direction}`);
     }
+  };
+
+  const handleChallengeSort = (field) => {
+    const next = toggleSortState(challengeSort, field);
+    setChallengeSort(next);
+    setChallengePagination((prev) => ({ ...prev, page: 0 }));
   };
 
   const handleChallengePageChange = (newPage) => {
@@ -411,7 +437,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     if (activeNav === 'grading') {
       fetchGradeOverview(
         gradeOverviewPagination.page,
-        `${gradeOverviewSort.field},${gradeOverviewSort.direction}`,
+        formatGradeOverviewSortParam(gradeOverviewSort),
       );
       return;
     }
@@ -423,23 +449,28 @@ export default function LecturerDashboard({ user, onLogout }) {
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
-      if (activeTab !== 'overview') {
-        fetchChallengeSubmissions(selectedLabId, activeTab, challengePagination.page);
+      if (activeChallengeId) {
+        fetchChallengeSubmissions(
+          selectedLabId,
+          activeChallengeId,
+          challengePagination.page,
+          `${challengeSort.field},${challengeSort.direction}`,
+        );
       }
     }
   };
   const handleGradeOverviewPageChange = (newPage) => {
-    fetchGradeOverview(newPage, `${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
+    fetchGradeOverview(newPage, formatGradeOverviewSortParam(gradeOverviewSort));
   };
 
   const handleGradeOverviewSort = (field) => {
-    const next =
-      gradeOverviewSort.field === field
-        ? { field, direction: gradeOverviewSort.direction === 'asc' ? 'desc' : 'asc' }
-        : { field, direction: 'asc' };
+    const next = toggleSortState(gradeOverviewSort, field);
     setGradeOverviewSort(next);
     setGradeOverviewPagination((prev) => ({ ...prev, page: 0 }));
-    fetchGradeOverview(0, `${next.field},${next.direction}`);
+  };
+
+  const handleHistorySort = (field) => {
+    setHistorySort((prev) => toggleSortState(prev, field));
   };
 
   const fetchStudentSubmissionHistory = useCallback(async (studentId) => {
@@ -465,7 +496,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const handleGradeStudentSelect = (student) => {
     setSelectedGradeStudent(student);
     setHistoryLabFilter('All Labs');
-    setHistorySortDirection('desc');
+    setHistorySort({ field: 'submittedAt', direction: 'desc' });
     if (student?.studentId) {
       void fetchStudentSubmissionHistory(student.studentId);
     }
@@ -484,19 +515,19 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (historyLabFilter === 'All Labs') return true;
       return item.labName === historyLabFilter;
     });
-    const sorted = [...filtered].sort((a, b) => {
-      const aTime = Date.parse(a.submittedAt ?? '') || 0;
-      const bTime = Date.parse(b.submittedAt ?? '') || 0;
-      return historySortDirection === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-    return sorted.map((item) => ({
+    const mapped = filtered.map((item) => ({
       studentName: selectedGradeStudent.studentName,
       irn: selectedGradeStudent.irn,
       labName: item.labName,
       submittedAt: item.submittedAt,
       score: item.score,
     }));
-  }, [gradeStudentHistory, historyLabFilter, historySortDirection, selectedGradeStudent]);
+    return sortRows(mapped, historySort.field, historySort.direction, (row) => {
+      if (historySort.field === 'submittedAt') return row.submittedAt;
+      if (historySort.field === 'score') return row.score;
+      return row[historySort.field];
+    });
+  }, [gradeStudentHistory, historyLabFilter, historySort, selectedGradeStudent]);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => lab.id === selectedLabId),
@@ -540,7 +571,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
 
   const handleExportGradeOverview = async (format) => {
-    const { labs, students } = await fetchAllGradeOverview(`${gradeOverviewSort.field},${gradeOverviewSort.direction}`);
+    const { labs, students } = await fetchAllGradeOverview(formatGradeOverviewSortParam(gradeOverviewSort));
     if (!students.length) return;
     await exportGradeOverview(format, { labs, students });
   };
@@ -741,42 +772,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                           )}
 
                           <div>
-                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <div className="mb-3">
                               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Student roster</h4>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRosterSort('studentName')}
-                                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                                    rosterSort.field === 'studentName'
-                                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
-                                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
-                                  }`}
-                                >
-                                  {rosterSort.field === 'studentName' && rosterSort.direction === 'asc' ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : rosterSort.field === 'studentName' ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : null}
-                                  Sort by name
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRosterSort('score')}
-                                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                                    rosterSort.field === 'score'
-                                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
-                                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
-                                  }`}
-                                >
-                                  {rosterSort.field === 'score' && rosterSort.direction === 'asc' ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : rosterSort.field === 'score' ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : null}
-                                  Sort by score
-                                </button>
-                              </div>
                             </div>
                             {submissionsError && (
                               <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{submissionsError}</p>
@@ -797,6 +794,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                                 onPageChange={handlePageChange}
                                 onView={handleRosterView}
                                 requireSubmissionForView={false}
+                                sortState={rosterSort}
+                                onSort={handleRosterSort}
                               />
                             )}
                           </div>
@@ -825,6 +824,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                               onView={handleChallengeView}
                               attemptLabel="Attempts"
                               viewLabel="View"
+                              sortState={challengeSort}
+                              onSort={handleChallengeSort}
                             />
                           )}
                         </div>
@@ -846,7 +847,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                     disabled={loadingGradeOverview || gradeOverviewPagination.total === 0}
                   />
                   <button
-                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page)}
+                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort))}
                     className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
                     title="Refresh"
                   >
@@ -858,40 +859,6 @@ export default function LecturerDashboard({ user, onLogout }) {
               {gradeOverviewError && (
                 <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
               )}
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleGradeOverviewSort('studentName')}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    gradeOverviewSort.field === 'studentName'
-                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
-                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
-                  }`}
-                >
-                  {gradeOverviewSort.field === 'studentName' && gradeOverviewSort.direction === 'asc' ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : gradeOverviewSort.field === 'studentName' ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : null}
-                  Sort by name
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleGradeOverviewSort('score')}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    gradeOverviewSort.field === 'score'
-                      ? 'border-purple-300 bg-purple-50 text-purple-800 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
-                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c]'
-                  }`}
-                >
-                  {gradeOverviewSort.field === 'score' && gradeOverviewSort.direction === 'asc' ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : gradeOverviewSort.field === 'score' ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : null}
-                  Sort by score
-                </button>
-              </div>
               <GradeOverviewTable
                 labs={gradeOverview.labs}
                 students={gradeOverview.content}
@@ -900,6 +867,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                 onPageChange={handleGradeOverviewPageChange}
                 selectedStudentId={selectedGradeStudent?.studentId}
                 onStudentSelect={handleGradeStudentSelect}
+                sortState={gradeOverviewSort}
+                onSort={handleGradeOverviewSort}
               />
               {selectedGradeStudent && (
                 <GradeOverviewSubmissionHistory
@@ -909,8 +878,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                   error={gradeStudentHistoryError}
                   labFilter={historyLabFilter}
                   onLabFilterChange={setHistoryLabFilter}
-                  sortDirection={historySortDirection}
-                  onSortDirectionChange={setHistorySortDirection}
+                  sortState={historySort}
+                  onSort={handleHistorySort}
                   labOptions={gradeStudentHistoryLabOptions}
                 />
               )}

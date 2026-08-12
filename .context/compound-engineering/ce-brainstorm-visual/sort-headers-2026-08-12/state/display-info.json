@@ -1,0 +1,11 @@
+{
+  "status": "running",
+  "root": "d:\\EIU\\OOP-AutoGrader\\.context\\compound-engineering\\ce-brainstorm-visual\\sort-headers-2026-08-12",
+  "host": "127.0.0.1",
+  "port": 62811,
+  "url": "http://localhost:62811",
+  "screen_dir": "d:\\EIU\\OOP-AutoGrader\\.context\\compound-engineering\\ce-brainstorm-visual\\sort-headers-2026-08-12\\screens",
+  "state_dir": "d:\\EIU\\OOP-AutoGrader\\.context\\compound-engineering\\ce-brainstorm-visual\\sort-headers-2026-08-12\\state",
+  "pid": 1356,
+  "owner_pid": 26020
+}

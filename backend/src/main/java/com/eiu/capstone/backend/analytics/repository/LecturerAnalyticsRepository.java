@@ -418,7 +418,7 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of());
     }
 
-    public List<Object[]> findGradeOverviewStudents(String sortColumn, String sortDirection, int offset, int pageSize) {
+    public List<Object[]> findGradeOverviewStudents(String sortColumn, String sortDirection, UUID sortLabId, int offset, int pageSize) {
         String sql = """
                 WITH grade_students AS (
                     SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code) AS irn
@@ -449,18 +449,26 @@ public class LecturerAnalyticsRepository {
                 FROM student_totals
                 ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
-                """.formatted(formatGradeOverviewOrderBy(sortColumn, sortDirection));
+                """.formatted(formatGradeOverviewOrderBy(sortColumn, sortDirection, sortLabId));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("pageSize", pageSize);
         query.setParameter("offset", offset);
+        if ("lab_score".equals(sortColumn) && sortLabId != null) {
+            query.setParameter("sortLabId", sortLabId);
+        }
         return query.getResultList();
     }
 
-    private static String formatGradeOverviewOrderBy(String sortColumn, String sortDirection) {
+    private static String formatGradeOverviewOrderBy(String sortColumn, String sortDirection, UUID sortLabId) {
         if ("total_score".equals(sortColumn)) {
             return "total_score " + sortDirection + " NULLS LAST, full_name ASC";
         }
-        return sortColumn + " " + sortDirection;
+        if ("lab_score".equals(sortColumn) && sortLabId != null) {
+            return "(SELECT hs.score FROM highest_scores hs "
+                    + "WHERE hs.user_id = student_totals.id AND hs.lab_id = :sortLabId) "
+                    + sortDirection + " NULLS LAST, full_name ASC";
+        }
+        return sortColumn + " " + sortDirection + ", full_name ASC";
     }
 
     public List<Object[]> findLabScoresForStudents(List<UUID> studentIds) {

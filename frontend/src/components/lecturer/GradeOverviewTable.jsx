@@ -1,4 +1,7 @@
 import { formatNumber, formatText } from '../../utils/formatters';
+import SortableTableHeader from '../ui/SortableTableHeader';
+
+const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300';
 
 export default function GradeOverviewTable({
   labs,
@@ -8,6 +11,8 @@ export default function GradeOverviewTable({
   loading,
   selectedStudentId,
   onStudentSelect,
+  sortState,
+  onSort,
 }) {
   const labColumns = Array.isArray(labs) ? labs : [];
   const rows = Array.isArray(students) ? students : [];
@@ -18,13 +23,44 @@ export default function GradeOverviewTable({
       <table className="w-full min-w-[640px] table-auto">
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Student</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">IRN</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Total Score</th>
+            <SortableTableHeader
+              label="Student"
+              field="studentName"
+              activeField={sortState?.field}
+              direction={sortState?.direction}
+              onSort={onSort}
+              stopRowClick
+              className={HEADER_CLASS}
+            />
+            <SortableTableHeader
+              label="IRN"
+              field="irn"
+              activeField={sortState?.field}
+              direction={sortState?.direction}
+              onSort={onSort}
+              stopRowClick
+              className={HEADER_CLASS}
+            />
+            <SortableTableHeader
+              label="Total Score"
+              field="score"
+              activeField={sortState?.field}
+              direction={sortState?.direction}
+              onSort={onSort}
+              stopRowClick
+              className={HEADER_CLASS}
+            />
             {labColumns.map((lab) => (
-              <th key={lab.labId} className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                {formatText(lab.labName)}
-              </th>
+              <SortableTableHeader
+                key={lab.labId}
+                label={formatText(lab.labName)}
+                field={`labScore:${lab.labId}`}
+                activeField={sortState?.field}
+                direction={sortState?.direction}
+                onSort={onSort}
+                stopRowClick
+                className={HEADER_CLASS}
+              />
             ))}
           </tr>
         </thead>

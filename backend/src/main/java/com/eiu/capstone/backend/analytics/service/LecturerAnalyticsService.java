@@ -231,7 +231,7 @@ public class LecturerAnalyticsService {
         if (totalStudents > 0) {
             int offset = safePage * safeSize;
             List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudents(
-                    sortSpec.column(), sortSpec.direction(), offset, safeSize);
+                    sortSpec.column(), sortSpec.direction(), sortSpec.labId(), offset, safeSize);
             List<UUID> studentIds = new ArrayList<>();
             for (Object[] row : students) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);
@@ -432,20 +432,33 @@ public class LecturerAnalyticsService {
 
     private SortSpec resolveGradeOverviewSort(String sort) {
         if (sort == null || sort.isBlank()) {
-            return new SortSpec("full_name", "ASC");
+            return new SortSpec("full_name", "ASC", null);
         }
-        String[] parts = sort.split(",", 2);
+        String[] parts = sort.split(",", 3);
         String field = parts[0].trim().toLowerCase();
+        if ("labscore".equals(field) && parts.length >= 3) {
+            String direction = parts[2].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+            try {
+                UUID labId = UUID.fromString(parts[1].trim());
+                return new SortSpec("lab_score", direction, labId);
+            } catch (IllegalArgumentException ignored) {
+                return new SortSpec("full_name", "ASC", null);
+            }
+        }
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
             case "score" -> "total_score";
+            case "irn", "studentcode", "student_code" -> "irn";
             case "studentname", "student_name" -> "full_name";
             default -> "full_name";
         };
-        return new SortSpec(column, direction);
+        return new SortSpec(column, direction, null);
     }
 
-    private record SortSpec(String column, String direction) {
+    private record SortSpec(String column, String direction, UUID labId) {
+        SortSpec(String column, String direction) {
+            this(column, direction, null);
+        }
     }
 }
 

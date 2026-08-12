@@ -16,7 +16,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 ### StudentHistoryPage
 
 - Fetches `GET /api/submissions/my-history` (optional `labId`) and `GET /api/submissions/my-labs`
-- Filter by lab name via dropdown; client-side table sort
+- Filter by lab name via dropdown; client-side table sort via clickable column headers on `StudentHistoryPage`
 - Expanded rows show challenge-level results only
 - Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score)
 

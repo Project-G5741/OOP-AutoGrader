@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
+import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
+import { parseDisplayTimestamp, sortRows, toggleSortState } from '../../utils/sort';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+
+const HEADER_CLASS = 'px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300';
 
 function authHeaders() {
   return {
@@ -14,6 +18,7 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sortState, setSortState] = useState({ field: 'submittedAt', direction: 'desc' });
 
   useEffect(() => {
     if (!open || !labId || !student?.studentId) {
@@ -56,6 +61,17 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
     };
   }, [open, labId, student?.studentId]);
 
+  const sortedAttempts = useMemo(() => sortRows(attempts, sortState.field, sortState.direction, (attempt) => {
+    if (sortState.field === 'attempt') return attempt.attemptNumber;
+    if (sortState.field === 'score') return attempt.score;
+    if (sortState.field === 'submittedAt') return parseDisplayTimestamp(attempt.submittedAt);
+    return attempt[sortState.field];
+  }), [attempts, sortState]);
+
+  const handleSort = (field) => {
+    setSortState((prev) => toggleSortState(prev, field));
+  };
+
   if (!open || !student) {
     return null;
   }
@@ -88,13 +104,13 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-[#151b24]">
-                    {['Attempt', 'Score', 'Submitted At'].map((col) => (
-                      <th key={col} className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">{col}</th>
-                    ))}
+                    <SortableTableHeader label="Attempt" field="attempt" activeField={sortState.field} direction={sortState.direction} onSort={handleSort} className={HEADER_CLASS} />
+                    <SortableTableHeader label="Score" field="score" activeField={sortState.field} direction={sortState.direction} onSort={handleSort} className={HEADER_CLASS} />
+                    <SortableTableHeader label="Submitted At" field="submittedAt" activeField={sortState.field} direction={sortState.direction} onSort={handleSort} className={HEADER_CLASS} />
                   </tr>
                 </thead>
                 <tbody>
-                  {attempts.map((attempt) => (
+                  {sortedAttempts.map((attempt) => (
                     <tr key={`${attempt.attemptNumber}-${attempt.submissionId}`} className="border-b border-gray-100 dark:border-gray-800">
                       <td className="px-4 py-3 text-gray-800 dark:text-gray-200">#{formatNumber(attempt.attemptNumber)}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">{formatPercent(attempt.score)}</td>

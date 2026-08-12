@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sort Header Options — Directional Sketch</title>
+  <style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1419; color: #e5e7eb; padding: 24px; }
+  h1 { font-size: 1.25rem; margin: 0 0 8px; }
+  .note { color: #9ca3af; font-size: 0.875rem; margin-bottom: 24px; max-width: 900px; line-height: 1.5; }
+  .grid { display: grid; gap: 24px; max-width: 1100px; }
+  .option { border: 1px solid #374151; border-radius: 12px; overflow: hidden; background: #1e2530; }
+  .option-label { padding: 12px 16px; background: #151b24; border-bottom: 1px solid #374151; font-weight: 600; }
+  .option-desc { padding: 8px 16px 0; font-size: 0.8rem; color: #9ca3af; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 12px 16px; font-size: 0.875rem; font-weight: 500; color: #d1d5db; border-bottom: 1px solid #374151; }
+  td { padding: 12px 16px; font-size: 0.875rem; border-bottom: 1px solid #2d3748; color: #e5e7eb; }
+  .sortable { cursor: pointer; user-select: none; }
+  .sortable:hover { background: #252d3a; }
+  .active { color: #c4b5fd; }
+  .inactive { color: #6b7280; }
+  .header-inner { display: inline-flex; align-items: center; gap: 6px; }
+  .chevron { width: 14px; height: 14px; display: inline-block; }
+  .chevron-up::before { content: "▲"; font-size: 10px; }
+  .chevron-down::before { content: "▼"; font-size: 10px; }
+  .dual { display: inline-flex; flex-direction: column; line-height: 0.7; font-size: 8px; gap: 1px; }
+  .dual .dim { opacity: 0.35; }
+  .no-sort { cursor: default; }
+  .legend { margin-top: 24px; padding: 16px; border: 1px dashed #4b5563; border-radius: 8px; font-size: 0.85rem; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <h1>Column header sort — rough options</h1>
+  <p class="note">Directional only — not final styling. Judge <strong>behavior shape</strong>: when chevrons appear, how inactive columns look, whether Action is sortable. Scenario: Student roster sorted by Score descending (active).</p>
+
+  <div class="grid">
+    <!-- Option A -->
+    <div class="option">
+      <div class="option-label">A — Active column only shows chevron</div>
+      <div class="option-desc">Inactive sortable headers: label only, no icon. Click toggles asc/desc. Action column: not sortable.</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable">Student</th>
+            <th class="sortable">ID</th>
+            <th class="sortable active"><span class="header-inner">Score <span class="chevron chevron-down"></span></span></th>
+            <th class="sortable">Attempt</th>
+            <th class="sortable">Submitted At</th>
+            <th class="no-sort">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Nguyen Van A</td><td>SE12345</td><td>92</td><td>2</td><td>2026-08-10</td><td>View</td></tr>
+          <tr><td>Tran Thi B</td><td>SE12346</td><td>85</td><td>1</td><td>2026-08-09</td><td>View</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Option B -->
+    <div class="option">
+      <div class="option-label">B — All sortable columns show dual chevrons; active side highlighted</div>
+      <div class="option-desc">Common spreadsheet pattern. Inactive columns show faded up+down pair. Active column highlights one direction.</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable"><span class="header-inner">Student <span class="dual inactive"><span class="dim">▲</span><span class="dim">▼</span></span></span></th>
+            <th class="sortable"><span class="header-inner">ID <span class="dual inactive"><span class="dim">▲</span><span class="dim">▼</span></span></span></th>
+            <th class="sortable active"><span class="header-inner">Score <span class="dual"><span class="dim">▲</span><span>▼</span></span></span></th>
+            <th class="sortable"><span class="header-inner">Attempt <span class="dual inactive"><span class="dim">▲</span><span class="dim">▼</span></span></span></th>
+            <th class="sortable"><span class="header-inner">Submitted At <span class="dual inactive"><span class="dim">▲</span><span class="dim">▼</span></span></span></th>
+            <th class="no-sort">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Nguyen Van A</td><td>SE12345</td><td>92</td><td>2</td><td>2026-08-10</td><td>View</td></tr>
+          <tr><td>Tran Thi B</td><td>SE12346</td><td>85</td><td>1</td><td>2026-08-09</td><td>View</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Option C -->
+    <div class="option">
+      <div class="option-label">C — Active shows single chevron; inactive sortable show subtle ↕ hint</div>
+      <div class="option-desc">Middle ground: inactive columns hint sortability without full dual chevrons. Active column shows up or down only.</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable"><span class="header-inner">Student <span class="inactive">↕</span></span></th>
+            <th class="sortable"><span class="header-inner">ID <span class="inactive">↕</span></span></th>
+            <th class="sortable active"><span class="header-inner">Score <span class="chevron chevron-down"></span></span></th>
+            <th class="sortable"><span class="header-inner">Attempt <span class="inactive">↕</span></span></th>
+            <th class="sortable"><span class="header-inner">Submitted At <span class="inactive">↕</span></span></th>
+            <th class="no-sort">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Nguyen Van A</td><td>SE12345</td><td>92</td><td>2</td><td>2026-08-10</td><td>View</td></tr>
+          <tr><td>Tran Thi B</td><td>SE12346</td><td>85</td><td>1</td><td>2026-08-09</td><td>View</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="legend">
+    <strong>Reply in chat:</strong> A, B, C, or mix — plus anything that feels off.<br>
+    Also note: should <em>every</em> data column be sortable (Student, ID, Score, Attempt, Submitted At), or only columns the backend already supports per screen?
+  </div>
+</body>
+</html>

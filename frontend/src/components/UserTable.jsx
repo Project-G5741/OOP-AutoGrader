@@ -1,4 +1,15 @@
-import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import SortableTableHeader from './ui/SortableTableHeader';
+
+const HEADER_CLASS = 'px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider';
+
+const USER_COLUMNS = [
+  { key: 'irn', label: 'IRN' },
+  { key: 'fullname', label: 'Full Name' },
+  { key: 'dob', label: 'Date of Birth' },
+  { key: 'email', label: 'Email' },
+  { key: 'role', label: 'Role' },
+];
 
 export default function UserTable({
   search,
@@ -11,7 +22,7 @@ export default function UserTable({
   pageSize,
   onPageChange,
   onSort,
-  sortDirection,
+  sortState,
   loading,
   onEdit,
   onDelete,
@@ -33,14 +44,6 @@ export default function UserTable({
               className="pl-9 pr-4 py-2 w-72 bg-gray-50 dark:bg-[#151b24] border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
-          <button
-            onClick={onSort}
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-200 dark:hover:bg-[#1a1a2c] transition-colors"
-          >
-            {sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            Sort by name
-          </button>
         </div>
         <button
           onClick={onCreate}
@@ -55,11 +58,18 @@ export default function UserTable({
         <table className="w-full table-auto text-sm min-w-full">
           <thead>
             <tr className="border-b border-gray-100 dark:border-gray-800">
-              {['IRN', 'Full Name', 'Date of Birth', 'Email', 'Role', 'Actions'].map((h) => (
-                <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  {h}
-                </th>
+              {USER_COLUMNS.map((col) => (
+                <SortableTableHeader
+                  key={col.key}
+                  label={col.label}
+                  field={col.key}
+                  activeField={sortState?.field}
+                  direction={sortState?.direction}
+                  onSort={onSort}
+                  className={HEADER_CLASS}
+                />
               ))}
+              <SortableTableHeader label="Actions" sortable={false} className={HEADER_CLASS} />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50 dark:divide-gray-800">

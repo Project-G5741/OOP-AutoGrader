@@ -4,6 +4,8 @@ import {
   History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, 
   CheckCircle2, XCircle, RefreshCw 
 } from 'lucide-react';
+import SortableTableHeader from '../ui/SortableTableHeader';
+import { sortRows, toggleSortState } from '../../utils/sort';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -86,6 +88,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   const [labsSummary, setLabsSummary] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
 
   const emptyStats = {
     totalSubmissions: 0,
@@ -190,8 +193,19 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   // ===== Computed Values =====
 
   const filteredSubmissions = useMemo(() => {
-    return submissions;
-  }, [submissions]);
+    return sortRows(submissions, historySort.field, historySort.direction, (item) => {
+      if (historySort.field === 'labName') return item.lab?.name || '';
+      if (historySort.field === 'status') return deriveSubmissionStatus(item.score);
+      if (historySort.field === 'attempt') return item.attemptNumber;
+      if (historySort.field === 'score') return item.score;
+      if (historySort.field === 'submittedAt') return item.submittedAt;
+      return item[historySort.field];
+    });
+  }, [submissions, historySort]);
+
+  const handleHistorySort = (field) => {
+    setHistorySort((prev) => toggleSortState(prev, field));
+  };
 
   // ===== Render =====
 
@@ -364,12 +378,12 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead className="bg-gray-50 dark:bg-[#151b24] text-gray-600 dark:text-gray-400">
                   <tr>
-                    <th className="px-4 py-3">Lab</th>
-                    <th className="px-4 py-3">Attempt</th>
-                    <th className="px-4 py-3">Score</th>
-                    <th className="px-4 py-3">Submitted</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3" />
+                    <SortableTableHeader label="Lab" field="labName" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    <SortableTableHeader label="Attempt" field="attempt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    <SortableTableHeader label="Score" field="score" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    <SortableTableHeader label="Submitted" field="submittedAt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    <SortableTableHeader label="Status" field="status" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    <SortableTableHeader label="" sortable={false} className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody>
