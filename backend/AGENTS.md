@@ -120,8 +120,8 @@ Grading tuning properties (`application.properties`):
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter)
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
-- `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of latest lab scores, missing labs as 0; threshold < 70)
-- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from latest submission; total = sum ÷ lab count); sort by `studentName` or `score`
+- `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of highest lab scores, missing labs as 0; threshold < 70)
+- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated; per-lab score from `student_lab_progress.highest_score`; total = sum ÷ lab count); sort by `studentName` or `score`
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
 ## Work Guidance

@@ -43,8 +43,15 @@ public class LecturerAnalyticsRepository {
             SELECT DISTINCT s.user_id FROM lab_submission s
             """;
 
+    private static final String HIGHEST_SCORES_CTE = """
+                highest_scores AS (
+                    SELECT p.user_id, p.lab_id, p.highest_score AS score
+                    FROM student_lab_progress p
+                    WHERE p.last_submitted_at IS NOT NULL
+                )""";
+
     /**
-     * Count active students whose grade-overview total (average of latest lab scores, missing labs as 0) is below 70.
+     * Count active students whose grade-overview total (average of highest lab scores, missing labs as 0) is below 70.
      */
     private static final String AT_RISK_STUDENT_COUNT = """
             SELECT COUNT(*) FROM (
@@ -62,24 +69,15 @@ public class LecturerAnalyticsRepository {
             """ + GRADE_OVERVIEW_STUDENT_IDS + """
                       )
                 ),
-                latest_scores AS (
-                    SELECT s.user_id, s.lab_id, s.score
-                    FROM lab_submission s
-                    INNER JOIN (
-                        SELECT ls.user_id, ls.lab_id, MAX(ls.attempt_number) AS max_attempt
-                        FROM lab_submission ls
-                        GROUP BY ls.user_id, ls.lab_id
-                    ) latest ON latest.user_id = s.user_id
-                        AND latest.lab_id = s.lab_id
-                        AND latest.max_attempt = s.attempt_number
-                ),
+                """ + HIGHEST_SCORES_CTE + """
+                ,
                 student_totals AS (
                     SELECT r.id,
                            CASE WHEN lt.lab_count > 0 THEN
-                               (SELECT COALESCE(SUM(COALESCE(ls.score, 0)), 0) / lt.lab_count
+                               (SELECT COALESCE(SUM(COALESCE(hs.score, 0)), 0) / lt.lab_count
                                 FROM lab l
-                                LEFT JOIN latest_scores ls
-                                    ON ls.user_id = r.id AND ls.lab_id = l.id)
+                                LEFT JOIN highest_scores hs
+                                    ON hs.user_id = r.id AND hs.lab_id = l.id)
                            END AS total_score
                     FROM roster r
                     CROSS JOIN lab_total lt
@@ -432,26 +430,17 @@ public class LecturerAnalyticsRepository {
                 lab_total AS (
                     SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab
                 ),
-                latest_scores AS (
-                    SELECT s.user_id, s.lab_id, s.score
-                    FROM lab_submission s
-                    INNER JOIN (
-                        SELECT ls.user_id, ls.lab_id, MAX(ls.attempt_number) AS max_attempt
-                        FROM lab_submission ls
-                        GROUP BY ls.user_id, ls.lab_id
-                    ) latest ON latest.user_id = s.user_id
-                        AND latest.lab_id = s.lab_id
-                        AND latest.max_attempt = s.attempt_number
-                ),
+                """ + HIGHEST_SCORES_CTE + """
+                ,
                 student_totals AS (
                     SELECT gs.id,
                            gs.full_name,
                            gs.irn,
                            CASE WHEN lt.lab_count > 0 THEN
-                               (SELECT COALESCE(SUM(COALESCE(ls.score, 0)), 0) / lt.lab_count
+                               (SELECT COALESCE(SUM(COALESCE(hs.score, 0)), 0) / lt.lab_count
                                 FROM lab l
-                                LEFT JOIN latest_scores ls
-                                    ON ls.user_id = gs.id AND ls.lab_id = l.id)
+                                LEFT JOIN highest_scores hs
+                                    ON hs.user_id = gs.id AND hs.lab_id = l.id)
                            END AS total_score
                     FROM grade_students gs
                     CROSS JOIN lab_total lt
@@ -479,17 +468,10 @@ public class LecturerAnalyticsRepository {
             return List.of();
         }
         String sql = """
-                SELECT s.user_id, s.lab_id, s.score
-                FROM lab_submission s
-                INNER JOIN (
-                    SELECT ls.user_id, ls.lab_id, MAX(ls.attempt_number) AS max_attempt
-                    FROM lab_submission ls
-                    WHERE ls.user_id IN (:studentIds)
-                    GROUP BY ls.user_id, ls.lab_id
-                ) latest ON latest.user_id = s.user_id
-                    AND latest.lab_id = s.lab_id
-                    AND latest.max_attempt = s.attempt_number
-                WHERE s.user_id IN (:studentIds)
+                SELECT p.user_id, p.lab_id, p.highest_score
+                FROM student_lab_progress p
+                WHERE p.user_id IN (:studentIds)
+                  AND p.last_submitted_at IS NOT NULL
                 """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentIds", studentIds);

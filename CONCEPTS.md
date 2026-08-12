@@ -56,7 +56,7 @@ Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD dis
 - Grading compares compiled student classes against a **rubric snapshot**, then writes **submission results**.
 
 ### Student lab progress
-A per-(student, lab) tracking row holding highest score, attempt count, and best/latest submission metadata. Updated on upload; used as enrichment for lecturer analytics, not as the roster denominator when enrolled non-submitters must appear.
+A per-(student, lab) tracking row holding highest score, attempt count, and best/latest submission metadata. Updated on upload; lecturer **grade overview** matrix and lab roster **Score** columns read `highest_score` (when the student has submitted); student dashboard uses latest attempt by design.
 
 ### Term enrollment
 Maps an active student to a term (`term_enrollment`). The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
