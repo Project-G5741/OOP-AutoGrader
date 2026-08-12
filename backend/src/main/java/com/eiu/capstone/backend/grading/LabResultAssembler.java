@@ -114,7 +114,9 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
-                            BigDecimal.ZERO));
+                            BigDecimal.ZERO,
+                            true,
+                            true));
 
             Map<String, BigDecimal> scores = Map.of(
                     "class", pillarScores.classPillar(),
@@ -122,8 +124,13 @@ public class LabResultAssembler {
                     "testcase", pillarScores.testcasePillar(),
                     "total", pillarScores.total());
 
+            Map<String, Boolean> scoreApplicability = Map.of(
+                    "class", true,
+                    "mmd", pillarScores.mmdApplicable(),
+                    "testcase", pillarScores.testcaseApplicable());
+
             labResult.put("challenge_" + number, new ChallengeDetailBundleDTO(
-                    classData, mmdData, testcases, scores));
+                    classData, mmdData, testcases, scores, scoreApplicability));
         }
 
         if (timingLog) {

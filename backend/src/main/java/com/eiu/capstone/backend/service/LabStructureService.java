@@ -213,7 +213,8 @@ public class LabStructureService {
                             saved.getName(),
                             saved.getChallengeNumber(),
                             dto.classes(),
-                            dto.relations());
+                            dto.relations(),
+                            saved.isHasMmd());
                 })
                 .toList();
         return new LabStructureResponse(labId, labName, lab.getTerm().getId(), savedChallenges);
@@ -473,6 +474,7 @@ public class LabStructureService {
             isNew = true;
         }
         challenge.setName(requireNonBlank(dto.name(), "Challenge name"));
+        challenge.setHasMmd(dto.hasMmd());
         if (isNew) {
             challenge.setChallengeNumber(allocateChallengeNumber(usedChallengeNumbers, dto.challengeNumber()));
         } else {
@@ -931,7 +933,8 @@ public class LabStructureService {
                 challenge.getName(),
                 challenge.getChallengeNumber(),
                 classDtos,
-                relationDtos);
+                relationDtos,
+                challenge.isHasMmd());
     }
 
     private ClassStructureDTO toClassDto(ClassEntity classEntity,

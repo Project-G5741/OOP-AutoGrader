@@ -7,8 +7,13 @@ import java.util.List;
 /**
  * Aggregates weighted member accuracies into pillar and challenge percentages.
  *
- * <p>Challenge score = arithmetic mean of three pillar percentages (class, mmd, testcase).
- * Lab score = average across all rubric challenges; missing challenges count as 0.
+ * <p>Challenge score = arithmetic mean of the pillars applicable to that challenge. The class
+ * (Declaration Test) pillar is always applicable; the mmd and testcase pillars are each
+ * conditionally applicable (mmd when the challenge requires an MMD diagram, testcase when the
+ * challenge has at least one operational testcase). When only class is applicable, the challenge
+ * score equals the class pillar percentage.
+ *
+ * <p>Lab score = average across all rubric challenges; missing challenges count as 0.
  */
 public final class PillarScoreAggregator {
 
@@ -39,13 +44,26 @@ public final class PillarScoreAggregator {
     }
 
     /**
-     * Mean of three pillar percentages (equal weight per pillar).
+     * Mean of the applicable pillar percentages. Class (Declaration Test) is always applicable;
+     * mmd and testcase are included only when their respective flags are true. When both flags
+     * are false, the result equals {@code classPct} alone.
      */
     public static BigDecimal challengePercentage(BigDecimal classPct,
                                                 BigDecimal mmdPct,
-                                                BigDecimal testcasePct) {
-        BigDecimal sum = safe(classPct).add(safe(mmdPct)).add(safe(testcasePct));
-        return sum.divide(BigDecimal.valueOf(3), SCALE, RoundingMode.HALF_UP);
+                                                boolean mmdApplicable,
+                                                BigDecimal testcasePct,
+                                                boolean testcaseApplicable) {
+        BigDecimal sum = safe(classPct);
+        int applicableCount = 1;
+        if (mmdApplicable) {
+            sum = sum.add(safe(mmdPct));
+            applicableCount++;
+        }
+        if (testcaseApplicable) {
+            sum = sum.add(safe(testcasePct));
+            applicableCount++;
+        }
+        return sum.divide(BigDecimal.valueOf(applicableCount), SCALE, RoundingMode.HALF_UP);
     }
 
     /**

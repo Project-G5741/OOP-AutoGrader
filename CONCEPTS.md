@@ -20,7 +20,7 @@ An in-memory, immutable graph of the lab's expected OOP structure (challenges, c
 Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
 
 ### Grading pillar
-One of three equal scoring slices per challenge in the rebuilt engine: `.class` reflection, `.mmd` diagram, or operational `testcase` invocations. Challenge score is the arithmetic mean of the three pillar percentages.
+One of up to three equal scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the arithmetic mean of only the applicable pillar percentages — 3-way, 2-way (50/50), or Declaration-Test-only as pillars drop out. Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
 
 ### Operational testcase
 A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).

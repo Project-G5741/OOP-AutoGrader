@@ -39,6 +39,9 @@ public class Challenge {
     @Column(name = "challenge_number", nullable = false)
     private Integer challengeNumber;
 
+    @Column(name = "has_mmd", nullable = false)
+    private boolean hasMmd = true;
+
     public Challenge() {}
 
     public UUID getId() { return id; }
@@ -52,4 +55,7 @@ public class Challenge {
 
     public Integer getChallengeNumber() { return challengeNumber; }
     public void setChallengeNumber(Integer challengeNumber) { this.challengeNumber = challengeNumber; }
+
+    public boolean isHasMmd() { return hasMmd; }
+    public void setHasMmd(boolean hasMmd) { this.hasMmd = hasMmd; }
 }

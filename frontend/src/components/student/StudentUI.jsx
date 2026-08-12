@@ -1,5 +1,5 @@
 // StudentUI.jsx - Không còn dữ liệu cứng, hoàn toàn nhận từ props
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -11,7 +11,10 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
-import { ScorePill, ScoreSectionHeader, hasScoreToShow } from '../ui/ScorePill';
+import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
+
+const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
+const TAB_ORDER = Object.keys(TAB_LABELS);
 
 /** Strip trailing line endings from captured stdout for display only; grading is unchanged. */
 function formatIoDisplay(value) {
@@ -144,6 +147,20 @@ export default function StudentUI({
     setExpandedClassName(null);
   }, [selectedChallengeId]);
 
+  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  const visibleTabs = useMemo(
+    () => TAB_ORDER.filter((t) => !(resultsRevealed && isPillarNotApplicable(currentBundle, t))),
+    [resultsRevealed, currentBundle],
+  );
+
+  // If the active tab's pillar is inapplicable for the newly selected challenge (hidden from
+  // the tab bar), fall back to the first pillar that's still visible.
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0]);
+    }
+  }, [visibleTabs, activeTab]);
+
   const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-purple-500 text-purple-500 dark:text-purple-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`;
 
   // Render loading state
@@ -171,7 +188,6 @@ export default function StudentUI({
 
   // Xác định challenge hiện tại
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
-  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
   const relations = relationData;
@@ -371,13 +387,13 @@ export default function StudentUI({
           <div className="flex-1 bg-white dark:bg-[#1e2530] rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             {/* Tabs */}
             <div className="flex border-b border-gray-100 dark:border-gray-700 px-2">
-              {['mmd', 'class', 'testcase'].map((t) => (
+              {visibleTabs.map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
                   className={tabCls(t)}
                 >
-                  {t === 'mmd' ? 'MMD' : t === 'class' ? 'Declaration Test' : 'Operation Test'}
+                  {TAB_LABELS[t]}
                 </button>
               ))}
               <div className="flex-1 flex items-center justify-end pr-4">
@@ -429,16 +445,14 @@ export default function StudentUI({
                     )}
                   </div>
 
-                  {resultsRevealed && (
+                  {resultsRevealed && relations.length > 0 && (
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-[#151b24]">
                         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                           <GitMerge className="w-4 h-4" />
                           <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
                         </div>
-                        {relationScore.total > 0 && (
-                          <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
-                        )}
+                        <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         <span className="font-semibold">From</span>
@@ -447,7 +461,7 @@ export default function StudentUI({
                         <span className="font-semibold text-center">Status</span>
                       </div>
                       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {relations.length > 0 ? relations.map((r, index) => (
+                        {relations.map((r, index) => (
                           <div key={index}>
                             <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
                               <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
@@ -471,11 +485,7 @@ export default function StudentUI({
                               </div>
                             )}
                           </div>
-                        )) : (
-                          <div className="px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                            No relation data is available.
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   )}
