@@ -139,62 +139,58 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
         </div>
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => setRelationsOpen((open) => !open)}
-          className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
-        >
-          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-            <GitMerge className="h-4 w-4" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {relations.length > 0 && (
+      {relations.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setRelationsOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+          >
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+              <GitMerge className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
+            </div>
+            <div className="flex items-center gap-2">
               <ScorePill ok={relationPass} total={relations.length} pct={relationPct} />
-            )}
-            {relationsOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-          </div>
-        </button>
+              {relationsOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+            </div>
+          </button>
 
-        {relationsOpen && (
-          <>
-            <div className="grid grid-cols-4 items-center gap-4 border-t border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              <span className="font-semibold">From</span>
-              <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
-              <span className="font-semibold">To</span>
-              <span className="font-semibold text-center">Status</span>
-            </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {relations.length > 0 ? relations.map((r, index) => (
-                <div key={index}>
-                  <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
-                    <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
-                    <div className="flex justify-center">
-                      <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
-                        {r.relType}
-                      </span>
+          {relationsOpen && (
+            <>
+              <div className="grid grid-cols-4 items-center gap-4 border-t border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <span className="font-semibold">From</span>
+                <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
+                <span className="font-semibold">To</span>
+                <span className="font-semibold text-center">Status</span>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {relations.map((r, index) => (
+                  <div key={index}>
+                    <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
+                      <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
+                      <div className="flex justify-center">
+                        <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
+                          {r.relType}
+                        </span>
+                      </div>
+                      <span className="font-mono text-purple-600 dark:text-purple-400">{r.to}</span>
+                      <div className="flex justify-center">
+                        <Tick ok={r.ok} />
+                      </div>
                     </div>
-                    <span className="font-mono text-purple-600 dark:text-purple-400">{r.to}</span>
-                    <div className="flex justify-center">
-                      <Tick ok={r.ok} />
-                    </div>
+                    {!r.ok && r.error && (
+                      <div className="px-4 py-2 text-xs font-mono text-red-600 bg-red-50 dark:text-red-300 dark:bg-red-900/10">
+                        {r.from} → {r.to}: {r.error}
+                      </div>
+                    )}
                   </div>
-                  {!r.ok && r.error && (
-                    <div className="px-4 py-2 text-xs font-mono text-red-600 bg-red-50 dark:text-red-300 dark:bg-red-900/10">
-                      {r.from} → {r.to}: {r.error}
-                    </div>
-                  )}
-                </div>
-              )) : (
-                <div className="px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                  No relation data is available.
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

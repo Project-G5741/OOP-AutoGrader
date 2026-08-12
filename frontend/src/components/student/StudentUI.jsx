@@ -445,16 +445,14 @@ export default function StudentUI({
                     )}
                   </div>
 
-                  {resultsRevealed && (
+                  {resultsRevealed && relations.length > 0 && (
                     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-[#151b24]">
                         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                           <GitMerge className="w-4 h-4" />
                           <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
                         </div>
-                        {relationScore.total > 0 && (
-                          <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
-                        )}
+                        <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4 border-b border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         <span className="font-semibold">From</span>
@@ -463,7 +461,7 @@ export default function StudentUI({
                         <span className="font-semibold text-center">Status</span>
                       </div>
                       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {relations.length > 0 ? relations.map((r, index) => (
+                        {relations.map((r, index) => (
                           <div key={index}>
                             <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
                               <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
@@ -487,11 +485,7 @@ export default function StudentUI({
                               </div>
                             )}
                           </div>
-                        )) : (
-                          <div className="px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                            No relation data is available.
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   )}
