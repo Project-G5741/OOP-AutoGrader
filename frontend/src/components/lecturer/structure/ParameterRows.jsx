@@ -20,17 +20,17 @@ export default function ParameterRows({ parameters = [], onChange, label = 'Para
 
   return (
     <div className="mt-2 space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">{label}</div>
       {parameters.map((param, index) => (
         <div key={param.id || index} className="grid grid-cols-12 gap-2 items-center">
           <input
-            className="col-span-5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+            className="col-span-5 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
             placeholder="name"
             value={param.name}
             onChange={(e) => updateParam(index, { name: e.target.value })}
           />
           <input
-            className="col-span-6 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+            className="col-span-6 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
             placeholder="type"
             value={param.dataType}
             onChange={(e) => updateParam(index, { dataType: e.target.value })}
@@ -38,7 +38,7 @@ export default function ParameterRows({ parameters = [], onChange, label = 'Para
           <button
             type="button"
             onClick={() => removeParam(index)}
-            className="col-span-1 flex justify-center text-gray-400 hover:text-red-400"
+            className="col-span-1 flex justify-center text-foreground-muted hover:text-error"
             aria-label="Remove parameter"
           >
             <Trash2 className="h-4 w-4" />
@@ -48,7 +48,7 @@ export default function ParameterRows({ parameters = [], onChange, label = 'Para
       <button
         type="button"
         onClick={addParam}
-        className="inline-flex items-center gap-1 text-sm text-purple-500 hover:text-purple-400"
+        className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary"
       >
         <Plus className="h-4 w-4" /> Add parameter
       </button>

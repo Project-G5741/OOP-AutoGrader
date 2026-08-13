@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlaskConical, Loader2, Play, Plus, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, FlaskConical, Loader2, Play, Plus, Save, Trash2, XCircle } from 'lucide-react';
 import { authHeaders } from '../../../utils/authHeaders';
 import { readApiErrorMessage } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
@@ -97,33 +97,93 @@ function invocationForKindChange(invocation, kind) {
   return next;
 }
 
+function dryRunSummaryText(result) {
+  if (!result) return '';
+  if (result.feedback) return result.feedback;
+  const assertions = result.assertions ?? [];
+  const failed = assertions.filter((a) => a.result !== 'PASS').length;
+  if (failed > 0) return `${failed} assertion${failed === 1 ? '' : 's'} failed`;
+  if (assertions.length > 0) return 'All assertions passed';
+  return result.result === 'PASS' ? 'Passed' : 'Failed';
+}
+
+function DryRunStatusIcon({ result, running }) {
+  if (running) {
+    return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden />;
+  }
+  if (!result) {
+    return <Circle className="h-3.5 w-3.5 shrink-0 text-foreground-disabled" aria-hidden />;
+  }
+  if (result.result === 'PASS') {
+    return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />;
+  }
+  return <XCircle className="h-3.5 w-3.5 shrink-0 text-error" aria-hidden />;
+}
+
 function DryRunResultCard({ result }) {
   if (!result) return null;
   const passed = result.result === 'PASS';
+  const [expanded, setExpanded] = useState(!passed);
   const assertions = result.assertions ?? [];
   const hasAssertionRows = assertions.length > 0
     && assertions.some((a) => a.expected_output ?? a.expectedOutput);
 
+  const headerBarClass = passed
+    ? 'bg-[var(--success-panel)] text-[var(--success-panel-text)]'
+    : 'bg-[var(--error-bg)] text-[var(--error-text)]';
+  const bodyCardClass = 'overflow-hidden rounded-lg border border-border-subtle bg-surface-secondary';
+  const sectionDividerClass = 'border-t border-border-subtle';
+  const sectionLabelClass = 'mb-1 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted';
+  const codeBlockClass = 'whitespace-pre-wrap rounded-md bg-surface px-2 py-1.5 font-mono text-xs text-foreground-secondary';
+
+  const summary = dryRunSummaryText(result);
+
+  if (!expanded) {
+    return (
+      <div className={`animate-panel-in overflow-hidden rounded-lg ${headerBarClass}`}>
+        <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-xs font-semibold">{result.result}</span>
+            <span className="truncate text-xs">{summary}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="inline-flex shrink-0 items-center gap-1 text-xs opacity-80 hover:opacity-100"
+          >
+            Details <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`animate-panel-in rounded-lg border p-3 text-sm ${
-      passed
-        ? 'border-emerald-500/40 bg-emerald-500/10'
-        : 'border-red-500/40 bg-red-500/10'
-    }`}
-    >
-      <div className={`mb-3 font-semibold ${passed ? 'text-emerald-300' : 'text-red-300'}`}>
-        Dry-run: {result.result}
+    <div className={`animate-panel-in text-sm ${bodyCardClass}`}>
+      <div className={`flex items-center justify-between gap-3 px-3 py-2 ${headerBarClass}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-xs font-semibold">{result.result}</span>
+          <span className="truncate text-xs">{summary}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="inline-flex shrink-0 items-center gap-1 text-xs opacity-80 hover:opacity-100"
+        >
+          Hide <ChevronUp className="h-3.5 w-3.5" />
+        </button>
       </div>
 
+      <div className="px-3 py-3">
       {result.input != null && (
-        <div className="mb-3 rounded-md bg-black/20 p-2">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Input</div>
-          <pre className="whitespace-pre-wrap font-mono text-xs text-gray-200">{result.input}</pre>
+        <div className="pb-3">
+          <div className={sectionLabelClass}>Input</div>
+          <pre className={codeBlockClass}>{result.input}</pre>
         </div>
       )}
 
       {hasAssertionRows ? (
-        <div className="scrollbar-themed max-h-48 space-y-2 overflow-y-auto pr-1">
+        <div className={`scrollbar-themed max-h-36 space-y-0 overflow-y-auto pr-1 ${result.input != null ? sectionDividerClass : ''}`}>
           {assertions.map((assertion, index) => {
             const aPassed = assertion.result === 'PASS';
             const expected = assertion.expected_output ?? assertion.expectedOutput ?? '—';
@@ -131,27 +191,36 @@ function DryRunResultCard({ result }) {
             const fieldLabel = assertion.kind === 'FIELD_STATE' && expected.includes('=')
               ? expected.split('=')[0].trim()
               : null;
+
             return (
               <div
                 key={`${assertion.kind}-${assertion.order_index ?? assertion.orderIndex ?? index}`}
-                className="rounded-md border border-gray-700/60 bg-black/15 p-2"
+                className={`py-3 ${index > 0 ? sectionDividerClass : ''}`}
               >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
                     {fieldLabel ?? assertion.kind}
                   </span>
-                  <span className={`text-[10px] font-bold ${aPassed ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    aPassed ? 'bg-success-bg text-success-text' : 'bg-error-bg text-error-text'
+                  }`}
+                  >
                     {assertion.result}
                   </span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div>
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Expected</div>
-                    <pre className="whitespace-pre-wrap font-mono text-xs text-emerald-300/90">{expected}</pre>
+                    <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Expected</div>
+                    <pre className={codeBlockClass}>{expected}</pre>
                   </div>
                   <div>
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Actual</div>
-                    <pre className={`whitespace-pre-wrap font-mono text-xs ${aPassed ? 'text-emerald-300/90' : 'text-red-300'}`}>
+                    <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Actual</div>
+                    <pre className={`whitespace-pre-wrap rounded-md px-2 py-1.5 font-mono text-xs ${
+                      aPassed
+                        ? 'bg-surface text-foreground-secondary'
+                        : 'bg-error-bg text-error-text'
+                    }`}
+                    >
                       {actual}
                     </pre>
                   </div>
@@ -161,25 +230,22 @@ function DryRunResultCard({ result }) {
           })}
         </div>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className={`grid gap-3 sm:grid-cols-2 ${result.input != null ? `${sectionDividerClass} pt-3` : ''}`}>
           {result.expected_output != null && (
-            <div className="rounded-md bg-black/20 p-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Expected</div>
-              <pre className="whitespace-pre-wrap font-mono text-xs text-gray-200">{result.expected_output}</pre>
+            <div>
+              <div className={sectionLabelClass}>Expected</div>
+              <pre className={codeBlockClass}>{result.expected_output}</pre>
             </div>
           )}
           {result.actual_output != null && (
-            <div className="rounded-md bg-black/20 p-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Actual</div>
-              <pre className="whitespace-pre-wrap font-mono text-xs text-gray-200">{result.actual_output}</pre>
+            <div>
+              <div className={sectionLabelClass}>Actual</div>
+              <pre className={codeBlockClass}>{result.actual_output}</pre>
             </div>
           )}
         </div>
       )}
-
-      {result.feedback && (
-        <p className="mt-2 text-xs text-gray-400">{result.feedback}</p>
-      )}
+      </div>
     </div>
   );
 }
@@ -192,10 +258,10 @@ function TestcaseEditor({
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-gray-500 sm:col-span-2">
+        <label className="block text-xs text-foreground-muted sm:col-span-2">
           Type
           <select
-            className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
             value={tc.testcaseType}
             onChange={(e) => {
               const type = e.target.value;
@@ -225,10 +291,10 @@ function TestcaseEditor({
 
       {tc.testcaseType === 'SINGLE_INVOCATION' && tc.invocation && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs text-gray-500">
+          <label className="block text-xs text-foreground-muted">
             Invocation kind
             <select
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
               value={tc.invocation.invocationKind}
               onChange={(e) => onUpdate({
                 invocation: invocationForKindChange(tc.invocation, e.target.value),
@@ -239,10 +305,10 @@ function TestcaseEditor({
             </select>
           </label>
           {tc.invocation.invocationKind === 'CONSTRUCTOR' ? (
-            <label className="block text-xs text-gray-500">
+            <label className="block text-xs text-foreground-muted">
               Constructor
               <select
-                className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
                 value={tc.invocation.constructorId || ''}
                 onChange={(e) => onUpdate({
                   invocation: { ...tc.invocation, constructorId: e.target.value || null },
@@ -256,10 +322,10 @@ function TestcaseEditor({
             </label>
           ) : (
             <>
-              <label className="block text-xs text-gray-500">
+              <label className="block text-xs text-foreground-muted">
                 Method
                 <select
-                  className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
                   value={tc.invocation.methodId || ''}
                   onChange={(e) => onUpdate({
                     invocation: { ...tc.invocation, methodId: e.target.value || null },
@@ -271,10 +337,10 @@ function TestcaseEditor({
                   ))}
                 </select>
               </label>
-              <label className="block text-xs text-gray-500">
+              <label className="block text-xs text-foreground-muted">
                 Receiver constructor (optional)
                 <select
-                  className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
                   value={tc.invocation.receiverConstructorId || ''}
                   onChange={(e) => onUpdate({
                     invocation: { ...tc.invocation, receiverConstructorId: e.target.value || null },
@@ -286,10 +352,10 @@ function TestcaseEditor({
                   ))}
                 </select>
               </label>
-              <label className="block text-xs text-gray-500 sm:col-span-2">
+              <label className="block text-xs text-foreground-muted sm:col-span-2">
                 Receiver params (JSON array)
                 <input
-                  className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
                   value={tc.invocation.receiverParams || '[]'}
                   onChange={(e) => onUpdate({
                     invocation: { ...tc.invocation, receiverParams: e.target.value },
@@ -298,10 +364,10 @@ function TestcaseEditor({
               </label>
             </>
           )}
-          <label className="block text-xs text-gray-500 sm:col-span-2">
+          <label className="block text-xs text-foreground-muted sm:col-span-2">
             Params (JSON array)
             <input
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
               value={tc.invocation.params || '[]'}
               onChange={(e) => onUpdate({
                 invocation: { ...tc.invocation, params: e.target.value },
@@ -314,7 +380,7 @@ function TestcaseEditor({
       {tc.testcaseType === 'COMPARISON' && (
         <div className="space-y-2">
           <select
-            className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+            className="w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
             value={tc.comparisonMethod || 'EQUALS'}
             onChange={(e) => onUpdate({ comparisonMethod: e.target.value })}
           >
@@ -323,9 +389,9 @@ function TestcaseEditor({
           </select>
           {(tc.instances || []).map((inst, idx) => (
             <div key={inst.id || idx} className="grid gap-2 sm:grid-cols-2">
-              <span className="text-xs text-gray-500">Instance {inst.label}</span>
+              <span className="text-xs text-foreground-muted">Instance {inst.label}</span>
               <select
-                className="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
                 value={inst.constructorId || ''}
                 onChange={(e) => {
                   const instances = [...(tc.instances || [])];
@@ -339,7 +405,7 @@ function TestcaseEditor({
                 ))}
               </select>
               <input
-                className="sm:col-span-2 rounded border border-gray-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="sm:col-span-2 rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
                 value={inst.params || '[]'}
                 onChange={(e) => {
                   const instances = [...(tc.instances || [])];
@@ -354,11 +420,11 @@ function TestcaseEditor({
       )}
 
       <div className="space-y-2">
-        <div className="text-xs font-semibold text-gray-500">Assertions</div>
+        <div className="text-xs font-semibold text-foreground-secondary">Assertions</div>
         {(tc.assertions || []).map((a, idx) => (
-          <div key={a.id || idx} className="grid gap-2 rounded border border-gray-200 p-2 dark:border-gray-700 sm:grid-cols-3">
+          <div key={a.id || idx} className="grid gap-2 rounded border border-border p-2 sm:grid-cols-3">
             <select
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
               value={a.assertionKind}
               onChange={(e) => {
                 const assertions = [...(tc.assertions || [])];
@@ -375,7 +441,7 @@ function TestcaseEditor({
             </select>
             {a.assertionKind === 'FIELD_STATE' && (
               <select
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
                 value={a.fieldId || ''}
                 onChange={(e) => {
                   const assertions = [...(tc.assertions || [])];
@@ -390,7 +456,7 @@ function TestcaseEditor({
               </select>
             )}
             <input
-              className="rounded border border-gray-300 bg-white px-2 py-1 font-mono text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="rounded border border-border bg-surface-secondary px-2 py-1 font-mono text-sm dark:text-white"
               value={a.expectedValue || ''}
               onChange={(e) => {
                 const assertions = [...(tc.assertions || [])];
@@ -400,7 +466,7 @@ function TestcaseEditor({
               placeholder="Expected value JSON"
             />
             <select
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
               value={a.comparisonMode || 'EXACT'}
               onChange={(e) => {
                 const assertions = [...(tc.assertions || [])];
@@ -414,7 +480,7 @@ function TestcaseEditor({
         ))}
         <button
           type="button"
-          className="text-xs text-purple-400"
+          className="text-xs text-primary"
           onClick={() => onUpdate({
             assertions: [
               ...(tc.assertions || []),
@@ -432,7 +498,7 @@ function TestcaseEditor({
         </button>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-400">
+      <label className="flex items-center gap-2 text-sm text-foreground-muted">
         <input
           type="checkbox"
           checked={!!tc.hidden}
@@ -457,7 +523,7 @@ export default function TestcasesPanel({
   const [runningId, setRunningId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [referenceSources, setReferenceSources] = useState([]);
-  const [dryRunResult, setDryRunResult] = useState(null); // { testcaseId, data }
+  const [dryRunResults, setDryRunResults] = useState({}); // { [testcaseId]: resultData }
   const [warnStructure, setWarnStructure] = useState(false);
 
   const isDirty = useMemo(
@@ -465,10 +531,27 @@ export default function TestcasesPanel({
     [testcases, snapshot],
   );
 
+  const dryRunSummary = useMemo(() => {
+    let pass = 0;
+    let fail = 0;
+    let notRun = 0;
+    testcases.forEach((tc) => {
+      const result = dryRunResults[tc.id];
+      if (!result) notRun += 1;
+      else if (result.result === 'PASS') pass += 1;
+      else fail += 1;
+    });
+    return { pass, fail, notRun };
+  }, [testcases, dryRunResults]);
+
+  const runningAll = Boolean(runningId);
+
   const selectedTestcase = useMemo(
     () => testcases.find((tc) => tc.id === selectedId) ?? null,
     [testcases, selectedId],
   );
+
+  const selectedDryRunResult = selectedId ? dryRunResults[selectedId] ?? null : null;
 
   const dryRunPayloadSources = useMemo(
     () => referenceSources
@@ -514,7 +597,7 @@ export default function TestcasesPanel({
     } else {
       setReferenceSources([]);
     }
-    setDryRunResult(null);
+    setDryRunResults({});
   }, [labId, challenge?.id, loadTestcases]);
 
   useEffect(() => {
@@ -549,12 +632,17 @@ export default function TestcasesPanel({
 
   const updateTestcase = (id, patch) => {
     setTestcases((prev) => prev.map((tc) => (tc.id === id ? { ...tc, ...patch } : tc)));
+    setDryRunResults((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const selectTestcase = (id) => {
     if (id === selectedId) return;
     setSelectedId(id);
-    setDryRunResult(null);
   };
 
   const handleSave = async () => {
@@ -584,6 +672,22 @@ export default function TestcasesPanel({
     }
   };
 
+  const runDryRunForTestcase = async (tc) => {
+    const res = await fetch(
+      `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases/dry-run`,
+      {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          referenceSources: dryRunPayloadSources,
+          testcase: normalizeTestcaseForApi(tc),
+        }),
+      },
+    );
+    if (!res.ok) throw new Error(await readApiErrorMessage(res));
+    return res.json();
+  };
+
   const handleDryRun = async (tc) => {
     if (!labId || !challenge?.id) return;
     if (dryRunPayloadSources.length === 0) {
@@ -592,24 +696,40 @@ export default function TestcasesPanel({
     }
     if (structureDirty) setWarnStructure(true);
     setRunningId(tc.id);
-    setDryRunResult(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases/dry-run`,
-        {
-          method: 'POST',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            referenceSources: dryRunPayloadSources,
-            testcase: normalizeTestcaseForApi(tc),
-          }),
-        },
-      );
-      if (!res.ok) throw new Error(await readApiErrorMessage(res));
-      const data = await res.json();
-      setDryRunResult({ testcaseId: tc.id, data });
+      const data = await runDryRunForTestcase(tc);
+      setDryRunResults((prev) => ({ ...prev, [tc.id]: data }));
     } catch (e) {
       onToast?.({ type: 'error', message: e.message || 'Dry-run failed' });
+    } finally {
+      setRunningId(null);
+    }
+  };
+
+  const handleRunAll = async () => {
+    if (!labId || !challenge?.id || testcases.length === 0) return;
+    if (dryRunPayloadSources.length === 0) {
+      onToast?.({ type: 'error', message: 'Add at least one reference Java file before running.' });
+      return;
+    }
+    if (structureDirty) setWarnStructure(true);
+    setRunningId('__batch__');
+    const nextResults = { ...dryRunResults };
+    let failedCount = 0;
+    try {
+      for (const tc of testcases) {
+        setRunningId(tc.id);
+        try {
+          nextResults[tc.id] = await runDryRunForTestcase(tc);
+        } catch (e) {
+          failedCount += 1;
+          onToast?.({ type: 'error', message: `${tc.name}: ${e.message || 'Dry-run failed'}` });
+        }
+      }
+      setDryRunResults(nextResults);
+      if (failedCount === 0) {
+        onToast?.({ type: 'success', message: `Ran ${testcases.length} testcase${testcases.length === 1 ? '' : 's'}` });
+      }
     } finally {
       setRunningId(null);
     }
@@ -622,20 +742,24 @@ export default function TestcasesPanel({
     if (selectedId === id) {
       const fallback = next[Math.min(idx, next.length - 1)];
       setSelectedId(fallback?.id ?? null);
-      setDryRunResult(null);
     }
+    setDryRunResults((prev) => {
+      if (!prev[id]) return prev;
+      const nextResults = { ...prev };
+      delete nextResults[id];
+      return nextResults;
+    });
   };
 
   const handleAddTestcase = () => {
     const tc = emptyTestcase(testcases.length);
     setTestcases([...testcases, tc]);
     setSelectedId(tc.id);
-    setDryRunResult(null);
   };
 
   if (!challenge) {
     return (
-      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
         Select a problem from the structure sidebar.
       </div>
     );
@@ -644,13 +768,13 @@ export default function TestcasesPanel({
   return (
     <div className="space-y-4 pb-4">
       {warnStructure && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        <div className="rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-warning-text">
           Lab structure has unsaved changes. Save structure first so new methods and fields can be referenced.
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#0f1419]">
-        <div className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+      <div className="rounded-xl border border-border bg-surface p-4 dark:border-border">
+        <div className="mb-3 text-sm font-medium text-foreground-secondary">
           Reference Java (dry-run)
         </div>
         <ReferenceJavaFiles
@@ -660,47 +784,76 @@ export default function TestcasesPanel({
         />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#0f1419]">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+      <div className="rounded-xl bg-surface">
+        <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <FlaskConical className="h-4 w-4 text-emerald-400" />
-            <span className="font-medium text-gray-800 dark:text-gray-100">Operational Testcases</span>
+            <FlaskConical className="h-4 w-4 text-chart-green" />
+            <span className="font-medium text-foreground">Operational Testcases</span>
           </div>
-          <button
-            type="button"
-            onClick={handleAddTestcase}
-            className="inline-flex items-center gap-1 text-sm text-purple-400 transition-colors hover:text-purple-300"
-          >
-            <Plus className="h-4 w-4" /> Add testcase
-          </button>
+          <div className="flex items-center gap-2">
+            {testcases.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRunAll}
+                disabled={!!runningId}
+                className="inline-flex items-center gap-1 rounded-lg bg-surface-secondary px-2.5 py-1.5 text-xs font-medium text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground disabled:opacity-50"
+              >
+                {runningAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                Run all
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleAddTestcase}
+              className="inline-flex items-center gap-1 text-sm text-primary-text transition-colors hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" /> Add testcase
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : testcases.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-500">No testcases yet.</p>
+          <p className="px-4 py-8 text-center text-sm text-foreground-secondary">No testcases yet.</p>
         ) : (
           <div className="grid min-h-[22rem] lg:grid-cols-[minmax(200px,260px)_1fr]">
-            <aside className="border-b border-gray-200 p-2 dark:border-gray-800 lg:border-b-0 lg:border-r">
-              <ul className="space-y-1">
+            <aside className="border-b border-border-subtle p-2 lg:border-b-0 lg:border-r lg:border-border-subtle">
+              {(dryRunSummary.pass > 0 || dryRunSummary.fail > 0) && (
+                <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 px-2 text-[11px] text-foreground-muted">
+                  {dryRunSummary.pass > 0 && (
+                    <span className="text-success-text">{dryRunSummary.pass} passed</span>
+                  )}
+                  {dryRunSummary.fail > 0 && (
+                    <span className="text-error-text">{dryRunSummary.fail} failed</span>
+                  )}
+                  {dryRunSummary.notRun > 0 && (
+                    <span>{dryRunSummary.notRun} not run</span>
+                  )}
+                </div>
+              )}
+              <ul className="scrollbar-themed max-h-[min(70vh,42rem)] space-y-1 overflow-y-auto">
                 {testcases.map((tc) => {
                   const isSelected = selectedId === tc.id;
+                  const tcResult = dryRunResults[tc.id];
+                  const isRunning = runningId === tc.id;
                   return (
                     <li key={tc.id}>
                       <button
                         type="button"
                         onClick={() => selectTestcase(tc.id)}
-                        className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-200 ease-out ${
+                        className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                           isSelected
-                            ? 'border border-purple-500/40 bg-purple-500/15 text-gray-100 shadow-sm'
-                            : 'border border-transparent text-gray-400 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800/60 dark:hover:text-gray-200'
+                            ? 'bg-primary-light text-foreground'
+                            : 'text-foreground-secondary hover:bg-surface-secondary hover:text-foreground'
                         }`}
                       >
+                        <DryRunStatusIcon result={tcResult} running={isRunning} />
                         <span className="min-w-0 flex-1 truncate font-medium">{tc.name}</span>
                         {tc.hidden && (
-                          <span className="shrink-0 rounded bg-gray-600/80 px-1.5 text-[10px] uppercase tracking-wide">
+                          <span className="shrink-0 rounded bg-foreground-muted/80 px-1.5 text-[10px] uppercase tracking-wide text-foreground">
                             hidden
                           </span>
                         )}
@@ -714,27 +867,27 @@ export default function TestcasesPanel({
             <div className="flex max-h-[min(70vh,42rem)] flex-col p-4">
               {selectedTestcase ? (
                 <div key={selectedTestcase.id} className="flex min-h-0 flex-1 flex-col animate-panel-in">
-                  <div className="shrink-0 space-y-3 border-b border-gray-200 pb-3 dark:border-gray-800">
+                  <div className="shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
                           Name
                         </label>
                         <input
                           type="text"
                           value={selectedTestcase.name ?? ''}
                           onChange={(e) => updateTestcase(selectedTestcase.id, { name: e.target.value })}
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 outline-none ring-purple-500/0 transition-shadow focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 dark:border-gray-700 dark:bg-[#0d1117] dark:text-gray-100"
+                          className="mt-1 w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm font-medium text-foreground outline-none ring-primary/0 transition-shadow focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                           placeholder="Testcase name"
                         />
-                        <p className="mt-1 text-xs text-gray-500">{selectedTestcase.testcaseType}</p>
+                        <p className="mt-1 text-xs text-foreground-muted">{selectedTestcase.testcaseType}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1 pt-4">
                         <button
                           type="button"
                           disabled={runningId === selectedTestcase.id}
                           onClick={() => handleDryRun(selectedTestcase)}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-success-hover disabled:opacity-50"
                           title="Run dry-run"
                         >
                           {runningId === selectedTestcase.id
@@ -745,7 +898,7 @@ export default function TestcasesPanel({
                         <button
                           type="button"
                           onClick={() => handleDelete(selectedTestcase.id)}
-                          className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                          className="rounded-lg p-2 text-foreground-muted transition-colors hover:bg-error-bg hover:text-error"
                           title="Delete testcase"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -753,8 +906,8 @@ export default function TestcasesPanel({
                       </div>
                     </div>
 
-                    {dryRunResult?.testcaseId === selectedTestcase.id && (
-                      <DryRunResultCard result={dryRunResult.data} />
+                    {selectedDryRunResult && (
+                      <DryRunResultCard result={selectedDryRunResult} />
                     )}
                   </div>
 
@@ -767,7 +920,7 @@ export default function TestcasesPanel({
                   </div>
                 </div>
               ) : (
-                <div className="flex h-full min-h-[16rem] items-center justify-center text-sm text-gray-500">
+                <div className="flex h-full min-h-[16rem] items-center justify-center text-sm text-foreground-secondary">
                   Select a testcase to edit
                 </div>
               )}
@@ -781,7 +934,7 @@ export default function TestcasesPanel({
           type="button"
           disabled={!isDirty || saving}
           onClick={handleSave}
-          className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-success px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-success-hover disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Save Testcases

@@ -67,24 +67,24 @@ function FileChip({ file, onRemove }) {
 
   return (
     <div
-      className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700/80 dark:bg-[#161b22]"
+      className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-2 /80"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/15">
-        <FileCode2 className="h-4 w-4 text-emerald-400" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-chart-green/15">
+        <FileCode2 className="h-4 w-4 text-chart-green" />
       </div>
       <div className="min-w-0 flex-1 text-left">
-        <div className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+        <div className="truncate text-sm font-medium text-foreground">
           {file.className}
         </div>
-        <div className="truncate text-xs text-gray-500" title={label}>
+        <div className="truncate text-xs text-foreground-muted" title={label}>
           {showPath ? label : `${file.className}.java`}
         </div>
       </div>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onRemove(file); }}
-        className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-400 dark:hover:bg-gray-800"
+        className="shrink-0 rounded p-1 text-foreground-muted transition-colors hover:bg-surface-secondary hover:text-error"
         title="Remove file"
       >
         <X className="h-4 w-4" />
@@ -180,8 +180,8 @@ export default function ReferenceJavaFiles({ sources, onChange, onError }) {
 
   const dropZoneClass = `rounded-xl border-2 border-dashed transition-all duration-200 ${
     isDragging
-      ? 'border-purple-400 bg-purple-500/10 scale-[1.01]'
-      : 'border-gray-300 bg-gray-50 hover:border-purple-400/60 hover:bg-purple-500/5 dark:border-gray-700 dark:bg-[#0d1117] dark:hover:border-purple-500/40'
+      ? 'border-primary bg-primary-light0/10 scale-[1.01]'
+      : 'border-border bg-surface-secondary hover:border-primary/60 hover:bg-primary-light'
   }`;
 
   return (
@@ -227,17 +227,17 @@ export default function ReferenceJavaFiles({ sources, onChange, onError }) {
 
       {!hasFiles ? (
         <div className="px-4 py-8 text-center">
-          <Upload className={`mx-auto mb-3 h-8 w-8 transition-colors ${isDragging ? 'text-purple-400' : 'text-gray-400'}`} />
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+          <Upload className={`mx-auto mb-3 h-8 w-8 transition-colors ${isDragging ? 'text-primary' : 'text-foreground-muted'}`} />
+          <p className="text-sm font-medium text-foreground-secondary">
             Drop a challenge folder or Java files here
           </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            All <code className="text-purple-400">.java</code> files inside the folder are loaded automatically
+          <p className="mt-1 text-xs text-foreground-secondary">
+            All <code className="text-primary">.java</code> files inside the folder are loaded automatically
           </p>
           <button
             type="button"
             onClick={openFolderPicker}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-purple-600/20 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-600/30"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary/20 px-3 py-1.5 text-xs font-medium text-primary-text transition-colors hover:bg-primary/30"
           >
             <FolderOpen className="h-3.5 w-3.5" />
             Choose folder
@@ -245,7 +245,7 @@ export default function ReferenceJavaFiles({ sources, onChange, onError }) {
           <button
             type="button"
             onClick={openFilePicker}
-            className="ml-2 mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-gray-500 transition-colors hover:text-purple-400"
+            className="ml-2 mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-foreground-muted transition-colors hover:text-primary"
           >
             or pick .java files
           </button>
@@ -263,14 +263,14 @@ export default function ReferenceJavaFiles({ sources, onChange, onError }) {
             <button
               type="button"
               onClick={openFolderPicker}
-              className="flex min-h-[3.25rem] items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500 transition-colors hover:border-purple-400/50 hover:bg-purple-500/5 hover:text-purple-400 dark:border-gray-600 dark:hover:border-purple-500/40"
+              className="flex min-h-[3.25rem] items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-foreground-muted transition-colors hover:border-primary/50 hover:bg-primary-light hover:text-primary"
             >
               <Plus className="h-4 w-4" />
               Add folder / files
             </button>
           </div>
-          <p className="mt-3 text-center text-[11px] text-gray-500 dark:text-gray-500">
-            Drop a folder to load every <code className="text-purple-400/80">.java</code> file, or click to choose
+          <p className="mt-3 text-center text-[11px] text-foreground-secondary dark:text-foreground-secondary">
+            Drop a folder to load every <code className="text-primary/80">.java</code> file, or click to choose
           </p>
         </div>
       )}

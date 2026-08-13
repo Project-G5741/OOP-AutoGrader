@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import './LoginUI.css';
-import { Moon, Sun, BarChart3, Eye, EyeOff, User, Lock } from 'lucide-react';
+import { Eye, EyeOff, User, Lock } from 'lucide-react';
+import AppLogo from '../components/ui/AppLogo';
+import { brand } from '../theme/brand';
+import ThemeToggle from '../components/ThemeToggle';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
 import { getLoginFieldErrors, isFormValid } from '../utils/validation';
@@ -20,7 +23,6 @@ function decodeJwtPayload(token) {
 }
 
 export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage }) {
-  const [isDark, setIsDark] = useState(true);
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -198,55 +200,26 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
   }
 
   return (
-    <div className={isDark ? 'login-root dark' : 'login-root'}>
+    <div className="login-root">
       <div className="login-bg">
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="theme-toggle"
-          type="button"
-        >
-          <div className="theme-left">
-            {isDark ? <Moon className="icon" /> : <Sun className="icon" />}
-            <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
-          </div>
-        </button>
+        <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">
           <div className="logo-title">
-            <div className="logo-box">
-              <BarChart3 className="logo-icon" />
-            </div>
-            <h1 className="main-title">Lab Management System</h1>
+            <AppLogo variant="login" />
+            <h1 className="main-title">{brand.loginTitle}</h1>
             <p className="subtitle">Sign in to your account</p>
           </div>
 
           <div className="card">
             {loginMessage && (
-              <p
-                className="info-text"
-                style={{
-                  marginBottom: '1rem',
-                  padding: '0.75rem',
-                  borderRadius: '0.5rem',
-                  background: 'rgba(34, 197, 94, 0.12)',
-                  color: '#86efac',
-                }}
-              >
+              <p className="info-text login-message">
                 {loginMessage}
                 {onDismissLoginMessage && (
                   <button
                     type="button"
                     onClick={onDismissLoginMessage}
-                    style={{
-                      display: 'block',
-                      marginTop: '0.5rem',
-                      background: 'none',
-                      border: 'none',
-                      color: 'inherit',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
-                    }}
+                    className="dismiss-btn"
                   >
                     Dismiss
                   </button>
@@ -268,9 +241,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                   />
                 </div>
                 {fieldErrors.irn && (
-                  <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                    {fieldErrors.irn}
-                  </p>
+                  <p className="error-text">{fieldErrors.irn}</p>
                 )}
               </div>
 
@@ -296,14 +267,12 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                   </button>
                 </div>
                 {fieldErrors.password && (
-                  <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                    {fieldErrors.password}
-                  </p>
+                  <p className="error-text">{fieldErrors.password}</p>
                 )}
               </div>
 
               {formError && (
-                <p className="info-text" style={{ color: '#f87171', marginBottom: '0.75rem' }}>
+                <p className="error-text" style={{ marginBottom: '0.75rem' }}>
                   {formError}
                 </p>
               )}

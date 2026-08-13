@@ -7,7 +7,7 @@ function ScopeSelect({ value, options, onChange }) {
     <select
       value={value ?? ''}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
     >
       <option value="">Scope</option>
       {options.map((opt) => (
@@ -20,16 +20,16 @@ function ScopeSelect({ value, options, onChange }) {
 function Section({ title, count, children, defaultOpen = true }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0f1419]">
+    <div className="rounded-xl border border-border bg-surface">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left font-medium text-gray-900 dark:text-gray-100"
+        className="flex w-full items-center justify-between px-4 py-3 text-left font-medium text-foreground"
       >
         <span>{title}{count != null ? ` (${count})` : ''}</span>
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
       </button>
-      {open && <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-800">{children}</div>}
+      {open && <div className="border-t border-border px-4 py-4 dark:border-border">{children}</div>}
     </div>
   );
 }
@@ -37,7 +37,7 @@ function Section({ title, count, children, defaultOpen = true }) {
 export default function ClassDetailPanel({ classData, scopeOptions, declaringTypeOptions, onChange }) {
   if (!classData) {
     return (
-      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
         Select a class from the structure sidebar to edit its details.
       </div>
     );
@@ -54,26 +54,26 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
       <Section title="Class Definition">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Class Name</label>
+            <label className="mb-1 block text-xs text-foreground-muted">Class Name</label>
             <input
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
               value={classData.name}
               onChange={(e) => patch({ name: e.target.value })}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Scope</label>
+            <label className="mb-1 block text-xs text-foreground-muted">Scope</label>
             <ScopeSelect value={classData.scopeId} options={scopeOptions} onChange={(scopeId) => patch({ scopeId })} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-gray-500">Declaring Type</label>
+            <label className="mb-1 block text-xs text-foreground-muted">Declaring Type</label>
             <ScopeSelect
               value={classData.declaringTypeId}
               options={declaringTypeOptions}
               onChange={(declaringTypeId) => patch({ declaringTypeId })}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <label className="flex items-center gap-2 text-sm text-foreground-secondary">
             <input type="checkbox" checked={classData.isAbstract} onChange={(e) => patch({ isAbstract: e.target.checked })} />
             Abstract
           </label>
@@ -85,7 +85,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
           {(classData.fields || []).map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
               <input
-                className="col-span-6 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="col-span-6 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 placeholder="Field name"
                 value={field.name}
                 onChange={(e) => {
@@ -95,7 +95,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                 }}
               />
               <input
-                className="col-span-3 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="col-span-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 placeholder="type"
                 value={field.dataType}
                 onChange={(e) => {
@@ -117,7 +117,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
               </div>
               <button
                 type="button"
-                className="col-span-1 text-gray-400 hover:text-red-400"
+                className="col-span-1 text-foreground-muted hover:text-error"
                 onClick={() => updateFields(classData.fields.filter((_, i) => i !== index))}
               >
                 <Trash2 className="h-4 w-4" />
@@ -130,7 +130,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
               ...(classData.fields || []),
               { id: crypto.randomUUID(), name: '', dataType: '', scopeId: scopeOptions[0]?.id },
             ])}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-purple-500/50 py-3 text-sm text-purple-500 hover:bg-purple-500/5"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"
           >
             <Plus className="h-4 w-4" /> Add field
           </button>
@@ -140,10 +140,10 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
       <Section title="Methods" count={classData.methods?.length || 0}>
         <div className="space-y-4">
           {(classData.methods || []).map((method, index) => (
-            <div key={method.id} className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+            <div key={method.id} className="rounded-lg border border-border p-3 dark:border-border">
               <div className="grid gap-2 md:grid-cols-2">
                 <input
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                   placeholder="Method name"
                   value={method.name}
                   onChange={(e) => {
@@ -153,7 +153,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                   }}
                 />
                 <input
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                   placeholder="Return type"
                   value={method.returnType}
                   onChange={(e) => {
@@ -201,7 +201,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                 </label>
                 <button
                   type="button"
-                  className="col-span-1 text-gray-400 hover:text-red-400"
+                  className="col-span-1 text-foreground-muted hover:text-error"
                   onClick={() => updateMethods(classData.methods.filter((_, i) => i !== index))}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -231,7 +231,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                 parameters: [],
               },
             ])}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-purple-500/50 py-3 text-sm text-purple-500 hover:bg-purple-500/5"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"
           >
             <Plus className="h-4 w-4" /> Add method
           </button>
@@ -241,10 +241,10 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
       <Section title="Constructors" count={classData.constructors?.length || 0}>
         <div className="space-y-4">
           {(classData.constructors || []).map((ctor, index) => (
-            <div key={ctor.id} className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+            <div key={ctor.id} className="rounded-lg border border-border p-3 dark:border-border">
               <div className="grid grid-cols-12 gap-2 items-center">
                 <input
-                  className="col-span-5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="col-span-5 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                   placeholder="Constructor name"
                   value={ctor.name}
                   onChange={(e) => {
@@ -278,7 +278,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                 </label>
                 <button
                   type="button"
-                  className="col-span-1 text-gray-400 hover:text-red-400"
+                  className="col-span-1 text-foreground-muted hover:text-error"
                   onClick={() => updateConstructors(classData.constructors.filter((_, i) => i !== index))}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -306,7 +306,7 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
                 parameters: [],
               },
             ])}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-purple-500/50 py-3 text-sm text-purple-500 hover:bg-purple-500/5"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"
           >
             <Plus className="h-4 w-4" /> Add constructor
           </button>

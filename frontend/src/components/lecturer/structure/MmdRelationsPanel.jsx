@@ -6,7 +6,7 @@ function ClassSelect({ value, options, onChange, placeholder }) {
     <select
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value || null)}
-      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
     >
       <option value="">{placeholder}</option>
       {options.map((cls) => (
@@ -19,7 +19,7 @@ function ClassSelect({ value, options, onChange, placeholder }) {
 export default function MmdRelationsPanel({ challenge, relationTypeOptions, onChange }) {
   if (!challenge) {
     return (
-      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
         Select a problem from the structure sidebar to edit MMD relationships.
       </div>
     );
@@ -53,30 +53,30 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
 
   return (
     <div className="space-y-4 pb-4">
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#0f1419]">
-        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+      <div className="rounded-xl border border-border bg-surface dark:border-border">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 dark:border-border">
           <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-blue-400" />
+            <GitBranch className="h-4 w-4 text-chart-blue" />
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-gray-100">MMD Relationships</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <h3 className="font-medium text-foreground">MMD Relationships</h3>
+              <p className="text-xs text-foreground-secondary">
                 {challenge.name} — define class-to-class relations graded from the student MMD diagram.
               </p>
             </div>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <label className="flex shrink-0 items-center gap-2 text-sm text-foreground-secondary">
             <input
               type="checkbox"
               checked={hasMmd}
               onChange={(e) => setHasMmd(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 dark:border-gray-700"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
             Requires MMD diagram
           </label>
         </div>
 
         {!hasMmd && (
-          <div className="mx-4 mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <div className="mx-4 mt-4 rounded-lg border border-warning bg-warning-bg px-3 py-2 text-sm text-warning-text">
             This problem doesn't require an MMD diagram. The MMD pillar won't be graded — the total score
             is redistributed across the remaining pillars. Any relations defined below are saved but not scored.
           </div>
@@ -84,13 +84,13 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
 
         <div className="space-y-3 px-4 py-4">
           {classes.length < 2 && (
-            <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <p className="rounded-lg border border-warning bg-warning-bg px-3 py-2 text-sm text-warning-text">
               Add at least two classes in this problem before defining relationships.
             </p>
           )}
 
           {relations.length === 0 && classes.length >= 2 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-foreground-secondary">
               No relationships yet. Class declarations are graded separately; add relations here for inheritance, composition, association, and other MMD arrows.
             </p>
           )}
@@ -98,10 +98,10 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
           {relations.map((relation, index) => (
             <div
               key={relation.id}
-              className="grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-800 md:grid-cols-[1fr_1fr_1fr_auto]"
+              className="grid gap-3 rounded-lg border border-border p-3 dark:border-border md:grid-cols-[1fr_1fr_1fr_auto]"
             >
               <div>
-                <label className="mb-1 block text-xs text-gray-500">Source class</label>
+                <label className="mb-1 block text-xs text-foreground-muted">Source class</label>
                 <ClassSelect
                   value={relation.sourceClassId}
                   options={classes}
@@ -110,11 +110,11 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-gray-500">Relation type</label>
+                <label className="mb-1 block text-xs text-foreground-muted">Relation type</label>
                 <select
                   value={relation.relationTypeId ?? ''}
                   onChange={(e) => updateRelation(relation.id, { relationTypeId: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 >
                   <option value="">Type</option>
                   {relationTypeOptions.map((opt) => (
@@ -123,7 +123,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-gray-500">Target class</label>
+                <label className="mb-1 block text-xs text-foreground-muted">Target class</label>
                 <ClassSelect
                   value={relation.targetClassId}
                   options={classes.filter((cls) => cls.id !== relation.sourceClassId)}
@@ -135,7 +135,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
                 <button
                   type="button"
                   onClick={() => removeRelation(relation.id)}
-                  className="rounded-lg border border-gray-300 p-2 text-gray-400 hover:border-red-400 hover:text-red-400 dark:border-gray-700"
+                  className="rounded-lg border border-border p-2 text-foreground-muted hover:border-error hover:text-error"
                   aria-label={`Remove relation ${index + 1}`}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -148,7 +148,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
             type="button"
             disabled={classes.length < 2 || relationTypeOptions.length === 0}
             onClick={addRelation}
-            className="inline-flex items-center gap-2 rounded-lg border border-dashed border-purple-400 px-3 py-2 text-sm text-purple-500 hover:bg-purple-500/5 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border dark:border-surface-tertiary px-3 py-2 text-sm text-primary-text transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" /> Add relationship
           </button>

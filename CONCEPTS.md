@@ -75,3 +75,11 @@ The unique set of enrolled/active students for a lab's term/course. Challenge an
 
 ### Dual-role user
 A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.
+
+## Frontend theme
+
+### Design token
+A named semantic color role (primary, secondary, success, surface, etc.) whose hex value is defined once in a central theme config and exposed through CSS custom properties and Tailwind semantic classes. Components reference token names, not raw palette utilities or one-off hex literals.
+
+### Theme preference
+The user's light or dark mode choice. First visit follows OS `prefers-color-scheme`; an explicit toggle persists in `localStorage` and overrides system preference on later visits. `ThemeContext` applies the `dark` class on `<html>` for the whole app including auth screens.

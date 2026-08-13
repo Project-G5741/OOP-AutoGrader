@@ -494,7 +494,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
         <div className="w-full">
           {labsError && (
-            <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-200">
+            <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
               {labsError}
             </div>
           )}

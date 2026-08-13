@@ -14,7 +14,7 @@ export default function AppShell({
   hideUserMenu = false,
 }) {
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-slate-900 transition-colors dark:bg-[#0A0A0F] dark:text-slate-100 overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground transition-colors overflow-x-hidden">
       <div className="w-full px-0 py-0">
         <div className="w-full max-w-full overflow-x-hidden">
           <Header

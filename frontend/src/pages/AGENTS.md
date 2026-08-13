@@ -93,6 +93,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 
 - Pages compose `AppShell` (layout), child components, and local state
 - `LoginUI.jsx` shows field validation after a Sign In attempt or after a field loses focus (`touchedFields`); auth API failures use `readFriendlyAuthError` from `frontend/src/utils/apiError.js` (never raw backend `detail` text)
+- `ForgotPasswordUI.jsx` and `ResetPasswordUI.jsx` use the same touched/submit gating as `LoginUI.jsx` for inline field errors
 - `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`)
 - When replacing mock data, update the relevant page and its child component docs
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`

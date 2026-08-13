@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { Moon, Sun, BarChart3, Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft } from 'lucide-react';
+import AppLogo from '../components/ui/AppLogo';
 import './LoginUI.css';
+import ThemeToggle from '../components/ThemeToggle';
 import { validateEmail } from '../utils/validation';
 import { readFriendlyAuthError } from '../utils/apiError';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
-  const [isDark, setIsDark] = useState(true);
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-  const emailError = validateEmail(email);
-  const canSubmit = !emailError;
+  const rawEmailError = validateEmail(email);
+  const emailError = hasAttemptedSubmit || emailTouched ? rawEmailError : '';
+  const canSubmit = !rawEmailError;
 
   const handleEmailChange = (value) => {
     setEmail(value);
@@ -22,9 +26,11 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    setEmailTouched(true);
     setError('');
 
-    if (emailError) {
+    if (rawEmailError) {
       return;
     }
 
@@ -50,24 +56,13 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
   };
 
   return (
-    <div className={isDark ? 'login-root dark' : 'login-root'}>
+    <div className="login-root">
       <div className="login-bg">
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="theme-toggle"
-          type="button"
-        >
-          <div className="theme-left">
-            {isDark ? <Moon className="icon" /> : <Sun className="icon" />}
-            <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
-          </div>
-        </button>
+        <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">
           <div className="logo-title">
-            <div className="logo-box">
-              <BarChart3 className="logo-icon" />
-            </div>
+            <AppLogo variant="login" />
             <h1 className="main-title">Forgot password</h1>
             <p className="subtitle">
               {sent
@@ -97,20 +92,19 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
                       type="email"
                       value={email}
                       onChange={(e) => handleEmailChange(e.target.value)}
+                      onBlur={() => setEmailTouched(true)}
                       placeholder="you@eiu.edu.vn"
                       className={`input-field${emailError ? ' input-error' : ''}`}
                       autoComplete="email"
                     />
                   </div>
                   {emailError && (
-                    <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                      {emailError}
-                    </p>
+                    <p className="error-text">{emailError}</p>
                   )}
                 </div>
 
                 {error && (
-                  <p className="info-text" style={{ color: '#f87171', marginBottom: '0.75rem' }}>
+                  <p className="error-text" style={{ marginBottom: '0.75rem' }}>
                     {error}
                   </p>
                 )}
@@ -121,8 +115,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
 
                 <button
                   type="button"
-                  className="forgot-link"
-                  style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  className="forgot-link back-link"
                   onClick={onBack}
                 >
                   <ArrowLeft className="toggle-icon" style={{ width: 16, height: 16 }} />

@@ -100,4 +100,5 @@ Assertion rows are referenced by graded submissions. Replacing them on every sav
 ## Related Issues
 
 - [Operational testcase grading patterns](../architecture-patterns/operational-testcase-grading.md) — grading stack reused for dry-run; natural keys on assertion ids
+- [Duplicate key on submission result re-upload](../database-issues/submission-result-reupload-duplicate-key.md) — parallel upsert-by-natural-key pattern in submission persistence
 - Plan: `docs/plans/2026-08-12-005-feat-lecturer-operational-testcase-ui-plan.md` (R1–R5, R16)

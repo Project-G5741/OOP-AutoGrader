@@ -5,7 +5,6 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   "901862485743-on3umlivpedse7hosvjtjqdpqr57s69i.apps.googleusercontent.com";
-import { ThemeProvider } from "./context/ThemeContext";
 import Login from "./pages/Login";
 import ResetPasswordUI from "./pages/ResetPasswordUI";
 import LecturerDashboard from "./pages/LecturerDashboard";
@@ -61,17 +60,14 @@ export default function App() {
   if (resetToken && !user) {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <ThemeProvider>
-          <ResetPasswordUI token={resetToken} onComplete={handleResetComplete} />
-        </ThemeProvider>
+        <ResetPasswordUI token={resetToken} onComplete={handleResetComplete} />
       </GoogleOAuthProvider>
     );
   }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <ThemeProvider>
-        <Routes>
+      <Routes>
           <Route
             path={ROUTES.login}
             element={
@@ -156,7 +152,6 @@ export default function App() {
             }
           />
         </Routes>
-      </ThemeProvider>
     </GoogleOAuthProvider>
   );
 }

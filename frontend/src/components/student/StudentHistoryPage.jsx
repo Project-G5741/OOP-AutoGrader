@@ -29,10 +29,10 @@ function formatScore(value) {
 
 function StatusBadge({ status }) {
   const colors = {
-    passed: 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-500/30',
-    partial: 'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-500/30',
-    failed: 'bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-500/30',
-    unknown: 'bg-gray-100 text-gray-800 border border-gray-200 dark:bg-gray-900/30 dark:text-gray-300 dark:border-gray-500/30',
+    passed: 'bg-success-bg text-success-text',
+    partial: 'bg-warning-bg text-warning-text',
+    failed: 'bg-error-bg text-error-text',
+    unknown: 'bg-surface-secondary text-foreground-secondary',
   };
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${colors[status] || colors.unknown}`}>
@@ -43,30 +43,30 @@ function StatusBadge({ status }) {
 
 function ScorePill({ score }) {
   if (score === null || score === undefined) {
-    return <span className="text-gray-400 dark:text-gray-600 text-sm">--</span>;
+    return <span className="text-foreground-disabled text-sm">--</span>;
   }
   const numericScore = Number(score);
   const color = numericScore >= 90 
-    ? 'text-green-600 dark:text-green-300' 
+    ? 'text-success-text' 
     : numericScore >= 75 
-      ? 'text-blue-600 dark:text-blue-300' 
+      ? 'text-info-text' 
       : numericScore >= 60 
-        ? 'text-yellow-600 dark:text-yellow-300' 
-        : 'text-red-600 dark:text-red-300';
+        ? 'text-warning-text' 
+        : 'text-error-text';
   return <span className={`font-semibold ${color}`}>{formatScore(score)}</span>;
 }
 
 function ScoreBar({ score }) {
   if (score === null || score === undefined) return null;
   const color = score >= 90 
-    ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+    ? 'bg-gradient-to-r from-success to-success-hover' 
     : score >= 75 
-      ? 'bg-gradient-to-r from-blue-500 to-sky-500' 
+      ? 'bg-gradient-to-r from-info to-info-hover' 
       : score >= 60 
-        ? 'bg-gradient-to-r from-yellow-500 to-amber-500' 
-        : 'bg-gradient-to-r from-red-500 to-rose-500';
+        ? 'bg-gradient-to-r from-warning to-warning-hover' 
+        : 'bg-gradient-to-r from-error to-error-hover';
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-gray-700">
+    <div className="h-2 overflow-hidden rounded-full bg-surface-tertiary">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
     </div>
   );
@@ -222,29 +222,29 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
       label: 'Labs Attempted', 
       displayValue: formatStatValue(stats.labsAttempted ?? 0),
       icon: <Award className="w-4 h-4" />,
-      tone: 'text-purple-400', 
-      bg: 'bg-purple-900/30' 
+      tone: 'text-primary', 
+      bg: 'bg-primary-light' 
     },
     { 
       label: 'Total Submissions', 
       displayValue: formatStatValue(stats.totalSubmissions ?? 0),
       icon: <Clock className="w-4 h-4" />,
-      tone: 'text-blue-400', 
-      bg: 'bg-blue-900/30' 
+      tone: 'text-info', 
+      bg: 'bg-info-bg' 
     },
     { 
       label: 'Average Score', 
       displayValue: formatStatValue(stats.averageScore),
       icon: <TrendingUp className="w-4 h-4" />,
-      tone: 'text-green-400', 
-      bg: 'bg-green-900/30' 
+      tone: 'text-success', 
+      bg: 'bg-success-bg' 
     },
     { 
       label: 'Best Score', 
       displayValue: formatStatValue(stats.bestScore),
       icon: <Award className="w-4 h-4" />,
-      tone: 'text-yellow-400', 
-      bg: 'bg-yellow-900/30' 
+      tone: 'text-warning', 
+      bg: 'bg-warning-bg' 
     },
   ];
 
@@ -253,18 +253,18 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
       {/* ===== Header ===== */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-purple-600 text-white">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-white">
             <History className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Submission History</h1>
+            <h1 className="text-xl font-semibold text-foreground">Submission History</h1>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={selectedLab}
             onChange={(e) => handleFilterChange(e.target.value)}
-            className="rounded-2xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="rounded-2xl border border-border bg-surface px-4 py-2 text-sm text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {labOptions.map((labName) => (
               <option key={labName} value={labName}>{labName}</option>
@@ -272,10 +272,10 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
           </select>
           <button
             onClick={handleRefresh}
-            className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+            className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-foreground-muted ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -284,16 +284,16 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-5 animate-pulse">
-              <div className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="mt-4 h-9 w-16 rounded bg-gray-200 dark:bg-gray-700" />
+            <div key={index} className="rounded-3xl border border-border bg-surface p-5 animate-pulse">
+              <div className="h-4 w-24 rounded bg-surface-tertiary" />
+              <div className="mt-4 h-9 w-16 rounded bg-surface-tertiary" />
             </div>
           ))
         ) : (
           statCards.map((card) => (
-            <div key={card.label} className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-5">
+            <div key={card.label} className="rounded-3xl border border-border bg-surface p-5">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{card.label}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-foreground-muted">{card.label}</p>
                 <div className={`rounded-2xl p-3 ${card.bg}`}>
                   {card.icon}
                 </div>
@@ -308,46 +308,46 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
       <div className="grid gap-6 xl:grid-cols-[0.6fr_1fr]">
         {loading ? (
           <>
-            <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6 animate-pulse">
-              <div className="h-4 w-40 rounded bg-gray-200 dark:bg-gray-700" />
+            <section className="rounded-3xl border border-border bg-surface p-6 animate-pulse">
+              <div className="h-4 w-40 rounded bg-surface-tertiary" />
               <div className="mt-6 space-y-4">
-                <div className="h-10 rounded bg-gray-200 dark:bg-gray-700" />
-                <div className="h-10 rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="h-10 rounded bg-surface-tertiary" />
+                <div className="h-10 rounded bg-surface-tertiary" />
               </div>
             </section>
-            <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6 animate-pulse">
-              <div className="h-4 w-32 rounded bg-gray-200 dark:bg-gray-700" />
-              <div className="mt-6 h-48 rounded bg-gray-200 dark:bg-gray-700" />
+            <section className="rounded-3xl border border-border bg-surface p-6 animate-pulse">
+              <div className="h-4 w-32 rounded bg-surface-tertiary" />
+              <div className="mt-6 h-48 rounded bg-surface-tertiary" />
             </section>
           </>
         ) : (
           <>
         {/* Labs Summary */}
-        <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
+        <section className="rounded-3xl border border-border bg-surface p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-muted">
             Performance by Lab
           </h2>
           {labsSummary.length === 0 ? (
-            <p className="mt-6 text-sm text-gray-400 dark:text-gray-600 text-center">No labs attempted yet</p>
+            <p className="mt-6 text-sm text-foreground-disabled text-center">No labs attempted yet</p>
           ) : (
             <div className="mt-6 space-y-4">
               {labsSummary.map((lab) => (
                 <div key={lab.id} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700 dark:text-gray-300">{lab.name}</span>
+                    <span className="text-foreground-secondary">{lab.name}</span>
                     {lab.bestScore !== null && lab.bestScore !== undefined ? (
                       <span className={`font-semibold ${
-                        lab.bestScore >= 90 ? 'text-green-600 dark:text-green-300' :
-                        lab.bestScore >= 75 ? 'text-blue-600 dark:text-blue-300' :
-                        lab.bestScore >= 60 ? 'text-yellow-600 dark:text-yellow-300' :
-                        'text-red-600 dark:text-red-300'
+                        lab.bestScore >= 90 ? 'text-success-text' :
+                        lab.bestScore >= 75 ? 'text-info-text' :
+                        lab.bestScore >= 60 ? 'text-warning-text' :
+                        'text-error-text'
                       }`}>{formatScore(lab.bestScore)}</span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-600">--</span>
+                      <span className="text-foreground-disabled">--</span>
                     )}
                   </div>
                   {lab.bestScore !== null && lab.bestScore !== undefined && <ScoreBar score={lab.bestScore} />}
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-foreground-muted">
                     {lab.attempts || 0} attempt{lab.attempts > 1 ? 's' : ''}
                     {lab.lastSubmittedAt && (
                       <> · Last: {new Date(lab.lastSubmittedAt).toLocaleDateString()}</>
@@ -360,23 +360,23 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
         </section>
 
         {/* Submissions Table */}
-        <section className="rounded-3xl border border-gray-200 bg-white dark:bg-[#1e2530] dark:border-gray-700 p-6 overflow-hidden">
+        <section className="rounded-3xl border border-border bg-surface p-6 overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-muted">
                 All Submissions
               </h2>
             </div>
           </div>
 
           {filteredSubmissions.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 dark:text-gray-600">
+            <div className="py-12 text-center text-foreground-disabled">
               <p>No submissions found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-3xl border border-gray-200 dark:border-gray-700">
+            <div className="overflow-x-auto rounded-3xl border border-border">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <thead className="bg-gray-50 dark:bg-[#151b24] text-gray-600 dark:text-gray-400">
+                <thead className="bg-surface-secondary bg-surface-secondary text-foreground-muted">
                   <tr>
                     <SortableTableHeader label="Lab" field="labName" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
                     <SortableTableHeader label="Attempt" field="attempt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
@@ -394,58 +394,58 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                     return (
                       <Fragment key={item.id}>
                         <tr
-                          className={`cursor-pointer border-b border-gray-100 dark:border-gray-800 transition-colors ${
-                            index % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-gray-50 dark:bg-[#151b24]/50'
-                          } hover:bg-gray-100 dark:hover:bg-[#1a1f2e]`}
+                          className={`cursor-pointer border-b border-border transition-colors ${
+                            index % 2 === 0 ? 'bg-surface' : 'bg-surface-secondary/50'
+                          } hover:bg-surface-secondary hover:bg-surface-tertiary`}
                           onClick={() => toggleRow(item.id)}
                         >
-                          <td className="px-4 py-4 text-gray-900 dark:text-gray-200">{item.lab?.name || 'Unknown Lab'}</td>
-                          <td className="px-4 py-4 text-gray-700 dark:text-gray-400">#{item.attemptNumber}</td>
+                          <td className="px-4 py-4 text-foreground">{item.lab?.name || 'Unknown Lab'}</td>
+                          <td className="px-4 py-4 text-foreground-secondary">#{item.attemptNumber}</td>
                           <td className="px-4 py-4">
                             <ScorePill score={item.score} />
                           </td>
-                          <td className="px-4 py-4 text-gray-700 dark:text-gray-400">
+                          <td className="px-4 py-4 text-foreground-secondary">
                             {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : '--'}
                           </td>
                           <td className="px-4 py-4">
                             <StatusBadge status={status} />
                           </td>
-                          <td className="px-4 py-4 text-gray-700 dark:text-gray-400">
+                          <td className="px-4 py-4 text-foreground-secondary">
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </td>
                         </tr>
 
                         {/* Expanded Details */}
                         {isExpanded && (
-                          <tr className="bg-gray-50 dark:bg-[#151b24]">
+                          <tr className="bg-surface-secondary bg-surface-secondary">
                             <td colSpan={6} className="px-4 py-4">
                               <div className="space-y-4">
                                 {/* Challenge Results */}
                                 {item.challengeResults && item.challengeResults.length > 0 && (
                                   <div>
-                                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Challenge Results</h4>
+                                    <h4 className="text-sm font-semibold text-foreground-secondary mb-2">Challenge Results</h4>
                                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                                       {item.challengeResults.map((cr, idx) => (
                                         <div 
                                           key={idx}
-                                          className={`p-3 rounded-lg border ${
+                                          className={`p-3 rounded-lg ${
                                             cr.isCorrect 
-                                              ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' 
-                                              : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                                              ? 'bg-success-bg' 
+                                              : 'bg-error-bg'
                                           }`}
                                         >
                                           <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            <span className="text-sm font-medium text-foreground-secondary">
                                               {cr.challengeName || `Challenge ${idx + 1}`}
                                             </span>
                                             {cr.isCorrect ? (
-                                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                              <CheckCircle2 className="w-4 h-4 text-success" />
                                             ) : (
-                                              <XCircle className="w-4 h-4 text-red-500" />
+                                              <XCircle className="w-4 h-4 text-error" />
                                             )}
                                           </div>
                                           {cr.score !== undefined && cr.score !== null && (
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="text-xs text-foreground-muted">
                                               Score: {formatScore(cr.score)}
                                             </span>
                                           )}
@@ -456,7 +456,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                                 )}
 
                                 {(!item.challengeResults || item.challengeResults.length === 0) && (
-                                  <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-4">
+                                  <p className="text-sm text-foreground-disabled text-center py-4">
                                     No detailed results available for this submission
                                   </p>
                                 )}

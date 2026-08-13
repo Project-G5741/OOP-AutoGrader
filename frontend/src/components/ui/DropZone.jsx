@@ -179,19 +179,21 @@ export default function DropZone({
   return (
     <div
       className={`
-        bg-white dark:bg-[#13131A]
+        bg-surface
         rounded-xl
         p-6
-        border-2
+        border
         border-dashed
+        border-border
+        dark:border-surface-tertiary
         shadow-sm
         dark:shadow-none
         transition-all
         duration-200
         ${
           isDragging
-            ? "border-purple-500 bg-purple-50 dark:bg-purple-900/10"
-            : "border-purple-500/30"
+            ? "bg-primary-light dark:border-primary-text"
+            : ""
         }
       `}
       onDragOver={(e) => {
@@ -212,26 +214,26 @@ export default function DropZone({
       }}
     >
       <div className="flex flex-col items-center justify-center py-8">
-        <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
-          <Upload className="w-8 h-8 text-purple-500" />
+        <div className="w-16 h-16 bg-primary-light rounded-full flex items-center justify-center mb-4">
+          <Upload className="w-8 h-8 text-primary" />
         </div>
 
-        <h3 className="text-gray-900 dark:text-white mb-2">
+        <h3 className="text-foreground mb-2">
           {title}
         </h3>
 
-        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
+        <p className="text-foreground-muted text-sm mb-4">
           {isUploading ? "Uploading..." : "or click to upload"}
         </p>
 
         {uploadError && (
-          <pre className="text-red-500 text-sm mb-4 max-w-full whitespace-pre-wrap text-left overflow-x-auto">
+          <pre className="text-error-text text-sm mb-4 max-w-full whitespace-pre-wrap text-left overflow-x-auto">
             {uploadError}
           </pre>
         )}
 
         <Button
-          className="bg-purple-600 hover:bg-purple-700 text-white"
+          className="bg-primary hover:bg-primary-hover text-white"
           onClick={() => inputRef.current?.click()}
           disabled={isUploading}
         >

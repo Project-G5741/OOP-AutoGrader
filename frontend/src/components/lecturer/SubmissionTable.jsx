@@ -2,7 +2,7 @@ import { Eye } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatText } from '../../utils/formatters';
 
-const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300';
+const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
 const ROSTER_COLUMNS = [
   { key: 'studentName', label: 'Student' },
@@ -28,10 +28,10 @@ export default function SubmissionTable({
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm transition-colors border-border">
       <table className="w-full table-auto">
         <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-700">
+          <tr className="border-b border-border">
             {ROSTER_COLUMNS.map((col) => (
               <SortableTableHeader
                 key={col.key}
@@ -49,7 +49,7 @@ export default function SubmissionTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              <td colSpan={6} className="px-4 py-10 text-center text-sm text-foreground-secondary">
                 No student data found
               </td>
             </tr>
@@ -57,18 +57,18 @@ export default function SubmissionTable({
             rows.map((submission, index) => {
               const canView = requireSubmissionForView ? submission.hasSubmission !== false : true;
               return (
-                <tr key={`${submission.studentCode ?? submission.studentId ?? 'row'}-${index}`} className="border-b border-gray-200 dark:border-gray-700">
-                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentName)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatText(submission.studentCode)}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(submission.score)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{formatNumber(submission.attempt ?? submission.attempts)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{submission.submittedAt || '—'}</td>
+                <tr key={`${submission.studentCode ?? submission.studentId ?? 'row'}-${index}`} className="border-b border-border">
+                  <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentName)}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentCode)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-foreground">{formatNumber(submission.score)}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
                       disabled={!canView}
                       onClick={() => onView?.(submission)}
-                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:hover:bg-gray-400"
+                      className="flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled"
                     >
                       <Eye className="h-3 w-3" />
                       {viewLabel}
@@ -80,18 +80,18 @@ export default function SubmissionTable({
           )}
 
           {(summary?.submissionCount != null || summary?.studentCount != null || summary?.completionRate != null) && (
-            <tr className="border-t border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20">
+            <tr className="border-t border-primary bg-primary-light">
               <td colSpan={6} className="px-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-                  <span className="font-bold text-blue-900 dark:text-blue-100">SUMMARY</span>
+                <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-primary-text">
+                  <span className="font-bold text-primary-text">SUMMARY</span>
                   <span className="text-center">
-                    Submissions: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.submissionCount)}</span>
+                    Submissions: <span className="text-primary-text">{formatNumber(summary?.submissionCount)}</span>
                   </span>
                   <span className="text-center">
-                    Enrolled: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.studentCount)}</span>
+                    Enrolled: <span className="text-primary-text">{formatNumber(summary?.studentCount)}</span>
                   </span>
                   <span className="text-center">
-                    Completion: <span className="text-blue-900 dark:text-blue-100">{formatNumber(summary?.completionRate)}</span>
+                    Completion: <span className="text-primary-text">{formatNumber(summary?.completionRate)}</span>
                   </span>
                 </div>
               </td>
@@ -101,8 +101,8 @@ export default function SubmissionTable({
       </table>
 
       {showPagination && (
-        <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-700">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <p className="text-sm text-foreground-secondary">
             Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
           </p>
           <div className="flex gap-2">
@@ -110,7 +110,7 @@ export default function SubmissionTable({
               type="button"
               disabled={pagination.page <= 0}
               onClick={() => onPageChange?.(pagination.page - 1)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-gray-700"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
             >
               Previous
             </button>
@@ -118,7 +118,7 @@ export default function SubmissionTable({
               type="button"
               disabled={pagination.page >= pagination.totalPages - 1}
               onClick={() => onPageChange?.(pagination.page + 1)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-gray-700"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
             >
               Next
             </button>

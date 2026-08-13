@@ -22,8 +22,8 @@ const EMPTY_FORM = {
 };
 
 const ROLE_COLORS = {
-  STUDENT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  LECTURER: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  STUDENT: 'bg-primary-light text-primary-text',
+  LECTURER: 'bg-success-bg text-success-text',
 };
 
 const normalizeUser = (user) => {
@@ -283,15 +283,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   };
 
   const stats = [
-    { label: 'Total Users', value: users.length, color: 'text-purple-500' },
-    { label: 'Students', value: users.filter((item) => (item.roleNames || []).includes('STUDENT') || (item.roles || []).some((role) => role.name?.toUpperCase() === 'STUDENT')).length, color: 'text-blue-500' },
-    { label: 'Lecturers', value: users.filter((item) => (item.roleNames || []).includes('LECTURER') || (item.roles || []).some((role) => ['LECTURER', 'TEACHER'].includes(role.name?.toUpperCase()))).length, color: 'text-green-500' },
+    { label: 'Total Users', value: users.length, color: 'text-primary' },
+    { label: 'Students', value: users.filter((item) => (item.roleNames || []).includes('STUDENT') || (item.roles || []).some((role) => role.name?.toUpperCase() === 'STUDENT')).length, color: 'text-chart-blue' },
+    { label: 'Lecturers', value: users.filter((item) => (item.roleNames || []).includes('LECTURER') || (item.roles || []).some((role) => ['LECTURER', 'TEACHER'].includes(role.name?.toUpperCase()))).length, color: 'text-success' },
   ];
 
   const inner = (
     <main className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
       <div className="mb-5">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">User Management</h1>
+        <h1 className="text-xl font-semibold text-foreground">User Management</h1>
       </div>
 
       <UserStats stats={stats} />

@@ -1,28 +1,29 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, GitMerge } from 'lucide-react';
+import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 
 function Tick({ ok }) {
   return ok
-    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-    : <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
+    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+    : <XCircle className="h-4 w-4 shrink-0 text-error" />;
 }
 
 function relationTypeStyle(type) {
   const normalized = String(type ?? '').toLowerCase();
   if (normalized.includes('extends')) {
-    return 'bg-blue-500/10 text-blue-500 dark:bg-blue-500/15 dark:text-blue-300';
+    return 'bg-chart-blue/10 text-chart-blue';
   }
   if (normalized.includes('implements')) {
-    return 'bg-orange-500/10 text-orange-500 dark:bg-orange-500/15 dark:text-orange-300';
+    return 'bg-chart-amber/10 text-chart-amber';
   }
   if (normalized.includes('uses') || normalized.includes('depends')) {
-    return 'bg-teal-500/10 text-teal-500 dark:bg-teal-500/15 dark:text-teal-300';
+    return 'bg-chart-teal/10 text-chart-teal';
   }
   if (normalized.includes('associates') || normalized.includes('aggregates')) {
-    return 'bg-purple-500/10 text-purple-500 dark:bg-purple-500/15 dark:text-purple-300';
+    return 'bg-primary-light text-primary';
   }
-  return 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-slate-200';
+  return 'bg-surface-secondary text-foreground-secondary';
 }
 
 function attributeTypeLabel(type) {
@@ -36,10 +37,10 @@ function attributeTypeLabel(type) {
 
 function attributeTypeColor(type) {
   const normalized = String(type ?? '').toLowerCase();
-  if (normalized === 'field') return 'text-blue-600 dark:text-blue-400';
-  if (normalized === 'method') return 'text-green-600 dark:text-green-400';
-  if (normalized === 'constructor') return 'text-orange-500 dark:text-orange-400';
-  return 'text-gray-700 dark:text-gray-300';
+  if (normalized === 'field') return 'text-chart-blue';
+  if (normalized === 'method') return 'text-success';
+  if (normalized === 'constructor') return 'text-chart-amber';
+  return 'text-foreground-secondary';
 }
 
 function mapMmdData(mmdData) {
@@ -66,7 +67,7 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
 
   if (mmdError) {
     return (
-      <p className="text-sm text-amber-700 dark:text-amber-300">{mmdError}</p>
+      <p className="text-sm text-warning-text">{mmdError}</p>
     );
   }
 
@@ -79,7 +80,7 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
       />
 
       {classes.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-foreground-secondary">
           No MMD class data is available.
         </div>
       ) : (
@@ -89,41 +90,35 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
             const clsPass = items.filter((item) => item.ok).length;
             const clsPct = items.length ? Math.round((clsPass / items.length) * 100) : 100;
             const isOpen = expandedClassName === cls.name;
-            const classTone = clsPct >= 80
-              ? 'border-green-300/60 dark:border-green-700/50'
-              : clsPct >= 60
-                ? 'border-yellow-300/60 dark:border-yellow-700/50'
-                : 'border-red-300/60 dark:border-red-700/50';
-
             return (
-              <div key={cls.name} className={`overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-[#1e2530] ${classTone}`}>
+              <div key={cls.name} className="overflow-hidden rounded-xl bg-surface shadow-sm">
                 <button
                   type="button"
                   onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
-                  className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+                  className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-4 py-3 text-left transition hover:bg-surface-secondary"
                 >
-                  <p className="font-mono text-sm font-bold text-gray-900 dark:text-white">{cls.name}</p>
+                  <p className="font-mono text-sm font-bold text-foreground">{cls.name}</p>
                   <div className="flex items-center gap-2">
                     <ScorePill ok={clsPass} total={items.length || 1} pct={clsPct} />
-                    {isOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    {isOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-700">
+                  <div className="divide-y divide-border border-t border-border">
                     <div className="px-4 py-3">
                       <div className="space-y-2">
                         {items.map((attr, index) => (
                           <div
                             key={`${attr.name}-${index}`}
-                            className={`flex items-start justify-between gap-2 rounded-lg px-3 py-2 ${attr.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}
+                            className={`flex items-start justify-between gap-2 rounded-lg px-3 py-2 ${attr.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                           >
                             <div className="min-w-0 flex-1">
                               <p className={`text-xs font-mono font-semibold break-words ${attributeTypeColor(attr.type)}`}>
                                 {attr.name}
                               </p>
                               {!attr.ok && attr.error && (
-                                <p className="mt-1 text-[10px] text-red-600 dark:text-red-300">{attr.error}</p>
+                                <p className="mt-1 text-[10px] text-error-text">{attr.error}</p>
                               )}
                             </div>
                             <Tick ok={attr.ok} />
@@ -140,47 +135,47 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
       )}
 
       {relations.length > 0 && (
-        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+        <div className="mt-4 overflow-hidden rounded-xl border border-border">
           <button
             type="button"
             onClick={() => setRelationsOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+            className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-4 py-3 text-left transition hover:bg-surface-secondary"
           >
-            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-foreground-secondary">
               <GitMerge className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
             </div>
             <div className="flex items-center gap-2">
               <ScorePill ok={relationPass} total={relations.length} pct={relationPct} />
-              {relationsOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+              {relationsOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
             </div>
           </button>
 
           {relationsOpen && (
             <>
-              <div className="grid grid-cols-4 items-center gap-4 border-t border-gray-200 px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <div className="grid grid-cols-4 items-center gap-4 border-t border-border px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-foreground-muted">
                 <span className="font-semibold">From</span>
                 <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
                 <span className="font-semibold">To</span>
                 <span className="font-semibold text-center">Status</span>
               </div>
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              <div className="divide-y divide-border">
                 {relations.map((r, index) => (
                   <div key={index}>
-                    <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
-                      <span className="font-mono text-purple-600 dark:text-purple-400">{r.from}</span>
+                    <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-foreground">
+                      <span className="font-mono text-primary">{r.from}</span>
                       <div className="flex justify-center">
                         <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
                           {r.relType}
                         </span>
                       </div>
-                      <span className="font-mono text-purple-600 dark:text-purple-400">{r.to}</span>
+                      <span className="font-mono text-primary">{r.to}</span>
                       <div className="flex justify-center">
                         <Tick ok={r.ok} />
                       </div>
                     </div>
                     {!r.ok && r.error && (
-                      <div className="px-4 py-2 text-xs font-mono text-red-600 bg-red-50 dark:text-red-300 dark:bg-red-900/10">
+                      <div className="px-4 py-2 text-xs font-mono bg-error-bg text-error-text">
                         {r.from} → {r.to}: {r.error}
                       </div>
                     )}

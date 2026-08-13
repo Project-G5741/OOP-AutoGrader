@@ -36,8 +36,8 @@ function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-64">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-500 dark:text-gray-400">Loading data...</p>
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-foreground-secondary">Loading data...</p>
       </div>
     </div>
   );
@@ -52,8 +52,8 @@ function authHeaders() {
 function tabClass(active) {
   return `px-3 py-2 text-sm rounded-t-md whitespace-nowrap ${
     active
-      ? 'border-b-2 border-purple-600 font-semibold text-purple-600'
-      : 'text-gray-600 hover:bg-purple-50 dark:text-gray-400 dark:hover:bg-purple-900/10'
+      ? 'border-b-2 border-primary font-semibold text-primary'
+      : 'text-foreground-secondary hover:bg-primary-light dark:text-foreground-muted dark:hover:bg-primary-light'
   }`;
 }
 
@@ -590,26 +590,26 @@ export default function LecturerDashboard({ user, onLogout }) {
     {
       title: 'Total Students',
       value: formatNumber(overview.totalStudents),
-      icon: <Users className="h-5 w-5 text-amber-600" />,
-      accent: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30',
+      icon: <Users className="h-5 w-5 text-chart-amber" />,
+      accent: 'bg-warning-bg text-warning-text',
     },
     {
       title: 'Average Score',
       value: formatNumber(overview.averageScore),
-      icon: <BarChart3 className="h-5 w-5 text-emerald-600" />,
-      accent: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30',
+      icon: <BarChart3 className="h-5 w-5 text-chart-green" />,
+      accent: 'bg-success-bg text-success-text',
     },
     {
       title: 'Total Labs',
       value: formatNumber(overview.totalLabs),
-      icon: <FolderKanban className="h-5 w-5 text-purple-600" />,
-      accent: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30',
+      icon: <FolderKanban className="h-5 w-5 text-primary" />,
+      accent: 'bg-primary-light text-primary ',
     },
     {
       title: 'At-Risk Students',
       value: formatNumber(overview.atRiskStudents),
-      icon: <FileText className="h-5 w-5 text-blue-600" />,
-      accent: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30',
+      icon: <FileText className="h-5 w-5 text-chart-blue" />,
+      accent: 'bg-primary-light text-primary-text',
     },
   ], [overview]);
 
@@ -642,7 +642,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         ) : activeNav === 'dashboard' ? (
           <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             {(overviewError || labsError) && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-[#2a2414] dark:text-amber-200">
+              <div className="rounded-xl border border-warning bg-warning-bg p-4 text-sm text-warning-text">
                 {[overviewError, labsError].filter(Boolean).join(' · ')}
               </div>
             )}
@@ -654,23 +654,23 @@ export default function LecturerDashboard({ user, onLogout }) {
               actions={
                 <button
                   onClick={handleRefresh}
-                  className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+                  className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
                   title="Refresh"
                 >
-                  <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loadingOverview || loadingSubmissions ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingOverview || loadingSubmissions ? 'animate-spin' : ''}`} />
                 </button>
               }
             >
               <div className="grid gap-6 lg:grid-cols-[0.28fr_1fr]">
-                <div className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+                <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
                   <div className="mb-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400 dark:text-gray-500">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
                       Select Lab Assignment
                     </h3>
                   </div>
                   <div className="space-y-3">
                     {labs.length === 0 ? (
-                      <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-4">No labs available</p>
+                      <p className="text-sm text-foreground-muted text-center py-4">No labs available</p>
                     ) : (
                       labs.map((lab) => (
                         <button
@@ -679,15 +679,15 @@ export default function LecturerDashboard({ user, onLogout }) {
                           onClick={() => handleLabChange(lab.id)}
                           className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition flex items-center justify-between gap-3 ${
                             selectedLabId === lab.id
-                              ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
-                              : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50 dark:border-gray-700 dark:bg-[#141a23] dark:text-gray-300 dark:hover:bg-purple-900/10'
+                              ? 'border-primary bg-primary-light text-primary-text'
+                              : 'border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-primary-light'
                           }`}
                         >
                           <div className="min-w-0">
                             <div className="font-medium truncate">{formatText(lab.name)}</div>
                           </div>
                           {selectedLabId === lab.id && (
-                            <ChevronRight className="h-4 w-4 shrink-0 text-purple-500" />
+                            <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
                           )}
                         </button>
                       ))
@@ -695,17 +695,17 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+                <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                      <h3 className="text-base font-semibold text-foreground">
                         {formatText(selectedLab?.name)}
                       </h3>
                     </div>
                   </div>
 
                   <div className="mt-4">
-                    <div className="flex gap-3 overflow-x-auto border-b border-gray-200 pb-2 dark:border-gray-700">
+                    <div className="flex gap-3 overflow-x-auto border-b border-border pb-2">
                       <button
                         type="button"
                         onClick={() => setActiveTab('overview')}
@@ -729,39 +729,39 @@ export default function LecturerDashboard({ user, onLogout }) {
                       {activeTab === 'overview' ? (
                         <div className="space-y-6">
                           {statisticsError && (
-                            <p className="text-sm text-amber-700 dark:text-amber-300">{statisticsError}</p>
+                            <p className="text-sm text-warning-text">{statisticsError}</p>
                           )}
 
                           {loadingStatistics ? (
                             <div className="flex items-center justify-center py-8">
-                              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                             </div>
                           ) : (
                             <>
                               <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
                                 {labStatFields.map((stat) => (
                                   <div key={stat.label}>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500">{stat.label}</p>
-                                    <p className="text-xl font-semibold text-gray-900 dark:text-white">{stat.value}</p>
+                                    <p className="text-xs text-foreground-muted">{stat.label}</p>
+                                    <p className="text-xl font-semibold text-foreground">{stat.value}</p>
                                   </div>
                                 ))}
                               </div>
 
                               <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">
                                   Grade distribution
                                 </p>
                                 {hasItems(labStatistics?.gradeDistribution) ? (
                                   <div className="mt-3 space-y-2">
                                     {labStatistics.gradeDistribution.map((bucket) => (
                                       <div key={bucket.range} className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-700 dark:text-gray-300">{bucket.range}</span>
-                                        <span className="font-medium text-purple-600 dark:text-purple-300">{formatNumber(bucket.count)}</span>
+                                        <span className="text-foreground-secondary">{bucket.range}</span>
+                                        <span className="font-medium text-primary dark:text-primary-text">{formatNumber(bucket.count)}</span>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No data available</p>
+                                  <p className="mt-3 text-sm text-foreground-secondary">No data available</p>
                                 )}
                               </div>
 
@@ -773,14 +773,14 @@ export default function LecturerDashboard({ user, onLogout }) {
 
                           <div>
                             <div className="mb-3">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Student roster</h4>
+                              <h4 className="text-sm font-semibold text-foreground">Student roster</h4>
                             </div>
                             {submissionsError && (
-                              <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{submissionsError}</p>
+                              <p className="mb-4 text-sm text-warning-text">{submissionsError}</p>
                             )}
                             {loadingSubmissions ? (
                               <div className="flex items-center justify-center py-12">
-                                <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                               </div>
                             ) : (
                               <SubmissionTable
@@ -803,18 +803,18 @@ export default function LecturerDashboard({ user, onLogout }) {
                       ) : (
                         <div>
                           <div className="mb-4 flex items-center justify-between gap-3">
-                            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+                            <h4 className="text-base font-semibold text-foreground">
                               {activeChallengeTab
                                 ? `${challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index)} Submissions`
                                 : 'Challenge Submissions'}
                             </h4>
                           </div>
                           {challengeSubmissionsError && (
-                            <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{challengeSubmissionsError}</p>
+                            <p className="mb-4 text-sm text-warning-text">{challengeSubmissionsError}</p>
                           )}
                           {loadingChallengeSubmissions ? (
                             <div className="flex items-center justify-center py-12">
-                              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                             </div>
                           ) : (
                             <SubmissionTable
@@ -848,16 +848,16 @@ export default function LecturerDashboard({ user, onLogout }) {
                   />
                   <button
                     onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort))}
-                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+                    className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
                     title="Refresh"
                   >
-                    <RefreshCw className={`w-4 h-4 text-gray-500 dark:text-gray-400 ${loadingGradeOverview ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingGradeOverview ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
               }
             >
               {gradeOverviewError && (
-                <p className="mb-4 text-sm text-amber-700 dark:text-amber-300">{gradeOverviewError}</p>
+                <p className="mb-4 text-sm text-warning-text">{gradeOverviewError}</p>
               )}
               <GradeOverviewTable
                 labs={gradeOverview.labs}
