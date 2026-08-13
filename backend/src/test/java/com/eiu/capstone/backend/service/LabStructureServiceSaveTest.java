@@ -44,6 +44,7 @@ import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @ExtendWith(MockitoExtension.class)
 class LabStructureServiceSaveTest {
@@ -62,6 +63,7 @@ class LabStructureServiceSaveTest {
     @Mock private ConstructorDeclarationRepository constructorDeclarationRepository;
     @Mock private MasterDataRepository masterDataRepository;
     @Mock private LabRubricCache labRubricCache;
+    @Mock private TestcaseRubricService testcaseRubricService;
 
     private RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
 
@@ -91,7 +93,8 @@ class LabStructureServiceSaveTest {
                 methodDeclarationRepository,
                 constructorDeclarationRepository,
                 masterDataRepository,
-                rubricCacheInvalidationSupport);
+                rubricCacheInvalidationSupport,
+                testcaseRubricService);
 
         labId = UUID.randomUUID();
         termId = UUID.randomUUID();
@@ -99,6 +102,7 @@ class LabStructureServiceSaveTest {
         when(lab.getName()).thenReturn("Lab 2");
         when(lab.getTerm()).thenReturn(term);
         when(term.getId()).thenReturn(termId);
+        when(testcaseRubricService.findReferencingTestcaseNames(any(), any(), any())).thenReturn(List.of());
 
         when(scope.getId()).thenReturn(1);
         when(scope.getName()).thenReturn("PUBLIC");

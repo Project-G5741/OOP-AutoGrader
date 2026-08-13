@@ -10,7 +10,7 @@ const navItems = [
 
 export default function NavBar({ active, onNavigate }) {
   return (
-    <div className="w-full rounded-2xl border border-gray-200/80 bg-white px-4 py-3 dark:border-gray-700 dark:bg-[#151b24] sm:px-6">
+    <div className="w-full rounded-2xl border border-border bg-surface px-4 py-3 sm:px-6">
       <div className="flex flex-wrap items-center justify-end gap-2">
         <nav className="flex flex-wrap items-center gap-2">
           {navItems.map(({ id, label, icon: Icon }) => (
@@ -20,8 +20,8 @@ export default function NavBar({ active, onNavigate }) {
               onClick={() => onNavigate?.(id)}
               className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                 active === id
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#1e2530]'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-foreground-secondary hover:bg-surface-secondary'
               }`}
             >
               <Icon className="w-4 h-4" />

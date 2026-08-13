@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "theme:sync": "node scripts/generate-theme-css.mjs",
+    "predev": "npm run theme:sync",
+    "prebuild": "npm run theme:sync",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

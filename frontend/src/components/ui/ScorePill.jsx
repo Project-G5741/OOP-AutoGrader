@@ -1,16 +1,16 @@
 export function ScorePill({ ok, total, pct, size = 'sm' }) {
   const color = pct >= 80
-    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-300 dark:border-green-700'
+    ? 'bg-success-bg text-success-text'
     : pct >= 60
-      ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700'
-      : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700';
+      ? 'bg-warning-bg text-warning-text'
+      : 'bg-error-bg text-error-text';
 
   const sizeClass = size === 'md'
     ? 'px-3 py-1 text-sm'
     : 'px-2.5 py-0.5 text-xs';
 
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border font-semibold ${sizeClass} ${color}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full font-semibold ${sizeClass} ${color}`}>
       {ok}/{total} · {pct}%
     </span>
   );
@@ -19,7 +19,7 @@ export function ScorePill({ ok, total, pct, size = 'sm' }) {
 export function ScoreSectionHeader({ title, score, showPill = false }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
-      <p className="text-sm font-semibold text-gray-900 dark:text-white">{title}</p>
+      <p className="text-sm font-semibold text-foreground">{title}</p>
       {showPill && score && (
         <ScorePill ok={score.ok} total={score.total} pct={score.pct} size="md" />
       )}

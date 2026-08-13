@@ -3,7 +3,7 @@ import { formatNumber, formatPercent, formatText, hasItems } from '../../utils/f
 
 function EmptyState({ message = 'Data not found' }) {
   return (
-    <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-[#151b24] dark:text-gray-400">
+    <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-dashed border-border bg-surface-secondary p-6 text-sm text-foreground-secondary dark:text-foreground-muted">
       {message}
     </div>
   );
@@ -17,69 +17,69 @@ export default function ReportsPanel({ reportData }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
       <div className="space-y-6">
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+        <div className="rounded-3xl border border-border bg-surface p-6 shadow-sm transition-colors">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-secondary">
                 Analytics summary
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Lecturer reports</h3>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">Lecturer reports</h3>
             </div>
-            <BarChart3 className="h-6 w-6 text-purple-600" />
+            <BarChart3 className="h-6 w-6 text-primary" />
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-              <p className="text-xs text-gray-400 dark:text-gray-500">Overall average</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+              <p className="text-xs text-foreground-muted">Overall average</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
                 {formatPercent(data.overallAverage)}
               </p>
             </div>
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-              <p className="text-xs text-gray-400 dark:text-gray-500">Lowest average lab</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+              <p className="text-xs text-foreground-muted">Lowest average lab</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
                 {formatText(data.lowestAverageLab)}
               </p>
             </div>
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-              <p className="text-xs text-gray-400 dark:text-gray-500">Lowest average score</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+              <p className="text-xs text-foreground-muted">Lowest average score</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
                 {formatPercent(data.lowestAverageScore)}
               </p>
             </div>
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-              <p className="text-xs text-gray-400 dark:text-gray-500">Most difficult topic</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+              <p className="text-xs text-foreground-muted">Most difficult topic</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
                 {formatText(data.mostDifficultTopic)}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+        <div className="rounded-3xl border border-border bg-surface p-6 shadow-sm transition-colors">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-secondary">
                 Lab performance trend
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Average scores by lab</h3>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">Average scores by lab</h3>
             </div>
-            <TrendingUp className="h-6 w-6 text-emerald-600" />
+            <TrendingUp className="h-6 w-6 text-chart-green" />
           </div>
 
           <div className="mt-6 space-y-3">
             {hasItems(data.labTrend) ? (
               data.labTrend.map((item) => (
-                <div key={item.labId ?? item.labName} className="flex items-center justify-between gap-4 rounded-3xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
+                <div key={item.labId ?? item.labName} className="flex items-center justify-between gap-4 rounded-3xl border border-border bg-surface-secondary p-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatText(item.labName)}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm font-semibold text-foreground">{formatText(item.labName)}</p>
+                    <p className="text-sm text-foreground-secondary">
                       {formatNumber(item.submissionCount)} submissions
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatPercent(item.averageScore)}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Average score</p>
+                    <p className="text-lg font-semibold text-foreground">{formatPercent(item.averageScore)}</p>
+                    <p className="text-xs text-foreground-secondary">Average score</p>
                   </div>
                 </div>
               ))
@@ -91,25 +91,25 @@ export default function ReportsPanel({ reportData }) {
       </div>
 
       <div className="space-y-6">
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+        <div className="rounded-3xl border border-border bg-surface p-6 shadow-sm transition-colors">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-secondary">
                 At-risk measures
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Labs & students</h3>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">Labs & students</h3>
             </div>
-            <AlertTriangle className="h-6 w-6 text-red-600" />
+            <AlertTriangle className="h-6 w-6 text-error" />
           </div>
 
           <div className="mt-6 space-y-4">
             <div>
-              <p className="text-xs text-gray-400 dark:text-gray-500">At-risk labs</p>
+              <p className="text-xs text-foreground-muted">At-risk labs</p>
               {hasItems(data.atRiskLabs) ? (
                 data.atRiskLabs.map((lab) => (
-                  <div key={lab.labId ?? lab.labName} className="mt-3 rounded-3xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-                    <p className="font-semibold text-gray-900 dark:text-white">{formatText(lab.labName)}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{formatText(lab.reason)}</p>
+                  <div key={lab.labId ?? lab.labName} className="mt-3 rounded-3xl border border-border bg-surface-secondary p-4">
+                    <p className="font-semibold text-foreground">{formatText(lab.labName)}</p>
+                    <p className="text-sm text-foreground-secondary">{formatText(lab.reason)}</p>
                   </div>
                 ))
               ) : (
@@ -118,12 +118,12 @@ export default function ReportsPanel({ reportData }) {
             </div>
 
             <div>
-              <p className="text-xs text-gray-400 dark:text-gray-500">At-risk students</p>
+              <p className="text-xs text-foreground-muted">At-risk students</p>
               {hasItems(data.atRiskStudents) ? (
                 data.atRiskStudents.map((student) => (
-                  <div key={student.studentId ?? student.studentName} className="mt-3 rounded-3xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-[#151b24]">
-                    <p className="font-semibold text-gray-900 dark:text-white">{formatText(student.studentName)}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <div key={student.studentId ?? student.studentName} className="mt-3 rounded-3xl border border-border bg-surface-secondary p-4">
+                    <p className="font-semibold text-foreground">{formatText(student.studentName)}</p>
+                    <p className="text-sm text-foreground-secondary">
                       Current average: {formatPercent(student.currentAverage)}
                     </p>
                   </div>
@@ -135,19 +135,19 @@ export default function ReportsPanel({ reportData }) {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+        <div className="rounded-3xl border border-border bg-surface p-6 shadow-sm transition-colors">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-secondary">
                 AI assistance
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">Recommendations</h3>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">Recommendations</h3>
             </div>
-            <ArrowUpRight className="h-6 w-6 text-sky-600" />
+            <ArrowUpRight className="h-6 w-6 text-chart-cyan" />
           </div>
 
           <div className="mt-6 space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400">{formatText(aiSummary.details)}</p>
+            <p className="text-sm text-foreground-secondary">{formatText(aiSummary.details)}</p>
             {hasItems(recommendedResources) ? (
               <div className="space-y-2">
                 {recommendedResources.map((resource) => (
@@ -156,7 +156,7 @@ export default function ReportsPanel({ reportData }) {
                     href={resource.url || '#'}
                     target="_blank"
                     rel="noreferrer"
-                    className="block rounded-2xl bg-gray-50 px-4 py-3 text-sm text-purple-700 transition hover:bg-gray-100 dark:bg-[#151b24] dark:text-purple-300 dark:hover:bg-[#2d3750]"
+                    className="block rounded-2xl bg-surface-secondary px-4 py-3 text-sm text-primary-text transition hover:bg-surface-secondary"
                   >
                     {formatText(resource.title)}
                   </a>

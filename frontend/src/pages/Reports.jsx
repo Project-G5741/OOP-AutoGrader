@@ -68,15 +68,15 @@ export default function ReportsPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
       <div className="space-y-6">
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-colors dark:border-gray-700 dark:bg-[#1e2530]">
+        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm transition-colors">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Reports & Analytics</h2>
+              <h2 className="text-lg font-semibold text-foreground">Reports & Analytics</h2>
             </div>
             <div>
               <button
                 onClick={fetchReportData}
-                className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#151b24] transition-colors"
+                className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
                 title="Refresh reports"
               >
                 Refresh
@@ -85,7 +85,7 @@ export default function ReportsPage() {
           </div>
 
           {reportError && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-[#2a2414] dark:text-amber-200">
+            <div className="mt-4 rounded-xl border border-warning bg-warning-bg p-4 text-sm text-warning-text">
               {reportError}
             </div>
           )}
@@ -93,7 +93,7 @@ export default function ReportsPage() {
           <div className="mt-6">
             {loadingReports ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <ReportsPanel reportData={reportData} />

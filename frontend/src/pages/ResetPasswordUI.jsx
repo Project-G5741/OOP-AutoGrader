@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Moon, Sun, BarChart3, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import AppLogo from '../components/ui/AppLogo';
 import './LoginUI.css';
+import ThemeToggle from '../components/ThemeToggle';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
 import { readFriendlyAuthError } from '../utils/apiError';
 
 export default function ResetPasswordUI({ token, onComplete }) {
-  const [isDark, setIsDark] = useState(true);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -13,14 +14,26 @@ export default function ResetPasswordUI({ token, onComplete }) {
   const [isLoading, setIsLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({ newPassword: false, confirmPassword: false });
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-  const fieldErrors = getResetPasswordErrors(newPassword, confirmPassword);
-  const canSubmit = isFormValid(fieldErrors);
+  const rawFieldErrors = getResetPasswordErrors(newPassword, confirmPassword);
+  const fieldErrors = {
+    newPassword: hasAttemptedSubmit || touchedFields.newPassword ? rawFieldErrors.newPassword : '',
+    confirmPassword: hasAttemptedSubmit || touchedFields.confirmPassword ? rawFieldErrors.confirmPassword : '',
+  };
+  const canSubmit = isFormValid(rawFieldErrors);
+
+  const handleFieldBlur = (field) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setHasAttemptedSubmit(true);
+    setTouchedFields({ newPassword: true, confirmPassword: true });
     setFormError('');
 
     if (!canSubmit) {
@@ -56,7 +69,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
 
   if (!token) {
     return (
-      <div className={isDark ? 'login-root dark' : 'login-root'}>
+      <div className="login-root">
         <div className="login-bg">
           <div className="login-card-wrapper">
             <div className="card">
@@ -72,24 +85,13 @@ export default function ResetPasswordUI({ token, onComplete }) {
   }
 
   return (
-    <div className={isDark ? 'login-root dark' : 'login-root'}>
+    <div className="login-root">
       <div className="login-bg">
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="theme-toggle"
-          type="button"
-        >
-          <div className="theme-left">
-            {isDark ? <Moon className="icon" /> : <Sun className="icon" />}
-            <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
-          </div>
-        </button>
+        <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">
           <div className="logo-title">
-            <div className="logo-box">
-              <BarChart3 className="logo-icon" />
-            </div>
+            <AppLogo variant="login" />
             <h1 className="main-title">Set new password</h1>
             <p className="subtitle">
               {success ? 'Password updated successfully' : 'Choose a new password for your account'}
@@ -99,7 +101,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
           <div className="card">
             {success ? (
               <div className="login-form" style={{ textAlign: 'center' }}>
-                <CheckCircle2 className="logo-icon" style={{ color: '#22c55e', margin: '0 auto 1rem' }} />
+                <CheckCircle2 className="logo-icon success-icon" />
                 <p className="info-text">Redirecting you to sign in...</p>
               </div>
             ) : (
@@ -115,6 +117,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
                         setNewPassword(e.target.value);
                         setFormError('');
                       }}
+                      onBlur={() => handleFieldBlur('newPassword')}
                       placeholder="At least 6 characters"
                       className={`input-field${fieldErrors.newPassword ? ' input-error' : ''}`}
                       autoComplete="new-password"
@@ -129,9 +132,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
                     </button>
                   </div>
                   {fieldErrors.newPassword && (
-                    <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                      {fieldErrors.newPassword}
-                    </p>
+                    <p className="error-text">{fieldErrors.newPassword}</p>
                   )}
                 </div>
 
@@ -146,6 +147,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
                         setConfirmPassword(e.target.value);
                         setFormError('');
                       }}
+                      onBlur={() => handleFieldBlur('confirmPassword')}
                       placeholder="Re-enter your password"
                       className={`input-field${fieldErrors.confirmPassword ? ' input-error' : ''}`}
                       autoComplete="new-password"
@@ -160,14 +162,12 @@ export default function ResetPasswordUI({ token, onComplete }) {
                     </button>
                   </div>
                   {fieldErrors.confirmPassword && (
-                    <p className="info-text" style={{ color: '#f87171', marginTop: '0.35rem' }}>
-                      {fieldErrors.confirmPassword}
-                    </p>
+                    <p className="error-text">{fieldErrors.confirmPassword}</p>
                   )}
                 </div>
 
                 {formError && (
-                  <p className="info-text" style={{ color: '#f87171', marginBottom: '0.75rem' }}>
+                  <p className="error-text" style={{ marginBottom: '0.75rem' }}>
                     {formError}
                   </p>
                 )}

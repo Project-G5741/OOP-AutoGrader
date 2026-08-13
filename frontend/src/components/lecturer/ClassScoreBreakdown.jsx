@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatPercent } from '../../utils/formatters';
+import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 
 function Tick({ ok }) {
   return ok
-    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-    : <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
+    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+    : <XCircle className="h-4 w-4 shrink-0 text-error" />;
 }
 
 function mapClassData(classData) {
@@ -42,12 +43,12 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
       />
       {overallScore != null && totalCount === 0 && (
         <div className="mb-4 flex items-center justify-end">
-          <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatPercent(overallScore)}</span>
+          <span className="text-sm font-semibold text-foreground">{formatPercent(overallScore)}</span>
         </div>
       )}
 
       {classes.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-foreground-secondary dark:text-foreground-muted">
           No class detail data is available.
         </div>
       ) : (
@@ -57,43 +58,37 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
             const clsPass = items.filter((item) => item.ok).length;
             const clsPct = items.length ? Math.round((clsPass / items.length) * 100) : 100;
             const isOpen = expandedClassName === cls.name;
-            const classTone = clsPct >= 80
-              ? 'border-green-300/60 dark:border-green-700/50'
-              : clsPct >= 60
-                ? 'border-yellow-300/60 dark:border-yellow-700/50'
-                : 'border-red-300/60 dark:border-red-700/50';
-
             return (
-              <div key={cls.name} className={`overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-[#1e2530] ${classTone}`}>
+              <div key={cls.name} className="overflow-hidden rounded-xl bg-surface shadow-sm">
                 <button
                   type="button"
                   onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
-                  className="flex w-full items-center justify-between gap-3 bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 dark:bg-[#151b24] dark:hover:bg-[#1a2235]"
+                  className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-4 py-3 text-left transition hover:bg-surface-secondary"
                 >
                   <div>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{cls.type}</span>
-                    <p className="mt-1 font-mono text-sm font-bold text-gray-900 dark:text-white">{cls.name}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type}</span>
+                    <p className="mt-1 font-mono text-sm font-bold text-foreground">{cls.name}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <ScorePill ok={clsPass} total={items.length || 1} pct={clsPct} />
-                    {isOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    {isOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-700">
+                  <div className="divide-y divide-border border-t border-border divide-border">
                     {cls.fields.length > 0 && (
                       <div className="px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-500">Fields</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-blue">Fields</p>
                         <div className="space-y-2">
                           {cls.fields.map((field, index) => (
                             <div
                               key={`${field.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{field.name}: {field.dataType}</p>
-                                <p className="mt-0.5 text-[10px] text-gray-400">{field.scope || '—'}</p>
+                                <p className="text-xs font-mono font-semibold text-chart-blue dark:text-chart-blue">{field.name}: {field.dataType}</p>
+                                <p className="mt-0.5 text-[10px] text-foreground-muted">{field.scope || '—'}</p>
                               </div>
                               <Tick ok={field.ok} />
                             </div>
@@ -104,16 +99,16 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
 
                     {cls.constructors.length > 0 && (
                       <div className="px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-orange-500">Constructors</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-amber">Constructors</p>
                         <div className="space-y-2">
                           {cls.constructors.map((ctor, index) => (
                             <div
                               key={`${ctor.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-orange-500 dark:text-orange-400">{ctor.name}({ctor.params || ''})</p>
-                                <p className="mt-0.5 text-[10px] text-gray-400">{ctor.scope || '—'}</p>
+                                <p className="text-xs font-mono font-semibold text-chart-amber dark:text-chart-amber">{ctor.name}({ctor.params || ''})</p>
+                                <p className="mt-0.5 text-[10px] text-foreground-muted">{ctor.scope || '—'}</p>
                               </div>
                               <Tick ok={ctor.ok} />
                             </div>
@@ -124,16 +119,16 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
 
                     {cls.methods.length > 0 && (
                       <div className="px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-green-500">Methods</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-success">Methods</p>
                         <div className="space-y-2">
                           {cls.methods.map((method, index) => (
                             <div
                               key={`${method.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? 'bg-gray-50 dark:bg-[#0d1117]/40' : 'border border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/10'}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-green-600 dark:text-green-400">{method.name}(): {method.returnType}</p>
-                                <p className="mt-0.5 text-[10px] text-gray-400">{method.scope || '—'}</p>
+                                <p className="text-xs font-mono font-semibold text-success">{method.name}(): {method.returnType}</p>
+                                <p className="mt-0.5 text-[10px] text-foreground-muted">{method.scope || '—'}</p>
                               </div>
                               <Tick ok={method.ok} />
                             </div>

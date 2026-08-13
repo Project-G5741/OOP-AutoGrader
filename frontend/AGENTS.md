@@ -51,9 +51,13 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ### Theme
 
-- `ThemeContext` in `src/context/ThemeContext.jsx` — toggles `dark` class on `<html>`
-- `ThemeProvider` mounted in both `main.jsx` and `App.jsx` (duplicate)
-- Login pages (`LoginUI`, `FirstTimeSetupUI`) use local dark state instead of `ThemeContext`
+- **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — primary, secondary, success, error, warning, surfaces, chart, etc.)
+- **Edit logo and app naming in one file:** `src/theme/brand.js` — icon (`GraduationCap` by default) or custom image import; consumed via `AppLogo` (`src/components/ui/AppLogo.jsx`)
+- After editing tokens, run `npm run theme:sync` (also runs automatically before `dev` / `build`) to regenerate `src/theme/tokens.generated.css`
+- Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
+- `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
+- Grading status helpers: `src/theme/statusClasses.js`
+- Design reference: `docs/design/color-theory-light-dark-theme.md`
 
 ### Mock vs live data
 
@@ -63,7 +67,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`) |
+| Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
 

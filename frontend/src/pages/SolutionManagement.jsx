@@ -3,7 +3,7 @@ import { Check, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import Toast from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
-import MmdRelationsPanel from '../components/lecturer/structure/MmdRelationsPanel';
+import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import { authHeaders } from '../utils/authHeaders';
 
@@ -42,6 +42,7 @@ export default function SolutionManagement() {
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [challengeTabById, setChallengeTabById] = useState({});
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) return false;
@@ -279,7 +280,7 @@ export default function SolutionManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-gray-500">
+      <div className="flex items-center justify-center py-20 text-foreground-secondary">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading structure editor...
       </div>
     );
@@ -289,16 +290,16 @@ export default function SolutionManagement() {
     <div className="flex min-h-[calc(100dvh-16rem)] flex-col">
       <div className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Solution Management</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Define lab rubric structure for grading.</p>
+          <h2 className="text-xl font-semibold text-foreground">Solution Management</h2>
+          <p className="text-sm text-foreground-secondary">Define lab rubric structure for grading.</p>
         </div>
 
-        {error && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
+        {error && <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">{error}</div>}
 
         <div className="relative flex flex-col gap-4 lg:flex-row">
         {structureLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         )}
         <StructureSidebar
@@ -382,10 +383,19 @@ export default function SolutionManagement() {
               onChange={updateSelectedClass}
             />
           ) : (
-            <MmdRelationsPanel
+            <ChallengeDetailPanel
               challenge={selectedChallenge}
               relationTypeOptions={relationTypeOptions}
-              onChange={updateSelectedChallenge}
+              onMmdChange={updateSelectedChallenge}
+              activeTab={challengeTabById[selectedChallengeId] || 'mmd'}
+              onTabChange={(tab) => {
+                if (selectedChallengeId) {
+                  setChallengeTabById((prev) => ({ ...prev, [selectedChallengeId]: tab }));
+                }
+              }}
+              labId={selectedLabId}
+              structureDirty={isDirty}
+              onToast={setToast}
             />
           )}
         </div>
@@ -397,7 +407,7 @@ export default function SolutionManagement() {
           type="button"
           disabled={!isDirty || saving || !draft}
           onClick={handleSave}
-          className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Save Lab Structure
@@ -406,20 +416,20 @@ export default function SolutionManagement() {
 
       {showCreateLab && (
         <Modal onClose={() => setShowCreateLab(false)}>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Create Lab</h3>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Create Lab</h3>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Lab name</label>
+              <label className="mb-1 block text-xs text-foreground-muted">Lab name</label>
               <input
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 value={newLabName}
                 onChange={(e) => setNewLabName(e.target.value)}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">Term</label>
+              <label className="mb-1 block text-xs text-foreground-muted">Term</label>
               <select
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#0d1117] dark:text-white"
+                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 value={newLabTermId}
                 onChange={(e) => setNewLabTermId(e.target.value)}
               >
@@ -430,8 +440,8 @@ export default function SolutionManagement() {
               </select>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={handleCreateLab} className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white">Create</button>
-              <button type="button" onClick={() => setShowCreateLab(false)} className="rounded-lg border border-gray-600 px-4 py-2 text-sm">Cancel</button>
+              <button type="button" onClick={handleCreateLab} className="rounded-lg bg-primary px-4 py-2 text-sm text-white">Create</button>
+              <button type="button" onClick={() => setShowCreateLab(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
             </div>
           </div>
         </Modal>
@@ -447,15 +457,15 @@ export default function SolutionManagement() {
 
       {confirmDelete && (
         <Modal onClose={() => setConfirmDelete(null)}>
-          <h3 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Confirm delete</h3>
-          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+          <h3 className="mb-3 text-lg font-semibold text-foreground">Confirm delete</h3>
+          <p className="mb-4 text-sm text-foreground-secondary">
             This will remove the selected item from the lab structure
             {confirmDelete.type === 'lab' ? ' and delete all problems, classes, and related grading references after save.' : '.'}
             {' '}Student submission data may be orphaned. Continue?
           </p>
           <div className="flex gap-2">
-            <button type="button" onClick={runDelete} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white">Delete</button>
-            <button type="button" onClick={() => setConfirmDelete(null)} className="rounded-lg border border-gray-600 px-4 py-2 text-sm">Cancel</button>
+            <button type="button" onClick={runDelete} className="rounded-lg bg-error px-4 py-2 text-sm text-white hover:bg-error-hover">Delete</button>
+            <button type="button" onClick={() => setConfirmDelete(null)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
           </div>
         </Modal>
       )}

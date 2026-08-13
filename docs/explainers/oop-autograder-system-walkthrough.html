@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OOP AutoGrader — Full System Walkthrough</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b9cb3;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --warn: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 2rem 1.25rem 4rem;
+    }
+    .wrap { max-width: 70ch; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin-bottom: 1rem; line-height: 1.25; }
+    h2 { font-size: 1.25rem; margin: 2.25rem 0 0.75rem; color: var(--accent); }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+    p, li { margin-bottom: 0.65rem; }
+    ul, ol { padding-left: 1.35rem; margin-bottom: 1rem; }
+    .meta {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+    .meta dl { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; }
+    .meta dt { color: var(--muted); font-weight: 600; }
+    .meta dd { margin: 0; }
+    .diagram {
+      width: 100%;
+      max-width: 100%;
+      margin: 1.25rem 0 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0.75rem 0 1rem;
+    }
+    code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+    .kw { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .cmt { color: #8b949e; }
+    .fn { color: #d2a8ff; }
+    .type { color: #79c0ff; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.75rem 0 1.25rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--surface); color: var(--muted); font-weight: 600; }
+    .flow-step {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      align-items: flex-start;
+    }
+    .flow-num {
+      flex-shrink: 0;
+      width: 1.6rem;
+      height: 1.6rem;
+      background: var(--accent);
+      color: var(--bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .callout {
+      border-left: 3px solid var(--warn);
+      padding: 0.5rem 0 0.5rem 1rem;
+      margin: 1rem 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+    .col-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.85rem;
+      font-size: 0.9rem;
+    }
+    .col-box h4 { font-size: 0.85rem; color: var(--accent2); margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="meta">
+      <h1>OOP AutoGrader — What It Does and How It Runs</h1>
+      <dl>
+        <dt>Date</dt><dd>2026-08-13</dd>
+        <dt>Input shape</dt><dd>concept</dd>
+        <dt>Subject</dt><dd>Full-stack OOP AutoGrader (EIU Capstone) — architecture, services, entry points, and grading pipeline</dd>
+      </dl>
+    </header>
+
+    <p>You have a <strong>full-stack academic autograder</strong>: students upload Java source and Mermaid class diagrams; the backend compiles Java at runtime, grades against a lecturer-defined rubric in PostgreSQL, and returns instant scores. Lecturers author rubrics, monitor rosters, and view analytics. Everything durable lives in the database; upload files on disk are ephemeral.</p>
+
+    <h2>What the system can do</h2>
+    <table>
+      <thead>
+        <tr><th>Actor</th><th>Capabilities</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Student</strong></td>
+          <td>Login (Google @eiu.edu.vn or IRN+password), pick a lab, drag-drop a folder of <code>challenge_N/</code> subfolders, get per-challenge scores with Class / MMD / Testcase tabs, view submission history.</td>
+        </tr>
+        <tr>
+          <td><strong>Lecturer</strong></td>
+          <td>Create labs and rubrics (classes, fields, methods, constructors, relations, operational testcases), manage users, view grade matrices, lab statistics, at-risk students, analytics dashboards.</td>
+        </tr>
+        <tr>
+          <td><strong>Backend engine</strong></td>
+          <td>Compile student Java via <code>javax.tools.JavaCompiler</code>, grade with reflection + MMD parsing + runtime testcase invocation, persist element-level results, assemble an upload-time <code>lab_result</code> JSON bundle for the UI.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>How you start it</h2>
+    <p>From the repo root, <code>npm start</code> runs both tiers concurrently via <code>concurrently</code>:</p>
+    <pre><code><span class="cmt">// package.json</span>
+<span class="str">"start"</span>: <span class="str">"concurrently \"npm run backend\" \"npm run frontend\""</span>
+<span class="str">"backend"</span>: <span class="str">"cd backend && mvn spring-boot:run"</span>   <span class="cmt">// → :8002</span>
+<span class="str">"frontend"</span>: <span class="str">"cd frontend && npm run dev"</span>       <span class="cmt">// → :5173</span></code></pre>
+
+    <div class="two-col">
+      <div class="col-box">
+        <h4>Frontend prerequisites</h4>
+        Node.js, <code>frontend/.env</code> with <code>VITE_GOOGLE_CLIENT_ID</code> and <code>VITE_API_URL</code> (default <code>http://localhost:8002</code>).
+      </div>
+      <div class="col-box">
+        <h4>Backend prerequisites</h4>
+        <strong>JDK 17+</strong> (not JRE — needed to compile student code), Maven, PostgreSQL via <code>backend/.env</code> (<code>SPRING_DATASOURCE_URL</code>, credentials).
+      </div>
+    </div>
+
+    <h2>Architecture at a glance</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Three-tier architecture">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#58a6ff"/>
+          </marker>
+        </defs>
+        <rect x="20" y="30" width="200" height="120" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="120" y="58" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="bold">Browser</text>
+        <text x="120" y="78" text-anchor="middle" fill="#8b9cb3" font-size="11">React 18 + Vite</text>
+        <text x="120" y="96" text-anchor="middle" fill="#8b9cb3" font-size="11">:5173</text>
+        <text x="120" y="118" text-anchor="middle" fill="#8b9cb3" font-size="10">App.jsx, pages/,</text>
+        <text x="120" y="132" text-anchor="middle" fill="#8b9cb3" font-size="10">DropZone upload</text>
+
+        <rect x="260" y="30" width="200" height="120" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="360" y="58" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="bold">Spring Boot API</text>
+        <text x="360" y="78" text-anchor="middle" fill="#8b9cb3" font-size="11">Java 17 / :8002</text>
+        <text x="360" y="96" text-anchor="middle" fill="#8b9cb3" font-size="11">Controllers → Services</text>
+        <text x="360" y="114" text-anchor="middle" fill="#8b9cb3" font-size="11">→ Grading engine</text>
+        <text x="360" y="132" text-anchor="middle" fill="#8b9cb3" font-size="10">JDK compiles student .java</text>
+
+        <rect x="500" y="30" width="200" height="120" rx="8" fill="#1a2332" stroke="#d29922" stroke-width="1.5"/>
+        <text x="600" y="58" text-anchor="middle" fill="#e6edf3" font-size="13" font-weight="bold">PostgreSQL</text>
+        <text x="600" y="78" text-anchor="middle" fill="#8b9cb3" font-size="11">Neon in production</text>
+        <text x="600" y="96" text-anchor="middle" fill="#8b9cb3" font-size="11">Users, rubrics,</text>
+        <text x="600" y="114" text-anchor="middle" fill="#8b9cb3" font-size="11">submissions, results</text>
+
+        <line x1="220" y1="90" x2="258" y2="90" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="239" y="82" text-anchor="middle" fill="#8b9cb3" font-size="9">fetch + JWT</text>
+
+        <line x1="460" y1="90" x2="498" y2="90" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="479" y="82" text-anchor="middle" fill="#8b9cb3" font-size="9">JPA</text>
+
+        <rect x="260" y="200" width="200" height="80" rx="8" fill="#161b22" stroke="#8b9cb3" stroke-width="1" stroke-dasharray="4"/>
+        <text x="360" y="228" text-anchor="middle" fill="#8b9cb3" font-size="12" font-weight="bold">Ephemeral disk</text>
+        <text x="360" y="248" text-anchor="middle" fill="#8b9cb3" font-size="10">submissions/&lt;irn&gt;/&lt;uuid&gt;/</text>
+        <text x="360" y="264" text-anchor="middle" fill="#8b9cb3" font-size="10">deleted after grading</text>
+        <line x1="360" y1="150" x2="360" y2="198" stroke="#8b9cb3" stroke-width="1" stroke-dasharray="4" marker-end="url(#arrow)"/>
+      </svg>
+    </div>
+
+    <p><strong>Communication pattern:</strong> no Vite proxy — the SPA calls the backend directly with <code>fetch</code> and a Bearer JWT. CORS is configured in <code>CorsConfig</code> for <code>/api/**</code>. Spring Security permits all requests at the filter level; JWT is checked manually in controllers that need it.</p>
+
+    <h2>Frontend — entry points and flow</h2>
+
+    <h3>Bootstrap chain</h3>
+    <div class="flow-step"><span class="flow-num">1</span><span><code>index.html</code> → <code>main.jsx</code> mounts React with <code>BrowserRouter</code> + <code>ThemeProvider</code></span></div>
+    <div class="flow-step"><span class="flow-num">2</span><span><code>App.jsx</code> holds auth state (<code>useState</code> hydrated from <code>sessionStorage</code>: <code>accessToken</code>, <code>user</code>)</span></div>
+    <div class="flow-step"><span class="flow-num">3</span><span><code>RequireRole</code> guards routes; dual-role users land on lecturer dashboard by default</span></div>
+
+    <table>
+      <thead><tr><th>Route</th><th>Page</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>/</code></td><td>Login</td><td>—</td></tr>
+        <tr><td><code>/student-dashboard</code></td><td>Upload + grades</td><td>STUDENT</td></tr>
+        <tr><td><code>/student-history</code></td><td>Submission history</td><td>STUDENT</td></tr>
+        <tr><td><code>/lecturer-dashboard</code></td><td>Grading overview</td><td>LECTURER</td></tr>
+        <tr><td><code>/lecturer-grading</code></td><td>Cross-lab grade matrix</td><td>LECTURER</td></tr>
+        <tr><td><code>/lecturer-users</code></td><td>User CRUD</td><td>LECTURER</td></tr>
+        <tr><td><code>/lecturer-report</code></td><td>Analytics</td><td>LECTURER</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Key frontend files</h3>
+    <ul>
+      <li><code>src/pages/StudentDashboard.jsx</code> — lab picker, stats, challenge sidebar, result tabs</li>
+      <li><code>src/components/ui/DropZone.jsx</code> — folder drag-drop, builds <code>FormData</code> with <code>webkitRelativePath</code></li>
+      <li><code>src/pages/LecturerDashboard.jsx</code> — nav sections for dashboard, grading, users, reports</li>
+      <li><code>src/pages/SolutionManagement.jsx</code> — lecturer rubric + testcase authoring</li>
+      <li><code>src/theme/tokens.js</code> — design tokens; <code>npm run theme:sync</code> generates CSS variables</li>
+    </ul>
+
+    <h3>Student upload (the hot UI path)</h3>
+    <pre><code><span class="cmt">// DropZone posts multipart folder to:</span>
+<span class="type">POST</span> /api/submissions/{labId}/{attemptNumber}/upload
+<span class="type">Header</span>: Authorization: Bearer &lt;token&gt;
+
+<span class="cmt">// Expected folder shape:</span>
+my-submission/
+  challenge_1/
+    Person.java
+    diagram.mmd
+  challenge_2/
+    ...</code></pre>
+
+    <h2>Backend — entry points and layers</h2>
+
+    <h3>Startup</h3>
+    <p><code>EiuCapstoneBackendApplication.java</code> boots Spring Boot 3.2 on port 8002. Config loads from <code>application.yml</code> (imports <code>backend/.env</code>) and <code>application.properties</code>. On startup, <code>TermEnrollmentSyncService</code> backfills <code>term_enrollment</code> from existing progress rows.</p>
+
+    <h3>Layer pattern</h3>
+    <pre><code>Controller (thin) → Service / GradingService → Repository (JPA) → PostgreSQL</code></pre>
+
+    <table>
+      <thead><tr><th>Controller</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>AuthController</td><td><code>/api/auth</code></td><td>Login, Google OAuth, password reset</td></tr>
+        <tr><td>SubmissionController</td><td><code>/api/submissions</code></td><td>Upload + grade + student history (JWT)</td></tr>
+        <tr><td>LabController</td><td><code>/api/labs</code></td><td>Lab list, stats, lecturer submissions</td></tr>
+        <tr><td>LecturerRubricController</td><td><code>/api/lecturer/labs</code></td><td>Rubric CRUD, testcase save, dry-run</td></tr>
+        <tr><td>LecturerAnalyticsController</td><td><code>/api/lecturer</code></td><td>Overview, grade matrix</td></tr>
+        <tr><td>AnalyticsController</td><td><code>/api/analytics</code></td><td>Dashboard, student reports</td></tr>
+        <tr><td>UserController</td><td><code>/api/users</code></td><td>User CRUD (lecturer JWT)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>The grading pipeline — heart of the system</h2>
+    <p>When a student uploads, <code>SubmissionController</code> orchestrates compile → grade → persist → respond. This is the most important flow to understand.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Submission pipeline">
+        <defs><marker id="a2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3fb950"/></marker></defs>
+        <rect x="250" y="10" width="200" height="36" rx="6" fill="#1a2332" stroke="#58a6ff"/>
+        <text x="350" y="33" text-anchor="middle" fill="#e6edf3" font-size="11">POST upload (multipart)</text>
+
+        <rect x="230" y="70" width="240" height="36" rx="6" fill="#1a2332" stroke="#8b9cb3"/>
+        <text x="350" y="93" text-anchor="middle" fill="#e6edf3" font-size="11">LabRubricCache → rubric snapshot</text>
+        <line x1="350" y1="46" x2="350" y2="68" stroke="#3fb950" marker-end="url(#a2)"/>
+
+        <rect x="200" y="130" width="300" height="44" rx="6" fill="#1a2332" stroke="#d29922"/>
+        <text x="350" y="150" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="bold">SubmissionStorageService</text>
+        <text x="350" y="166" text-anchor="middle" fill="#8b9cb3" font-size="10">parallel compile per challenge (compileExecutor)</text>
+        <line x1="350" y1="106" x2="350" y2="128" stroke="#3fb950" marker-end="url(#a2)"/>
+
+        <rect x="200" y="200" width="300" height="44" rx="6" fill="#1a2332" stroke="#3fb950"/>
+        <text x="350" y="220" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="bold">GradingService.gradeSubmission()</text>
+        <text x="350" y="236" text-anchor="middle" fill="#8b9cb3" font-size="10">parallel per challenge (gradingExecutor)</text>
+        <line x1="350" y1="174" x2="350" y2="198" stroke="#3fb950" marker-end="url(#a2)"/>
+
+        <rect x="40" y="280" width="180" height="50" rx="6" fill="#161b22" stroke="#58a6ff"/>
+        <text x="130" y="302" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="bold">ClassReflectionGrader</text>
+        <text x="130" y="318" text-anchor="middle" fill="#8b9cb3" font-size="9">URLClassLoader + reflection</text>
+
+        <rect x="260" y="280" width="180" height="50" rx="6" fill="#161b22" stroke="#58a6ff"/>
+        <text x="350" y="302" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="bold">MmdPillarGrader</text>
+        <text x="350" y="318" text-anchor="middle" fill="#8b9cb3" font-size="9">parse .mmd, compare rubric</text>
+
+        <rect x="480" y="280" width="180" height="50" rx="6" fill="#161b22" stroke="#58a6ff"/>
+        <text x="570" y="302" text-anchor="middle" fill="#e6edf3" font-size="10" font-weight="bold">TestcaseGrader</text>
+        <text x="570" y="318" text-anchor="middle" fill="#8b9cb3" font-size="9">invoke + assert runtime</text>
+
+        <line x1="280" y1="244" x2="130" y2="278" stroke="#3fb950" marker-end="url(#a2)"/>
+        <line x1="350" y1="244" x2="350" y2="278" stroke="#3fb950" marker-end="url(#a2)"/>
+        <line x1="420" y1="244" x2="570" y2="278" stroke="#3fb950" marker-end="url(#a2)"/>
+
+        <rect x="200" y="360" width="300" height="44" rx="6" fill="#1a2332" stroke="#3fb950"/>
+        <text x="350" y="380" text-anchor="middle" fill="#e6edf3" font-size="11">GradingResultStore → PostgreSQL</text>
+        <text x="350" y="396" text-anchor="middle" fill="#8b9cb3" font-size="10">+ LabResultAssembler → JSON response</text>
+        <line x1="350" y1="330" x2="350" y2="358" stroke="#3fb950" marker-end="url(#a2)"/>
+      </svg>
+    </div>
+
+    <h3>Three-pillar scoring model</h3>
+    <p>Each challenge is scored across up to <strong>three equal pillars</strong>. Challenge score = arithmetic mean of applicable pillar percentages. Lab score = mean across all rubric challenges (missing = 0%).</p>
+
+    <table>
+      <thead><tr><th>Pillar</th><th>Technique</th><th>Key classes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Class (Declaration)</strong></td>
+          <td>Compile <code>.java</code> → load <code>.class</code> via <code>URLClassLoader</code> → reflect fields, methods, constructors against rubric. Partial credit per attribute.</td>
+          <td><code>JavaCompilerService</code>, <code>ReflectionClassParser</code>, <code>ClassReflectionGrader</code>, <code>PartialCreditEvaluator</code></td>
+        </tr>
+        <tr>
+          <td><strong>MMD (Diagram)</strong></td>
+          <td>Parse Mermaid class diagram text in memory; compare classes, members, relations to rubric. Relations are MMD-only.</td>
+          <td><code>MmdParser</code>, <code>MmdComparisonService</code>, <code>MmdPillarGrader</code></td>
+        </tr>
+        <tr>
+          <td><strong>Operational Testcase</strong></td>
+          <td>Invoke student code via reflection (<code>Constructor.newInstance</code> / <code>Method.invoke</code>); assert return value, stdout, field state, exceptions. Single-thread executor prevents stdout races.</td>
+          <td><code>InvocationRunner</code>, <code>AssertionEvaluator</code>, <code>TestcaseGrader</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Executor split matters:</strong> <code>compileExecutor</code> compiles challenges in parallel; <code>gradingExecutor</code> grades challenges in parallel; <code>pillarExecutor</code> runs MMD + testcase pillars inside a challenge; <code>testcaseInvokeExecutor</code> is single-threaded so student <code>System.out</code> capture stays clean.
+    </div>
+
+    <h3>What persists vs what disappears</h3>
+    <ul>
+      <li><strong>PostgreSQL:</strong> users, rubric structure, <code>lab_submission</code>, per-element <code>submission_*_result</code> rows, <code>student_lab_progress</code></li>
+      <li><strong>Side JSON files</strong> (under <code>submissions/_compile_errors/</code>, <code>_mmd_meta/</code>, <code>_parsed_snapshot/</code>): survive for UI display when present</li>
+      <li><strong>Deleted after grading:</strong> temp upload folder, compiled <code>.class</code> files, staged <code>.java</code> sources</li>
+    </ul>
+
+    <h2>Database — the rubric graph</h2>
+    <p>Schema is managed externally (SQL scripts in <code>docs/sql/</code>, no Flyway in the app). The rubric is a tree:</p>
+    <pre><code>Lab → Challenge → ClassEntity → Field / Method / Constructor
+                 → ClassRelation (MMD)
+                 → Testcase → Invocation / Instance → Assertion</code></pre>
+    <p>A <strong>lab submission</strong> is keyed by <code>(user_id, lab_id, attempt_number)</code>. Re-uploading the same attempt updates scores in place rather than creating a new row.</p>
+
+    <h2>Auth and security</h2>
+    <ul>
+      <li>Google OAuth restricted to <code>@eiu.edu.vn</code> via <code>GoogleTokenVerifier</code></li>
+      <li>JWT created by <code>JwtService</code> — signing key is in-memory, so tokens invalidate on server restart</li>
+      <li>Claims: <code>email</code>, <code>name</code>, <code>roles</code>, <code>irn</code></li>
+      <li>Upload requires a student IRN; lecturers cannot submit</li>
+    </ul>
+
+    <h2>Production deployment</h2>
+    <table>
+      <thead><tr><th>Tier</th><th>Platform</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend</td><td>Vercel</td><td>Static build from <code>frontend/dist</code>; <code>VITE_API_URL</code> points to Render</td></tr>
+        <tr><td>Backend</td><td>Render (Docker)</td><td>Multi-stage Dockerfile; needs JDK on the image</td></tr>
+        <tr><td>Database</td><td>Neon PostgreSQL</td><td>Use pooler hostname for JVM connection pooling</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Mental model — one sentence per layer</h2>
+    <ul>
+      <li><strong>React SPA</strong> — authenticates, uploads folders, renders scores from API JSON and cached session state.</li>
+      <li><strong>Spring Boot</strong> — owns auth, rubric CRUD, the compile+grade pipeline, and analytics aggregation.</li>
+      <li><strong>Grading engine</strong> — turns compiled bytecode + diagram text + testcase rubric into element-level pass/fail and pillar percentages.</li>
+      <li><strong>PostgreSQL</strong> — single source of truth for everything that must survive a server restart.</li>
+    </ul>
+
+    <p>The critical path you will debug most often: <strong>browser upload → SubmissionController → SubmissionStorageService (compile) → GradingService (three pillars) → JPA save → lab_result JSON → React tabs update</strong>.</p>
+
+    <footer class="footer">Composed 2026-08-13 by ce-explain</footer>
+  </div>
+</body>
+</html>

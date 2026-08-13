@@ -28,7 +28,9 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Parse uploaded `.mmd` bytes into diagram DTOs |
 | `MmdComparisonService.java` | Compare parsed MMD against rubric |
-| `ReflectionClassParser.java` | Load `.class` files via `URLClassLoader` |
+| `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
+| `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
+| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence) |
 
 ## Local Contracts
 
@@ -84,7 +86,8 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
-- Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations
+- Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
+- Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; does not write `submission_*` rows
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
 
 ## Verification

@@ -78,14 +78,14 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200/80 bg-white shadow-2xl dark:border-gray-700 dark:bg-[#161b22]">
-        <div className="flex items-center justify-between border-b border-gray-200/80 px-6 py-4 dark:border-gray-800">
+      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-surface shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
+            <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+            className="text-foreground-muted transition hover:text-foreground-secondary"
           >
             <X className="h-5 w-5" />
           </button>
@@ -93,7 +93,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
 
         <div className="space-y-5 px-6 py-6">
           {error && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <div className="flex items-start gap-2 rounded-lg bg-error-bg p-3 text-sm text-error">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -101,11 +101,11 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
 
           <div className="space-y-4">
             <div>
-              <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label className="mb-2 block text-xs font-medium text-foreground-muted">
                 Current Password
               </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                 <input
                   type={showCurrent ? 'text' : 'password'}
                   value={currentPassword}
@@ -114,29 +114,29 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                     setError('');
                   }}
                   placeholder="Enter current password"
-                  className={`w-full rounded-2xl border bg-white px-10 py-3 text-sm text-gray-900 outline-none transition focus:border-purple-500 dark:bg-[#0d1117] dark:text-white ${
-                    fieldErrors.currentPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'
+                  className={`w-full rounded-2xl bg-surface-secondary px-10 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
+                    fieldErrors.currentPassword ? 'ring-1 ring-error/30' : ''
                   }`}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-500"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground-secondary"
                   onClick={() => setShowCurrent(!showCurrent)}
                 >
                   {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {fieldErrors.currentPassword && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.currentPassword}</p>
+                <p className="mt-1 text-xs text-error">{fieldErrors.currentPassword}</p>
               )}
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label className="mb-2 block text-xs font-medium text-foreground-muted">
                 New Password
               </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                 <input
                   type={showNew ? 'text' : 'password'}
                   value={newPassword}
@@ -145,28 +145,28 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                     setError('');
                   }}
                   placeholder="Enter new password"
-                  className={`w-full rounded-2xl border bg-white px-10 py-3 text-sm text-gray-900 outline-none transition focus:border-purple-500 dark:bg-[#0d1117] dark:text-white ${
-                    fieldErrors.newPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'
+                  className={`w-full rounded-2xl bg-surface-secondary px-10 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
+                    fieldErrors.newPassword ? 'ring-1 ring-error/30' : ''
                   }`}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-500"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground-secondary"
                   onClick={() => setShowNew(!showNew)}
                 >
                   {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {fieldErrors.newPassword && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.newPassword}</p>
+                <p className="mt-1 text-xs text-error">{fieldErrors.newPassword}</p>
               )}
               {!fieldErrors.newPassword && newPassword && !validatePassword(newPassword) && (
-                <p className="mt-1 text-xs text-green-500">✓ Password is valid</p>
+                <p className="mt-1 text-xs text-success">✓ Password is valid</p>
               )}
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label className="mb-2 block text-xs font-medium text-foreground-muted">
                 Confirm New Password
               </label>
               <input
@@ -177,19 +177,19 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                   setError('');
                 }}
                 placeholder="Repeat new password"
-                className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-purple-500 dark:bg-[#0d1117] dark:text-white ${
+                className={`w-full rounded-2xl bg-surface-secondary px-4 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
                   fieldErrors.confirmPassword
-                    ? 'border-red-500'
+                    ? 'ring-1 ring-error/30'
                     : passwordsMatch && confirmPassword
-                    ? 'border-green-500'
-                    : 'border-gray-200 dark:border-gray-700'
+                    ? 'ring-1 ring-success/20'
+                    : ''
                 }`}
               />
               {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmPassword}</p>
+                <p className="mt-1 text-xs text-error">{fieldErrors.confirmPassword}</p>
               )}
               {passwordsMatch && confirmPassword && !fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-green-500">✓ Passwords match</p>
+                <p className="mt-1 text-xs text-success">✓ Passwords match</p>
               )}
             </div>
           </div>
@@ -198,7 +198,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
             type="button"
             disabled={loading || saved || !canSave}
             onClick={handleSave}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saved ? (
               <>

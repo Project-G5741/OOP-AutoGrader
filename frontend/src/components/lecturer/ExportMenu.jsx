@@ -44,7 +44,7 @@ export default function ExportMenu({ onExport, disabled = false, label = 'Export
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Download className="h-4 w-4" />
         {label}
@@ -52,14 +52,14 @@ export default function ExportMenu({ onExport, disabled = false, label = 'Export
       </button>
       {open && (
         <div
-          className={`absolute right-0 z-50 min-w-[9rem] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-[#1e2530] ${menuPositionClass}`}
+          className={`absolute right-0 z-50 min-w-[9rem] overflow-hidden rounded-lg border border-border bg-surface shadow-lg   ${menuPositionClass}`}
         >
           {['excel', 'pdf', 'svg'].map((format) => (
             <button
               key={format}
               type="button"
               onClick={() => handleSelect(format)}
-              className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-purple-50 dark:text-gray-200 dark:hover:bg-purple-900/20"
+              className="block w-full px-4 py-2 text-left text-sm text-foreground-secondary hover:bg-primary-light"
             >
               {format.toUpperCase()}
             </button>

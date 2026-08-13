@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 
 const VARIANTS = {
-  success:
-    'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-100',
-  error:
-    'border-red-300 bg-red-100 text-red-800 dark:border-red-600 dark:bg-red-900/60 dark:text-red-100',
+  success: 'border-success/40 bg-success-bg text-success-text',
+  error: 'border-error/40 bg-error-bg text-error-text',
 };
 
 const EXIT_MS = 300;
