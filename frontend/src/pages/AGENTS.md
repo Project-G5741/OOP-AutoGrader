@@ -18,7 +18,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `StudentDashboard.jsx` | Student shell: lab select, upload, stats; toggles history |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `UserManagement.jsx` | User CRUD (live API) |
-| `SubmissionManagement.jsx` | Solution/lab upload management (mock local state) |
+| `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`) |
 
 ## Local Contracts
 
@@ -46,7 +46,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`, `/api/labs/{id}/challenges/{id}/students` |
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
-| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`) |
+| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`) |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections

@@ -72,6 +72,7 @@ public class LabStructureService {
     private final ConstructorDeclarationRepository constructorDeclarationRepository;
     private final MasterDataRepository masterDataRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
+    private final TestcaseRubricService testcaseRubricService;
 
     public LabStructureService(LabRepository labRepository,
                                TermRepository termRepository,
@@ -86,7 +87,8 @@ public class LabStructureService {
                                MethodDeclarationRepository methodDeclarationRepository,
                                ConstructorDeclarationRepository constructorDeclarationRepository,
                                MasterDataRepository masterDataRepository,
-                               RubricCacheInvalidationSupport rubricCacheInvalidationSupport) {
+                               RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
+                               TestcaseRubricService testcaseRubricService) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
         this.challengeRepository = challengeRepository;
@@ -101,6 +103,7 @@ public class LabStructureService {
         this.constructorDeclarationRepository = constructorDeclarationRepository;
         this.masterDataRepository = masterDataRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
+        this.testcaseRubricService = testcaseRubricService;
     }
 
     @Transactional(readOnly = true)
@@ -860,6 +863,8 @@ public class LabStructureService {
     }
 
     private void deleteField(SaveContext ctx, Field field) {
+        UUID challengeId = field.getClassEntity().getChallenge().getId();
+        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.FIELD, field.getId());
         UUID classId = field.getClassEntity().getId();
         UUID declarationId = field.getFieldDeclaration().getId();
         fieldRepository.delete(field);
@@ -868,6 +873,8 @@ public class LabStructureService {
     }
 
     private void deleteMethod(SaveContext ctx, Method method) {
+        UUID challengeId = method.getClassEntity().getChallenge().getId();
+        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.METHOD, method.getId());
         UUID classId = method.getClassEntity().getId();
         parameterRepository.deleteByMethod_IdIn(List.of(method.getId()));
         UUID declarationId = method.getMethodDeclaration().getId();
@@ -877,12 +884,24 @@ public class LabStructureService {
     }
 
     private void deleteConstructor(SaveContext ctx, Constructor constructor) {
+        UUID challengeId = constructor.getClassEntity().getChallenge().getId();
+        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CONSTRUCTOR, constructor.getId());
         UUID classId = constructor.getClassEntity().getId();
         parameterRepository.deleteByConstructorEntity_IdIn(List.of(constructor.getId()));
         UUID declarationId = constructor.getConstructorDeclaration().getId();
         constructorRepository.delete(constructor);
         constructorDeclarationRepository.deleteById(declarationId);
         ctx.removeConstructor(constructor.getId(), classId);
+    }
+
+    private void guardTestcaseReference(UUID challengeId,
+                                        TestcaseRubricService.RubricMemberKind kind,
+                                        UUID memberId) {
+        List<String> names = testcaseRubricService.findReferencingTestcaseNames(challengeId, kind, memberId);
+        if (!names.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Cannot delete: referenced by operational testcase(s): " + String.join(", ", names));
+        }
     }
 
     private MasterData resolveMasterData(SaveContext ctx, Integer id, String label) {

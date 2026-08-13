@@ -49,7 +49,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT) |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT); challenge testcase CRUD + dry-run |
 | `MasterDataController` | `/api/master-data` | Master data lookup by category |
 | `TermController` | `/api/terms` | Academic term list for lab creation |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |

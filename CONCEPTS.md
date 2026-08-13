@@ -34,6 +34,12 @@ The assertion that drives a testcase's collapsed I/O card display (`input_displa
 ### Receiver construction (testcase)
 Optional rubric configuration for METHOD invocations on classes that lack a no-arg constructor. The testcase invocation row names a rubric constructor and JSON parameter list used to build the receiver object before the method call. When absent, the runner falls back to a no-arg constructor on the method's declaring class.
 
+### Testcase rubric graph
+The persisted testcase authoring shape: one `testcase` row plus its invocation (SINGLE_INVOCATION), optional instance pair (COMPARISON), and assertion rows. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save.
+
+### Sync-by-presence (testcase save)
+The lecturer testcase PUT contract: testcase ids omitted from the payload are deleted from the challenge; ids present are upserted. Child invocation and assertion rows must be updated in place by client UUID — not delete-all-then-reinsert — because graded submissions reference `testcase_assertion.id` with `ON DELETE CASCADE`.
+
 ### Testcase invoke executor
 Dedicated single-worker executor for operational testcase reflection. All student-code invocations and stdout capture run through this queue so parallel challenge grading does not interleave `System.out` or race on timeout cancellation.
 

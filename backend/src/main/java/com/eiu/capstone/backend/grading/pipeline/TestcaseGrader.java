@@ -44,6 +44,10 @@ public class TestcaseGrader {
         this.displayFormatter = displayFormatter;
     }
 
+    public PendingTestcaseResult gradeSingle(TestcaseRubric testcase, ChallengeGradingContext context) {
+        return evaluate(testcase, context).pending();
+    }
+
     public TestcasePillarResult grade(ChallengeGradingContext context) {
         List<WeightedAccuracy> weighted = new ArrayList<>();
         List<PendingTestcaseResult> results = new ArrayList<>();

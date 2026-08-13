@@ -7,8 +7,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -22,7 +20,6 @@ import org.hibernate.type.SqlTypes;
 public class Testcase {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -56,6 +53,7 @@ public class Testcase {
     public Testcase() {}
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public Challenge getChallenge() { return challenge; }
     public void setChallenge(Challenge challenge) { this.challenge = challenge; }

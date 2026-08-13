@@ -11,4 +11,6 @@ import com.eiu.capstone.backend.model.Testcase;
 public interface TestcaseRepository extends JpaRepository<Testcase, UUID> {
 
     List<Testcase> findByChallenge_IdInOrderByOrderIndexAsc(Collection<UUID> challengeIds);
+
+    List<Testcase> findByChallenge_IdOrderByOrderIndexAsc(UUID challengeId);
 }

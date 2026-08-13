@@ -41,6 +41,11 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
+| `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases |
+| `structure/TestcasesPanel.jsx` | Operational testcase list, editor, dry-run, separate Save Testcases |
+| `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
+| `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
+
 
 
 ## Local Contracts
@@ -106,6 +111,8 @@ LecturerDashboard
 
 
 User management and submission management are separate pages (`UserManagement`, `SubmissionManagement`), not in this folder.
+
+**Solution Management** (`SolutionManagement.jsx`, `/lecturer-solution`) uses `structure/*` for lab structure and operational testcase authoring. Testcase API: `GET/PUT /api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, dry-run `POST .../testcases/dry-run`. Reference Java is loaded via drag/drop or file picker (`ReferenceJavaFiles.jsx`) and kept in `sessionStorage` per lab/challenge.
 
 
 

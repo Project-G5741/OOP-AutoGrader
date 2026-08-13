@@ -16,10 +16,15 @@ export default {
           from: { transform: 'translateX(0)', opacity: 1 },
           to: { transform: 'translateX(120%)', opacity: 0 },
         },
+        'panel-in': {
+          from: { opacity: 0, transform: 'translateY(6px)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
       },
       animation: {
         'toast-in': 'toast-in 0.3s ease-out forwards',
         'toast-out': 'toast-out 0.3s ease-in forwards',
+        'panel-in': 'panel-in 0.22s ease-out forwards',
       },
     },
   },

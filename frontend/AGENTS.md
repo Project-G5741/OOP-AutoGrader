@@ -63,7 +63,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`) |
+| Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
 

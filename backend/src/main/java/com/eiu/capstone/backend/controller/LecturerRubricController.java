@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -16,8 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
+import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
+import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
+import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseDryRunRequest;
+import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.service.LabStructureService;
+import com.eiu.capstone.backend.service.TestcaseDryRunService;
+import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 import io.jsonwebtoken.Claims;
 
@@ -26,10 +33,17 @@ import io.jsonwebtoken.Claims;
 public class LecturerRubricController {
 
     private final LabStructureService labStructureService;
+    private final TestcaseRubricService testcaseRubricService;
+    private final TestcaseDryRunService testcaseDryRunService;
     private final JwtAuthHelper jwtAuthHelper;
 
-    public LecturerRubricController(LabStructureService labStructureService, JwtAuthHelper jwtAuthHelper) {
+    public LecturerRubricController(LabStructureService labStructureService,
+                                    TestcaseRubricService testcaseRubricService,
+                                    TestcaseDryRunService testcaseDryRunService,
+                                    JwtAuthHelper jwtAuthHelper) {
         this.labStructureService = labStructureService;
+        this.testcaseRubricService = testcaseRubricService;
+        this.testcaseDryRunService = testcaseDryRunService;
         this.jwtAuthHelper = jwtAuthHelper;
     }
 
@@ -71,5 +85,34 @@ public class LecturerRubricController {
         requireLecturer(authHeader);
         labStructureService.deleteLabCascade(labId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{labId}/challenges/{challengeId}/testcases")
+    public ChallengeTestcasesResponse getTestcases(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @PathVariable UUID challengeId) {
+        requireLecturer(authHeader);
+        return testcaseRubricService.loadForChallenge(labId, challengeId);
+    }
+
+    @PutMapping("/{labId}/challenges/{challengeId}/testcases")
+    public ChallengeTestcasesResponse saveTestcases(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @PathVariable UUID challengeId,
+            @RequestBody List<TestcaseStructureDTO> testcases) {
+        requireLecturer(authHeader);
+        return testcaseRubricService.saveForChallenge(labId, challengeId, testcases);
+    }
+
+    @PostMapping("/{labId}/challenges/{challengeId}/testcases/dry-run")
+    public TestcaseResultDTO dryRunTestcase(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @PathVariable UUID challengeId,
+            @RequestBody TestcaseDryRunRequest request) {
+        requireLecturer(authHeader);
+        return testcaseDryRunService.dryRun(labId, challengeId, request);
     }
 }

@@ -3,7 +3,7 @@ import { Check, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import Toast from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
-import MmdRelationsPanel from '../components/lecturer/structure/MmdRelationsPanel';
+import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import { authHeaders } from '../utils/authHeaders';
 
@@ -42,6 +42,7 @@ export default function SolutionManagement() {
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [challengeTabById, setChallengeTabById] = useState({});
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) return false;
@@ -382,10 +383,19 @@ export default function SolutionManagement() {
               onChange={updateSelectedClass}
             />
           ) : (
-            <MmdRelationsPanel
+            <ChallengeDetailPanel
               challenge={selectedChallenge}
               relationTypeOptions={relationTypeOptions}
-              onChange={updateSelectedChallenge}
+              onMmdChange={updateSelectedChallenge}
+              activeTab={challengeTabById[selectedChallengeId] || 'mmd'}
+              onTabChange={(tab) => {
+                if (selectedChallengeId) {
+                  setChallengeTabById((prev) => ({ ...prev, [selectedChallengeId]: tab }));
+                }
+              }}
+              labId={selectedLabId}
+              structureDirty={isDirty}
+              onToast={setToast}
             />
           )}
         </div>
