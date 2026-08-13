@@ -28,7 +28,7 @@ export default function ChallengeDetailPanel({
           onClick={() => onTabChange('mmd')}
           className={`px-4 py-2 text-sm font-medium ${
             activeTab === 'mmd'
-              ? 'border-b-2 border-primary text-primary'
+              ? 'border-b-2 border-secondary text-secondary'
               : 'text-foreground-secondary hover:text-foreground-secondary'
           }`}
         >

@@ -16,6 +16,21 @@ const ASSERTION_KINDS = [
 
 const COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
 
+const COMPARISON_RESULT_EQUALS_OPTIONS = ['true', 'false'];
+const COMPARISON_RESULT_COMPARE_TO_OPTIONS = ['-1', '0', '1'];
+
+function comparisonResultSelectValue(expectedValue, comparisonMethod) {
+  if (comparisonMethod === 'COMPARE_TO') {
+    const value = String(expectedValue ?? '0');
+    return COMPARISON_RESULT_COMPARE_TO_OPTIONS.includes(value) ? value : '0';
+  }
+  const value = String(expectedValue ?? 'true').toLowerCase();
+  if (COMPARISON_RESULT_EQUALS_OPTIONS.includes(value)) return value;
+  if (value === '0') return 'true';
+  if (value === '1') return 'false';
+  return 'true';
+}
+
 function emptyTestcase(orderIndex = 0) {
   return {
     id: crypto.randomUUID(),
@@ -58,7 +73,9 @@ function normalizeTestcaseForApi(tc) {
       ...a,
       assertionKind: a.assertionKind,
       fieldId: a.assertionKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
-      expectedValue: a.expectedValue?.trim() ? a.expectedValue.trim() : 'null',
+      expectedValue: a.assertionKind === 'COMPARISON_RESULT' && tc.testcaseType === 'COMPARISON'
+        ? comparisonResultSelectValue(a.expectedValue, tc.comparisonMethod)
+        : (a.expectedValue?.trim() ? a.expectedValue.trim() : 'null'),
       comparisonMode: a.comparisonMode || 'EXACT',
       orderIndex: a.orderIndex ?? idx,
     })),
@@ -78,7 +95,7 @@ function comparisonTestcaseDefaults() {
       invocationId: null,
       assertionKind: 'COMPARISON_RESULT',
       fieldId: null,
-      expectedValue: '0',
+      expectedValue: 'true',
       comparisonMode: 'EXACT',
       orderIndex: 0,
     }],
@@ -382,7 +399,17 @@ function TestcaseEditor({
           <select
             className="w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
             value={tc.comparisonMethod || 'EQUALS'}
-            onChange={(e) => onUpdate({ comparisonMethod: e.target.value })}
+            onChange={(e) => {
+              const method = e.target.value;
+              const assertions = (tc.assertions || []).map((a) => {
+                if (a.assertionKind !== 'COMPARISON_RESULT') return a;
+                return {
+                  ...a,
+                  expectedValue: method === 'COMPARE_TO' ? '0' : 'true',
+                };
+              });
+              onUpdate({ comparisonMethod: method, assertions });
+            }}
           >
             <option value="EQUALS">EQUALS</option>
             <option value="COMPARE_TO">COMPARE_TO</option>
@@ -433,6 +460,9 @@ function TestcaseEditor({
                   ...a,
                   assertionKind: nextKind,
                   fieldId: nextKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
+                  expectedValue: nextKind === 'COMPARISON_RESULT' && tc.testcaseType === 'COMPARISON'
+                    ? (tc.comparisonMethod === 'COMPARE_TO' ? '0' : 'true')
+                    : a.expectedValue,
                 };
                 onUpdate({ assertions });
               }}
@@ -455,16 +485,35 @@ function TestcaseEditor({
                 ))}
               </select>
             )}
-            <input
-              className="rounded border border-border bg-surface-secondary px-2 py-1 font-mono text-sm dark:text-white"
-              value={a.expectedValue || ''}
-              onChange={(e) => {
-                const assertions = [...(tc.assertions || [])];
-                assertions[idx] = { ...a, expectedValue: e.target.value };
-                onUpdate({ assertions });
-              }}
-              placeholder="Expected value JSON"
-            />
+            {tc.testcaseType === 'COMPARISON' && a.assertionKind === 'COMPARISON_RESULT' ? (
+              <select
+                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
+                value={comparisonResultSelectValue(a.expectedValue, tc.comparisonMethod)}
+                onChange={(e) => {
+                  const assertions = [...(tc.assertions || [])];
+                  assertions[idx] = { ...a, expectedValue: e.target.value };
+                  onUpdate({ assertions });
+                }}
+              >
+                {(tc.comparisonMethod === 'COMPARE_TO'
+                  ? COMPARISON_RESULT_COMPARE_TO_OPTIONS
+                  : COMPARISON_RESULT_EQUALS_OPTIONS
+                ).map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="rounded border border-border bg-surface-secondary px-2 py-1 font-mono text-sm dark:text-white"
+                value={a.expectedValue || ''}
+                onChange={(e) => {
+                  const assertions = [...(tc.assertions || [])];
+                  assertions[idx] = { ...a, expectedValue: e.target.value };
+                  onUpdate({ assertions });
+                }}
+                placeholder="Expected value JSON"
+              />
+            )}
             <select
               className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
               value={a.comparisonMode || 'EXACT'}
