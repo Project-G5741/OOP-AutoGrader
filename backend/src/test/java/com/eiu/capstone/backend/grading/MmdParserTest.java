@@ -127,4 +127,141 @@ class MmdParserTest {
     assertTrue(outcome.isConstructorCorrect(ctorId));
     assertTrue(outcome.isClassPresent(classId));
   }
+
+  @Test
+  void parsesMermaidStaticAndAbstractMethodModifiers() {
+    String mmd = """
+        class Logger {
+          -static Logger instance$
+          +getInstance() Logger$
+          +log(message String) void
+        }
+        """;
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+    ParsedMmdClass logger = diagram.classes.get(0);
+
+    assertEquals("instance", logger.fields.get(0).name);
+    assertEquals("Logger", logger.fields.get(0).dataType);
+
+    ParsedMethod getInstance = logger.methods.stream()
+        .filter(method -> "getInstance".equals(method.name))
+        .findFirst()
+        .orElseThrow();
+    assertEquals("Logger", getInstance.returnType);
+    assertTrue(getInstance.isStatic);
+
+    ParsedMethod log = logger.methods.stream()
+        .filter(method -> "log".equals(method.name))
+        .findFirst()
+        .orElseThrow();
+    assertEquals(List.of("String"), log.parameterTypes);
+  }
+
+  @Test
+  void parsesMethodParametersWithNameColonType() {
+    String mmd = """
+        class Logger {
+          +log(message: String) void
+        }
+        """;
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+    ParsedMethod log = diagram.classes.get(0).methods.get(0);
+
+    assertEquals(List.of("String"), log.parameterTypes);
+  }
+
+  @Test
+  void gradesLoggerSingletonDiagramAgainstRubric() {
+    String mmd = """
+        classDiagram
+            class Logger {
+                -static Logger instance
+                -Logger()
+                +getInstance() Logger$
+                +log(message: String) void
+            }
+        """;
+
+    var instanceId = java.util.UUID.randomUUID();
+    var ctorId = java.util.UUID.randomUUID();
+    var getInstanceId = java.util.UUID.randomUUID();
+    var logId = java.util.UUID.randomUUID();
+    var classId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Logger",
+        java.util.List.of(new ClassRubric(
+            classId,
+            "Logger",
+            "public",
+            "CLASS",
+            false,
+            java.util.List.of(new FieldRubric(instanceId, "instance", "private", "Logger")),
+            java.util.List.of(
+                new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                    getInstanceId, "getInstance", "public", "Logger", true, false, false, java.util.List.of()),
+                new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                    logId, "log", "public", "void", false, false, false, java.util.List.of("String"))),
+            java.util.List.of(new com.eiu.capstone.backend.grading.rubric.ConstructorRubric(
+                ctorId, "private", false, java.util.List.of())))),
+        java.util.List.of(),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertTrue(outcome.isFieldCorrect(instanceId));
+    assertTrue(outcome.isMethodCorrect(getInstanceId));
+    assertTrue(outcome.isMethodCorrect(logId));
+    assertTrue(outcome.isConstructorCorrect(ctorId));
+  }
+
+  @Test
+  void gradesStaticMarkerWhenRubricDoesNotRequireStatic() {
+    String mmd = """
+        class Logger {
+          +getInstance() Logger$
+        }
+        """;
+
+    var getInstanceId = java.util.UUID.randomUUID();
+    var classId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Logger",
+        java.util.List.of(new ClassRubric(
+            classId,
+            "Logger",
+            "public",
+            "CLASS",
+            false,
+            java.util.List.of(),
+            java.util.List.of(new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                getInstanceId, "getInstance", "public", "Logger", false, false, false, java.util.List.of())),
+            java.util.List.of())),
+        java.util.List.of(),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertTrue(outcome.isMethodCorrect(getInstanceId));
+  }
+
+  @Test
+  void parsesCanonicalMermaidStaticMarkerAfterParentheses() {
+    String mmd = """
+        class Logger {
+          +getInstance()$ Logger
+        }
+        """;
+
+    ParsedMethod getInstance = parser.parse(mmd).classes.get(0).methods.get(0);
+
+    assertEquals("getInstance", getInstance.name);
+    assertEquals("Logger", getInstance.returnType);
+    assertTrue(getInstance.isStatic);
+  }
 }
