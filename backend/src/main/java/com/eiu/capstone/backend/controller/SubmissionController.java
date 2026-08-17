@@ -45,6 +45,7 @@ import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
+import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
@@ -68,6 +69,7 @@ public class SubmissionController {
     private final LabRubricCache labRubricCache;
     private final MmdPersistenceHook mmdPersistenceHook;
     private final SubmissionCompileErrorStore compileErrorStore;
+    private final SubmissionPackageNormalizationStore packageNormalizationStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final StudentHistoryService studentHistoryService;
     private final LabStatisticsCache labStatisticsCache;
@@ -84,6 +86,7 @@ public class SubmissionController {
                                  LabRubricCache labRubricCache,
                                  MmdPersistenceHook mmdPersistenceHook,
                                  SubmissionCompileErrorStore compileErrorStore,
+                                 SubmissionPackageNormalizationStore packageNormalizationStore,
                                  SubmissionMmdMetaStore submissionMmdMetaStore,
                                  StudentHistoryService studentHistoryService,
                                  LabStatisticsCache labStatisticsCache,
@@ -99,6 +102,7 @@ public class SubmissionController {
         this.labRubricCache = labRubricCache;
         this.mmdPersistenceHook = mmdPersistenceHook;
         this.compileErrorStore = compileErrorStore;
+        this.packageNormalizationStore = packageNormalizationStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.studentHistoryService = studentHistoryService;
         this.labStatisticsCache = labStatisticsCache;
@@ -176,6 +180,9 @@ public class SubmissionController {
                     userAccount, lab, submission, gradingOutcome.overallScore(), totalSubmissions);
 
             compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
+            packageNormalizationStore.save(
+                    submission.getId(),
+                    packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges));
             submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
@@ -254,6 +261,25 @@ public class SubmissionController {
                     errors.put(challengeRubric.challengeId(), challengeResult.compileError));
         }
         return errors;
+    }
+
+    private Map<UUID, String> packageNormalizationNoticesByChallengeId(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challenges) {
+        Map<UUID, String> notices = new LinkedHashMap<>();
+        for (SubmissionStorageService.ChallengeResult challengeResult : challenges) {
+            if (challengeResult.packageNormalizationNotice == null
+                    || challengeResult.packageNormalizationNotice.isBlank()) {
+                continue;
+            }
+            Integer challengeNumber = extractChallengeNumber(challengeResult.challengeName);
+            if (challengeNumber == null) {
+                continue;
+            }
+            rubric.challenge(challengeNumber).ifPresent(challengeRubric ->
+                    notices.put(challengeRubric.challengeId(), challengeResult.packageNormalizationNotice));
+        }
+        return notices;
     }
 
     private Integer extractChallengeNumber(String challengeFolderKey) {

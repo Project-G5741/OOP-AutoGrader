@@ -27,6 +27,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 
 @Service
@@ -60,16 +63,26 @@ public class SubmissionStorageService {
         public final Path folder;
         public final int classFileCount;
         public final String compileError;
+        public final String packageNormalizationNotice;
 
         public ChallengeResult(String challengeName, Path folder, int classFileCount) {
-            this(challengeName, folder, classFileCount, null);
+            this(challengeName, folder, classFileCount, null, null);
         }
 
         public ChallengeResult(String challengeName, Path folder, int classFileCount, String compileError) {
+            this(challengeName, folder, classFileCount, compileError, null);
+        }
+
+        public ChallengeResult(String challengeName,
+                               Path folder,
+                               int classFileCount,
+                               String compileError,
+                               String packageNormalizationNotice) {
             this.challengeName = challengeName;
             this.folder = folder;
             this.classFileCount = classFileCount;
             this.compileError = compileError;
+            this.packageNormalizationNotice = packageNormalizationNotice;
         }
     }
 
@@ -195,7 +208,7 @@ public class SubmissionStorageService {
         }
 
         long buildSourcesStart = System.currentTimeMillis();
-        List<JavaFileObject> sources = new ArrayList<>();
+        List<SourceEntry> rawSources = new ArrayList<>();
         Set<String> seenSourcePaths = new HashSet<>();
         for (MultipartFile file : files) {
             String originalName = file.getOriginalFilename();
@@ -209,10 +222,24 @@ public class SubmissionStorageService {
             }
             seenSourcePaths.add(sourcePath);
             try {
-                sources.add(new MemorySourceJavaFileObject(sourcePath, file.getBytes()));
+                rawSources.add(new SourceEntry(sourcePath, new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8)));
             } catch (IOException e) {
                 return failedChallenge(challengeName, challengeFolder, start, challengeFolder, 0, 0, 0,
                         "Failed to read file: " + sourcePath);
+            }
+        }
+
+        NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(rawSources);
+        String packageNormalizationNotice = normalization.packageStripped()
+                ? StudentSourceNormalizer.PACKAGE_IGNORED_NOTICE
+                : null;
+
+        List<JavaFileObject> sources = new ArrayList<>();
+        for (SourceEntry entry : normalization.sources()) {
+            try {
+                sources.add(new MemorySourceJavaFileObject(
+                        entry.logicalPath(),
+                        entry.source().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             } catch (IllegalArgumentException e) {
                 return failedChallenge(challengeName, challengeFolder, start, challengeFolder, 0, 0, 0,
                         e.getMessage());
@@ -240,7 +267,7 @@ public class SubmissionStorageService {
             int classCount = countClassFiles(classesFolder);
             long countMs = System.currentTimeMillis() - countStart;
             logCompileTiming(challengeName, start, buildSourcesMs, javacMs, countMs);
-            return new ChallengeResult(challengeName, challengeFolder, classCount);
+            return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
         } catch (IOException e) {
             long countMs = System.currentTimeMillis() - countStart;
             return failedChallenge(challengeName, challengeFolder, start, classesFolder,
@@ -259,7 +286,7 @@ public class SubmissionStorageService {
                                               String message) {
         deleteRecursively(cleanupTarget);
         logCompileTiming(challengeName, startMs, buildSourcesMs, javacMs, countMs);
-        return new ChallengeResult(challengeName, challengeFolder, 0, message);
+        return new ChallengeResult(challengeName, challengeFolder, 0, message, null);
     }
 
     private static String runtimeErrorMessage(RuntimeException e) {

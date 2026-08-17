@@ -38,6 +38,7 @@ public class ClassStructureService {
     private final SubmissionResultLoader submissionResultLoader;
     private final MasterDataCache masterDataCache;
     private final SubmissionCompileErrorStore compileErrorStore;
+    private final SubmissionPackageNormalizationStore packageNormalizationStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
     private final LabRubricCache labRubricCache;
@@ -56,6 +57,7 @@ public class ClassStructureService {
                                   SubmissionResultLoader submissionResultLoader,
                                   MasterDataCache masterDataCache,
                                   SubmissionCompileErrorStore compileErrorStore,
+                                  SubmissionPackageNormalizationStore packageNormalizationStore,
                                   SubmissionMmdMetaStore submissionMmdMetaStore,
                                   ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
                                   LabRubricCache labRubricCache,
@@ -73,6 +75,7 @@ public class ClassStructureService {
         this.submissionResultLoader = submissionResultLoader;
         this.masterDataCache = masterDataCache;
         this.compileErrorStore = compileErrorStore;
+        this.packageNormalizationStore = packageNormalizationStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
         this.labRubricCache = labRubricCache;
@@ -395,17 +398,18 @@ public class ClassStructureService {
     }
 
     /** Powers the "Class" tab for the student's latest attempt. */
-    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
+    public ClassTabResponse getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
-            return List.of();
+            return new ClassTabResponse(List.of(), null);
         }
         List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
+        String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
         if (timingLog) {
             System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
         }
-        return result;
+        return new ClassTabResponse(result, notice);
     }
 
     /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet. */

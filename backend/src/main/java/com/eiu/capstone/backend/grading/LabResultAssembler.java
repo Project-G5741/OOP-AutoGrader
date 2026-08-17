@@ -54,7 +54,8 @@ public class LabResultAssembler {
             UUID submissionId,
             LabRubricSnapshot rubric,
             GradingService.GradingComputationResult computed,
-            Map<UUID, String> compileErrorsByChallengeId) {
+            Map<UUID, String> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId) {
 
         long start = System.currentTimeMillis();
 
@@ -69,6 +70,9 @@ public class LabResultAssembler {
         LabChallengeStructureBundle structure = classStructureService.loadChallengeStructures(challengeIds);
         Map<UUID, String> compileErrors = compileErrorsByChallengeId != null
                 ? compileErrorsByChallengeId
+                : Map.of();
+        Map<UUID, String> normalizationNotices = normalizationNoticesByChallengeId != null
+                ? normalizationNoticesByChallengeId
                 : Map.of();
 
         Map<UUID, SubmissionTestcaseResult> testcaseResultsById = computed.testcaseResults.stream()
@@ -130,7 +134,8 @@ public class LabResultAssembler {
                     "testcase", pillarScores.testcaseApplicable());
 
             labResult.put("challenge_" + number, new ChallengeDetailBundleDTO(
-                    classData, mmdData, testcases, scores, scoreApplicability));
+                    classData, mmdData, testcases, scores, scoreApplicability,
+                    normalizationNotices.get(challengeId)));
         }
 
         if (timingLog) {

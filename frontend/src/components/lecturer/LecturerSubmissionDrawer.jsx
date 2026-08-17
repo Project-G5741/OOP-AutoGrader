@@ -76,7 +76,7 @@ export default function LecturerSubmissionDrawer({
         }
         const classJson = await classResponse.json();
         if (!cancelled) {
-          setClassData(Array.isArray(classJson) ? classJson : []);
+          setClassData(Array.isArray(classJson) ? classJson : (classJson?.classes ?? []));
         }
       } catch (err) {
         if (!cancelled) {

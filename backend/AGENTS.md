@@ -105,10 +105,11 @@ Grading tuning properties (`application.properties`):
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
 - `MasterDataCache` — cached scope/type labels; `ClassStructureService` uses batched rubric queries (same pattern as `LabRubricService`)
 - `ChallengeService` — one submission-result load + batched classes/members for all challenges in a lab
-- `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), bulk-deletes/reinserts parameters per class, returns the request payload (no post-save full reload)
+- `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), logs `structure_save_timing` when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
 - `attemptsCount` on progress is maintained incrementally on upload (new attempt increments; re-upload of same attempt does not recount)
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
+- Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; when missing (legacy submissions or storage wipe), tabs fall back to rubric-template labels
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load

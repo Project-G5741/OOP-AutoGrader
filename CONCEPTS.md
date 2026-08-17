@@ -7,6 +7,9 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 ### Submission upload compile
 The pre-grading slice that receives a multipart folder, validates path structure, compiles each challenge's `.java` files in parallel, and writes `.class` output under `challenge_N/classes/`. Sources are compiled from memory; MMD files stay in the multipart map for grading without disk staging on the hot path.
 
+### Package normalization
+Pre-compile transformation of student Java sources that removes `package ...;` declarations and same-challenge cross-imports so all classes compile into the default package. Grading rubrics and reflection use simple class names against flat `classes/` output; when normalization runs, students see a non-blocking warning that package declarations were ignored.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`; re-uploading the same attempt updates scores in place rather than creating a new attempt row.
 

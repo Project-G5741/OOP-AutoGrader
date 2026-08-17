@@ -114,6 +114,7 @@ export default function StudentUI({
   // Dữ liệu chi tiết cho challenge đã chọn
   mmdData = [],
   classData = [],
+  classNormalizationNotice = null,
   testCases = [],
 
   // Dữ liệu thống kê
@@ -148,6 +149,11 @@ export default function StudentUI({
   }, [selectedChallengeId]);
 
   const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  const effectiveClassNormalizationNotice =
+    classNormalizationNotice
+    ?? currentBundle?.normalizationNotice
+    ?? currentBundle?.normalization_notice
+    ?? null;
   const visibleTabs = useMemo(
     () => {
       if (!resultsRevealed) return [];
@@ -504,6 +510,12 @@ export default function StudentUI({
                     score={classScore}
                     showPill={resultsRevealed && hasScoreToShow(classScore, currentBundle, 'class')}
                   />
+
+                  {effectiveClassNormalizationNotice && (
+                    <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
+                      {effectiveClassNormalizationNotice}
+                    </div>
+                  )}
 
                   {classData.length > 0 ? (
                     <div className="space-y-3">

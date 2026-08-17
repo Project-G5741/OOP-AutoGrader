@@ -51,6 +51,7 @@ export default function SolutionManagement() {
   }, [draft, savedSnapshot]);
 
   const isDirtyRef = useRef(isDirty);
+  const savingRef = useRef(false);
   const structureCacheRef = useRef({});
   useEffect(() => {
     isDirtyRef.current = isDirty;
@@ -180,7 +181,8 @@ export default function SolutionManagement() {
   };
 
   const handleSave = async () => {
-    if (!draft || !selectedLabId) return;
+    if (!draft || !selectedLabId || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setToast(null);
     try {
@@ -217,6 +219,7 @@ export default function SolutionManagement() {
     } catch (e) {
       setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
