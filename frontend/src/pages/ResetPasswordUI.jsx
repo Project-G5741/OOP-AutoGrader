@@ -4,7 +4,7 @@ import AppLogo from '../components/ui/AppLogo';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
-import { readFriendlyAuthError } from '../utils/apiError';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
 
 export default function ResetPasswordUI({ token, onComplete }) {
   const [newPassword, setNewPassword] = useState('');
@@ -61,7 +61,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
         onComplete?.();
       }, 2000);
     } catch (err) {
-      setFormError(err.message || 'Unable to reset password. Please request a new link.');
+      setFormError(toFriendlyError(err, 'reset-password'));
     } finally {
       setIsLoading(false);
     }

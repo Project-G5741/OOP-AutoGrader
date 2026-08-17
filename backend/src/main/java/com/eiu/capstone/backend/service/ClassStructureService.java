@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -527,12 +528,21 @@ public class ClassStructureService {
                                 ? classSnapshot.methods.get(m.getId().toString())
                                 : null;
                         if (entry != null) {
-                            return new ClassMethodDetailDTO(entry.name, entry.scope, entry.returnType, ok);
+                            return new ClassMethodDetailDTO(
+                                    entry.name,
+                                    formatMethodModifiers(entry.scope, entry.isStatic, entry.isAbstract, entry.isFinal),
+                                    entry.returnType,
+                                    ok);
                         }
+                        MethodDeclaration declaration = m.getMethodDeclaration();
                         return new ClassMethodDetailDTO(
                                 m.getName(),
-                                resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),
-                                m.getMethodDeclaration().getReturnType(),
+                                formatMethodModifiers(
+                                        resolveMasterDataLabel(declaration.getScope(), masterData),
+                                        declaration.isStatic(),
+                                        declaration.isAbstract(),
+                                        declaration.isFinal()),
+                                declaration.getReturnType(),
                                 ok);
                     })
                     .toList();
@@ -583,5 +593,31 @@ public class ClassStructureService {
                 .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
                 .map(p -> includeType ? (p.getDataType() + " " + p.getName()) : p.getName())
                 .collect(Collectors.joining(", "));
+    }
+
+    static String formatMethodModifiers(String scope, boolean isStatic, boolean isAbstract, boolean isFinal) {
+        StringBuilder sb = new StringBuilder();
+        if (scope != null && !scope.isBlank() && !"-".equals(scope)) {
+            sb.append(scope.trim().toLowerCase(Locale.ROOT));
+        }
+        if (isStatic) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("static");
+        }
+        if (isAbstract) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("abstract");
+        }
+        if (isFinal) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("final");
+        }
+        return !sb.isEmpty() ? sb.toString() : "-";
     }
 }

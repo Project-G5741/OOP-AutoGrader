@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import ReportsPanel from '../components/lecturer/ReportsPanel';
-import { formatText } from '../utils/formatters';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -36,7 +36,7 @@ export default function ReportsPage() {
 
       if (!response.ok) {
         setReportData(EMPTY_REPORT);
-        setReportError('Unable to load report data');
+        setReportError(await friendlyLoadErrorFromResponse(response));
         return;
       }
 
@@ -55,7 +55,7 @@ export default function ReportsPage() {
       });
     } catch (err) {
       setReportData(EMPTY_REPORT);
-      setReportError(formatText(err.message));
+      setReportError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingReports(false);
     }

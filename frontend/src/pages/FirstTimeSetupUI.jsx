@@ -4,7 +4,7 @@ import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
 import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
-import { readFriendlyAuthError } from '../utils/apiError';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
 
 export default function FirstTimeSetupUI({ token, profile = {}, onClose, onComplete }) {
   const [irn, setIrn] = useState('');
@@ -44,7 +44,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
       onComplete?.(data);
     } catch (err) {
       console.error('Upsert failed', err);
-      setFormError(err.message || 'Setup failed');
+      setFormError(toFriendlyError(err, 'setup'));
     } finally {
       setIsSubmitting(false);
     }

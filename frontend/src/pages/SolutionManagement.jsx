@@ -6,6 +6,7 @@ import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel'
 import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import { authHeaders } from '../utils/authHeaders';
+import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -70,13 +71,13 @@ export default function SolutionManagement() {
 
   const loadLabs = useCallback(async () => {
     const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
-    if (!res.ok) throw new Error('Failed to load labs');
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   }, []);
 
   const loadStructure = useCallback(async (labId) => {
     const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}/structure`, { headers: authHeaders() });
-    if (!res.ok) throw new Error('Failed to load lab structure');
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   }, []);
 
@@ -118,7 +119,7 @@ export default function SolutionManagement() {
       setSelectedClassRef(null);
       setSelectedChallengeId(null);
     } catch (e) {
-      setError(e.message || 'Failed to load lab structure');
+      setError(toFriendlyError(e, 'read'));
     } finally {
       setStructureLoading(false);
     }
@@ -137,7 +138,7 @@ export default function SolutionManagement() {
           await selectLab(labList[0].id, true);
         }
       } catch (e) {
-        if (active) setError(e.message || 'Failed to initialize editor');
+        if (active) setError(toFriendlyError(e, 'read'));
       } finally {
         if (active) setLoading(false);
       }
@@ -189,8 +190,7 @@ export default function SolutionManagement() {
         body: JSON.stringify(draft),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Save failed');
+        throw new Error(await readFriendlyApiError(res, 'save'));
       }
       const saved = await res.json();
       const nextDraft = cloneDraft(saved);
@@ -215,7 +215,7 @@ export default function SolutionManagement() {
       setLabs((prev) => prev.map((lab) => (lab.id === saved.id ? { ...lab, name: saved.name } : lab)));
       setToast({ message: 'Lab structure saved.', type: 'success' });
     } catch (e) {
-      setToast({ message: e.message || 'Save failed', type: 'error' });
+      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -228,7 +228,7 @@ export default function SolutionManagement() {
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ name: newLabName.trim(), termId: newLabTermId }),
     });
-    if (!res.ok) throw new Error('Failed to create lab');
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
     const created = await res.json();
     setLabs((prev) => [...prev, { id: created.id, name: created.name }]);
     setShowCreateLab(false);
@@ -242,7 +242,7 @@ export default function SolutionManagement() {
     const { type, labId, challengeId, classId } = confirmDelete;
     if (type === 'lab') {
       const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
-      if (!res.ok) throw new Error('Failed to delete lab');
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'delete'));
       const remaining = labs.filter((l) => l.id !== labId);
       setLabs(remaining);
       if (selectedLabId === labId) {

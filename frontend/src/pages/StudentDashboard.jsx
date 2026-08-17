@@ -7,6 +7,7 @@ import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import Toast from '../components/ui/Toast';
 import { ROUTES } from '../utils/authRoutes';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -137,7 +138,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setChallengesError(null);
     try {
       const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges`);
-      if (!res.ok) throw new Error(`Failed to load challenges (status ${res.status})`);
+      if (!res.ok) {
+        throw new Error(await friendlyLoadErrorFromResponse(res));
+      }
       const data = await res.json();
       setChallenges(data);
       setSelectedChallengeId((prev) => {
@@ -147,7 +150,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     } catch (err) {
       console.error('Failed to fetch challenges:', err);
       if (!silent) {
-        setChallengesError('Could not load challenges.');
+        setChallengesError(toFriendlyError(err, 'read'));
         setChallenges([]);
         setSelectedChallengeId(null);
       }
@@ -280,7 +283,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setIsLoadingLabs(true);
       try {
         const res = await fetch(`${API_BASE}/api/labs`);
-        if (!res.ok) throw new Error(`Failed to load labs (status ${res.status})`);
+        if (!res.ok) {
+          throw new Error(await friendlyLoadErrorFromResponse(res));
+        }
         const data = await res.json();
         setLabs(data);
         if (data.length > 0) {
@@ -288,7 +293,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         }
       } catch (err) {
         console.info('Failed to fetch labs:', err.message);
-        setLabsError('Could not load labs. The backend may be offline.');
+        setLabsError(toFriendlyError(err, 'read'));
       } finally {
         setIsLoadingLabs(false);
       }

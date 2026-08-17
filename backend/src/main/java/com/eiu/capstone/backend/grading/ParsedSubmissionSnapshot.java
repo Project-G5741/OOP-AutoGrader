@@ -39,6 +39,9 @@ public class ParsedSubmissionSnapshot {
         public String name;
         public String scope;
         public String returnType;
+        public boolean isStatic;
+        public boolean isAbstract;
+        public boolean isFinal;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

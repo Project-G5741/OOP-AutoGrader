@@ -19,6 +19,7 @@ import SolutionManagement from './SolutionManagement';
 import { formatNumber, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
@@ -162,7 +163,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       const response = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
       if (!response.ok) {
         setLabs([]);
-        setLabsError('Unable to load labs');
+        setLabsError(await friendlyLoadErrorFromResponse(response));
         return;
       }
       const data = await response.json();
@@ -171,9 +172,9 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (nextLabs.length > 0) {
         setSelectedLabId((current) => current ?? nextLabs[0].id);
       }
-    } catch {
+    } catch (err) {
       setLabs([]);
-      setLabsError('Unable to load labs');
+      setLabsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingLabs(false);
     }
@@ -186,7 +187,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       const response = await fetch(`${API_BASE}/api/lecturer/overview`, { headers: authHeaders() });
       if (!response.ok) {
         setOverview(EMPTY_OVERVIEW);
-        setOverviewError('Unable to load overview');
+        setOverviewError(await friendlyLoadErrorFromResponse(response));
         return;
       }
       const data = await response.json();
@@ -195,9 +196,9 @@ export default function LecturerDashboard({ user, onLogout }) {
         ...data,
         recentSubmissions: data.recentSubmissions ?? [],
       });
-    } catch {
+    } catch (err) {
       setOverview(EMPTY_OVERVIEW);
-      setOverviewError('Unable to load overview');
+      setOverviewError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingOverview(false);
     }
@@ -238,7 +239,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (!response.ok) {
         setSubmissions([]);
         setPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-        setSubmissionsError('Unable to load student roster');
+        setSubmissionsError(await friendlyLoadErrorFromResponse(response));
         return;
       }
 
@@ -250,10 +251,10 @@ export default function LecturerDashboard({ user, onLogout }) {
         size: data.size ?? ROSTER_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
-    } catch {
+    } catch (err) {
       setSubmissions([]);
       setPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-      setSubmissionsError('Unable to load student roster');
+      setSubmissionsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingSubmissions(false);
     }
@@ -272,7 +273,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (!response.ok) {
         setChallengeSubmissions([]);
         setChallengePagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-        setChallengeSubmissionsError('Unable to load challenge submissions');
+        setChallengeSubmissionsError(await friendlyLoadErrorFromResponse(response));
         return;
       }
 
@@ -284,10 +285,10 @@ export default function LecturerDashboard({ user, onLogout }) {
         size: data.size ?? ROSTER_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
-    } catch {
+    } catch (err) {
       setChallengeSubmissions([]);
       setChallengePagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-      setChallengeSubmissionsError('Unable to load challenge submissions');
+      setChallengeSubmissionsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingChallengeSubmissions(false);
     }
@@ -301,7 +302,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       const response = await fetch(`${API_BASE}/api/labs/${labId}/statistics`, { headers: authHeaders() });
       if (!response.ok) {
         setLabStatistics(null);
-        setStatisticsError('Unable to load lab statistics');
+        setStatisticsError(await friendlyLoadErrorFromResponse(response));
         return;
       }
       const data = await response.json();
@@ -309,9 +310,9 @@ export default function LecturerDashboard({ user, onLogout }) {
         ...data,
         gradeDistribution: data.gradeDistribution ?? [],
       });
-    } catch {
+    } catch (err) {
       setLabStatistics(null);
-      setStatisticsError('Unable to load lab statistics');
+      setStatisticsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingStatistics(false);
     }
@@ -328,7 +329,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (!response.ok) {
         setGradeOverview({ labs: [], content: [] });
         setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-        setGradeOverviewError('Unable to load grade overview');
+        setGradeOverviewError(await friendlyLoadErrorFromResponse(response));
         return;
       }
       const data = await response.json();
@@ -342,10 +343,10 @@ export default function LecturerDashboard({ user, onLogout }) {
         size: data.size ?? ROSTER_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
-    } catch {
+    } catch (err) {
       setGradeOverview({ labs: [], content: [] });
       setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-      setGradeOverviewError('Unable to load grade overview');
+      setGradeOverviewError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingGradeOverview(false);
     }
@@ -481,13 +482,13 @@ export default function LecturerDashboard({ user, onLogout }) {
         headers: authHeaders(),
       });
       if (!response.ok) {
-        throw new Error('Unable to load submission history');
+        throw new Error(await friendlyLoadErrorFromResponse(response));
       }
       const data = await response.json();
       setGradeStudentHistory(Array.isArray(data.submissionHistory) ? data.submissionHistory : []);
     } catch (err) {
       setGradeStudentHistory([]);
-      setGradeStudentHistoryError(err.message || 'Unable to load submission history');
+      setGradeStudentHistoryError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingGradeStudentHistory(false);
     }

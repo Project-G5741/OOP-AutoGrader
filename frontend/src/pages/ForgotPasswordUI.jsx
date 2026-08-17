@@ -4,7 +4,7 @@ import AppLogo from '../components/ui/AppLogo';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { validateEmail } from '../utils/validation';
-import { readFriendlyAuthError } from '../utils/apiError';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
   const [email, setEmail] = useState('');
@@ -49,7 +49,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
       setSent(true);
       onSuccess?.();
     } catch (err) {
-      setError(err.message || 'Unable to send reset email. Please try again.');
+      setError(toFriendlyError(err, 'forgot-password'));
     } finally {
       setIsLoading(false);
     }
