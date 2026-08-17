@@ -358,4 +358,52 @@ class MmdParserTest {
     assertEquals("Main", relation.sourceClassName);
     assertEquals("Logger", relation.targetClassName);
   }
+
+  @Test
+  void parsesRealizationArrowsAsEquivalentImplementorToInterface() {
+    ParsedMmdRelation triangleOnInterface = parser.parse("Coffee <|.. SimpleCoffee").relations.get(0);
+    ParsedMmdRelation arrowToInterface = parser.parse("SimpleCoffee ..|> Coffee").relations.get(0);
+
+    assertEquals("realization", triangleOnInterface.relationType);
+    assertEquals("realization", arrowToInterface.relationType);
+    assertEquals("SimpleCoffee", triangleOnInterface.sourceClassName);
+    assertEquals("Coffee", triangleOnInterface.targetClassName);
+    assertEquals(triangleOnInterface.sourceClassName, arrowToInterface.sourceClassName);
+    assertEquals(triangleOnInterface.targetClassName, arrowToInterface.targetClassName);
+  }
+
+  @Test
+  void gradesImplementationAndRealizationRubricTypesAsEquivalent() {
+    String mmd = "SimpleCoffee ..|> Coffee";
+
+    var relationId = java.util.UUID.randomUUID();
+    var coffeeId = java.util.UUID.randomUUID();
+    var simpleCoffeeId = java.util.UUID.randomUUID();
+    ChallengeRubric implementationRubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(simpleCoffeeId, "SimpleCoffee", "public", "CLASS", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, simpleCoffeeId, "SimpleCoffee", coffeeId, "Coffee", "Implementation")),
+        java.util.List.of());
+
+    ChallengeRubric realizationRubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(simpleCoffeeId, "SimpleCoffee", "public", "CLASS", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, simpleCoffeeId, "SimpleCoffee", coffeeId, "Coffee", "Realization")),
+        java.util.List.of());
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+
+    assertTrue(comparisonService.compare(implementationRubric, diagram).isRelationCorrect(relationId));
+    assertTrue(comparisonService.compare(realizationRubric, diagram).isRelationCorrect(relationId));
+  }
 }

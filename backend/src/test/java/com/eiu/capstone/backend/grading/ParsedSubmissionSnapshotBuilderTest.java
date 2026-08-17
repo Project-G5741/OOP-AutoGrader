@@ -120,4 +120,33 @@ class ParsedSubmissionSnapshotBuilderTest {
         assertEquals("Vehicle", entry.to);
         assertEquals("association", entry.relType);
     }
+
+    @Test
+    void mmdRelation_realization_displaysAsImplementation() {
+        UUID relationId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Challenge 1",
+                List.of(),
+                List.of(new RelationRubric(
+                        relationId,
+                        UUID.randomUUID(),
+                        "SimpleCoffee",
+                        UUID.randomUUID(),
+                        "Coffee",
+                        "Realization")),
+                List.of());
+
+        ParsedMmdRelation parsedRelation = new ParsedMmdRelation();
+        parsedRelation.sourceClassName = "SimpleCoffee";
+        parsedRelation.targetClassName = "Coffee";
+        parsedRelation.relationType = "realization";
+
+        ParsedMmdDiagram diagram = new ParsedMmdDiagram(List.of(), List.of(parsedRelation));
+
+        ChallengeSnapshot snapshot = builder.build(rubric, List.of(), diagram);
+
+        assertEquals("implementation", snapshot.mmdSnapshot.relations.get(relationId.toString()).relType);
+    }
 }
