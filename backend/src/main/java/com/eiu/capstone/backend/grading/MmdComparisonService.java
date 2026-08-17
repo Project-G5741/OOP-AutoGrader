@@ -67,7 +67,7 @@ public class MmdComparisonService {
                     continue;
                 }
                 ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
-                boolean correct = match != null && methodMatches(expectedMethod, match);
+                boolean correct = match != null && methodMatches(expectedMethod, match, parsed);
                 outcome.setMethod(expectedMethod.id(), correct);
             }
 
@@ -104,6 +104,9 @@ public class MmdComparisonService {
         if ("ENUMERATE".equals(actualType)) {
             actualType = "ENUM";
         }
+        if ("ABSTRACT".equals(actualType)) {
+            actualType = "CLASS";
+        }
         return expectedType.equals(actualType);
     }
 
@@ -112,13 +115,21 @@ public class MmdComparisonService {
         return declaringType.trim().toUpperCase(Locale.ROOT);
     }
 
-    private boolean methodMatches(MethodRubric expected, ParsedMethod actual) {
+    private boolean methodMatches(MethodRubric expected, ParsedMethod actual, ParsedMmdClass parsedClass) {
+        boolean effectiveAbstract = actual.isAbstract || interfaceMethodIsImplicitlyAbstract(parsedClass, actual);
         return scopesMatch(expected.scope(), actual.scope)
                 && MmdTypeEquivalence.typesMatch(expected.returnType(), actual.returnType)
                 && constructorTypesMatch(expected.parameterTypes(), actual.parameterTypes)
                 && mmdModifierMatches(expected.isStatic(), actual.isStatic)
-                && mmdModifierMatches(expected.isAbstract(), actual.isAbstract)
+                && mmdModifierMatches(expected.isAbstract(), effectiveAbstract)
                 && mmdModifierMatches(expected.isFinal(), actual.isFinal);
+    }
+
+    private boolean interfaceMethodIsImplicitlyAbstract(ParsedMmdClass parsedClass, ParsedMethod actual) {
+        if (parsedClass.stereotypeType == null || actual.isStatic) {
+            return false;
+        }
+        return "interface".equalsIgnoreCase(parsedClass.stereotypeType);
     }
 
     /** Rubric-required modifiers must appear in the diagram; optional markers are ignored when not required. */

@@ -264,4 +264,98 @@ class MmdParserTest {
     assertEquals("Logger", getInstance.returnType);
     assertTrue(getInstance.isStatic);
   }
+
+  @Test
+  void gradesInterfaceMethodsWithoutExplicitAbstractMarker() {
+    String mmd = """
+        class Coffee {
+          <<interface>>
+          +getCost() double
+          +getDescription() String
+        }
+        """;
+
+    var getCostId = java.util.UUID.randomUUID();
+    var getDescriptionId = java.util.UUID.randomUUID();
+    var classId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(new ClassRubric(
+            classId,
+            "Coffee",
+            "public",
+            "INTERFACE",
+            false,
+            java.util.List.of(),
+            java.util.List.of(
+                new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                    getCostId, "getCost", "public", "double", false, true, false, java.util.List.of()),
+                new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                    getDescriptionId, "getDescription", "public", "String", false, true, false, java.util.List.of())),
+            java.util.List.of())),
+        java.util.List.of(),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertTrue(outcome.isMethodCorrect(getCostId));
+    assertTrue(outcome.isMethodCorrect(getDescriptionId));
+  }
+
+  @Test
+  void parsesAggregationArrowWithRelationLabel() {
+    String mmd = """
+        BaseDecorator o--> Coffee : wraps
+        """;
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+
+    assertEquals(1, diagram.relations.size());
+    ParsedMmdRelation relation = diagram.relations.get(0);
+    assertEquals("aggregation", relation.relationType);
+    assertEquals("BaseDecorator", relation.sourceClassName);
+    assertEquals("Coffee", relation.targetClassName);
+  }
+
+  @Test
+  void gradesAggregationRelationWithLabelAgainstRubric() {
+    String mmd = """
+        BaseDecorator o--> Coffee : wraps
+        """;
+
+    var relationId = java.util.UUID.randomUUID();
+    var baseId = java.util.UUID.randomUUID();
+    var coffeeId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(baseId, "BaseDecorator", "public", "CLASS", true, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, baseId, "BaseDecorator", coffeeId, "Coffee", "aggregation")),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertTrue(outcome.isRelationCorrect(relationId));
+  }
+
+  @Test
+  void parsesDependencyRelationWithLabel() {
+    String mmd = """
+        Main ..> Logger : uses
+        """;
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+
+    assertEquals(1, diagram.relations.size());
+    ParsedMmdRelation relation = diagram.relations.get(0);
+    assertEquals("dependency", relation.relationType);
+    assertEquals("Main", relation.sourceClassName);
+    assertEquals("Logger", relation.targetClassName);
+  }
 }
