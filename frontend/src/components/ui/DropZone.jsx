@@ -1,4 +1,4 @@
-import { Upload } from 'lucide-react';
+import { Upload, Info } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Button from './Button';
 import { readApiErrorMessage } from '../../utils/apiError';
@@ -177,7 +177,21 @@ export default function DropZone({
   };
 
   return (
-    <div
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border bg-info-bg px-4 py-3 text-sm text-info-text dark:border-surface-tertiary">
+        <div className="flex items-start gap-2">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p className="text-xs leading-relaxed">
+            <span className="font-semibold">Folder format:</span>{' '}
+            <span className="font-mono">IRN_YourName_lab_n</span>
+            {' / '}
+            (<span className="font-mono">challenge_1</span>, <span className="font-mono">challenge_2</span>, …)
+            {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each)
+          </p>
+        </div>
+      </div>
+
+      <div
       className={`
         bg-surface
         rounded-xl
@@ -252,6 +266,7 @@ export default function DropZone({
           }}
         />
       </div>
+    </div>
     </div>
   );
 }
