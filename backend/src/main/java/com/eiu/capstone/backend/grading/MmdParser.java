@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,7 +15,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class MmdParser {
 
     private static final Pattern CLASS_START = Pattern.compile("^class\\s+([A-Za-z_]\\w*)\\s*\\{\\s*$");
-    private static final Pattern STEREOTYPE = Pattern.compile("^<<\\s*(enumerate|interface)\\s*>>\\s*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STEREOTYPE = Pattern.compile(
+            "^<<\\s*(enumerate|interface|abstract|final)\\s*>>\\s*$", Pattern.CASE_INSENSITIVE);
+
+    private static final Set<String> PRIMITIVE_TYPES = Set.of(
+            "byte", "short", "int", "long", "float", "double", "boolean", "char", "void");
 
     private static final String[] RELATION_ARROWS = {
             "..|>", "<|..", "*--", "--*", "o--", "--o", "<-->", "<|--", "--|>",
@@ -104,6 +109,8 @@ public class MmdParser {
 
         String scope = scopeSymbol(first);
         String rest = line.substring(1).trim();
+        boolean leadingStatic = rest.regionMatches(true, 0, "static ", 0, 7);
+        rest = stripLeadingStaticKeyword(rest);
 
         if (rest.equals("getter()")) {
             ParsedMethod getter = new ParsedMethod();
@@ -141,11 +148,15 @@ public class MmdParser {
                 ctor.parameterTypes = paramTypes;
                 current.constructors.add(ctor);
             } else {
+                MermaidMemberSuffix nameSuffix = parseMermaidSuffixes(beforeParen);
+                MermaidMemberSuffix returnSuffix = parseMermaidSuffixes(afterParen);
                 ParsedMethod method = new ParsedMethod();
-                method.name = beforeParen;
+                method.name = nameSuffix.value();
                 method.scope = scope;
                 method.parameterTypes = paramTypes;
-                method.returnType = afterParen.isEmpty() ? "void" : afterParen;
+                method.isStatic = leadingStatic || nameSuffix.isStatic() || returnSuffix.isStatic();
+                method.isAbstract = nameSuffix.isAbstract() || returnSuffix.isAbstract();
+                method.returnType = returnSuffix.value().isEmpty() ? "void" : returnSuffix.value();
                 current.methods.add(method);
             }
             return;
@@ -153,10 +164,12 @@ public class MmdParser {
 
         int colon = rest.indexOf(':');
         if (colon > 0) {
+            MermaidMemberSuffix nameSuffix = parseMermaidSuffixes(rest.substring(0, colon).trim());
+            MermaidMemberSuffix typeSuffix = parseMermaidSuffixes(rest.substring(colon + 1).trim());
             ParsedField field = new ParsedField();
             field.scope = scope;
-            field.name = rest.substring(0, colon).trim();
-            field.dataType = rest.substring(colon + 1).trim();
+            field.name = nameSuffix.value();
+            field.dataType = typeSuffix.value();
             current.fields.add(field);
             return;
         }
@@ -174,8 +187,17 @@ public class MmdParser {
         if (lastSpace <= 0) {
             return false;
         }
-        String dataType = rest.substring(0, lastSpace).trim();
-        String name = rest.substring(lastSpace + 1).trim();
+        MermaidMemberSuffix left = parseMermaidSuffixes(rest.substring(0, lastSpace).trim());
+        MermaidMemberSuffix right = parseMermaidSuffixes(rest.substring(lastSpace + 1).trim());
+        String dataType;
+        String name;
+        if (looksLikeType(left.value())) {
+            dataType = left.value();
+            name = right.value();
+        } else {
+            name = left.value();
+            dataType = right.value();
+        }
         if (dataType.isEmpty() || !isJavaIdentifier(name)) {
             return false;
         }
@@ -207,19 +229,81 @@ public class MmdParser {
     }
 
     /**
-     * Supports {@code name: type} ({@code yearModel: int}) and {@code type name} ({@code int yearModel}).
+     * Supports {@code name: type}, {@code type name}, and {@code name type} ({@code message String}).
      */
     private String extractParameterType(String param) {
+        param = param.trim();
         int colon = param.indexOf(':');
         if (colon > 0) {
-            return param.substring(colon + 1).trim();
+            return parseMermaidSuffixes(param.substring(colon + 1).trim()).value();
         }
         int lastSpace = param.lastIndexOf(' ');
         if (lastSpace > 0) {
-            return param.substring(0, lastSpace).trim();
+            String left = param.substring(0, lastSpace).trim();
+            String right = param.substring(lastSpace + 1).trim();
+            if (looksLikeType(left)) {
+                return parseMermaidSuffixes(left).value();
+            }
+            return parseMermaidSuffixes(right).value();
         }
-        return param;
+        return parseMermaidSuffixes(param).value();
     }
+
+    private String stripLeadingStaticKeyword(String value) {
+        if (value.regionMatches(true, 0, "static ", 0, 7)) {
+            return value.substring(7).trim();
+        }
+        return value;
+    }
+
+    /**
+     * Mermaid member modifiers: {@code $} static, {@code *} abstract (suffix on name, return type, or after {@code ()}).
+     */
+    private MermaidMemberSuffix parseMermaidSuffixes(String token) {
+        boolean isStatic = false;
+        boolean isAbstract = false;
+        String stripped = token == null ? "" : token.trim();
+        while (!stripped.isEmpty()) {
+            boolean changed = false;
+            if (stripped.startsWith("$")) {
+                isStatic = true;
+                stripped = stripped.substring(1).trim();
+                changed = true;
+            } else if (stripped.startsWith("*")) {
+                isAbstract = true;
+                stripped = stripped.substring(1).trim();
+                changed = true;
+            } else if (stripped.endsWith("$")) {
+                isStatic = true;
+                stripped = stripped.substring(0, stripped.length() - 1).trim();
+                changed = true;
+            } else if (stripped.endsWith("*")) {
+                isAbstract = true;
+                stripped = stripped.substring(0, stripped.length() - 1).trim();
+                changed = true;
+            }
+            if (!changed) {
+                break;
+            }
+        }
+        return new MermaidMemberSuffix(stripped, isStatic, isAbstract);
+    }
+
+    private boolean looksLikeType(String token) {
+        String base = parseMermaidSuffixes(token).value();
+        if (base.endsWith("[]")) {
+            base = base.substring(0, base.length() - 2).trim();
+        }
+        if (PRIMITIVE_TYPES.contains(base)) {
+            return true;
+        }
+        if (base.contains("<") || base.contains(".")) {
+            return true;
+        }
+        return !base.isEmpty() && Character.isUpperCase(base.charAt(0));
+    }
+
+    private record MermaidMemberSuffix(String value, boolean isStatic, boolean isAbstract) {}
 
     private List<String> splitParams(String paramsPart) {
         List<String> parts = new ArrayList<>();

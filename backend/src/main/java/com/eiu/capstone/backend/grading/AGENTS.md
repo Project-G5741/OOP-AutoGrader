@@ -26,8 +26,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, instances, assertions) in batched DB queries |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
-| `MmdParser.java` | Parse uploaded `.mmd` bytes into diagram DTOs |
-| `MmdComparisonService.java` | Compare parsed MMD against rubric |
+| `MmdParser.java` | Parse uploaded `.mmd` bytes into diagram DTOs (Mermaid modifiers `$` static, `*` abstract; parameters as `type name`, `name type`, or `name: type`) |
+| `MmdComparisonService.java` | Compare parsed MMD against rubric (methods include `static` / `abstract` / `final`) |
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
 | `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence) |
@@ -86,13 +86,15 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
+- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`
+- **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; does not write `submission_*` rows
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
 
 ## Verification
 
-- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`
+- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `MmdParserTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index
