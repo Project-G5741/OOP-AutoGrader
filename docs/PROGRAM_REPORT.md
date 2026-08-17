@@ -395,6 +395,7 @@ OOP-AutoGrader/
 
 | Document | Scope |
 |----------|-------|
+| [OBJECTIVES.md](./OBJECTIVES.md) | General and specific objectives of the system |
 | [README.md](../README.md) | Quick start and project setup |
 | [CONCEPTS.md](../CONCEPTS.md) | Domain vocabulary (entities, named processes) |
 | [HOW_IT_RUNS.md](./HOW_IT_RUNS.md) | End-to-end runtime flows and service interaction |
