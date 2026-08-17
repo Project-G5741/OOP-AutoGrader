@@ -360,8 +360,8 @@ public class ClassStructureService {
     }
 
     private String resolveClassTypeLabel(ClassEntity classEntity, Map<Integer, String> masterData) {
-        String declaringType = masterData.getOrDefault(classEntity.getDeclaringType(), "CLASS");
-        return declaringType;
+        String declaringType = resolveMasterDataLabel(classEntity.getDeclaringType(), masterData);
+        return "-".equals(declaringType) ? "CLASS" : declaringType;
     }
 
     private String formatFieldName(Field field) {
@@ -548,7 +548,7 @@ public class ClassStructureService {
     }
 
     private String resolveClassType(ClassEntity ce, Map<Integer, String> masterData) {
-        String declaringType = masterData.getOrDefault(ce.getDeclaringType(), "CLASS");
+        String declaringType = resolveClassTypeLabel(ce, masterData);
         return ce.isAbstract() ? "ABSTRACT " + declaringType : declaringType;
     }
 

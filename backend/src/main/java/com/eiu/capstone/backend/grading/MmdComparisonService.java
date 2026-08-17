@@ -115,7 +115,15 @@ public class MmdComparisonService {
     private boolean methodMatches(MethodRubric expected, ParsedMethod actual) {
         return scopesMatch(expected.scope(), actual.scope)
                 && MmdTypeEquivalence.typesMatch(expected.returnType(), actual.returnType)
-                && constructorTypesMatch(expected.parameterTypes(), actual.parameterTypes);
+                && constructorTypesMatch(expected.parameterTypes(), actual.parameterTypes)
+                && mmdModifierMatches(expected.isStatic(), actual.isStatic)
+                && mmdModifierMatches(expected.isAbstract(), actual.isAbstract)
+                && mmdModifierMatches(expected.isFinal(), actual.isFinal);
+    }
+
+    /** Rubric-required modifiers must appear in the diagram; optional markers are ignored when not required. */
+    private boolean mmdModifierMatches(boolean required, boolean present) {
+        return !required || present;
     }
 
     public boolean relationPresentInDiagram(RelationRubric expected, ParsedMmdDiagram diagram) {
