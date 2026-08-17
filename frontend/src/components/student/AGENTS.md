@@ -34,6 +34,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - `attemptNumber` — `totalSubmissions + 1` from backend stats / upload response
 - `authToken` — from `user.accessToken`
 
+Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
+
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
 ### Result tabs (`StudentUI.jsx`)

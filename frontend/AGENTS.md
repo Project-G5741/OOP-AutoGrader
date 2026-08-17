@@ -56,6 +56,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - After editing tokens, run `npm run theme:sync` (also runs automatically before `dev` / `build`) to regenerate `src/theme/tokens.generated.css`
 - Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
+- Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
 

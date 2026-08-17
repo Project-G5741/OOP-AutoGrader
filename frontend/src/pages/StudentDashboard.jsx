@@ -5,6 +5,7 @@ import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
+import Toast from '../components/ui/Toast';
 import { ROUTES } from '../utils/authRoutes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -112,6 +113,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [isRefreshingResults, setIsRefreshingResults] = useState(false);
   const [revealedLabIds, setRevealedLabIds] = useState([]);
   const [sessionResultsByLab, setSessionResultsByLab] = useState({});
+  const [toast, setToast] = useState(null);
 
   const classDataCacheRef = useRef({});
   const mmdDataCacheRef = useRef({});
@@ -405,6 +407,16 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const handleUploadComplete = async (uploadResponse) => {
     if (!selectedLabId) return;
 
+    const score = uploadResponse?.score != null
+      ? Math.round(Number(uploadResponse.score))
+      : null;
+    setToast({
+      message: score != null
+        ? `Grading complete. Your score: ${score}/100`
+        : 'Grading completed successfully.',
+      type: 'success',
+    });
+
     const resultMap = uploadResponse?.challengeResult ?? {};
     const submissionId = uploadResponse?.submissionId ?? null;
 
@@ -538,6 +550,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           isOpen={showChangePassword}
           onClose={() => setShowChangePassword(false)}
           user={user}
+        />
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
         />
       )}
     </>
