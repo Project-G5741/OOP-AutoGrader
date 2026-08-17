@@ -92,11 +92,10 @@ public class ClassReflectionGrader {
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
                 ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
-                boolean actualDefault = match != null && match.parameterTypes.isEmpty();
                 double accuracy = match == null ? 0 : PartialCreditEvaluator.accuracy(List.of(
                         true,
                         PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0),
-                        expectedConstructor.isDefault() == actualDefault));
+                        constructorDefaultMatches(expectedConstructor, match)));
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
                 constructors.add(new PendingConstructorResult(expectedConstructor.id(), accuracy >= 1.0));
             }
@@ -104,6 +103,18 @@ public class ClassReflectionGrader {
 
         BigDecimal pillarPct = PillarScoreAggregator.pillarPercentage(weighted);
         return new ClassPillarResult(pillarPct, fields, methods, constructors);
+    }
+
+    /**
+     * Reflection cannot distinguish an explicit no-arg constructor from a compiler default.
+     * Only enforce the default-constructor rubric flag when the rubric expects one (public, no-arg).
+     */
+    private boolean constructorDefaultMatches(ConstructorRubric expected, ParsedConstructor actual) {
+        if (!expected.isDefault()) {
+            return true;
+        }
+        return actual.parameterTypes.isEmpty()
+                && equalsIgnoreCase("public", actual.scope);
     }
 
     private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, String name, List<String> expectedParamTypes) {
