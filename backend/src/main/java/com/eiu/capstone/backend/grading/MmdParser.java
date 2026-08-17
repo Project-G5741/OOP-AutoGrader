@@ -22,9 +22,11 @@ public class MmdParser {
             "byte", "short", "int", "long", "float", "double", "boolean", "char", "void");
 
     private static final String[] RELATION_ARROWS = {
-            "..|>", "<|..", "*--", "--*", "o--", "--o", "<-->", "<|--", "--|>",
-            "..>", "<..", "-->", "<--", "--"
+            "..|>", "<|..", "*-->", "--*>", "*--", "--*", "o-->", "--o>", "o--", "--o",
+            "<-->", "<|--", "--|>", "..>", "<..", "-->", "<--", "--"
     };
+
+    private static final Pattern RELATION_LABEL = Pattern.compile("\\s+:\\s+.+$");
 
     public ParsedMmdDiagram parseBytes(byte[] content) {
         if (content == null || content.length == 0) {
@@ -79,7 +81,7 @@ public class MmdParser {
                 continue;
             }
 
-            RelationMatch relationMatch = matchRelation(line);
+            RelationMatch relationMatch = matchRelation(stripRelationLabel(line));
             if (relationMatch != null) {
                 relations.add(parseRelation(
                         relationMatch.left(),
@@ -322,6 +324,10 @@ public class MmdParser {
         return parts;
     }
 
+    private String stripRelationLabel(String line) {
+        return RELATION_LABEL.matcher(line).replaceFirst("").trim();
+    }
+
     private RelationMatch matchRelation(String line) {
         for (String arrow : RELATION_ARROWS) {
             Pattern pattern = Pattern.compile(
@@ -340,16 +346,33 @@ public class MmdParser {
         ParsedMmdRelation relation = new ParsedMmdRelation();
         relation.relationType = canonicalRelationType(arrow);
 
-        boolean symbolOnLeft = arrow.startsWith("*") || arrow.startsWith("o")
-                || arrow.startsWith("<") || arrow.startsWith(".");
-        boolean symbolOnRight = arrow.endsWith("*") || arrow.endsWith("o")
-                || arrow.endsWith(">") || arrow.endsWith("|");
-
         if (relation.relationType.equals("link")) {
             relation.sourceClassName = left;
             relation.targetClassName = right;
             return relation;
         }
+
+        if (relation.relationType.equals("aggregation") || relation.relationType.equals("composition")) {
+            if (arrow.startsWith("o") || arrow.startsWith("*")) {
+                relation.sourceClassName = left;
+                relation.targetClassName = right;
+            } else {
+                relation.sourceClassName = right;
+                relation.targetClassName = left;
+            }
+            return relation;
+        }
+
+        if (relation.relationType.equals("dependency")) {
+            relation.sourceClassName = left;
+            relation.targetClassName = right;
+            return relation;
+        }
+
+        boolean symbolOnLeft = arrow.startsWith("*") || arrow.startsWith("o")
+                || arrow.startsWith("<") || arrow.startsWith(".");
+        boolean symbolOnRight = arrow.endsWith("*") || arrow.endsWith("o")
+                || arrow.endsWith(">") || arrow.endsWith("|");
 
         if (symbolOnLeft && !symbolOnRight) {
             relation.targetClassName = left;
@@ -370,8 +393,8 @@ public class MmdParser {
     static String canonicalRelationType(String arrow) {
         return switch (arrow) {
             case "<|--", "--|>" -> "inheritance";
-            case "*--", "--*" -> "composition";
-            case "o--", "--o" -> "aggregation";
+            case "*--", "--*", "*-->", "--*>" -> "composition";
+            case "o--", "--o", "o-->", "--o>" -> "aggregation";
             case "-->", "<--" -> "association";
             case "<-->" -> "bidirectional_association";
             case "--" -> "link";

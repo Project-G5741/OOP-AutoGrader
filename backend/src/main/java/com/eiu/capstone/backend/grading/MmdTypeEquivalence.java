@@ -18,7 +18,21 @@ public final class MmdTypeEquivalence {
         if (type == null) return "";
         String trimmed = type.trim();
         String withAngles = convertTildes(trimmed);
-        return canonicalizeCollection(withAngles);
+        return canonicalizePrimitiveWrapper(canonicalizeCollection(withAngles));
+    }
+
+    private static String canonicalizePrimitiveWrapper(String type) {
+        return switch (type) {
+            case "int" -> "Integer";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "boolean" -> "Boolean";
+            case "short" -> "Short";
+            case "byte" -> "Byte";
+            case "char" -> "Character";
+            default -> type;
+        };
     }
 
     private static String convertTildes(String type) {

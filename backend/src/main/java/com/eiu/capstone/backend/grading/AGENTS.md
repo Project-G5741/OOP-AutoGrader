@@ -87,7 +87,9 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
 - **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`
-- **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them)
+- **MMD relations:** optional Mermaid labels after ` : ` (e.g. `A o--> B : wraps`); aggregation arrows include `o-->` / `--o>` (diamond-side class is relation source)
+- **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it
+- **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; does not write `submission_*` rows
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
