@@ -78,6 +78,7 @@ public class SubmissionMmdMetaStore {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ChallengeMmdMeta {
         public boolean mmdSubmitted;
+        public String parseError;
         public Map<String, Boolean> classStereotypeCorrect = Map.of();
         public Map<String, String> relationErrors = Map.of();
 

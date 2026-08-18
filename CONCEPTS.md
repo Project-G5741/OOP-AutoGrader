@@ -20,7 +20,10 @@ A persisted per-element grading outcome (field, method, constructor, or challeng
 An in-memory, immutable graph of the lab's expected OOP structure (challenges, classes, members, class relations) loaded once per grading request, optionally from cache.
 
 ### MMD grading
-Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
+Diagram-side grading of an uploaded `.mmd` file: parse Mermaid `classDiagram` syntax (per `grading-mermaid-oop-class-diagrams.md`) into rubric entity shapes, compare against the lecturer solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
+
+### MMD parse error
+A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements score incorrect; a human-readable error message is persisted and shown on the student MMD tab. Upload still succeeds.
 
 ### Grading pillar
 One of up to three equal scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the arithmetic mean of only the applicable pillar percentages — 3-way, 2-way (50/50), or Declaration-Test-only as pillars drop out. Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."

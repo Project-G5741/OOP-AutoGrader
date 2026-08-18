@@ -14,7 +14,7 @@ public final class MmdTypeEquivalence {
         return normalize(expected).equals(normalize(actual));
     }
 
-    static String normalize(String type) {
+    public static String normalize(String type) {
         if (type == null) return "";
         String trimmed = type.trim();
         String withAngles = convertTildes(trimmed);

@@ -26,8 +26,15 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, instances, assertions) in batched DB queries |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
-| `MmdParser.java` | Parse uploaded `.mmd` bytes into diagram DTOs (Mermaid modifiers `$` static, `*` abstract; parameters as `type name`, `name type`, or `name: type`) |
-| `MmdComparisonService.java` | Compare parsed MMD against rubric (methods include `static` / `abstract` / `final`) |
+| `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
+| `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |
+| `grading/mmd/MmdAstParser.java` | Builds diagram AST; enforces `classDiagram` header |
+| `grading/mmd/MmdAstToParsedMapper.java` | Maps AST to `ParsedMmdDiagram` for comparison |
+| `grading/mmd/MmdRelationLineParser.java` | Relationship line parsing (arrows, cardinality, lollipop, two-way) |
+| `grading/mmd/MmdRelationTypes.java` | Relation arrow table and canonical type names |
+| `grading/mmd/ast/MmdNamespaceNode.java` | Namespace block AST node |
+| `MmdComparisonService.java` | Compare parsed MMD against rubric; resolves simple and namespace-qualified class names via `ParsedMmdDiagram.classByName` |
+| `DTO/MmdResponseDTO.java` | `/mmd` and `lab_result` MMD payload: `{ classes, parseError }` |
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
 | `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence) |
@@ -86,8 +93,12 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
-- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`
-- **MMD relations:** optional Mermaid labels after ` : ` (e.g. `A o--> B : wraps`); aggregation arrows include `o-->` / `--o>` (diamond-side class is relation source); realization/implementation arrows `..|>` and `<|..` are equivalent (implementor → interface); UI displays canonical realization as **implementation**
+- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; missing space before return type (`method()type`) is a parse error; `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
+- **MMD parser pipeline:** `MmdParser` delegates to `grading/mmd/` tokenizer + AST + mapper; substantive diagrams require a `classDiagram` header line; `namespace { ... }` blocks flatten contained classes under simple names; `ParsedMmdDiagram.classByName` includes qualified aliases (`Company.Employee`)
+- **MMD cosmetic directives:** `note`, `note for`, `direction`, `style`, `classDef`, and `cssClass` lines parse as ignored directives (no grading impact)
+- **MMD relations:** optional Mermaid labels after ` : ` (e.g. `A o--> B : wraps`); optional quoted cardinality on each endpoint (parsed, not graded); aggregation arrows include `o-->` / `--o>` (diamond-side class is relation source); realization/implementation arrows `..|>`, `<|..`, and lollipop `()--` / `--()` are equivalent (implementor → interface); dashed link `..` canonicalizes to `dashed_link`; two-way `<|--|>` canonicalizes to `bidirectional_inheritance`; UI displays canonical realization as **implementation**
+- **MMD comparison** resolves class names by simple or qualified key; undirected relation kinds (`link`, `dashed_link`, bidirectional variants) match either endpoint order; `<<Abstract>>` diagram stereotype satisfies rubric `CLASS` declaring type
+- **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
@@ -96,7 +107,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Verification
 
-- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `MmdParserTest`, `ClassReflectionGraderTest`
+- `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index

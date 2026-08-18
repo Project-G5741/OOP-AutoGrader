@@ -6,6 +6,7 @@ import ExportMenu from './ExportMenu';
 import { exportChallengeBreakdown } from './exportRoster';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { parseMmdResponse } from '../../utils/mmdResponse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -92,7 +93,9 @@ export default function LecturerSubmissionDrawer({
         }
         const mmdJson = await mmdResponse.json();
         if (!cancelled) {
-          setMmdData(Array.isArray(mmdJson) ? mmdJson : []);
+          const parsedMmd = parseMmdResponse(mmdJson);
+          setMmdData(parsedMmd.classes);
+          setMmdError(parsedMmd.parseError);
         }
       } catch (err) {
         if (!cancelled) {
