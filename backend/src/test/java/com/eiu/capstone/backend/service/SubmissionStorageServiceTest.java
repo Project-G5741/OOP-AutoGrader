@@ -145,6 +145,37 @@ class SubmissionStorageServiceTest {
         }
     }
 
+    @Test
+    void packagedSourceCompilesToFlatDefaultPackage() throws IOException {
+        SubmissionStorageService storage = newStorage(tempDir);
+        ExecutorService compileExecutor = (ExecutorService) ReflectionTestUtils.getField(storage, "compileExecutor");
+        try {
+            SubmissionStorageService.ProcessResult result = storage.processUpload(
+                    "irn1",
+                    "req-package",
+                    List.of(
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Employee.java",
+                                    """
+                                            package ch2_employees;
+                                            public class Employee {
+                                              private String name;
+                                              public Employee(String name) { this.name = name; }
+                                              public String getName() { return name; }
+                                            }
+                                            """)));
+
+            SubmissionStorageService.ChallengeResult challenge1 = findChallenge(result, "challenge_1");
+            assertNull(challenge1.compileError);
+            assertEquals(1, challenge1.classFileCount);
+            assertNotNull(challenge1.packageNormalizationNotice);
+            assertTrue(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Employee.class")));
+            assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/ch2_employees/Employee.class")));
+        } finally {
+            compileExecutor.shutdownNow();
+        }
+    }
+
     private SubmissionStorageService newStorage(Path baseDir) {
         JavaCompilerService compilerService = new JavaCompilerService();
         compilerService.initCompiler();

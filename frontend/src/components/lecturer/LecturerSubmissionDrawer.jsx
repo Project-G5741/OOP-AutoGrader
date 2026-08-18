@@ -5,6 +5,7 @@ import MmdScoreBreakdown from './MmdScoreBreakdown';
 import ExportMenu from './ExportMenu';
 import { exportChallengeBreakdown } from './exportRoster';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -71,23 +72,23 @@ export default function LecturerSubmissionDrawer({
       try {
         const classResponse = await fetch(classUrl, { headers: authHeaders() });
         if (!classResponse.ok) {
-          throw new Error('Unable to load class breakdown');
+          throw new Error(await friendlyLoadErrorFromResponse(classResponse));
         }
         const classJson = await classResponse.json();
         if (!cancelled) {
-          setClassData(Array.isArray(classJson) ? classJson : []);
+          setClassData(Array.isArray(classJson) ? classJson : (classJson?.classes ?? []));
         }
       } catch (err) {
         if (!cancelled) {
           setClassData([]);
-          setError(err.message || 'Unable to load class breakdown');
+          setError(toFriendlyError(err, 'read'));
         }
       }
 
       try {
         const mmdResponse = await fetch(mmdUrl, { headers: authHeaders() });
         if (!mmdResponse.ok) {
-          throw new Error('Unable to load MMD breakdown');
+          throw new Error(await friendlyLoadErrorFromResponse(mmdResponse));
         }
         const mmdJson = await mmdResponse.json();
         if (!cancelled) {
@@ -96,7 +97,7 @@ export default function LecturerSubmissionDrawer({
       } catch (err) {
         if (!cancelled) {
           setMmdData([]);
-          setMmdError(err.message || 'Unable to load MMD breakdown');
+          setMmdError(toFriendlyError(err, 'read'));
         }
       }
 

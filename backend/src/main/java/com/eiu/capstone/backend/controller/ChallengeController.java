@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
-import com.eiu.capstone.backend.DTO.ClassDetailDTO;
+import com.eiu.capstone.backend.DTO.ClassTabResponse;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.StatsDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
@@ -64,7 +64,7 @@ public class ChallengeController {
      *  submissionId pins the response to a specific submission (e.g. the one just graded);
      *  when omitted, falls back to the student's latest submission for this lab. */
     @GetMapping("/{challengeId}/class")
-    public List<ClassDetailDTO> getClassData(@PathVariable UUID labId,
+    public ClassTabResponse getClassData(@PathVariable UUID labId,
                                               @PathVariable UUID challengeId,
                                               @RequestParam(required = false) UUID studentId,
                                               @RequestParam(required = false) UUID submissionId) {

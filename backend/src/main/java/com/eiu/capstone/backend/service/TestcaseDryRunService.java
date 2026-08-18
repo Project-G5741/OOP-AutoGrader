@@ -26,6 +26,9 @@ import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
 
 @Service
 public class TestcaseDryRunService {
@@ -71,15 +74,22 @@ public class TestcaseDryRunService {
             Path classesDir = tempRoot.resolve("classes");
             Files.createDirectories(classesDir);
 
-            List<JavaFileObject> sources = new ArrayList<>();
+            List<SourceEntry> rawSources = new ArrayList<>();
             for (ReferenceSourceDTO source : request.referenceSources()) {
                 if (source.className() == null || source.className().isBlank()
                         || source.source() == null || source.source().isBlank()) {
                     throw unprocessable("Each reference source requires className and source");
                 }
                 String path = source.className().replace('.', '/') + ".java";
+                rawSources.add(new SourceEntry(path, source.source()));
+            }
+
+            NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(rawSources);
+            List<JavaFileObject> sources = new ArrayList<>();
+            for (SourceEntry entry : normalization.sources()) {
                 sources.add(new MemorySourceJavaFileObject(
-                        path, source.source().getBytes(StandardCharsets.UTF_8)));
+                        entry.logicalPath(),
+                        entry.source().getBytes(StandardCharsets.UTF_8)));
             }
 
             List<String> errors = javaCompilerService.compileSources(sources, classesDir);

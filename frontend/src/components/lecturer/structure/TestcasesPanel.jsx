@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, FlaskConical, Loader2, Play, Plus, Save, Trash2, XCircle } from 'lucide-react';
 import { authHeaders } from '../../../utils/authHeaders';
-import { readApiErrorMessage } from '../../../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -617,7 +617,7 @@ export default function TestcasesPanel({
         `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases`,
         { headers: authHeaders() },
       );
-      if (!res.ok) throw new Error(await readApiErrorMessage(res));
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
       const data = await res.json();
       const rows = data.testcases || [];
       setTestcases(rows);
@@ -627,7 +627,7 @@ export default function TestcasesPanel({
         return rows[0]?.id ?? null;
       });
     } catch (e) {
-      onToast?.({ type: 'error', message: e.message || 'Failed to load testcases' });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
     } finally {
       setLoading(false);
     }
@@ -708,14 +708,14 @@ export default function TestcasesPanel({
           body: JSON.stringify(payload),
         },
       );
-      if (!res.ok) throw new Error(await readApiErrorMessage(res));
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
       const data = await res.json();
       const rows = data.testcases || [];
       setTestcases(rows);
       setSnapshot(JSON.stringify(rows));
       onToast?.({ type: 'success', message: 'Testcases saved' });
     } catch (e) {
-      onToast?.({ type: 'error', message: e.message || 'Save failed' });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'save') });
     } finally {
       setSaving(false);
     }
@@ -733,7 +733,7 @@ export default function TestcasesPanel({
         }),
       },
     );
-    if (!res.ok) throw new Error(await readApiErrorMessage(res));
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   };
 
@@ -749,7 +749,7 @@ export default function TestcasesPanel({
       const data = await runDryRunForTestcase(tc);
       setDryRunResults((prev) => ({ ...prev, [tc.id]: data }));
     } catch (e) {
-      onToast?.({ type: 'error', message: e.message || 'Dry-run failed' });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
     } finally {
       setRunningId(null);
     }
@@ -772,7 +772,7 @@ export default function TestcasesPanel({
           nextResults[tc.id] = await runDryRunForTestcase(tc);
         } catch (e) {
           failedCount += 1;
-          onToast?.({ type: 'error', message: `${tc.name}: ${e.message || 'Dry-run failed'}` });
+          onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
         }
       }
       setDryRunResults(nextResults);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import './LoginUI.css';
 import { Eye, EyeOff, User, Lock } from 'lucide-react';
@@ -8,7 +8,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
 import { getLoginFieldErrors, isFormValid } from '../utils/validation';
-import { readFriendlyAuthError } from '../utils/apiError';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
 
 function decodeJwtPayload(token) {
   try {
@@ -23,6 +23,7 @@ function decodeJwtPayload(token) {
 }
 
 export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage }) {
+  const irnInputRef = useRef(null);
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,13 +40,14 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-  // Load remembered IRN on mount
+  // Load remembered IRN on mount and focus the IRN field
   useEffect(() => {
     const rememberedIrn = localStorage.getItem('rememberedIrn');
     if (rememberedIrn) {
       setIrn(rememberedIrn);
       setRemember(true);
     }
+    irnInputRef.current?.focus();
   }, []);
 
   const rawFieldErrors = getLoginFieldErrors(irn, password);
@@ -105,7 +107,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       onLoginSuccess?.(data);
     } catch (error) {
       console.error('Local authentication failed', error);
-      setFormError(error.message || 'Login failed. Please try again.');
+      setFormError(toFriendlyError(error, 'login'));
     } finally {
       setIsLoading(false);
     }
@@ -158,7 +160,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       throw new Error(errorText);
     } catch (error) {
       console.error('Backend authentication failed', error);
-      setFormError(error.message || 'Unable to sign in with Google. Please try again.');
+      setFormError(toFriendlyError(error, 'google'));
     } finally {
       setIsLoading(false);
     }
@@ -232,6 +234,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
                 <div className="input-wrapper">
                   <User className="input-icon" />
                   <input
+                    ref={irnInputRef}
                     type="text"
                     value={irn}
                     onChange={(e) => handleFieldChange('irn', e.target.value)}

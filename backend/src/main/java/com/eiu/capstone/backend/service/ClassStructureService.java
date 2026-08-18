@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +38,7 @@ public class ClassStructureService {
     private final SubmissionResultLoader submissionResultLoader;
     private final MasterDataCache masterDataCache;
     private final SubmissionCompileErrorStore compileErrorStore;
+    private final SubmissionPackageNormalizationStore packageNormalizationStore;
     private final SubmissionMmdMetaStore submissionMmdMetaStore;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
     private final LabRubricCache labRubricCache;
@@ -55,6 +57,7 @@ public class ClassStructureService {
                                   SubmissionResultLoader submissionResultLoader,
                                   MasterDataCache masterDataCache,
                                   SubmissionCompileErrorStore compileErrorStore,
+                                  SubmissionPackageNormalizationStore packageNormalizationStore,
                                   SubmissionMmdMetaStore submissionMmdMetaStore,
                                   ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
                                   LabRubricCache labRubricCache,
@@ -72,6 +75,7 @@ public class ClassStructureService {
         this.submissionResultLoader = submissionResultLoader;
         this.masterDataCache = masterDataCache;
         this.compileErrorStore = compileErrorStore;
+        this.packageNormalizationStore = packageNormalizationStore;
         this.submissionMmdMetaStore = submissionMmdMetaStore;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
         this.labRubricCache = labRubricCache;
@@ -394,17 +398,18 @@ public class ClassStructureService {
     }
 
     /** Powers the "Class" tab for the student's latest attempt. */
-    public List<ClassDetailDTO> getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
+    public ClassTabResponse getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
-            return List.of();
+            return new ClassTabResponse(List.of(), null);
         }
         List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
+        String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
         if (timingLog) {
             System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
         }
-        return result;
+        return new ClassTabResponse(result, notice);
     }
 
     /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet. */
@@ -527,12 +532,21 @@ public class ClassStructureService {
                                 ? classSnapshot.methods.get(m.getId().toString())
                                 : null;
                         if (entry != null) {
-                            return new ClassMethodDetailDTO(entry.name, entry.scope, entry.returnType, ok);
+                            return new ClassMethodDetailDTO(
+                                    entry.name,
+                                    formatMethodModifiers(entry.scope, entry.isStatic, entry.isAbstract, entry.isFinal),
+                                    entry.returnType,
+                                    ok);
                         }
+                        MethodDeclaration declaration = m.getMethodDeclaration();
                         return new ClassMethodDetailDTO(
                                 m.getName(),
-                                resolveMasterDataLabel(m.getMethodDeclaration().getScope(), masterData),
-                                m.getMethodDeclaration().getReturnType(),
+                                formatMethodModifiers(
+                                        resolveMasterDataLabel(declaration.getScope(), masterData),
+                                        declaration.isStatic(),
+                                        declaration.isAbstract(),
+                                        declaration.isFinal()),
+                                declaration.getReturnType(),
                                 ok);
                     })
                     .toList();
@@ -583,5 +597,31 @@ public class ClassStructureService {
                 .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
                 .map(p -> includeType ? (p.getDataType() + " " + p.getName()) : p.getName())
                 .collect(Collectors.joining(", "));
+    }
+
+    static String formatMethodModifiers(String scope, boolean isStatic, boolean isAbstract, boolean isFinal) {
+        StringBuilder sb = new StringBuilder();
+        if (scope != null && !scope.isBlank() && !"-".equals(scope)) {
+            sb.append(scope.trim().toLowerCase(Locale.ROOT));
+        }
+        if (isStatic) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("static");
+        }
+        if (isAbstract) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("abstract");
+        }
+        if (isFinal) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("final");
+        }
+        return !sb.isEmpty() ? sb.toString() : "-";
     }
 }

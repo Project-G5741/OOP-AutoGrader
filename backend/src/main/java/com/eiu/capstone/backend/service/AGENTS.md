@@ -38,6 +38,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Multipart filenames carry relative paths from the dropped folder (see `DropZone.jsx`)
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are processed
+- Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
 - `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading
 
 ### Java compilation

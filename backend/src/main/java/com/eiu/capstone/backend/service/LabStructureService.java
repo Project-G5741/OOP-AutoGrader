@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +74,7 @@ public class LabStructureService {
     private final MasterDataRepository masterDataRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
     private final TestcaseRubricService testcaseRubricService;
+    private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
                                TermRepository termRepository,
@@ -88,7 +90,8 @@ public class LabStructureService {
                                ConstructorDeclarationRepository constructorDeclarationRepository,
                                MasterDataRepository masterDataRepository,
                                RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
-                               TestcaseRubricService testcaseRubricService) {
+                               TestcaseRubricService testcaseRubricService,
+                               @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
         this.challengeRepository = challengeRepository;
@@ -104,6 +107,7 @@ public class LabStructureService {
         this.masterDataRepository = masterDataRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
         this.testcaseRubricService = testcaseRubricService;
+        this.timingLog = timingLog;
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +169,7 @@ public class LabStructureService {
 
     @Transactional
     public LabStructureResponse saveLabStructure(UUID labId, LabStructureResponse payload) {
+        long startedAt = System.currentTimeMillis();
         Lab lab = labRepository.findById(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
         if (!Objects.equals(labId, payload.id())) {
@@ -172,7 +177,9 @@ public class LabStructureService {
         }
 
         List<ChallengeStructureDTO> challengePayloads = payload.challenges() != null ? payload.challenges() : List.of();
+        long loadStartedAt = System.currentTimeMillis();
         SaveContext ctx = loadSaveContext(labId);
+        long loadMs = System.currentTimeMillis() - loadStartedAt;
         Set<UUID> keptChallengeIds = new HashSet<>();
 
         Set<UUID> payloadChallengeIds = challengePayloads.stream()
@@ -192,11 +199,13 @@ public class LabStructureService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(HashSet::new));
 
+        long syncStartedAt = System.currentTimeMillis();
         for (ChallengeStructureDTO challengeDto : challengePayloads) {
             Challenge challenge = upsertChallenge(ctx, lab, challengeDto, usedChallengeNumbers, keptChallengeIds);
             syncClasses(ctx, challenge, challengeDto.classes());
             syncRelations(ctx, challenge, challengeDto.relations());
         }
+        long syncMs = System.currentTimeMillis() - syncStartedAt;
 
         if (payload.name() != null && !payload.name().isBlank()) {
             lab.setName(payload.name().trim());
@@ -220,6 +229,14 @@ public class LabStructureService {
                             saved.isHasMmd());
                 })
                 .toList();
+        if (timingLog) {
+            System.out.printf(
+                    "structure_save_timing lab=%s load_ms=%d sync_ms=%d total_ms=%d%n",
+                    labId,
+                    loadMs,
+                    syncMs,
+                    System.currentTimeMillis() - startedAt);
+        }
         return new LabStructureResponse(labId, labName, lab.getTerm().getId(), savedChallenges);
     }
 
@@ -521,12 +538,19 @@ public class LabStructureService {
         Set<UUID> keptClassIds = new HashSet<>();
         List<ClassStructureDTO> payloads = classDtos != null ? classDtos : List.of();
 
+        List<ClassEntity> classesToSave = new ArrayList<>();
         for (ClassStructureDTO classDto : payloads) {
-            ClassEntity classEntity = upsertClass(ctx, challenge, classDto);
-            keptClassIds.add(classEntity.getId());
-            syncFields(ctx, classEntity, classDto.fields());
-            syncMethods(ctx, classEntity, classDto.methods());
-            syncConstructors(ctx, classEntity, classDto.constructors());
+            classesToSave.add(prepareClass(ctx, challenge, classDto));
+        }
+        if (!classesToSave.isEmpty()) {
+            List<ClassEntity> savedClasses = classEntityRepository.saveAll(classesToSave);
+            for (ClassEntity classEntity : savedClasses) {
+                ctx.putClass(classEntity);
+                keptClassIds.add(classEntity.getId());
+            }
+            syncFieldsBatch(ctx, savedClasses, payloads);
+            syncMethodsBatch(ctx, savedClasses, payloads);
+            syncConstructorsBatch(ctx, savedClasses, payloads);
         }
 
         for (ClassEntity existing : existingClasses) {
@@ -542,6 +566,7 @@ public class LabStructureService {
         Set<UUID> classIds = challengeClasses.stream().map(ClassEntity::getId).collect(Collectors.toSet());
         List<ClassRelation> existing = List.copyOf(ctx.relationsByChallengeId.getOrDefault(challenge.getId(), List.of()));
         Set<UUID> kept = new HashSet<>();
+        List<ClassRelation> relationsToSave = new ArrayList<>();
 
         for (RelationStructureDTO dto : relationDtos != null ? relationDtos : List.<RelationStructureDTO>of()) {
             if (dto.sourceClassId() == null || dto.targetClassId() == null) {
@@ -572,9 +597,15 @@ public class LabStructureService {
             relation.setClassEntity(source);
             relation.setTargetClassEntity(target);
             relation.setRelationType(resolveMasterData(ctx, dto.relationTypeId(), "relation type"));
-            relation = classRelationRepository.save(relation);
-            ctx.putRelation(relation);
-            kept.add(relation.getId());
+            relationsToSave.add(relation);
+        }
+
+        if (!relationsToSave.isEmpty()) {
+            List<ClassRelation> savedRelations = classRelationRepository.saveAll(relationsToSave);
+            for (ClassRelation relation : savedRelations) {
+                ctx.putRelation(relation);
+                kept.add(relation.getId());
+            }
         }
 
         for (ClassRelation row : existing) {
@@ -603,7 +634,7 @@ public class LabStructureService {
         }
     }
 
-    private ClassEntity upsertClass(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
+    private ClassEntity prepareClass(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
         ClassEntity classEntity;
         if (dto.id() != null) {
             classEntity = ctx.classesById.get(dto.id());
@@ -625,193 +656,255 @@ public class LabStructureService {
         classEntity.setScope(resolveMasterData(ctx, dto.scopeId(), "scope"));
         classEntity.setDeclaringType(resolveMasterData(ctx, dto.declaringTypeId(), "declaring type"));
         classEntity.setAbstract(dto.isAbstract());
-        classEntity = classEntityRepository.save(classEntity);
-        ctx.putClass(classEntity);
         return classEntity;
     }
 
-    private void syncFields(SaveContext ctx, ClassEntity classEntity, List<FieldStructureDTO> fieldDtos) {
-        List<Field> existing = List.copyOf(ctx.fieldsByClassId.getOrDefault(classEntity.getId(), List.of()));
-        Set<UUID> kept = new HashSet<>();
-        for (FieldStructureDTO dto : fieldDtos != null ? fieldDtos : List.<FieldStructureDTO>of()) {
-            Field field;
-            FieldDeclaration declaration;
-            if (dto.id() != null) {
-                field = ctx.fieldsById.get(dto.id());
-                if (field == null) {
+    private void syncFieldsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
+        List<FieldDeclaration> declarationsToSave = new ArrayList<>();
+        List<Field> fieldsToSave = new ArrayList<>();
+        Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
+
+        for (int i = 0; i < classes.size(); i++) {
+            ClassEntity classEntity = classes.get(i);
+            List<FieldStructureDTO> fieldDtos = classDtos.get(i).fields();
+            if (fieldDtos == null) {
+                continue;
+            }
+            for (FieldStructureDTO dto : fieldDtos) {
+                Field field;
+                FieldDeclaration declaration;
+                if (dto.id() != null) {
+                    field = ctx.fieldsById.get(dto.id());
+                    if (field == null) {
+                        field = new Field();
+                        field.setId(dto.id());
+                        field.setClassEntity(classEntity);
+                        declaration = new FieldDeclaration();
+                    } else {
+                        if (field.getClassEntity() != null
+                                && !field.getClassEntity().getId().equals(classEntity.getId())) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Field does not belong to class");
+                        }
+                        if (field.getClassEntity() == null) {
+                            field.setClassEntity(classEntity);
+                        }
+                        declaration = field.getFieldDeclaration();
+                        if (declaration == null) {
+                            declaration = new FieldDeclaration();
+                        }
+                    }
+                } else {
                     field = new Field();
-                    field.setId(dto.id());
                     field.setClassEntity(classEntity);
                     declaration = new FieldDeclaration();
-                } else {
-                    if (field.getClassEntity() != null
-                            && !field.getClassEntity().getId().equals(classEntity.getId())) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Field does not belong to class");
-                    }
-                    if (field.getClassEntity() == null) {
-                        field.setClassEntity(classEntity);
-                    }
-                    declaration = field.getFieldDeclaration();
-                    if (declaration == null) {
-                        declaration = new FieldDeclaration();
-                    }
                 }
-            } else {
-                field = new Field();
-                field.setClassEntity(classEntity);
-                declaration = new FieldDeclaration();
+                declaration.setName(requireNonBlank(dto.name(), "Field name"));
+                declaration.setDataType(requireNonBlank(dto.dataType(), "Field type"));
+                declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
+                declarationsToSave.add(declaration);
+                fieldsToSave.add(field);
             }
-            declaration.setName(requireNonBlank(dto.name(), "Field name"));
-            declaration.setDataType(requireNonBlank(dto.dataType(), "Field type"));
-            declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
-            declaration = fieldDeclarationRepository.save(declaration);
-            field.setFieldDeclaration(declaration);
-            field.setName(declaration.getName());
-            field = fieldRepository.save(field);
-            ctx.putField(field);
-            kept.add(field.getId());
         }
-        for (Field row : existing) {
-            if (!kept.contains(row.getId())) {
-                deleteField(ctx, row);
+
+        if (!declarationsToSave.isEmpty()) {
+            fieldDeclarationRepository.saveAll(declarationsToSave);
+            for (int i = 0; i < fieldsToSave.size(); i++) {
+                FieldDeclaration declaration = declarationsToSave.get(i);
+                Field field = fieldsToSave.get(i);
+                field.setFieldDeclaration(declaration);
+                field.setName(declaration.getName());
+            }
+            fieldRepository.saveAll(fieldsToSave);
+            for (Field field : fieldsToSave) {
+                ctx.putField(field);
+                keptByClassId.computeIfAbsent(field.getClassEntity().getId(), ignored -> new HashSet<>())
+                        .add(field.getId());
+            }
+        }
+
+        for (ClassEntity classEntity : classes) {
+            Set<UUID> kept = keptByClassId.getOrDefault(classEntity.getId(), Set.of());
+            List<Field> existing = List.copyOf(ctx.fieldsByClassId.getOrDefault(classEntity.getId(), List.of()));
+            for (Field row : existing) {
+                if (!kept.contains(row.getId())) {
+                    deleteField(ctx, row);
+                }
             }
         }
     }
 
-    private void syncMethods(SaveContext ctx, ClassEntity classEntity, List<MethodStructureDTO> methodDtos) {
-        List<Method> existing = List.copyOf(ctx.methodsByClassId.getOrDefault(classEntity.getId(), List.of()));
-        Set<UUID> kept = new HashSet<>();
-        List<MethodStructureDTO> payloads = methodDtos != null ? methodDtos : List.of();
-        List<Method> savedMethods = new ArrayList<>();
+    private void syncMethodsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
+        List<MethodDeclaration> declarationsToSave = new ArrayList<>();
+        List<Method> methodsToSave = new ArrayList<>();
         List<List<ParameterStructureDTO>> parameterPayloads = new ArrayList<>();
+        Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
-        for (MethodStructureDTO dto : payloads) {
-            Method method;
-            MethodDeclaration declaration;
-            if (dto.id() != null) {
-                method = ctx.methodsById.get(dto.id());
-                if (method == null) {
+        for (int i = 0; i < classes.size(); i++) {
+            ClassEntity classEntity = classes.get(i);
+            List<MethodStructureDTO> methodDtos = classDtos.get(i).methods();
+            if (methodDtos == null) {
+                continue;
+            }
+            for (MethodStructureDTO dto : methodDtos) {
+                Method method;
+                MethodDeclaration declaration;
+                if (dto.id() != null) {
+                    method = ctx.methodsById.get(dto.id());
+                    if (method == null) {
+                        method = new Method();
+                        method.setId(dto.id());
+                        method.setClassEntity(classEntity);
+                        declaration = new MethodDeclaration();
+                    } else {
+                        if (method.getClassEntity() != null
+                                && !method.getClassEntity().getId().equals(classEntity.getId())) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Method does not belong to class");
+                        }
+                        if (method.getClassEntity() == null) {
+                            method.setClassEntity(classEntity);
+                        }
+                        declaration = method.getMethodDeclaration();
+                        if (declaration == null) {
+                            declaration = new MethodDeclaration();
+                        }
+                    }
+                } else {
                     method = new Method();
-                    method.setId(dto.id());
                     method.setClassEntity(classEntity);
                     declaration = new MethodDeclaration();
-                } else {
-                    if (method.getClassEntity() != null
-                            && !method.getClassEntity().getId().equals(classEntity.getId())) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Method does not belong to class");
-                    }
-                    if (method.getClassEntity() == null) {
-                        method.setClassEntity(classEntity);
-                    }
-                    declaration = method.getMethodDeclaration();
-                    if (declaration == null) {
-                        declaration = new MethodDeclaration();
-                    }
                 }
-            } else {
-                method = new Method();
-                method.setClassEntity(classEntity);
-                declaration = new MethodDeclaration();
+                declaration.setName(requireNonBlank(dto.name(), "Method name"));
+                declaration.setReturnType(requireNonBlank(dto.returnType(), "Return type"));
+                declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "method scope"));
+                declaration.setStatic(dto.isStatic());
+                declaration.setAbstract(dto.isAbstract());
+                declaration.setFinal(false);
+                declarationsToSave.add(declaration);
+                methodsToSave.add(method);
+                parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
             }
-            declaration.setName(requireNonBlank(dto.name(), "Method name"));
-            declaration.setReturnType(requireNonBlank(dto.returnType(), "Return type"));
-            declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "method scope"));
-            declaration.setStatic(dto.isStatic());
-            declaration.setAbstract(dto.isAbstract());
-            declaration.setFinal(false);
-            declaration = methodDeclarationRepository.save(declaration);
-            method.setMethodDeclaration(declaration);
-            method.setName(declaration.getName());
-            method = methodRepository.save(method);
-            ctx.putMethod(method);
-            savedMethods.add(method);
-            parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
-            kept.add(method.getId());
         }
 
-        if (!savedMethods.isEmpty()) {
-            List<UUID> methodIds = savedMethods.stream().map(Method::getId).toList();
+        if (!declarationsToSave.isEmpty()) {
+            methodDeclarationRepository.saveAll(declarationsToSave);
+            for (int i = 0; i < methodsToSave.size(); i++) {
+                MethodDeclaration declaration = declarationsToSave.get(i);
+                Method method = methodsToSave.get(i);
+                method.setMethodDeclaration(declaration);
+                method.setName(declaration.getName());
+            }
+            methodRepository.saveAll(methodsToSave);
+            List<UUID> methodIds = methodsToSave.stream().map(Method::getId).toList();
             parameterRepository.deleteByMethod_IdIn(methodIds);
             List<Parameter> newParameters = new ArrayList<>();
-            for (int i = 0; i < savedMethods.size(); i++) {
-                newParameters.addAll(buildParameters(parameterPayloads.get(i), savedMethods.get(i), null));
+            for (int i = 0; i < methodsToSave.size(); i++) {
+                newParameters.addAll(buildParameters(parameterPayloads.get(i), methodsToSave.get(i), null));
             }
             if (!newParameters.isEmpty()) {
                 parameterRepository.saveAll(newParameters);
             }
+            for (Method method : methodsToSave) {
+                ctx.putMethod(method);
+                keptByClassId.computeIfAbsent(method.getClassEntity().getId(), ignored -> new HashSet<>())
+                        .add(method.getId());
+            }
         }
 
-        for (Method row : existing) {
-            if (!kept.contains(row.getId())) {
-                deleteMethod(ctx, row);
+        for (ClassEntity classEntity : classes) {
+            Set<UUID> kept = keptByClassId.getOrDefault(classEntity.getId(), Set.of());
+            List<Method> existing = List.copyOf(ctx.methodsByClassId.getOrDefault(classEntity.getId(), List.of()));
+            for (Method row : existing) {
+                if (!kept.contains(row.getId())) {
+                    deleteMethod(ctx, row);
+                }
             }
         }
     }
 
-    private void syncConstructors(SaveContext ctx, ClassEntity classEntity, List<ConstructorStructureDTO> constructorDtos) {
-        List<Constructor> existing = List.copyOf(ctx.constructorsByClassId.getOrDefault(classEntity.getId(), List.of()));
-        Set<UUID> kept = new HashSet<>();
-        List<ConstructorStructureDTO> payloads = constructorDtos != null ? constructorDtos : List.of();
-        List<Constructor> savedConstructors = new ArrayList<>();
+    private void syncConstructorsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
+        List<ConstructorDeclaration> declarationsToSave = new ArrayList<>();
+        List<Constructor> constructorsToSave = new ArrayList<>();
         List<List<ParameterStructureDTO>> parameterPayloads = new ArrayList<>();
+        Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
-        for (ConstructorStructureDTO dto : payloads) {
-            Constructor constructor;
-            ConstructorDeclaration declaration;
-            if (dto.id() != null) {
-                constructor = ctx.constructorsById.get(dto.id());
-                if (constructor == null) {
+        for (int i = 0; i < classes.size(); i++) {
+            ClassEntity classEntity = classes.get(i);
+            List<ConstructorStructureDTO> constructorDtos = classDtos.get(i).constructors();
+            if (constructorDtos == null) {
+                continue;
+            }
+            for (ConstructorStructureDTO dto : constructorDtos) {
+                Constructor constructor;
+                ConstructorDeclaration declaration;
+                if (dto.id() != null) {
+                    constructor = ctx.constructorsById.get(dto.id());
+                    if (constructor == null) {
+                        constructor = new Constructor();
+                        constructor.setId(dto.id());
+                        constructor.setClassEntity(classEntity);
+                        declaration = new ConstructorDeclaration();
+                    } else {
+                        if (constructor.getClassEntity() != null
+                                && !constructor.getClassEntity().getId().equals(classEntity.getId())) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Constructor does not belong to class");
+                        }
+                        if (constructor.getClassEntity() == null) {
+                            constructor.setClassEntity(classEntity);
+                        }
+                        declaration = constructor.getConstructorDeclaration();
+                        if (declaration == null) {
+                            declaration = new ConstructorDeclaration();
+                        }
+                    }
+                } else {
                     constructor = new Constructor();
-                    constructor.setId(dto.id());
                     constructor.setClassEntity(classEntity);
                     declaration = new ConstructorDeclaration();
-                } else {
-                    if (constructor.getClassEntity() != null
-                            && !constructor.getClassEntity().getId().equals(classEntity.getId())) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Constructor does not belong to class");
-                    }
-                    if (constructor.getClassEntity() == null) {
-                        constructor.setClassEntity(classEntity);
-                    }
-                    declaration = constructor.getConstructorDeclaration();
-                    if (declaration == null) {
-                        declaration = new ConstructorDeclaration();
-                    }
                 }
-            } else {
-                constructor = new Constructor();
-                constructor.setClassEntity(classEntity);
-                declaration = new ConstructorDeclaration();
+                String constructorName = dto.name() != null && !dto.name().isBlank()
+                        ? dto.name().trim()
+                        : classEntity.getName();
+                declaration.setName(constructorName);
+                declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "constructor scope"));
+                declaration.setDefault(dto.isDefault());
+                declarationsToSave.add(declaration);
+                constructorsToSave.add(constructor);
+                parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
             }
-            String constructorName = dto.name() != null && !dto.name().isBlank() ? dto.name().trim() : classEntity.getName();
-            declaration.setName(constructorName);
-            declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "constructor scope"));
-            declaration.setDefault(dto.isDefault());
-            declaration = constructorDeclarationRepository.save(declaration);
-            constructor.setConstructorDeclaration(declaration);
-            constructor.setName(constructorName);
-            constructor = constructorRepository.save(constructor);
-            ctx.putConstructor(constructor);
-            savedConstructors.add(constructor);
-            parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
-            kept.add(constructor.getId());
         }
 
-        if (!savedConstructors.isEmpty()) {
-            List<UUID> constructorIds = savedConstructors.stream().map(Constructor::getId).toList();
+        if (!declarationsToSave.isEmpty()) {
+            constructorDeclarationRepository.saveAll(declarationsToSave);
+            for (int i = 0; i < constructorsToSave.size(); i++) {
+                ConstructorDeclaration declaration = declarationsToSave.get(i);
+                Constructor constructor = constructorsToSave.get(i);
+                constructor.setConstructorDeclaration(declaration);
+                constructor.setName(declaration.getName());
+            }
+            constructorRepository.saveAll(constructorsToSave);
+            List<UUID> constructorIds = constructorsToSave.stream().map(Constructor::getId).toList();
             parameterRepository.deleteByConstructorEntity_IdIn(constructorIds);
             List<Parameter> newParameters = new ArrayList<>();
-            for (int i = 0; i < savedConstructors.size(); i++) {
-                newParameters.addAll(buildParameters(parameterPayloads.get(i), null, savedConstructors.get(i)));
+            for (int i = 0; i < constructorsToSave.size(); i++) {
+                newParameters.addAll(buildParameters(parameterPayloads.get(i), null, constructorsToSave.get(i)));
             }
             if (!newParameters.isEmpty()) {
                 parameterRepository.saveAll(newParameters);
             }
+            for (Constructor constructor : constructorsToSave) {
+                ctx.putConstructor(constructor);
+                keptByClassId.computeIfAbsent(constructor.getClassEntity().getId(), ignored -> new HashSet<>())
+                        .add(constructor.getId());
+            }
         }
 
-        for (Constructor row : existing) {
-            if (!kept.contains(row.getId())) {
-                deleteConstructor(ctx, row);
+        for (ClassEntity classEntity : classes) {
+            Set<UUID> kept = keptByClassId.getOrDefault(classEntity.getId(), Set.of());
+            List<Constructor> existing = List.copyOf(ctx.constructorsByClassId.getOrDefault(classEntity.getId(), List.of()));
+            for (Constructor row : existing) {
+                if (!kept.contains(row.getId())) {
+                    deleteConstructor(ctx, row);
+                }
             }
         }
     }

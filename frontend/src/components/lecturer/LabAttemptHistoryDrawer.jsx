@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import { parseDisplayTimestamp, sortRows, toggleSortState } from '../../utils/sort';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -37,7 +38,7 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
           { headers: authHeaders() },
         );
         if (!response.ok) {
-          throw new Error('Unable to load submission history');
+          throw new Error(await friendlyLoadErrorFromResponse(response));
         }
         const data = await response.json();
         if (!cancelled) {
@@ -46,7 +47,7 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
       } catch (err) {
         if (!cancelled) {
           setAttempts([]);
-          setError(err.message || 'Unable to load submission history');
+          setError(toFriendlyError(err, 'read'));
         }
       } finally {
         if (!cancelled) {

@@ -40,7 +40,8 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Result tabs (`StudentUI.jsx`)
 
-- Tab bar shows MMD / Declaration Test / Operation Test, filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown. Filtering only applies once `resultsRevealed` — before any upload this session, all three tabs remain visible.
+- MMD / Declaration Test / Operation Test tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a short prompt to submit first.
+- After upload, tabs appear and are filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown when results are revealed.
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
 
 ### Testcase tab rows (`StudentUI.jsx`)

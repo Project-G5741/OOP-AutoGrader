@@ -12,17 +12,28 @@ public class ChallengeDetailBundleDTO {
     private final List<TestcaseResultDTO> testcases;
     private final Map<String, java.math.BigDecimal> scores;
     private final Map<String, Boolean> scoreApplicability;
+    private final String normalizationNotice;
 
     public ChallengeDetailBundleDTO(List<ClassDetailDTO> classData,
                                     List<MmdClassDTO> mmdData,
                                     List<TestcaseResultDTO> testcases,
                                     Map<String, java.math.BigDecimal> scores,
                                     Map<String, Boolean> scoreApplicability) {
+        this(classData, mmdData, testcases, scores, scoreApplicability, null);
+    }
+
+    public ChallengeDetailBundleDTO(List<ClassDetailDTO> classData,
+                                    List<MmdClassDTO> mmdData,
+                                    List<TestcaseResultDTO> testcases,
+                                    Map<String, java.math.BigDecimal> scores,
+                                    Map<String, Boolean> scoreApplicability,
+                                    String normalizationNotice) {
         this.classData = classData;
         this.mmdData = mmdData;
         this.testcases = testcases;
         this.scores = scores;
         this.scoreApplicability = scoreApplicability;
+        this.normalizationNotice = normalizationNotice;
     }
 
     @JsonProperty("class")
@@ -42,4 +53,6 @@ public class ChallengeDetailBundleDTO {
      * mean "not applicable."
      */
     public Map<String, Boolean> getScoreApplicability() { return scoreApplicability; }
+
+    public String getNormalizationNotice() { return normalizationNotice; }
 }

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
@@ -47,6 +49,7 @@ import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class LabStructureServiceSaveTest {
 
     @Mock private LabRepository labRepository;
@@ -72,6 +75,7 @@ class LabStructureServiceSaveTest {
     @Mock private Lab lab;
     @Mock private Term term;
     @Mock private MasterData scope;
+    @Mock private MasterData declaringType;
 
     private UUID labId;
     private UUID termId;
@@ -94,7 +98,8 @@ class LabStructureServiceSaveTest {
                 constructorDeclarationRepository,
                 masterDataRepository,
                 rubricCacheInvalidationSupport,
-                testcaseRubricService);
+                testcaseRubricService,
+                false);
 
         labId = UUID.randomUUID();
         termId = UUID.randomUUID();
@@ -106,6 +111,9 @@ class LabStructureServiceSaveTest {
 
         when(scope.getId()).thenReturn(1);
         when(scope.getName()).thenReturn("PUBLIC");
+        when(declaringType.getId()).thenReturn(2);
+        when(declaringType.getName()).thenReturn("CLASS");
+        when(masterDataRepository.findAll()).thenReturn(List.of(scope, declaringType));
     }
 
     @Test
@@ -143,7 +151,7 @@ class LabStructureServiceSaveTest {
         when(classEntityRepository.findById(classId)).thenReturn(Optional.empty());
         when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
         when(masterDataRepository.findById(2)).thenReturn(Optional.of(scope));
-        when(classEntityRepository.save(any(ClassEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(classEntityRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fieldRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
         when(methodRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
         when(constructorRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
@@ -152,9 +160,9 @@ class LabStructureServiceSaveTest {
 
         labStructureService.saveLabStructure(labId, payload);
 
-        ArgumentCaptor<ClassEntity> classCaptor = ArgumentCaptor.forClass(ClassEntity.class);
-        verify(classEntityRepository).save(classCaptor.capture());
-        assertEquals(classId, classCaptor.getValue().getId());
+        ArgumentCaptor<List<ClassEntity>> classCaptor = ArgumentCaptor.forClass(List.class);
+        verify(classEntityRepository).saveAll(classCaptor.capture());
+        assertEquals(classId, classCaptor.getValue().get(0).getId());
     }
 
     @Test
@@ -186,7 +194,7 @@ class LabStructureServiceSaveTest {
         when(classEntityRepository.findById(classId)).thenReturn(Optional.of(classEntity));
         when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
         when(masterDataRepository.findById(2)).thenReturn(Optional.of(scope));
-        when(classEntityRepository.save(any(ClassEntity.class))).thenReturn(classEntity);
+        when(classEntityRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fieldRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
         when(fieldRepository.findById(fieldId)).thenReturn(Optional.empty());
 
@@ -221,11 +229,10 @@ class LabStructureServiceSaveTest {
         LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, List.of(challengeDto));
 
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
-        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of());
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(challenge));
         when(challengeRepository.findById(challengeId)).thenReturn(Optional.of(challenge));
         when(challengeRepository.save(any(Challenge.class))).thenReturn(challenge);
-        when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(List.of());
-        when(classEntityRepository.findById(classId)).thenReturn(Optional.of(existingClass));
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of(existingClass));
         when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
         when(masterDataRepository.findById(2)).thenReturn(Optional.of(scope));
 

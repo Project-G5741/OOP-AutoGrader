@@ -66,6 +66,9 @@ public class ParsedSubmissionSnapshotBuilder {
                 entry.name = match.name;
                 entry.scope = match.scope;
                 entry.returnType = match.returnType;
+                entry.isStatic = match.isStatic;
+                entry.isAbstract = match.isAbstract;
+                entry.isFinal = match.isFinal;
                 classSnapshot.methods.put(expectedMethod.id().toString(), entry);
             }
 

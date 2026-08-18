@@ -5,7 +5,7 @@ import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
 import { authHeaders } from '../utils/authHeaders';
-import { readApiErrorMessage } from '../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import {
   getUserFormErrors,
   isFormValid,
@@ -193,7 +193,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         if (resp.status === 401 || resp.status === 403) {
           throw new Error('You are not authorized to manage users.');
         }
-        if (!resp.ok) throw new Error(`Failed to load users: ${resp.status}`);
+        if (!resp.ok) {
+          throw new Error(await readFriendlyApiError(resp, 'read'));
+        }
         const data = await resp.json();
         const items = Array.isArray(data) ? data : (data.content ?? []);
         const normalized = items.map(normalizeUser);
@@ -230,7 +232,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           throw new Error('You are not authorized to update users.');
         }
         if (!resp.ok) {
-          throw new Error(await readApiErrorMessage(resp, `Update failed: ${resp.status}`));
+          throw new Error(await readFriendlyApiError(resp, 'save'));
         }
         const updatedData = await resp.json();
         setUsers((prev) => prev.map((item) => (item.id === selected.id ? normalizeUser(updatedData) : item)));
@@ -248,7 +250,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           throw new Error('You are not authorized to create users.');
         }
         if (!resp.ok) {
-          throw new Error(await readApiErrorMessage(resp, `Create failed: ${resp.status}`));
+          throw new Error(await readFriendlyApiError(resp, 'save'));
         }
         const createdData = await resp.json();
         setUsers((prev) => [...prev, normalizeUser(createdData)]);
@@ -257,7 +259,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setFormError('');
     } catch (error) {
       console.error('Failed to save user', error);
-      setFormError(error.message || 'Unable to save user.');
+      setFormError(toFriendlyError(error, 'save'));
     }
   };
 
@@ -272,11 +274,11 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       if (resp.status === 401 || resp.status === 403) {
         throw new Error('You are not authorized to delete users.');
       }
-      if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
+      if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'delete'));
       setUsers((prev) => prev.filter((item) => item.id !== selected.id));
     } catch (error) {
       console.error('Failed to delete user', error);
-      alert(error.message || 'Unable to delete user.');
+      alert(toFriendlyError(error, 'delete'));
     } finally {
       setModal(null);
     }

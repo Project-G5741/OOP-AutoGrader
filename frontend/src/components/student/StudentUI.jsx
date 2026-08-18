@@ -114,6 +114,7 @@ export default function StudentUI({
   // Dữ liệu chi tiết cho challenge đã chọn
   mmdData = [],
   classData = [],
+  classNormalizationNotice = null,
   testCases = [],
 
   // Dữ liệu thống kê
@@ -148,8 +149,16 @@ export default function StudentUI({
   }, [selectedChallengeId]);
 
   const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  const effectiveClassNormalizationNotice =
+    classNormalizationNotice
+    ?? currentBundle?.normalizationNotice
+    ?? currentBundle?.normalization_notice
+    ?? null;
   const visibleTabs = useMemo(
-    () => TAB_ORDER.filter((t) => !(resultsRevealed && isPillarNotApplicable(currentBundle, t))),
+    () => {
+      if (!resultsRevealed) return [];
+      return TAB_ORDER.filter((t) => !isPillarNotApplicable(currentBundle, t));
+    },
     [resultsRevealed, currentBundle],
   );
 
@@ -385,6 +394,8 @@ export default function StudentUI({
 
           {/* Main content - Từ backend */}
           <div className="flex-1 bg-surface rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+            {resultsRevealed ? (
+              <>
             {/* Tabs */}
             <div className="flex border-b border-border px-2">
               {visibleTabs.map((t) => (
@@ -403,9 +414,9 @@ export default function StudentUI({
               </div>
             </div>
 
-            {/* Tab content — empty-state UI until upload fetches results for this session */}
+            {/* Tab content */}
             <div className="flex-1 overflow-auto p-5">
-              {resultsRevealed && isLoadingDetails ? (
+              {isLoadingDetails ? (
                 <div className="flex items-center justify-center h-48">
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
@@ -499,6 +510,12 @@ export default function StudentUI({
                     score={classScore}
                     showPill={resultsRevealed && hasScoreToShow(classScore, currentBundle, 'class')}
                   />
+
+                  {effectiveClassNormalizationNotice && (
+                    <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
+                      {effectiveClassNormalizationNotice}
+                    </div>
+                  )}
 
                   {classData.length > 0 ? (
                     <div className="space-y-3">
@@ -733,6 +750,17 @@ export default function StudentUI({
                 </>
               )}
             </div>
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+                <p className="text-sm font-medium text-foreground-secondary">
+                  {currentChallenge?.name || 'Challenge'}
+                </p>
+                <p className="mt-2 max-w-sm text-sm text-foreground-muted">
+                  Submit your project to view MMD, Declaration, and Operation results.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

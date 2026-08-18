@@ -119,7 +119,8 @@ public class GradingService {
                 submission.getId(),
                 rubric,
                 computed,
-                compileErrorsByChallengeId(rubric, challengeFolderResults));
+                compileErrorsByChallengeId(rubric, challengeFolderResults),
+                packageNormalizationNoticesByChallengeId(rubric, challengeFolderResults));
         return new GradingOutcome(
                 computed.overallScore,
                 computed.gradedChallenges,
@@ -344,6 +345,28 @@ public class GradingService {
                     errors.put(challengeRubric.challengeId(), folder.compileError));
         }
         return errors;
+    }
+
+    private Map<UUID, String> packageNormalizationNoticesByChallengeId(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+        Map<UUID, String> notices = new LinkedHashMap<>();
+        if (challengeFolderResults == null) {
+            return notices;
+        }
+        for (SubmissionStorageService.ChallengeResult folder : challengeFolderResults) {
+            if (folder.packageNormalizationNotice == null || folder.packageNormalizationNotice.isBlank()) {
+                continue;
+            }
+            Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(folder.challengeName);
+            if (!matcher.matches()) {
+                continue;
+            }
+            int challengeNumber = Integer.parseInt(matcher.group(1));
+            rubric.challenge(challengeNumber).ifPresent(challengeRubric ->
+                    notices.put(challengeRubric.challengeId(), folder.packageNormalizationNotice));
+        }
+        return notices;
     }
 
     private SubmissionTestcaseResult buildTestcaseResult(Map<UUID, SubmissionTestcaseResult> existing,

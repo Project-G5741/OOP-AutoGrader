@@ -1,7 +1,7 @@
 import { Upload, Info } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Button from './Button';
-import { readApiErrorMessage } from '../../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -159,8 +159,7 @@ export default function DropZone({
       });
 
       if (!res.ok) {
-        const message = await readApiErrorMessage(res, `Upload failed with status ${res.status}`);
-        throw new Error(message);
+        throw new Error(await readFriendlyApiError(res, 'upload'));
       }
 
       const data = await res.json();
@@ -169,7 +168,7 @@ export default function DropZone({
       }
     } catch (err) {
       console.error('Upload error:', err);
-      setUploadError(err.message || 'Upload failed. Please try again.');
+      setUploadError(toFriendlyError(err, 'upload'));
     } finally {
       uploadInFlightRef.current = false;
       setIsUploading(false);
@@ -237,7 +236,7 @@ export default function DropZone({
         </h3>
 
         <p className="text-foreground-muted text-sm mb-4">
-          {isUploading ? "Uploading..." : "or click to upload"}
+          or click to upload
         </p>
 
         {uploadError && (
@@ -247,11 +246,17 @@ export default function DropZone({
         )}
 
         <Button
-          className="bg-primary hover:bg-primary-hover text-white"
+          className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white"
           onClick={() => inputRef.current?.click()}
           disabled={isUploading}
         >
-          {buttonText}
+          {isUploading && (
+            <span
+              className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+              aria-hidden
+            />
+          )}
+          {isUploading ? 'Uploading...' : buttonText}
         </Button>
 
         <input
