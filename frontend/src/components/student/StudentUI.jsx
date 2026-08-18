@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
+import { formatMmdRelationType } from '../../utils/formatters';
 
 const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
 const TAB_ORDER = Object.keys(TAB_LABELS);
@@ -478,7 +479,7 @@ export default function StudentUI({
                               <span className="font-mono text-primary">{r.from}</span>
                               <div className="flex justify-center">
                                 <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
-                                  {r.relType}
+                                  {formatMmdRelationType(r.relType)}
                                 </span>
                               </div>
                               <span className="font-mono text-primary">{r.to}</span>

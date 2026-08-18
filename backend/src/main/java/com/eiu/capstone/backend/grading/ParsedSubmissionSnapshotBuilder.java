@@ -149,7 +149,7 @@ public class ParsedSubmissionSnapshotBuilder {
                 MmdRelationEntry entry = new MmdRelationEntry();
                 entry.from = parsedRelation.sourceClassName;
                 entry.to = parsedRelation.targetClassName;
-                entry.relType = MmdComparisonService.normalizeRelationTypeName(parsedRelation.relationType);
+                entry.relType = MmdComparisonService.displayRelationTypeName(parsedRelation.relationType);
                 mmdSnapshot.relations.put(expectedRelation.id().toString(), entry);
             }
         }

@@ -313,7 +313,7 @@ public class ClassStructureService {
                                 : relation.getTargetClassEntity().getName();
                         String relType = relationEntry != null
                                 ? relationEntry.relType
-                                : MmdComparisonService.normalizeRelationTypeName(relation.getRelationType().getName());
+                                : MmdComparisonService.displayRelationTypeName(relation.getRelationType().getName());
                         return new MmdRelationDTO(from, to, relType, ok, error);
                     })
                     .toList();

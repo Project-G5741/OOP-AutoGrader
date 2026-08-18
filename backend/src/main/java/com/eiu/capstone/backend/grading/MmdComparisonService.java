@@ -183,6 +183,15 @@ public class MmdComparisonService {
         return lower.replace(' ', '_');
     }
 
+    /** Preferred UI label for canonical relation types (realization → implementation). */
+    public static String displayRelationTypeName(String name) {
+        String canonical = normalizeRelationTypeName(name);
+        if ("realization".equals(canonical)) {
+            return "implementation";
+        }
+        return canonical;
+    }
+
     private boolean isGetter(MethodRubric method) {
         String name = method.name();
         return name.startsWith("get") || name.startsWith("is");

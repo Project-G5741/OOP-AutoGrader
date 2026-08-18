@@ -43,3 +43,12 @@ export function formatDateTime(value) {
   const get = (type) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
 }
+
+/** Preferred MMD tab label for relation types (realization → implementation). */
+export function formatMmdRelationType(type) {
+  const normalized = String(type ?? '').trim().toLowerCase();
+  if (normalized.includes('realiz') || normalized === 'implementation') {
+    return 'implementation';
+  }
+  return String(type ?? '').trim();
+}

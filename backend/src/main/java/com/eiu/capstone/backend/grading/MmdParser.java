@@ -369,6 +369,11 @@ public class MmdParser {
             return relation;
         }
 
+        if (relation.relationType.equals("realization")) {
+            assignRealizationEndpoints(left, arrow, right, relation);
+            return relation;
+        }
+
         boolean symbolOnLeft = arrow.startsWith("*") || arrow.startsWith("o")
                 || arrow.startsWith("<") || arrow.startsWith(".");
         boolean symbolOnRight = arrow.endsWith("*") || arrow.endsWith("o")
@@ -388,6 +393,21 @@ public class MmdParser {
             relation.sourceClassName = right;
         }
         return relation;
+    }
+
+    /**
+     * Realization / implementation ({@code ..|>} or {@code <|..}): implementor → interface.
+     * {@code Interface <|.. Class} and {@code Class ..|> Interface} are equivalent.
+     */
+    private static void assignRealizationEndpoints(
+            String left, String arrow, String right, ParsedMmdRelation relation) {
+        if ("<|..".equals(arrow)) {
+            relation.targetClassName = left;
+            relation.sourceClassName = right;
+        } else {
+            relation.targetClassName = right;
+            relation.sourceClassName = left;
+        }
     }
 
     static String canonicalRelationType(String arrow) {
