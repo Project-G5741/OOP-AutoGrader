@@ -17,6 +17,7 @@ import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
+import com.eiu.capstone.backend.utility.TimingLog;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -166,9 +167,7 @@ public class ClassStructureService {
             return new MmdResponseDTO(List.of(), null);
         }
         MmdResponseDTO result = buildMmdResponseForSubmission(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing mmd_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
     }
 
@@ -438,9 +437,7 @@ public class ClassStructureService {
         }
         List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
         String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
         return new ClassTabResponse(result, notice);
     }
 
@@ -455,9 +452,7 @@ public class ClassStructureService {
             return List.of();
         }
         List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing testcase_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
         return result;
     }
 

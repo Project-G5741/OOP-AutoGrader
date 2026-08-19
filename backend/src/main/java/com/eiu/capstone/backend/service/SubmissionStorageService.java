@@ -31,6 +31,7 @@ import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
 import com.eiu.capstone.backend.utility.CompletableFutures;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
 public class SubmissionStorageService {
@@ -155,6 +156,9 @@ public class SubmissionStorageService {
 
             String normalized = normalizePath(originalName);
             String[] segments = normalized.split("/");
+            if (isGitUploadPath(segments)) {
+                continue;
+            }
             String rootFolder = segments[0];
             if (expectedRoot == null) {
                 expectedRoot = rootFolder;
@@ -304,13 +308,11 @@ public class SubmissionStorageService {
                                   long buildSourcesMs,
                                   long javacMs,
                                   long countMs) {
-        if (!timingLog) {
-            return;
-        }
-        long totalMs = System.currentTimeMillis() - startMs;
-        System.out.printf(
-                "compile_timing challenge=%s total_ms=%d build_sources_ms=%d javac_ms=%d count_ms=%d%n",
-                challengeName, totalMs, buildSourcesMs, javacMs, countMs);
+        TimingLog.block(timingLog, "Compile " + challengeName,
+                "build sources", buildSourcesMs,
+                "javac", javacMs,
+                "count", countMs,
+                "total", System.currentTimeMillis() - startMs);
     }
 
     public void deleteFolder(Path folder) {
@@ -326,10 +328,18 @@ public class SubmissionStorageService {
         if (segments.length < 3) {
             return false;
         }
+        for (String segment : segments) {
+            if (segment.isBlank() || "..".equals(segment)) {
+                return false;
+            }
+        }
 
         String rootFolder = segments[0];
         if (!SUBMISSION_ROOT_PATTERN.matcher(rootFolder).matches()) {
             return false;
+        }
+        if (isGitUploadPath(segments)) {
+            return true;
         }
 
         for (int i = 1; i < segments.length - 1; i++) {
@@ -345,6 +355,13 @@ public class SubmissionStorageService {
         String fileName = segments[segments.length - 1];
         String lower = fileName.toLowerCase();
         return lower.endsWith(".mmd") || lower.endsWith(".java");
+    }
+
+    static boolean isGitUploadPath(String[] segments) {
+        if (segments == null || segments.length < 3) {
+            return false;
+        }
+        return ".git".equals(segments[1]);
     }
 
     private String challengeRelativeJavaPath(String originalName, String challengeName) {

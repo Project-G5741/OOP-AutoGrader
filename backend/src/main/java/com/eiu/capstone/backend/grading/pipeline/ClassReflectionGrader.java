@@ -35,7 +35,7 @@ public class ClassReflectionGrader {
 
         for (ClassRubric expectedClass : context.challengeRubric().classes()) {
             ParsedClass parsed = context.parsedByName().get(expectedClass.name());
-            int classWeight = MemberWeightCalculator.defaultMemberWeight();
+            int classWeight = MemberWeightCalculator.configuredWeight(expectedClass.weight());
 
             if (parsed == null) {
                 weighted.add(new WeightedAccuracy(classWeight, 0));

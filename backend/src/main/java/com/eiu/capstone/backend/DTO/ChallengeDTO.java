@@ -7,5 +7,16 @@ import java.util.UUID;
  * challenges sidebar. `score` is null when the student hasn't submitted anything for
  * this challenge yet — the frontend renders "Not submitted" in that case.
  */
-public record ChallengeDTO(UUID id, int challengeNumber, String name, Integer score) {
+public record ChallengeDTO(
+        UUID id,
+        int challengeNumber,
+        String name,
+        Integer score,
+        int weight,
+        int classWeight,
+        int mmdWeight) {
+
+    public ChallengeDTO(UUID id, int challengeNumber, String name, Integer score) {
+        this(id, challengeNumber, name, score, 1, 1, 1);
+    }
 }

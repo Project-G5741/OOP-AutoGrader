@@ -37,7 +37,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 - Multipart filenames carry relative paths from the dropped folder (see `DropZone.jsx`)
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
-- Only `.mmd` and `.java` files inside recognized challenge folders are processed
+- Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
 - `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading
 
@@ -48,7 +48,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
 - Compile failures for a challenge folder are captured per challenge (upload continues); diagnostics appear on Class tab cards via `ClassDetailDTO.error`
 - Empty source list returns without invoking the compiler
-- With `app.grading.timing-log=true`, `SubmissionStorageService` logs `compile_timing` per challenge (`build_sources_ms`, `javac_ms`, `count_ms`)
+- With `app.grading.timing-log=true`, `SubmissionStorageService` prints a `[timing] Compile <challenge>` block (`build sources`, `javac`, `count`, `total`)
 
 ### Authentication
 

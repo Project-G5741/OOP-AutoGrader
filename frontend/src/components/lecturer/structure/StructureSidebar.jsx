@@ -69,6 +69,9 @@ export default function StructureSidebar({
                             className="flex flex-1 items-center gap-2 text-left text-sm text-foreground-secondary min-w-0"
                           >
                             <Layers className="h-3.5 w-3.5 shrink-0 text-chart-blue" />
+                            {challenge.weight > 0 && (
+                              <span className="shrink-0 text-[10px] text-foreground-muted">wt {challenge.weight}</span>
+                            )}
                             <input
                               type="text"
                               className="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-foreground-secondary hover:border-border focus:border-primary focus:outline-none"
@@ -97,6 +100,9 @@ export default function StructureSidebar({
                                 <span className="flex items-center gap-2 truncate">
                                   <Code2 className="h-3.5 w-3.5" />
                                   {cls.name || 'Untitled class'}
+                                  {cls.weight > 0 && (
+                                    <span className="text-[10px] text-foreground-muted">wt {cls.weight}</span>
+                                  )}
                                 </span>
                                 <span
                                   role="button"

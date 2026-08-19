@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.eiu.capstone.backend.DTO.StatsDTO;
 import com.eiu.capstone.backend.repository.StatsRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
 public class StatsService {
@@ -53,9 +54,7 @@ public class StatsService {
 
         StatsDTO result = new StatsDTO(currentGrade, totalSubmissions, latestSubmission);
 
-        if (timingLog) {
-            System.out.printf("read_timing stats_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read stats", System.currentTimeMillis() - start);
         return result;
     }
 }
