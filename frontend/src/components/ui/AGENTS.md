@@ -8,7 +8,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 | File | Role |
 |---|---|
-| `SortableTableHeader.jsx` | Clickable table header with dual-chevron sort affordance (inactive faded pair; active direction highlighted) |
+| `SortableTableHeader.jsx` | Clickable table header with dual-chevron sort affordance (inactive faded pair; active direction highlighted); optional `after` slot is inline on the same text line as the label |
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
 | `Select.jsx` | Dropdown select |
@@ -16,6 +16,11 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Fixed viewport toast (`success` / `error`), auto-dismiss (default 3s) |
 | `AppLogo.jsx` | App logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
+| `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger` (project tokens; no Radix) |
+| `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
+| `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`) |
+| `separator.jsx` | Horizontal or vertical divider |
+| `cn.js` | Class-name join helper |
 
 ## Local Contracts
 
@@ -23,7 +28,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 - Accepts props: `labId`, `attemptNumber`, `authToken`, `onUploadComplete` (and styling props)
 - Shows a one-line **Folder format** hint above the drop zone: `IRN_YourName_lab_n` / (`challenge_1`, `challenge_2`, …)
-- Client-side filter: only `.mmd` and `.java` files
+- Client-side filter: `.mmd`, `.java`, and `.git/**`. Root may include `.git` beside `challenge_*` folders. Do not mention plagiarism to the student.
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload`
 - Header: `Authorization: Bearer ${authToken}`

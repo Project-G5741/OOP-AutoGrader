@@ -7,13 +7,13 @@ import java.util.List;
 /**
  * Aggregates weighted member accuracies into pillar and challenge percentages.
  *
- * <p>Challenge score = arithmetic mean of the pillars applicable to that challenge. The class
+ * <p>Challenge score = weighted mean of the pillars applicable to that challenge. The class
  * (Declaration Test) pillar is always applicable; the mmd and testcase pillars are each
  * conditionally applicable (mmd when the challenge requires an MMD diagram, testcase when the
  * challenge has at least one operational testcase). When only class is applicable, the challenge
- * score equals the class pillar percentage.
+ * score equals the class pillar percentage. Default pillar weights are 1 (equal mean).
  *
- * <p>Lab score = average across all rubric challenges; missing challenges count as 0.
+ * <p>Lab score = weighted mean across all rubric challenges; missing challenges count as 0.
  */
 public final class PillarScoreAggregator {
 
@@ -53,31 +53,62 @@ public final class PillarScoreAggregator {
                                                 boolean mmdApplicable,
                                                 BigDecimal testcasePct,
                                                 boolean testcaseApplicable) {
-        BigDecimal sum = safe(classPct);
-        int applicableCount = 1;
+        return challengePercentage(classPct, 1, mmdPct, mmdApplicable, 1, testcasePct, testcaseApplicable, 1);
+    }
+
+    public static BigDecimal challengePercentage(BigDecimal classPct,
+                                                int classWeight,
+                                                BigDecimal mmdPct,
+                                                boolean mmdApplicable,
+                                                int mmdWeight,
+                                                BigDecimal testcasePct,
+                                                boolean testcaseApplicable,
+                                                int testcaseWeight) {
+        double weightSum = Math.max(1, classWeight);
+        double earned = safe(classPct).doubleValue() * Math.max(1, classWeight);
         if (mmdApplicable) {
-            sum = sum.add(safe(mmdPct));
-            applicableCount++;
+            int w = Math.max(1, mmdWeight);
+            weightSum += w;
+            earned += safe(mmdPct).doubleValue() * w;
         }
         if (testcaseApplicable) {
-            sum = sum.add(safe(testcasePct));
-            applicableCount++;
+            int w = Math.max(1, testcaseWeight);
+            weightSum += w;
+            earned += safe(testcasePct).doubleValue() * w;
         }
-        return sum.divide(BigDecimal.valueOf(applicableCount), SCALE, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.HALF_UP);
     }
 
     /**
-     * Lab-level average across challenge percentages; empty list yields 0.
+     * Lab-level average across equally weighted challenge percentages; empty list yields 0.
      */
     public static BigDecimal labPercentage(List<BigDecimal> challengePercentages) {
         if (challengePercentages == null || challengePercentages.isEmpty()) {
             return BigDecimal.ZERO;
         }
-        BigDecimal sum = BigDecimal.ZERO;
-        for (BigDecimal pct : challengePercentages) {
-            sum = sum.add(safe(pct));
+        return weightedLabPercentage(challengePercentages.stream()
+                .map(pct -> new WeightedPercentage(1, pct))
+                .toList());
+    }
+
+    /**
+     * Lab-level weighted mean of challenge percentages; empty list yields 0.
+     */
+    public static BigDecimal weightedLabPercentage(List<WeightedPercentage> parts) {
+        if (parts == null || parts.isEmpty()) {
+            return BigDecimal.ZERO;
         }
-        return sum.divide(BigDecimal.valueOf(challengePercentages.size()), SCALE, RoundingMode.HALF_UP);
+        double weightSum = 0;
+        double earned = 0;
+        for (WeightedPercentage part : parts) {
+            int w = Math.max(1, part.weight());
+            weightSum += w;
+            earned += w * safe(part.percentage()).doubleValue();
+        }
+        if (weightSum <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal safe(BigDecimal value) {
@@ -95,4 +126,6 @@ public final class PillarScoreAggregator {
     }
 
     public record WeightedAccuracy(int weight, double accuracy) {}
+
+    public record WeightedPercentage(int weight, BigDecimal percentage) {}
 }

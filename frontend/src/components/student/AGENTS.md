@@ -9,6 +9,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
+| `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
+| `StudentNotificationBell.jsx` | Bell icon + dropdown; deadline and submission reminders from `buildStudentNotifications` |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -30,13 +32,20 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 `StudentDashboard.jsx` passes to `DropZone`:
 
-- `labId` — from selected lab in `GET /api/labs` response
+- `labId` — from selected lab in `GET /api/labs` response (`deadlineDate`, `urgencyState`; lab list in `StudentLabSidebar.jsx`, notification bell in the inset header of `StudentUI.jsx`)
+- `labSummariesById` — from `GET /api/submissions/my-labs` in `StudentDashboard.jsx`; powers “no submission yet” notifications
 - `attemptNumber` — `totalSubmissions + 1` from backend stats / upload response
 - `authToken` — from `user.accessToken`
 
 Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
+
+### Lab list layout (`StudentUI.jsx`)
+
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
+- Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
+- Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 
 ### Result tabs (`StudentUI.jsx`)
 
@@ -66,7 +75,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 ## Verification
 
 - Manual: log in as student, toggle history view, open profile modal
-- Upload: select lab, drop challenge folder, confirm API response
+- Upload: pick a lab from the left list, drop challenge folder, confirm API response
 
 ## Child DOX Index
 

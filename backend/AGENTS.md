@@ -48,8 +48,9 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 |---|---|---|
 | `HealthController` | `/api` | `GET /api/health` |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
-| `LabController` | `/api/labs` | List labs, lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, lab create/delete (lecturer JWT); challenge testcase CRUD + dry-run |
+| `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, `PATCH /{labId}/deadline`; challenge testcase CRUD + dry-run |
+| `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | Master data lookup by category |
 | `TermController` | `/api/terms` | Academic term list for lab creation |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
@@ -70,6 +71,10 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
+- Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
+- Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. Flag if any check fires. Missing `.git` skips git/metadata only.
+- `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
+- `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely)
 - Soft-delete: users set `isActive=false`
 
 ### Submission resolution
@@ -90,7 +95,7 @@ Grading tuning properties (`application.properties`):
 | `testcaseInvokeExecutor` bean | single thread | Serializes student code invocation and stdout capture |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
-| `app.grading.timing-log` | `false` | Log upload (`rubric_ms`, `process_ms`, `grade_ms`, `total_ms`) and read paths (`challenges_ms`, `class_ms`, `stats_ms`) |
+| `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload, compile, each challenge, grade submission, structure save, and read paths |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set |
@@ -105,7 +110,7 @@ Grading tuning properties (`application.properties`):
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
 - `MasterDataCache` — cached scope/type labels; `ClassStructureService` uses batched rubric queries (same pattern as `LabRubricService`)
 - `ChallengeService` — one submission-result load + batched classes/members for all challenges in a lab
-- `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), logs `structure_save_timing` when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
+- `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
 - `attemptsCount` on progress is maintained incrementally on upload (new attempt increments; re-upload of same attempt does not recount)
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
@@ -114,7 +119,7 @@ Grading tuning properties (`application.properties`):
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; when missing (legacy submissions or storage wipe), tabs fall back to rubric-template labels
 - `GET /api/labs/{labId}/stats` — lab-scoped stats for parallel dashboard load
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
-- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** field is `highest_score`; sort by `studentName` or `score`
+- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** is best qualifying submission before lab deadline (null when none or only late submissions); sort by `studentName` or `score`
 - `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
@@ -142,4 +147,5 @@ Grading tuning properties (`application.properties`):
 | Path | Scope |
 |---|---|
 | `src/main/java/com/eiu/capstone/backend/grading/AGENTS.md` | Reflection parser, rubric comparison, scoring |
+| `src/main/java/com/eiu/capstone/backend/plagiarism/AGENTS.md` | Git / metadata / file-hash plagiarism checks |
 | `src/main/java/com/eiu/capstone/backend/service/AGENTS.md` | Submission storage, Java compilation, auth, user services |

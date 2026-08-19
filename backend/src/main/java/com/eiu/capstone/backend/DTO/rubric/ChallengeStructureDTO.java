@@ -9,13 +9,25 @@ public record ChallengeStructureDTO(
         Integer challengeNumber,
         List<ClassStructureDTO> classes,
         List<RelationStructureDTO> relations,
-        boolean hasMmd) {
+        boolean hasMmd,
+        int weight,
+        int classWeight,
+        int mmdWeight) {
 
     public ChallengeStructureDTO(UUID id,
                                  String name,
                                  Integer challengeNumber,
                                  List<ClassStructureDTO> classes,
                                  List<RelationStructureDTO> relations) {
-        this(id, name, challengeNumber, classes, relations, true);
+        this(id, name, challengeNumber, classes, relations, true, 1, 1, 1);
+    }
+
+    public ChallengeStructureDTO(UUID id,
+                                 String name,
+                                 Integer challengeNumber,
+                                 List<ClassStructureDTO> classes,
+                                 List<RelationStructureDTO> relations,
+                                 boolean hasMmd) {
+        this(id, name, challengeNumber, classes, relations, hasMmd, 1, 1, 1);
     }
 }

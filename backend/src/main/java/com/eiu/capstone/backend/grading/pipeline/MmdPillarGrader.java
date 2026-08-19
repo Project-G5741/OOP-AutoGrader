@@ -54,7 +54,8 @@ public class MmdPillarGrader {
             boolean present = outcome.isClassPresent(expectedClass.id());
             boolean typeOk = outcome.isClassCorrect(expectedClass.id());
             double classAccuracy = PartialCreditEvaluator.accuracy(List.of(present, typeOk));
-            weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), classAccuracy));
+            weighted.add(new WeightedAccuracy(
+                    MemberWeightCalculator.configuredWeight(expectedClass.weight()), classAccuracy));
 
             for (var field : expectedClass.fields()) {
                 boolean ok = outcome.isFieldCorrect(field.id());

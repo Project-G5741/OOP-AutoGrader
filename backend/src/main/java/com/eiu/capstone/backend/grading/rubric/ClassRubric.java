@@ -11,4 +11,17 @@ public record ClassRubric(
         boolean isAbstract,
         List<FieldRubric> fields,
         List<MethodRubric> methods,
-        List<ConstructorRubric> constructors) {}
+        List<ConstructorRubric> constructors,
+        int weight) {
+
+    public ClassRubric(UUID id,
+                       String name,
+                       String scope,
+                       String declaringType,
+                       boolean isAbstract,
+                       List<FieldRubric> fields,
+                       List<MethodRubric> methods,
+                       List<ConstructorRubric> constructors) {
+        this(id, name, scope, declaringType, isAbstract, fields, methods, constructors, 1);
+    }
+}

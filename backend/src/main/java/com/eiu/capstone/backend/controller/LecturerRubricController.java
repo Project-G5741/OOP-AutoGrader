@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
@@ -76,6 +78,15 @@ public class LecturerRubricController {
         requireLecturer(authHeader);
         LabStructureResponse created = labStructureService.createLab(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PatchMapping("/{labId}/deadline")
+    public LabStructureResponse updateDeadline(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @RequestBody UpdateLabDeadlineRequest request) {
+        requireLecturer(authHeader);
+        return labStructureService.updateLabDeadline(labId, request);
     }
 
     @DeleteMapping("/{labId}")

@@ -52,9 +52,9 @@ SubmissionController
 
 ### Scoring
 
-- **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`)
-- **Challenge percentage** = arithmetic mean of class, MMD, and testcase pillar percentages
-- **Lab percentage** = mean across all rubric challenges; missing challenges count as 0%
+- **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight` and `challenge.mmd_weight` (testcase pillar weight stays 1)
+- **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar
 - Compile errors short-circuit testcase grading: all testcases for that challenge → `ERROR` before invoke
@@ -93,6 +93,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; does not write `submission_*` rows
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
+- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `save`, `assemble`, `total`); upload (`rubric`, `compile`, `grade`, `total`)
 
 ## Verification
 

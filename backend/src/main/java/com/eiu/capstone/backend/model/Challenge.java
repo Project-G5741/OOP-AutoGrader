@@ -42,6 +42,15 @@ public class Challenge {
     @Column(name = "has_mmd", nullable = false)
     private boolean hasMmd = true;
 
+    @Column(name = "weight", nullable = false)
+    private int weight = 1;
+
+    @Column(name = "class_weight", nullable = false)
+    private int classWeight = 1;
+
+    @Column(name = "mmd_weight", nullable = false)
+    private int mmdWeight = 1;
+
     public Challenge() {}
 
     public UUID getId() { return id; }
@@ -58,4 +67,13 @@ public class Challenge {
 
     public boolean isHasMmd() { return hasMmd; }
     public void setHasMmd(boolean hasMmd) { this.hasMmd = hasMmd; }
+
+    public int getWeight() { return weight; }
+    public void setWeight(int weight) { this.weight = weight; }
+
+    public int getClassWeight() { return classWeight; }
+    public void setClassWeight(int classWeight) { this.classWeight = classWeight; }
+
+    public int getMmdWeight() { return mmdWeight; }
+    public void setMmdWeight(int mmdWeight) { this.mmdWeight = mmdWeight; }
 }

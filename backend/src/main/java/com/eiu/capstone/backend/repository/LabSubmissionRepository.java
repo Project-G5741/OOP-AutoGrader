@@ -25,6 +25,9 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
      */
     Optional<LabSubmission> findByUserAndLabAndAttemptNumber(UserAccount user, Lab lab, Integer attemptNumber);
 
+    @Query("SELECT s FROM LabSubmission s JOIN FETCH s.user WHERE s.id IN :ids")
+    List<LabSubmission> findAllWithUserByIdIn(@Param("ids") java.util.Collection<UUID> ids);
+
     /** All of a student's submissions across every lab, most recent first — handy for a history/dashboard view. */
     List<LabSubmission> findByUserOrderBySubmittedAtDesc(UserAccount user);
 

@@ -7,6 +7,8 @@ import com.eiu.capstone.backend.repository.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.utility.TimingLog;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -92,12 +94,13 @@ public class ChallengeService {
                     challenge.getId(),
                     challenge.getChallengeNumber(),
                     challenge.getName(),
-                    score));
+                    score,
+                    Math.max(1, challenge.getWeight()),
+                    Math.max(1, challenge.getClassWeight()),
+                    Math.max(1, challenge.getMmdWeight())));
         }
 
-        if (timingLog) {
-            System.out.printf("read_timing challenges_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read challenges", System.currentTimeMillis() - start);
         return result;
     }
 
