@@ -38,6 +38,8 @@ Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
+- **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
+
 ### Result tabs (`StudentUI.jsx`)
 
 - MMD / Declaration Test / Operation Test tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a short prompt to submit first.
