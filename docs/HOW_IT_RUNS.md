@@ -202,7 +202,7 @@ Controller (thin) → Service / GradingService → Repository (JPA) → PostgreS
 
 | Controller | Base path | Purpose |
 |------------|-----------|---------|
-| `HealthController` | `/api` | Health check |
+| `RootController` | `/` | Liveness probe |
 | `AuthController` | `/api/auth` | Login, Google, password reset |
 | `LabController` | `/api/labs` | Labs, stats, lecturer submissions |
 | `SubmissionController` | `/api/submissions` | Upload, grade, student history |

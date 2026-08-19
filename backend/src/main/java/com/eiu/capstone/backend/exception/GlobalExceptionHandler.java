@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.eiu.capstone.backend.model.ErrorResponse;
 
@@ -80,6 +81,12 @@ public class GlobalExceptionHandler {
             return "A referenced constructor, method, or field does not exist. Save lab structure first, then retry.";
         }
         return "Could not save testcase data. Check assertion kinds, field references, and JSON values.";
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException exception) {
+        var error = new ErrorResponse("Not found", "No matching API route or resource.");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
     @ExceptionHandler(Exception.class)
