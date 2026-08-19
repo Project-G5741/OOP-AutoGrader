@@ -328,6 +328,7 @@ public class GradingService {
         com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta meta =
                 new com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta();
         meta.mmdSubmitted = mmdResult.mmdSubmitted();
+        meta.parseError = mmdResult.parseError();
         Map<String, Boolean> stereotypeMap = new java.util.HashMap<>();
         for (ClassRubric expectedClass : challengeRubric.classes()) {
             stereotypeMap.put(expectedClass.id().toString(), mmdResult.outcome().isClassPresent(expectedClass.id()));

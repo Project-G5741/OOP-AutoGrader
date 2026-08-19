@@ -160,15 +160,44 @@ public class ClassStructureService {
                 Map.of());
     }
 
-    public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
+    public MmdResponseDTO getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
-            return List.of();
+            return new MmdResponseDTO(List.of(), null);
         }
-        List<MmdClassDTO> result = buildMmdDataForSubmission(resolvedSubmissionId, challengeId);
+        MmdResponseDTO result = buildMmdResponseForSubmission(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId, UUID challengeId) {
+        return buildMmdResponseForSubmission(submissionId, challengeId, null, null);
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId,
+                                                        UUID challengeId,
+                                                        MmdGradingOutcome mmdOutcome,
+                                                        Boolean mmdSubmittedOverride) {
+        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge == null) {
+            return new MmdResponseDTO(List.of(), null);
+        }
+        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        List<MmdClassDTO> classes = buildMmdData(
+                structure,
+                challengeId,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot);
+        String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+        return new MmdResponseDTO(classes, parseError);
     }
 
     public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId, UUID challengeId) {
@@ -331,6 +360,9 @@ public class ClassStructureService {
                                                  ChallengeMmdMeta mmdMeta,
                                                  SubmissionCorrectIds correctIds) {
         if (mmdMeta.mmdSubmitted) {
+            return true;
+        }
+        if (mmdMeta.parseError != null && !mmdMeta.parseError.isBlank()) {
             return true;
         }
         if (!mmdMeta.relationErrors.isEmpty()) {

@@ -46,6 +46,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 - Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
 - Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
+- **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
 
 ### Result tabs (`StudentUI.jsx`)
 

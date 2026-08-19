@@ -120,6 +120,7 @@ export default function StudentUI({
 
   // Dữ liệu chi tiết cho challenge đã chọn
   mmdData = [],
+  mmdParseError = null,
   classData = [],
   classNormalizationNotice = null,
   testCases = [],
@@ -441,6 +442,12 @@ export default function StudentUI({
                     score={mmdScore}
                     showPill={resultsRevealed && hasScoreToShow(mmdScore, currentBundle, 'mmd')}
                   />
+
+                  {mmdParseError && (
+                    <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
+                      {mmdParseError}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
                     {mmdData.length > 0 ? mmdData.map((cls) => (

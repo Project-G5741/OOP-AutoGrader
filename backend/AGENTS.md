@@ -46,7 +46,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 
 | Controller | Base path | Notes |
 |---|---|---|
-| `HealthController` | `/api` | `GET /api/health` |
+| `RootController` | `/` | `GET /` — liveness probe (Render health check) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password |
 | `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
 | `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, `PATCH /{labId}/deadline`; challenge testcase CRUD + dry-run |
@@ -140,7 +140,7 @@ Grading tuning properties (`application.properties`):
 ## Verification
 
 - No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `SubmissionStorageServiceTest` and `JavaCompilerServiceTest`
-- Manual: Swagger UI, `GET /api/health`, submission upload from frontend `DropZone`
+- Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 
 ## Child DOX Index
 

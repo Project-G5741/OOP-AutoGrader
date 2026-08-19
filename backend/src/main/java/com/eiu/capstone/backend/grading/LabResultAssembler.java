@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
+import com.eiu.capstone.backend.DTO.MmdResponseDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
@@ -94,7 +95,7 @@ public class LabResultAssembler {
 
             MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
             ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
-            List<MmdClassDTO> mmdData = classStructureService.buildMmdData(
+            List<MmdClassDTO> mmdClasses = classStructureService.buildMmdData(
                     structure,
                     challengeId,
                     correctIds,
@@ -103,6 +104,11 @@ public class LabResultAssembler {
                     mmdMeta,
                     submissionId,
                     snapshot);
+            String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+            if (parseError == null && mmdResult != null) {
+                parseError = mmdResult.parseError();
+            }
+            MmdResponseDTO mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
 
             List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
 
@@ -128,7 +134,7 @@ public class LabResultAssembler {
                     "testcase", pillarScores.testcaseApplicable());
 
             labResult.put("challenge_" + number, new ChallengeDetailBundleDTO(
-                    classData, mmdData, testcases, scores, scoreApplicability,
+                    classData, mmdResponse, testcases, scores, scoreApplicability,
                     normalizationNotices.get(challengeId)));
         }
 

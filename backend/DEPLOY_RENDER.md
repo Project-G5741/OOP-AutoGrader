@@ -22,7 +22,8 @@ Render deployment steps (Docker)
    Password-reset links use the browser `Origin` when allowed (localhost or Vercel); otherwise `FRONTEND_URL` is the fallback base. Link shape: `https://oop-autograder.vercel.app?resetToken=...`
 4. (Optional) Add `JAVA_OPTS` if you need memory tuning, e.g. `-Xmx512m`. Parallel per-challenge compilation uses `app.compile.parallelism` (default `4`); grading uses `app.grading.parallelism` (default `4`). On small instances (512MB), consider lowering both to `2` if memory is tight during upload.
 5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `30`), `app.grading.timing-log` (`true` to log upload phase timings including `compile_timing` per challenge). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
-6. Deploy. Check logs for successful startup.
+6. **Health check:** In the Render service **Settings** → **Health Checks**, set **Health Check Path** to `/` (not `/api/health`). The backend answers `GET /` with `200 ok`. Unknown paths return `404` without ERROR logs.
+7. Deploy. Check logs for successful startup.
 
 Local build & test:
 ```
