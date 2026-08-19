@@ -13,10 +13,12 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `JavaCompilerService` | Compile submitted `.java` files to `classes/` via `javax.tools.JavaCompiler` |
 | `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn) |
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
-| `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete |
+| `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
+| `TermService` | Create terms by year, set current term, enroll/remove students |
+| `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
@@ -54,14 +56,29 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GoogleTokenVerifier`: calls `https://oauth2.googleapis.com/tokeninfo`, checks audience, expiry, `email_verified`, domain `eiu.edu.vn`
 - `JwtService`: signing key generated in-memory on startup — **not** loaded from `jwt.secret` in config
-- `UserService.resolveRoles()`: maps DB roles to `STUDENT` / `LECTURER` strings
-- `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
+- `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` strings; inactive accounts are rejected
+- `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body; inactive users rejected at complete as well as request); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
 
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
 - Soft delete sets `isActive=false`
+- Lecturer suspend/restore (`suspendStudent` / `restoreStudent`) toggles `isActive` for student-only accounts; lecturer and dual-role accounts are rejected
 - Google upsert creates or updates user on first login
+- Inactive users cannot log in (IRN or Google)
+- Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)
+
+### Terms
+
+- Lecturers create a term under an academic year label (reused if it exists) and optional dates
+- One term is current (`is_current`); set via `POST /api/lecturer/terms/{id}/current`
+- Enroll only active students; out-of-term active students can still log in and read history, not submit
+- Excel import matches **IRN (`student_code`) and email** to an existing user, then enrolls; extra columns ignored; unmatched rows are skipped
+- Import, enroll, and term list use batched queries (user lookup by IRN list, enrollment ids, grouped student counts, `saveAll`)
+- Current-term membership is `existsByUser_IdAndTerm_CurrentTrue` (no extra current-term fetch)
+- `findCurrentTerm()` loads the current term row only (no academic-year join); year is fetched on term list
+- `GET /{termId}/roster` loads enrolled + available students in one enrollment fetch plus `findActiveStudents`
+- Set current term uses one bulk `UPDATE` (`clearOtherCurrent`) instead of loading every current row
 
 ## Work Guidance
 
@@ -76,6 +93,11 @@ Per upload request (unique `requestId` prevents collisions):
 
 - Compile path: upload `.java` files via frontend `DropZone`, confirm `classes/` populated before cleanup
 - Auth: `POST /api/auth/google` and `POST /api/auth/login` via Swagger or frontend login
+- Term access: `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
+- Term import: `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
+- Term current membership: `TermServiceCurrentTermTest`
+- User suspend: `UserServiceTest` (student inactive; lecturer/dual-role rejected)
+- Password reset: `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 
 ## Child DOX Index
 

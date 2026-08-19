@@ -218,7 +218,7 @@ public class LecturerAnalyticsService {
     }
 
     public GradeOverviewResponse getGradeOverview(int page, int size, String sort) {
-        int safeSize = size <= 0 ? 5 : Math.min(size, 100);
+        int safeSize = size <= 0 ? 10 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveGradeOverviewSort(sort);
 

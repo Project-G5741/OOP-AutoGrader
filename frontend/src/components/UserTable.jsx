@@ -1,4 +1,4 @@
-import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight, Ban, UserCheck } from 'lucide-react';
 import SortableTableHeader from './ui/SortableTableHeader';
 
 const HEADER_CLASS = 'px-6 py-3 text-left text-xs font-semibold text-foreground-muted uppercase tracking-wider';
@@ -9,7 +9,13 @@ const USER_COLUMNS = [
   { key: 'dob', label: 'Date of Birth' },
   { key: 'email', label: 'Email' },
   { key: 'role', label: 'Role' },
+  { key: 'status', label: 'Status' },
 ];
+
+function isStudentOnly(user) {
+  const roles = user?.roleNames || [];
+  return roles.includes('STUDENT') && !roles.includes('LECTURER');
+}
 
 export default function UserTable({
   search,
@@ -26,6 +32,7 @@ export default function UserTable({
   loading,
   onEdit,
   onDelete,
+  onSuspend,
   roleColors,
 }) {
   const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -75,13 +82,13 @@ export default function UserTable({
           <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-foreground-muted">
+                <td colSpan={7} className="px-6 py-12 text-center text-foreground-muted">
                   Loading users...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-foreground-disabled">No users found.</td>
+                <td colSpan={7} className="px-6 py-12 text-center text-foreground-disabled">No users found.</td>
               </tr>
             ) : rows.map((u) => (
               <tr key={u.id} className="hover:bg-surface-secondary hover:bg-surface-secondary transition-colors">
@@ -105,10 +112,28 @@ export default function UserTable({
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    u.isActive === false
+                      ? 'bg-warning-bg text-warning-text'
+                      : 'bg-success-bg text-success-text'
+                  }`}>
+                    {u.isActive === false ? 'Suspended' : 'Active'}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button onClick={() => onEdit(u)} className="p-1.5 text-foreground-muted hover:text-primary hover:bg-primary-light rounded-lg transition-colors">
                       <Pencil className="w-4 h-4" />
                     </button>
+                    {isStudentOnly(u) && onSuspend && (
+                      <button
+                        onClick={() => onSuspend(u)}
+                        title={u.isActive === false ? 'Restore student' : 'Suspend student'}
+                        className="p-1.5 text-foreground-muted hover:text-warning-text hover:bg-warning-bg rounded-lg transition-colors"
+                      >
+                        {u.isActive === false ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                      </button>
+                    )}
                     <button onClick={() => onDelete(u)} className="p-1.5 text-foreground-muted hover:text-error hover:bg-error-bg rounded-lg transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -77,7 +77,9 @@ A per-(student, lab) tracking row holding highest score, attempt count, and best
 Cross-lab paginated matrix of enrolled students versus labs, showing per-lab highest scores and a total average. Lecturer sorts and exports use server-side ordering; per-lab column sort ranks students by that lab's highest score among rows with a submission (`last_submitted_at` set), matching the displayed cell values.
 
 ### Term enrollment
-Maps an active student to a term (`term_enrollment`). The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
+Maps an active student to a term (`term_enrollment`). Lecturers create terms by year, add students (manually or by Excel: match **IRN and email** to an existing account), and mark one term as **current**. Students enrolled in the current term can open the dashboard and submit; other active students only see history. Lecturers can **suspend** a student-only account (`is_active=false`); that student cannot log in until restored. Suspended students stay on the term roster with a Suspended badge. Lecturer and dual-role accounts cannot be suspended this way.
+
+The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
 
 ### Lecturer lab roster
 The unique set of enrolled/active students for a lab's term/course. Challenge and overview tables paginate this population; submission and progress data are LEFT JOINed per student afterward.

@@ -71,6 +71,9 @@ public class PasswordResetService {
         UserAccount user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "No account found for this email"));
+        if (!user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found for this email");
+        }
 
         tokenRepository.deleteByUser_IdAndUsedAtIsNull(user.getId());
 
@@ -111,6 +114,9 @@ public class PasswordResetService {
         }
 
         UserAccount user = resetToken.getUser();
+        if (user == null || !user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found for this email");
+        }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 

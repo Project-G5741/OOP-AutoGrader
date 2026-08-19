@@ -24,7 +24,7 @@ function clearResetTokenFromUrl() {
 }
 
 function AuthenticatedLanding({ user }) {
-  return <Navigate to={defaultDashboardPath(user.roles)} replace />;
+  return <Navigate to={defaultDashboardPath(user.roles, user.inCurrentTerm)} replace />;
 }
 
 export default function App() {
@@ -40,7 +40,7 @@ export default function App() {
     sessionStorage.setItem("accessToken", data.accessToken);
     sessionStorage.setItem("user", JSON.stringify(userPayload));
     setUser(userPayload);
-    navigate(defaultDashboardPath(roles));
+    navigate(defaultDashboardPath(roles, data.inCurrentTerm));
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
@@ -117,6 +117,15 @@ export default function App() {
           />
           <Route
             path={ROUTES.lecturerReport}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={user} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+
+          <Route
+            path={ROUTES.lecturerTerms}
             element={
               <RequireRole anyOf={["LECTURER"]}>
                 <LecturerDashboard user={user} onLogout={handleLogout} />
