@@ -10,7 +10,7 @@ export default function RequireRole({ anyOf, children }) {
   }
 
   if (!hasAnyRole(user.roles, anyOf)) {
-    return <Navigate to={defaultDashboardPath(user.roles)} replace />;
+    return <Navigate to={defaultDashboardPath(user.roles, user.inCurrentTerm)} replace />;
   }
 
   return children;

@@ -20,7 +20,8 @@ class AuthResponseTest {
                 List.of("STUDENT"),
                 "2331200082",
                 "2331200082",
-                null
+                null,
+                true
         );
 
         assertEquals("2331200082", response.irn());

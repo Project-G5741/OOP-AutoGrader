@@ -32,7 +32,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 `StudentDashboard.jsx` passes to `DropZone`:
 
-- `labId` — from selected lab in `GET /api/labs` response (`deadlineDate`, `urgencyState`; lab list in `StudentLabSidebar.jsx`, notification bell in the inset header of `StudentUI.jsx`)
+- Out-of-term students skip `GET /api/labs` and stay on History. The History route also skips dashboard `GET /api/labs` and `GET /api/submissions/my-labs` — `StudentHistoryPage` loads history APIs itself.
 - `labSummariesById` — from `GET /api/submissions/my-labs` in `StudentDashboard.jsx`; powers “no submission yet” notifications
 - `attemptNumber` — `totalSubmissions + 1` from backend stats / upload response
 - `authToken` — from `user.accessToken`
@@ -76,6 +76,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 ## Verification
 
 - Manual: log in as student, toggle history view, open profile modal
+- Out-of-term active students see History only (Home hidden); inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
 
 ## Child DOX Index

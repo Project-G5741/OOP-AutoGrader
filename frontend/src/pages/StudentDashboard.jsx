@@ -1,12 +1,13 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import Toast from '../components/ui/Toast';
-import { ROUTES } from '../utils/authRoutes';
+import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
+import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 
@@ -114,6 +115,7 @@ function challengeScoresFromBundles(indexedLabResult) {
 export default function StudentDashboard({ user, onLogout, view = 'dashboard' }) {
   const navigate = useNavigate();
   const showHistory = view === 'history';
+  const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [labs, setLabs] = useState([]);
@@ -368,9 +370,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     async function fetchLabs() {
+      if (showHistory || !inCurrentTerm) {
+        setLabs([]);
+        setIsLoadingLabs(false);
+        return;
+      }
       setIsLoadingLabs(true);
       try {
-        const res = await fetch(`${API_BASE}/api/labs`);
+        const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
@@ -387,8 +394,32 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-    fetchLabSummaries();
-  }, [fetchLabSummaries]);
+    if (!showHistory && inCurrentTerm) {
+      fetchLabSummaries();
+    }
+  }, [fetchLabSummaries, inCurrentTerm, showHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshAccess() {
+      try {
+        const res = await fetch(`${API_BASE}/api/students/term-access`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          const next = Boolean(data.inCurrentTerm);
+          setInCurrentTerm(next);
+          patchStoredUser({ inCurrentTerm: next });
+        }
+      } catch {
+        // keep login-time value
+      }
+    }
+    refreshAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedLabId) return;
@@ -628,7 +659,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
-      navigate(ROUTES.studentDashboard);
+      navigate(inCurrentTerm ? ROUTES.studentDashboard : ROUTES.studentHistory);
     } else if (cmd === 'history') {
       navigate(ROUTES.studentHistory);
     } else if (cmd === 'changePassword') {
@@ -636,11 +667,15 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   };
 
+  if (view === 'dashboard' && !inCurrentTerm) {
+    return <Navigate to={ROUTES.studentHistory} replace />;
+  }
+
   const isInitialLoading = isLoadingLabs || (isLoadingChallenges && challenges.length === 0);
 
   return (
     <>
-      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand} className="!mt-0">
+      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand} hideHome={!inCurrentTerm} className="!mt-0">
         <div className="w-full">
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">

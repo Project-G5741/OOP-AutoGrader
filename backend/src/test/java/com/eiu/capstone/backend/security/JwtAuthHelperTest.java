@@ -2,7 +2,9 @@ package com.eiu.capstone.backend.security;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -53,6 +55,25 @@ class JwtAuthHelperTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> jwtAuthHelper.requireRole(claims, "LECTURER"));
         assertEquals(403, ex.getStatusCode().value());
+    }
+
+    @Test
+    void requireLecturer_missingHeader_throws401() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> jwtAuthHelper.requireLecturer(null));
+        assertEquals(401, ex.getStatusCode().value());
+    }
+
+    @Test
+    void isStudentOnly_studentWithoutLecturer_true() {
+        when(claims.get("roles")).thenReturn(List.of("STUDENT"));
+        assertTrue(jwtAuthHelper.isStudentOnly(claims));
+    }
+
+    @Test
+    void isStudentOnly_dualRole_false() {
+        when(claims.get("roles")).thenReturn(List.of("STUDENT", "LECTURER"));
+        assertFalse(jwtAuthHelper.isStudentOnly(claims));
     }
 
     @Test

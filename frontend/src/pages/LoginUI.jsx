@@ -145,7 +145,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       }
 
       if (resp.status === 403) {
-        // Account not registered yet — open first-time setup modal
+        // Unregistered only (403). Inactive accounts return 423 and must not open setup.
         const payload = decodeJwtPayload(idToken) || {};
         setGoogleToken(idToken);
         setGoogleProfile({ 

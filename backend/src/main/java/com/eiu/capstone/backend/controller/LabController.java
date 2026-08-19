@@ -4,10 +4,10 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,10 +18,17 @@ import com.eiu.capstone.backend.analytics.dto.LabStatisticsResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Term;
+import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabRepository;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.service.LabDeadlineHelper;
 import com.eiu.capstone.backend.service.LabDeadlineHelper.UrgencyState;
 import com.eiu.capstone.backend.service.StatsService;
+import com.eiu.capstone.backend.service.TermService;
+
+import io.jsonwebtoken.Claims;
 
 @RestController
 @RequestMapping("/api/labs")
@@ -31,23 +38,50 @@ public class LabController {
     private final StatsService statsService;
     private final LecturerAnalyticsService lecturerAnalyticsService;
     private final LabDeadlineHelper labDeadlineHelper;
+    private final JwtAuthHelper jwtAuthHelper;
+    private final UserAccountRepository userAccountRepository;
+    private final TermService termService;
 
     public LabController(LabRepository labRepository,
                          StatsService statsService,
                          LecturerAnalyticsService lecturerAnalyticsService,
-                         LabDeadlineHelper labDeadlineHelper) {
+                         LabDeadlineHelper labDeadlineHelper,
+                         JwtAuthHelper jwtAuthHelper,
+                         UserAccountRepository userAccountRepository,
+                         TermService termService) {
         this.labRepository = labRepository;
         this.statsService = statsService;
         this.lecturerAnalyticsService = lecturerAnalyticsService;
         this.labDeadlineHelper = labDeadlineHelper;
+        this.jwtAuthHelper = jwtAuthHelper;
+        this.userAccountRepository = userAccountRepository;
+        this.termService = termService;
     }
 
     @GetMapping
-    public List<LabSummary> listLabs() {
-        return labRepository.findAll().stream()
+    public List<LabSummary> listLabs(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        return labsVisibleToCaller(authHeader).stream()
                 .sorted(Comparator.comparing(Lab::getName, labDeadlineHelper.naturalLabNameComparator()))
                 .map(this::toSummary)
-                .collect(Collectors.toList());
+                .toList();
+    }
+
+    private List<Lab> labsVisibleToCaller(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return labRepository.findAll();
+        }
+        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
+        if (!jwtAuthHelper.isStudentOnly(claims)) {
+            return labRepository.findAll();
+        }
+        String email = claims.get("email", String.class);
+        UserAccount user = userAccountRepository.findByEmail(email).orElse(null);
+        Term current = termService.findCurrentTerm().orElse(null);
+        if (user == null || current == null || !termService.isEnrolled(user.getId(), current.getId())) {
+            return List.of();
+        }
+        return labRepository.findByTerm_Id(current.getId());
     }
 
     private LabSummary toSummary(Lab lab) {
