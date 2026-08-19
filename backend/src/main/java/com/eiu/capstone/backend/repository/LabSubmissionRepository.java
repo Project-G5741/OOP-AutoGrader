@@ -4,7 +4,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.math.BigDecimal;
+
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,4 +43,52 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     List<LabSubmission> findByUser_IdAndLab_IdWithLabOrderByAttemptNumberDesc(
             @Param("userId") UUID userId,
             @Param("labId") UUID labId);
+
+    @Query(
+            value = "SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId",
+            countQuery = "SELECT COUNT(s) FROM LabSubmission s WHERE s.user.id = :userId")
+    Page<LabSubmission> findHistoryPageByUserId(@Param("userId") UUID userId, Pageable pageable);
+
+    @Query(
+            value = "SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId AND s.lab.id = :labId",
+            countQuery = "SELECT COUNT(s) FROM LabSubmission s WHERE s.user.id = :userId AND s.lab.id = :labId")
+    Page<LabSubmission> findHistoryPageByUserIdAndLabId(
+            @Param("userId") UUID userId,
+            @Param("labId") UUID labId,
+            Pageable pageable);
+
+    long countByUser_Id(UUID userId);
+
+    @Query("""
+            SELECT AVG(s.score) FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND s.score IS NOT NULL
+            """)
+    BigDecimal averageScoreForUser(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT AVG(s.score) FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND s.lab.id = :labId
+              AND s.score IS NOT NULL
+            """)
+    BigDecimal averageScoreForUserAndLab(@Param("userId") UUID userId, @Param("labId") UUID labId);
+
+    @Query("""
+            SELECT MAX(s.score) FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND s.score IS NOT NULL
+            """)
+    BigDecimal bestScoreForUser(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT MAX(s.score) FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND s.lab.id = :labId
+              AND s.score IS NOT NULL
+            """)
+    BigDecimal bestScoreForUserAndLab(@Param("userId") UUID userId, @Param("labId") UUID labId);
+
+    @Query("SELECT COUNT(DISTINCT s.lab.id) FROM LabSubmission s WHERE s.user.id = :userId")
+    long countDistinctLabsByUserId(@Param("userId") UUID userId);
 }

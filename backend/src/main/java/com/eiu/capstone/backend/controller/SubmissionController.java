@@ -119,12 +119,15 @@ public class SubmissionController {
     @GetMapping("/my-history")
     public StudentHistoryResponse getMyHistory(
             @RequestHeader("Authorization") String authHeader,
-            @RequestParam(required = false) UUID labId) {
+            @RequestParam(required = false) UUID labId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sort) {
         UserAccount user = resolveStudentUser(authHeader);
         if (labId != null && !labRepository.existsById(labId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
         }
-        return studentHistoryService.getHistory(user.getId(), labId);
+        return studentHistoryService.getHistory(user.getId(), labId, page, size, sort);
     }
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
