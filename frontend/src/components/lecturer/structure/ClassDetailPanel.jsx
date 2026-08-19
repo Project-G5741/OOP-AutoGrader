@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import ParameterRows from './ParameterRows';
+import WeightInput from './WeightInput';
 
 function ScopeSelect({ value, options, onChange }) {
   return (
@@ -73,6 +74,12 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
               onChange={(declaringTypeId) => patch({ declaringTypeId })}
             />
           </div>
+          <WeightInput
+            id={`class-weight-${classData.id}`}
+            label="Class weight"
+            value={classData.weight}
+            onChange={(weight) => patch({ weight })}
+          />
           <label className="flex items-center gap-2 text-sm text-foreground-secondary">
             <input type="checkbox" checked={classData.isAbstract} onChange={(e) => patch({ isAbstract: e.target.checked })} />
             Abstract

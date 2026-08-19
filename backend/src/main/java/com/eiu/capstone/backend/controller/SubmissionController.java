@@ -46,8 +46,10 @@ import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
+import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -74,6 +76,7 @@ public class SubmissionController {
     private final StudentHistoryService studentHistoryService;
     private final LabStatisticsCache labStatisticsCache;
     private final LecturerOverviewCache lecturerOverviewCache;
+    private final PlagiarismService plagiarismService;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -91,6 +94,7 @@ public class SubmissionController {
                                  StudentHistoryService studentHistoryService,
                                  LabStatisticsCache labStatisticsCache,
                                  LecturerOverviewCache lecturerOverviewCache,
+                                 PlagiarismService plagiarismService,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -107,6 +111,7 @@ public class SubmissionController {
         this.studentHistoryService = studentHistoryService;
         this.labStatisticsCache = labStatisticsCache;
         this.lecturerOverviewCache = lecturerOverviewCache;
+        this.plagiarismService = plagiarismService;
         this.timingLog = timingLog;
     }
 
@@ -119,12 +124,15 @@ public class SubmissionController {
     @GetMapping("/my-history")
     public StudentHistoryResponse getMyHistory(
             @RequestHeader("Authorization") String authHeader,
-            @RequestParam(required = false) UUID labId) {
+            @RequestParam(required = false) UUID labId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sort) {
         UserAccount user = resolveStudentUser(authHeader);
         if (labId != null && !labRepository.existsById(labId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
         }
-        return studentHistoryService.getHistory(user.getId(), labId);
+        return studentHistoryService.getHistory(user.getId(), labId, page, size, sort);
     }
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
@@ -185,6 +193,14 @@ public class SubmissionController {
                     packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges));
             submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
 
+            long plagiarismStart = System.currentTimeMillis();
+            try {
+                plagiarismService.inspectUpload(submission, files);
+            } catch (RuntimeException e) {
+                System.out.printf("plagiarism inspect failed submission=%s%n", submission.getId());
+            }
+            long plagiarismMs = System.currentTimeMillis() - plagiarismStart;
+
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
             labStatisticsCache.invalidate(labId);
             lecturerOverviewCache.invalidate();
@@ -195,9 +211,12 @@ public class SubmissionController {
             }
 
             if (timingLog) {
-                long totalMs = System.currentTimeMillis() - totalStart;
-                System.out.printf("grading_timing rubric_ms=%d process_ms=%d grade_ms=%d total_ms=%d%n",
-                        rubricMs, processMs, gradeMs, totalMs);
+                TimingLog.block(true, "Upload",
+                        "rubric", rubricMs,
+                        "compile", processMs,
+                        "grade", gradeMs,
+                        "plagiarism", plagiarismMs,
+                        "total", System.currentTimeMillis() - totalStart);
             }
 
             return ResponseEntity.ok(new SubmissionUploadResponse(

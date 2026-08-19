@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -20,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
@@ -55,6 +58,7 @@ import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
 public class LabStructureService {
@@ -74,6 +78,8 @@ public class LabStructureService {
     private final MasterDataRepository masterDataRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
     private final TestcaseRubricService testcaseRubricService;
+    private final LabStatisticsCache labStatisticsCache;
+    private final LabDeadlineHelper labDeadlineHelper;
     private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
@@ -91,6 +97,8 @@ public class LabStructureService {
                                MasterDataRepository masterDataRepository,
                                RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
                                TestcaseRubricService testcaseRubricService,
+                               LabStatisticsCache labStatisticsCache,
+                               LabDeadlineHelper labDeadlineHelper,
                                @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
@@ -107,6 +115,8 @@ public class LabStructureService {
         this.masterDataRepository = masterDataRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
         this.testcaseRubricService = testcaseRubricService;
+        this.labStatisticsCache = labStatisticsCache;
+        this.labDeadlineHelper = labDeadlineHelper;
         this.timingLog = timingLog;
     }
 
@@ -121,7 +131,9 @@ public class LabStructureService {
         UUID labId = lab.getId();
         List<Challenge> challenges = challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId);
         if (challenges.isEmpty()) {
-            return new LabStructureResponse(lab.getId(), lab.getName(), lab.getTerm().getId(), List.of());
+            return new LabStructureResponse(
+                    lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
+                    List.of());
         }
 
         List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
@@ -164,7 +176,9 @@ public class LabStructureService {
                         relationsByChallenge.getOrDefault(challenge.getId(), List.of())))
                 .toList();
 
-        return new LabStructureResponse(lab.getId(), lab.getName(), lab.getTerm().getId(), challengeDtos);
+        return new LabStructureResponse(
+                lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
+                challengeDtos);
     }
 
     @Transactional
@@ -209,8 +223,10 @@ public class LabStructureService {
 
         if (payload.name() != null && !payload.name().isBlank()) {
             lab.setName(payload.name().trim());
-            labRepository.save(lab);
         }
+        lab.setDeadlineDate(payload.deadlineDate());
+        labRepository.save(lab);
+        labStatisticsCache.invalidate(labId);
 
         rubricCacheInvalidationSupport.invalidateLab(labId);
         String labName = payload.name() != null && !payload.name().isBlank() ? payload.name().trim() : lab.getName();
@@ -226,18 +242,29 @@ public class LabStructureService {
                             saved.getChallengeNumber(),
                             dto.classes(),
                             dto.relations(),
-                            saved.isHasMmd());
+                            saved.isHasMmd(),
+                            saved.getWeight(),
+                            saved.getClassWeight(),
+                            saved.getMmdWeight());
                 })
                 .toList();
-        if (timingLog) {
-            System.out.printf(
-                    "structure_save_timing lab=%s load_ms=%d sync_ms=%d total_ms=%d%n",
-                    labId,
-                    loadMs,
-                    syncMs,
-                    System.currentTimeMillis() - startedAt);
-        }
-        return new LabStructureResponse(labId, labName, lab.getTerm().getId(), savedChallenges);
+        TimingLog.block(timingLog, "Save lab structure",
+                "load", loadMs,
+                "sync", syncMs,
+                "total", System.currentTimeMillis() - startedAt);
+        return new LabStructureResponse(
+                labId, labName, lab.getTerm().getId(), lab.getDeadlineDate(),
+                savedChallenges);
+    }
+
+    @Transactional
+    public LabStructureResponse updateLabDeadline(UUID labId, UpdateLabDeadlineRequest request) {
+        Lab lab = labRepository.findById(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        lab.setDeadlineDate(request.deadlineDate());
+        labRepository.save(lab);
+        labStatisticsCache.invalidate(labId);
+        return buildLabStructureResponse(lab);
     }
 
     private SaveContext loadSaveContext(UUID labId) {
@@ -452,8 +479,12 @@ public class LabStructureService {
         Lab lab = new Lab();
         lab.setName(request.name().trim());
         lab.setTerm(term);
+        LocalDate deadline = request.deadlineDate() != null ? request.deadlineDate() : term.getEndDate();
+        lab.setDeadlineDate(deadline);
         lab = labRepository.save(lab);
-        return new LabStructureResponse(lab.getId(), lab.getName(), term.getId(), List.of());
+        return new LabStructureResponse(
+                lab.getId(), lab.getName(), term.getId(), lab.getDeadlineDate(),
+                List.of());
     }
 
     @Transactional
@@ -495,6 +526,9 @@ public class LabStructureService {
         }
         challenge.setName(requireNonBlank(dto.name(), "Challenge name"));
         challenge.setHasMmd(dto.hasMmd());
+        challenge.setWeight(normalizeWeight(dto.weight()));
+        challenge.setClassWeight(normalizeWeight(dto.classWeight()));
+        challenge.setMmdWeight(normalizeWeight(dto.mmdWeight()));
         if (isNew) {
             challenge.setChallengeNumber(allocateChallengeNumber(usedChallengeNumbers, dto.challengeNumber()));
         } else {
@@ -656,6 +690,7 @@ public class LabStructureService {
         classEntity.setScope(resolveMasterData(ctx, dto.scopeId(), "scope"));
         classEntity.setDeclaringType(resolveMasterData(ctx, dto.declaringTypeId(), "declaring type"));
         classEntity.setAbstract(dto.isAbstract());
+        classEntity.setWeight(normalizeWeight(dto.weight()));
         return classEntity;
     }
 
@@ -1046,7 +1081,10 @@ public class LabStructureService {
                 challenge.getChallengeNumber(),
                 classDtos,
                 relationDtos,
-                challenge.isHasMmd());
+                challenge.isHasMmd(),
+                normalizeWeight(challenge.getWeight()),
+                normalizeWeight(challenge.getClassWeight()),
+                normalizeWeight(challenge.getMmdWeight()));
     }
 
     private ClassStructureDTO toClassDto(ClassEntity classEntity,
@@ -1088,7 +1126,12 @@ public class LabStructureService {
                 classEntity.isAbstract(),
                 fieldDtos,
                 methodDtos,
-                constructorDtos);
+                constructorDtos,
+                normalizeWeight(classEntity.getWeight()));
+    }
+
+    private static int normalizeWeight(int weight) {
+        return weight > 0 ? weight : 1;
     }
 
     private List<ParameterStructureDTO> mapParameters(List<Parameter> parameters) {

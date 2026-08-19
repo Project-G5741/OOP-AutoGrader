@@ -32,6 +32,9 @@ public class ClassEntity {
     @Column(name = "is_abstract", nullable = false)
     private boolean isAbstract = false;
 
+    @Column(name = "weight", nullable = false)
+    private int weight = 1;
+
     public ClassEntity() {}
 
     public UUID getId() {
@@ -80,5 +83,13 @@ public class ClassEntity {
 
     public void setAbstract(boolean anAbstract) {
         isAbstract = anAbstract;
+    }
+
+    public int getWeight() {
+        return weight;
+    }
+
+    public void setWeight(int weight) {
+        this.weight = weight;
     }
 }

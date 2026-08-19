@@ -95,7 +95,7 @@ export default function DropZone({
     const challengeFolders = new Set(
       filePaths
         .map((path) => path.split('/').filter(Boolean))
-        .filter((segments) => segments.length >= 2)
+        .filter((segments) => segments.length >= 2 && segments[1] !== '.git')
         .map((segments) => segments[1])
     );
 
@@ -105,7 +105,8 @@ export default function DropZone({
   const handleFiles = (entries) => {
     const relevant = entries.filter(({ relativePath }) => {
       const lower = relativePath.toLowerCase();
-      return lower.endsWith('.mmd') || lower.endsWith('.java');
+      const segments = relativePath.split('/').filter(Boolean);
+      return lower.endsWith('.mmd') || lower.endsWith('.java') || segments.includes('.git');
     });
 
     if (relevant.length === 0) {
@@ -185,7 +186,8 @@ export default function DropZone({
             <span className="font-mono">IRN_YourName_lab_n</span>
             {' / '}
             (<span className="font-mono">challenge_1</span>, <span className="font-mono">challenge_2</span>, …)
-            {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each)
+            {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each;
+            include the project <span className="font-mono">.git</span> folder if you have one)
           </p>
         </div>
       </div>

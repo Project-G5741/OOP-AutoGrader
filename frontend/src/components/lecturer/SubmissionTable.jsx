@@ -1,6 +1,7 @@
 import { Eye } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatText } from '../../utils/formatters';
+import PlagiarismDangerMark from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -43,13 +44,14 @@ export default function SubmissionTable({
                 className={HEADER_CLASS}
               />
             ))}
+            <SortableTableHeader label="Plagiarism" sortable={false} className={HEADER_CLASS} />
             <SortableTableHeader label="Action" sortable={false} className={HEADER_CLASS} />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-sm text-foreground-secondary">
+              <td colSpan={7} className="px-4 py-10 text-center text-sm text-foreground-secondary">
                 No student data found
               </td>
             </tr>
@@ -63,6 +65,9 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{formatNumber(submission.score)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
+                  <td className="px-4 py-3 align-middle">
+                    <PlagiarismDangerMark show={Boolean(submission.plagiarismFlagged)} className="ml-0" />
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       type="button"

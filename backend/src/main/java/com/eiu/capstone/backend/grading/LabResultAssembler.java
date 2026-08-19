@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
@@ -41,14 +40,11 @@ public class LabResultAssembler {
 
     private final ClassStructureService classStructureService;
     private final TestcaseResultMapper testcaseResultMapper;
-    private final boolean timingLog;
 
     public LabResultAssembler(ClassStructureService classStructureService,
-                              TestcaseResultMapper testcaseResultMapper,
-                              @Value("${app.grading.timing-log:false}") boolean timingLog) {
+                              TestcaseResultMapper testcaseResultMapper) {
         this.classStructureService = classStructureService;
         this.testcaseResultMapper = testcaseResultMapper;
-        this.timingLog = timingLog;
     }
 
     public Map<String, ChallengeDetailBundleDTO> assemble(
@@ -57,8 +53,6 @@ public class LabResultAssembler {
             GradingService.GradingComputationResult computed,
             Map<UUID, String> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId) {
-
-        long start = System.currentTimeMillis();
 
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
@@ -144,10 +138,6 @@ public class LabResultAssembler {
                     normalizationNotices.get(challengeId)));
         }
 
-        if (timingLog) {
-            System.out.printf("grading_timing assemble_ms=%d challenges=%d%n",
-                    System.currentTimeMillis() - start, challengeRubrics.size());
-        }
         return labResult;
     }
 

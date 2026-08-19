@@ -29,7 +29,8 @@ public class TermController {
                         .thenComparing(Term::getTermNumber))
                 .map(term -> new TermSummaryDTO(
                         term.getId(),
-                        term.getAcademicYear().getYearLabel() + " — Term " + term.getTermNumber()))
+                        term.getAcademicYear().getYearLabel() + " — Term " + term.getTermNumber(),
+                        term.getEndDate()))
                 .toList();
     }
 }

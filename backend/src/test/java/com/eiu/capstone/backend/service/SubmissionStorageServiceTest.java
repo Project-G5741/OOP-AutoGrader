@@ -34,6 +34,14 @@ class SubmissionStorageServiceTest {
     }
 
     @Test
+    void acceptsGitDirectoryUnderSubmissionRoot() {
+        assertTrue(SubmissionStorageService.isValidSubmissionPath(
+                "2331200082_Nguyen_Van_A_lab_1/.git/HEAD"));
+        assertTrue(SubmissionStorageService.isValidSubmissionPath(
+                "2331200082_Nguyen_Van_A_lab_1/.git/logs/HEAD"));
+    }
+
+    @Test
     void rejectsInvalidSubmissionFolderNames() {
         assertFalse(SubmissionStorageService.isValidSubmissionPath(
                 "invalid-folder/challenge_1/Student.java"));

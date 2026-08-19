@@ -43,12 +43,20 @@ public class LecturerAnalyticsRepository {
             SELECT DISTINCT s.user_id FROM lab_submission s
             """;
 
-    private static final String HIGHEST_SCORES_CTE = """
-                highest_scores AS (
-                    SELECT p.user_id, p.lab_id, p.highest_score AS score
-                    FROM student_lab_progress p
-                    WHERE p.last_submitted_at IS NOT NULL
+    private static final String QUALIFYING_SCORES_CTE = """
+                qualifying_scores AS (
+                    SELECT s.user_id, s.lab_id, MAX(s.score) AS score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE l.deadline_date IS NULL
+                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                    GROUP BY s.user_id, s.lab_id
                 )""";
+
+    private static final String LAB_DEADLINE_SUBMISSION_FILTER = """
+                    (l.deadline_date IS NULL
+                     OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    """;
 
     /**
      * Count active students whose grade-overview total (average of highest lab scores, missing labs as 0) is below 70.
@@ -69,15 +77,15 @@ public class LecturerAnalyticsRepository {
             """ + GRADE_OVERVIEW_STUDENT_IDS + """
                       )
                 ),
-                """ + HIGHEST_SCORES_CTE + """
+                """ + QUALIFYING_SCORES_CTE + """
                 ,
                 student_totals AS (
                     SELECT r.id,
                            CASE WHEN lt.lab_count > 0 THEN
-                               (SELECT COALESCE(SUM(COALESCE(hs.score, 0)), 0) / lt.lab_count
+                               (SELECT COALESCE(SUM(COALESCE(qs.score, 0)), 0) / lt.lab_count
                                 FROM lab l
-                                LEFT JOIN highest_scores hs
-                                    ON hs.user_id = r.id AND hs.lab_id = l.id)
+                                LEFT JOIN qualifying_scores qs
+                                    ON qs.user_id = r.id AND qs.lab_id = l.id)
                            END AS total_score
                     FROM roster r
                     CROSS JOIN lab_total lt
@@ -95,7 +103,14 @@ public class LecturerAnalyticsRepository {
                      JOIN role r ON r.id = ur.role_id
                      WHERE u.is_active = true AND LOWER(r.name) = 'student') AS active_students,
                     (SELECT COUNT(*) FROM lab) AS total_labs,
-                    (SELECT AVG(p.highest_score) FROM student_lab_progress p) AS average_score,
+                    (SELECT AVG(best.score) FROM (
+                        SELECT MAX(s.score) AS score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                        GROUP BY s.user_id, s.lab_id
+                    ) best) AS average_score,
                     ("""
                 + AT_RISK_STUDENT_COUNT
                 + """
@@ -167,7 +182,10 @@ public class LecturerAnalyticsRepository {
                   AND EXISTS (
                       SELECT 1
                       FROM lab_submission s
+                      JOIN lab l ON l.id = s.lab_id
                       WHERE s.user_id = u.id AND s.lab_id = l.id
+                        AND (l.deadline_date IS NULL
+                             OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
                   )
                 """;
         return singleLong(sql, Map.of("labId", labId));
@@ -175,16 +193,29 @@ public class LecturerAnalyticsRepository {
 
     public Object[] findLabStatisticsSummary(UUID labId) {
         String sql = """
+                WITH qualifying AS (
+                    SELECT s.user_id, MAX(s.score) AS score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE s.lab_id = :labId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    GROUP BY s.user_id
+                )
                 SELECT l.id,
                        l.name,
-                       AVG(p.highest_score),
-                       MAX(p.highest_score),
-                       MIN(p.highest_score),
+                       stats.avg_score,
+                       stats.max_score,
+                       stats.min_score,
                        (SELECT COUNT(*) FROM lab_submission s WHERE s.lab_id = l.id)
                 FROM lab l
-                LEFT JOIN student_lab_progress p ON p.lab_id = l.id
+                LEFT JOIN LATERAL (
+                    SELECT AVG(q.score) AS avg_score,
+                           MAX(q.score) AS max_score,
+                           MIN(q.score) AS min_score
+                    FROM qualifying q
+                ) stats ON true
                 WHERE l.id = :labId
-                GROUP BY l.id, l.name
                 """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("labId", labId);
@@ -197,15 +228,23 @@ public class LecturerAnalyticsRepository {
 
     public List<Object[]> findGradeDistribution(UUID labId) {
         String sql = """
+                WITH qualifying AS (
+                    SELECT s.user_id, MAX(s.score) AS score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE s.lab_id = :labId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    GROUP BY s.user_id
+                )
                 SELECT CASE
-                         WHEN p.highest_score < 50 THEN '0-49'
-                         WHEN p.highest_score < 70 THEN '50-69'
-                         WHEN p.highest_score < 85 THEN '70-84'
+                         WHEN q.score < 50 THEN '0-49'
+                         WHEN q.score < 70 THEN '50-69'
+                         WHEN q.score < 85 THEN '70-84'
                          ELSE '85-100'
                        END AS score_range,
                        COUNT(*) AS bucket_count
-                FROM student_lab_progress p
-                WHERE p.lab_id = :labId
+                FROM qualifying q
                 GROUP BY score_range
                 ORDER BY score_range
                 """;
@@ -232,8 +271,8 @@ public class LecturerAnalyticsRepository {
     }
 
     private static String formatRosterOrderBy(String sortColumn, String sortDirection) {
-        if ("p.highest_score".equals(sortColumn)) {
-            return "p.highest_score " + sortDirection + " NULLS LAST";
+        if ("p.highest_score".equals(sortColumn) || "qb.score".equals(sortColumn)) {
+            return "qb.score " + sortDirection + " NULLS LAST";
         }
         return sortColumn + " " + sortDirection;
     }
@@ -256,7 +295,16 @@ public class LecturerAnalyticsRepository {
         }
 
         String sql = """
-                WITH latest_sub AS (
+                WITH qualifying_best AS (
+                    SELECT s.user_id, MAX(s.score) AS score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE s.lab_id = :labId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    GROUP BY s.user_id
+                ),
+                latest_sub AS (
                     SELECT DISTINCT ON (s.user_id)
                            s.user_id,
                            s.id,
@@ -270,7 +318,7 @@ public class LecturerAnalyticsRepository {
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
-                       CASE WHEN latest_sub.id IS NOT NULL THEN p.highest_score ELSE NULL END,
+                       qb.score,
                        COALESCE(latest_sub.attempt_number, 0),
                        latest_sub.submitted_at,
                        (p.best_submission_id IS NOT NULL AND p.best_submission_id = latest_sub.id) AS best_submission,
@@ -278,6 +326,7 @@ public class LecturerAnalyticsRepository {
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
                 LEFT JOIN latest_sub ON latest_sub.user_id = u.id
+                LEFT JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
                 """ + keysetClause + """
                 ORDER BY %s
@@ -351,6 +400,7 @@ public class LecturerAnalyticsRepository {
                     LEFT JOIN submission_challenge_result scr
                         ON scr.submission_id = s.id AND scr.challenge_id = :challengeId
                     WHERE s.user_id = u.id AND s.lab_id = l.id
+                      AND """ + LAB_DEADLINE_SUBMISSION_FILTER + """
                       AND """ + challengeGradedSubmissionExists("s") + """
                     ORDER BY s.attempt_number DESC
                     LIMIT 1
@@ -359,6 +409,7 @@ public class LecturerAnalyticsRepository {
                     SELECT COUNT(DISTINCT s2.id) AS attempt_count
                     FROM lab_submission s2
                     WHERE s2.user_id = u.id AND s2.lab_id = l.id
+                      AND """ + LAB_DEADLINE_SUBMISSION_FILTER.replace("s.", "s2.") + """
                       AND """ + CHALLENGE_GRADED_SUBMISSION_EXISTS + """
                 ) challenge_attempts ON true
                 ORDER BY %s %s
@@ -430,17 +481,17 @@ public class LecturerAnalyticsRepository {
                 lab_total AS (
                     SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab
                 ),
-                """ + HIGHEST_SCORES_CTE + """
+                """ + QUALIFYING_SCORES_CTE + """
                 ,
                 student_totals AS (
                     SELECT gs.id,
                            gs.full_name,
                            gs.irn,
                            CASE WHEN lt.lab_count > 0 THEN
-                               (SELECT COALESCE(SUM(COALESCE(hs.score, 0)), 0) / lt.lab_count
+                               (SELECT COALESCE(SUM(COALESCE(qs.score, 0)), 0) / lt.lab_count
                                 FROM lab l
-                                LEFT JOIN highest_scores hs
-                                    ON hs.user_id = gs.id AND hs.lab_id = l.id)
+                                LEFT JOIN qualifying_scores qs
+                                    ON qs.user_id = gs.id AND qs.lab_id = l.id)
                            END AS total_score
                     FROM grade_students gs
                     CROSS JOIN lab_total lt
@@ -464,8 +515,8 @@ public class LecturerAnalyticsRepository {
             return "total_score " + sortDirection + " NULLS LAST, full_name ASC";
         }
         if ("lab_score".equals(sortColumn) && sortLabId != null) {
-            return "(SELECT hs.score FROM highest_scores hs "
-                    + "WHERE hs.user_id = student_totals.id AND hs.lab_id = :sortLabId) "
+            return "(SELECT qs.score FROM qualifying_scores qs "
+                    + "WHERE qs.user_id = student_totals.id AND qs.lab_id = :sortLabId) "
                     + sortDirection + " NULLS LAST, full_name ASC";
         }
         return sortColumn + " " + sortDirection + ", full_name ASC";
@@ -476,10 +527,13 @@ public class LecturerAnalyticsRepository {
             return List.of();
         }
         String sql = """
-                SELECT p.user_id, p.lab_id, p.highest_score
-                FROM student_lab_progress p
-                WHERE p.user_id IN (:studentIds)
-                  AND p.last_submitted_at IS NOT NULL
+                SELECT s.user_id, s.lab_id, MAX(s.score) AS score
+                FROM lab_submission s
+                JOIN lab l ON l.id = s.lab_id
+                WHERE s.user_id IN (:studentIds)
+                  AND (l.deadline_date IS NULL
+                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                GROUP BY s.user_id, s.lab_id
                 """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentIds", studentIds);

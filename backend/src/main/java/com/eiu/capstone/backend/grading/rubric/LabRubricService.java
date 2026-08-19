@@ -182,7 +182,10 @@ public class LabRubricService {
                     .toList();
             byNumber.put(challenge.getChallengeNumber(),
                     new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
-                            classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd()));
+                            classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd(),
+                            Math.max(1, challenge.getWeight()),
+                            Math.max(1, challenge.getClassWeight()),
+                            Math.max(1, challenge.getMmdWeight())));
         }
 
         return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));
@@ -235,7 +238,8 @@ public class LabRubricService {
                 classEntity.isAbstract(),
                 fieldRubrics,
                 methodRubrics,
-                constructorRubrics);
+                constructorRubrics,
+                Math.max(1, classEntity.getWeight()));
     }
 
     private RelationRubric toRelationRubric(ClassRelation relation) {

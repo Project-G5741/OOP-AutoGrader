@@ -12,7 +12,12 @@ import {
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
+import { Separator } from '../ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 import { formatMmdRelationType } from '../../utils/formatters';
+import { formatLabDeadlineMeta } from '../../theme/statusClasses';
+import StudentLabSidebar from './StudentLabSidebar';
+import StudentNotificationBell from './StudentNotificationBell';
 
 const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
 const TAB_ORDER = Object.keys(TAB_LABELS);
@@ -104,6 +109,7 @@ export default function StudentUI({
   user,
   // Dữ liệu labs
   labs = [],
+  labSummariesById = {},
   selectedLabId = null,
   onLabChange = () => {},
 
@@ -244,34 +250,39 @@ export default function StudentUI({
   const hiddenTestcases = testCasesData.filter((tc) => tc.isHidden);
   const testScore = bundleScore(currentBundle, 'testcase', { ok: 0, total: 0, pct: 0 });
 
-  return (
-    <div className="min-h-screen bg-background transition-colors">
-      <div className="w-full max-w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Lab selector - Từ backend */}
-        <div className="bg-surface rounded-xl p-4 shadow-sm dark:shadow-none mb-4">
-          <label className="block text-foreground-muted text-xs font-semibold uppercase tracking-wider mb-2">
-            Select Lab
-          </label>
-          <select
-            value={selectedLabId || ''}
-            onChange={(e) => onLabChange(e.target.value)}
-            className="w-full bg-surface-secondary bg-surface-secondary text-foreground px-4 py-2.5 rounded-lg border border-border focus:border-primary focus:outline-none text-sm"
-            disabled={labs.length === 0}
-          >
-            {labs.length === 0 ? (
-              <option value="">No labs available</option>
-            ) : (
-              labs.map((lab) => (
-                <option key={lab.id} value={lab.id}>
-                  {lab.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
+  const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
 
+  return (
+    <SidebarProvider>
+      <StudentLabSidebar
+        labs={labs}
+        selectedLabId={selectedLabId}
+        onSelectLab={onLabChange}
+      />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {selectedLab?.name ?? 'Select a lab'}
+            </p>
+            {selectedLab?.deadlineDate && (
+              <p className="truncate text-xs text-foreground-muted">
+                {formatLabDeadlineMeta(selectedLab)}
+              </p>
+            )}
+          </div>
+          <StudentNotificationBell
+            labs={labs}
+            labSummariesById={labSummariesById}
+            onSelectLab={onLabChange}
+          />
+        </header>
+
+        <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
         {/* Upload box */}
-        <div className="mb-4">
+        <div>
           <DropZone
             title="Drop your project files here"
             buttonText="Select Project"
@@ -771,7 +782,8 @@ export default function StudentUI({
             )}
           </div>
         </div>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

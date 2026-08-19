@@ -117,6 +117,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [labs, setLabs] = useState([]);
+  const [labSummariesById, setLabSummariesById] = useState({});
   const [selectedLabId, setSelectedLabId] = useState(null);
   const [labsError, setLabsError] = useState(null);
 
@@ -341,6 +342,30 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   }, [studentId]);
 
+  const fetchLabSummaries = useCallback(async () => {
+    const token = sessionStorage.getItem('accessToken');
+    if (!token) {
+      setLabSummariesById({});
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/submissions/my-labs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const byId = {};
+      for (const summary of data) {
+        if (summary?.id != null) {
+          byId[summary.id] = summary;
+        }
+      }
+      setLabSummariesById(byId);
+    } catch (err) {
+      console.info('Failed to fetch lab summaries:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchLabs() {
       setIsLoadingLabs(true);
@@ -362,7 +387,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-  }, []);
+    fetchLabSummaries();
+  }, [fetchLabSummaries]);
 
   useEffect(() => {
     if (!selectedLabId) return;
@@ -553,6 +579,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setNextAttemptNumber(Number(uploadResponse.totalSubmissions) + 1);
     }
 
+    fetchLabSummaries();
+
     setRevealedLabIds((prev) =>
       prev.includes(selectedLabId) ? prev : [...prev, selectedLabId]
     );
@@ -612,7 +640,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   return (
     <>
-      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
+      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand} className="!mt-0">
         <div className="w-full">
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
@@ -630,6 +658,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             <StudentUI
               user={user}
               labs={labs}
+              labSummariesById={labSummariesById}
               selectedLabId={selectedLabId}
               onLabChange={handleLabChange}
               challenges={challenges}

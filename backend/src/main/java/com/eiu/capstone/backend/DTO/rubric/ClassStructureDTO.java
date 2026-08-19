@@ -11,4 +11,17 @@ public record ClassStructureDTO(
         boolean isAbstract,
         List<FieldStructureDTO> fields,
         List<MethodStructureDTO> methods,
-        List<ConstructorStructureDTO> constructors) {}
+        List<ConstructorStructureDTO> constructors,
+        int weight) {
+
+    public ClassStructureDTO(UUID id,
+                             String name,
+                             Integer scopeId,
+                             Integer declaringTypeId,
+                             boolean isAbstract,
+                             List<FieldStructureDTO> fields,
+                             List<MethodStructureDTO> methods,
+                             List<ConstructorStructureDTO> constructors) {
+        this(id, name, scopeId, declaringTypeId, isAbstract, fields, methods, constructors, 1);
+    }
+}
