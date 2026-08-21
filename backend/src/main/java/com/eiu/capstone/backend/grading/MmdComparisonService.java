@@ -124,14 +124,22 @@ public class MmdComparisonService {
 
     private boolean classTypeMatches(ClassRubric expected, ParsedMmdClass parsed) {
         String expectedType = normalizeDeclaringType(expected.declaringType());
-        String actualType = parsed.stereotypeType == null ? "CLASS" : parsed.stereotypeType.toUpperCase(Locale.ROOT);
-        if ("ENUMERATE".equals(actualType)) {
-            actualType = "ENUM";
-        }
-        if ("ABSTRACT".equals(actualType)) {
-            actualType = "CLASS";
-        }
+        String actualType = normalizeMmdStereotypeType(parsed.stereotypeType);
         return expectedType.equals(actualType);
+    }
+
+    private static String normalizeMmdStereotypeType(String stereotypeType) {
+        if (stereotypeType == null || stereotypeType.isBlank()) {
+            return "CLASS";
+        }
+        String upper = stereotypeType.trim().toUpperCase(Locale.ROOT);
+        if ("ENUM".equals(upper) || "ENUMERATE".equals(upper) || "ENUMERATION".equals(upper)) {
+            return "ENUM";
+        }
+        if ("ABSTRACT".equals(upper)) {
+            return "CLASS";
+        }
+        return upper;
     }
 
     private String normalizeDeclaringType(String declaringType) {

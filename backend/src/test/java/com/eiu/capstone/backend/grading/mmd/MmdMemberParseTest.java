@@ -128,6 +128,19 @@ class MmdMemberParseTest {
     }
 
     @Test
+    void enumStereotypeVariantsSetEnumerationType() {
+        for (String stereotype : List.of("enum", "enumerate", "enumeration")) {
+            ParsedMmdClass cakeType = classNamed(parse(diagram("""
+                    class CakeType {
+                      <<%s>>
+                    }
+                    """.formatted(stereotype))), "CakeType");
+
+            assertEquals("Enumeration", cakeType.stereotypeType, stereotype);
+        }
+    }
+
+    @Test
     void inBlockStereotypeSetsClassType() {
         ParsedMmdClass shape = classNamed(parse(diagram("""
                 class Shape {

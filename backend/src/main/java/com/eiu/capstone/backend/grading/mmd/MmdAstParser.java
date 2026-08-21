@@ -32,7 +32,7 @@ public final class MmdAstParser {
     private static final Pattern COLON_MEMBER = Pattern.compile(
             "^([A-Za-z_]\\w*)\\s*:\\s+(.+)$");
     private static final Pattern STANDALONE_STEREOTYPE = Pattern.compile(
-            "^<<\\s*(enumerate|interface|abstract|final|service)\\s*>>\\s+([A-Za-z_]\\w*)\\s*$",
+            "^<<\\s*(enumeration|enumerate|enum|interface|abstract|final|service)\\s*>>\\s+([A-Za-z_]\\w*)\\s*$",
             Pattern.CASE_INSENSITIVE);
 
     public MmdDiagramAst parse(String source) {

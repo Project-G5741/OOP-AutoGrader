@@ -41,12 +41,16 @@ Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`
 
 After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
 
+- **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
+
 ### Lab list layout (`StudentUI.jsx`)
 
 - Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
 - Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
+=========
 - **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
+>>>>>>>>> Temporary merge branch 2
 
 ### Result tabs (`StudentUI.jsx`)
 

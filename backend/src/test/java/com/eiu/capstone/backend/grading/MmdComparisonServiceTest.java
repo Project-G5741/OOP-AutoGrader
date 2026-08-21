@@ -137,6 +137,39 @@ class MmdComparisonServiceTest {
     }
 
     @Test
+    void enumStereotypeVariantsMatchEnumDeclaringTypeInRubric() {
+        UUID classId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "CakeType",
+                List.of(new ClassRubric(
+                        classId,
+                        "CakeType",
+                        "public",
+                        "ENUM",
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        for (String stereotype : List.of("enum", "enumerate", "enumeration")) {
+            String mmd = diagram("""
+                    class CakeType {
+                      <<%s>>
+                    }
+                    """.formatted(stereotype));
+
+            MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+            assertTrue(outcome.isClassPresent(classId), stereotype);
+            assertTrue(outcome.isClassCorrect(classId), stereotype);
+        }
+    }
+
+    @Test
     void abstractStereotypeMatchesClassDeclaringTypeInRubric() {
         UUID drawId = UUID.randomUUID();
         UUID classId = UUID.randomUUID();
