@@ -6,7 +6,9 @@ import java.util.Map;
 import java.util.Set;
 
 import com.eiu.capstone.backend.grading.ParsedClass;
+import com.eiu.capstone.backend.grading.ParsedClassIndex;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 
 public record ChallengeGradingContext(
         ChallengeRubric challengeRubric,
@@ -14,17 +16,28 @@ public record ChallengeGradingContext(
         String compileError,
         List<ParsedClass> parsedClasses,
         Map<String, ParsedClass> parsedByName,
+        Map<String, ParsedClass> parsedByQualifiedName,
         Set<String> failedClassNames) {
 
     public static ChallengeGradingContext of(ChallengeRubric rubric,
                                              Path classesDir,
                                              String compileError,
                                              List<ParsedClass> parsedClasses) {
-        Map<String, ParsedClass> byName = parsedClasses.stream()
-                .collect(java.util.stream.Collectors.toMap(pc -> pc.simpleName, pc -> pc, (a, b) -> a));
-        Set<String> failed = compileError != null && !compileError.isBlank()
-                ? Set.of()
-                : Set.of();
-        return new ChallengeGradingContext(rubric, classesDir, compileError, parsedClasses, byName, failed);
+        ParsedClassIndex index = ParsedClassIndex.of(parsedClasses);
+        return new ChallengeGradingContext(
+                rubric,
+                classesDir,
+                compileError,
+                parsedClasses,
+                index.byName(),
+                index.byQualifiedName(),
+                Set.of());
+    }
+
+    public ParsedClass resolve(ClassRubric expectedClass) {
+        if (expectedClass.isNested()) {
+            return parsedByQualifiedName.get(expectedClass.qualifiedName());
+        }
+        return parsedByName.get(expectedClass.name());
     }
 }

@@ -579,13 +579,20 @@ public class ClassStructureService {
                     .toList();
 
             result.add(new ClassDetailDTO(
-                    ce.getName(),
+                    formatClassDisplayName(ce),
                     resolveClassType(ce, masterData),
                     compileError != null ? "error" : resolveStatus(fields, constructors, methods),
                     compileError,
                     fields, constructors, methods));
         }
         return result;
+    }
+
+    private String formatClassDisplayName(ClassEntity classEntity) {
+        if (classEntity.getOuterClass() == null) {
+            return classEntity.getName();
+        }
+        return classEntity.getOuterClass().getName() + "." + classEntity.getName();
     }
 
     private String resolveClassType(ClassEntity ce, Map<Integer, String> masterData) {

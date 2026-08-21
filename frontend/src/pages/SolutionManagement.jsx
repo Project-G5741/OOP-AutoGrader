@@ -7,6 +7,7 @@ import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDeta
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import { authHeaders } from '../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
+import { formatQualifiedClassName } from '../utils/classNaming';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -20,6 +21,16 @@ const emptyDraft = (lab) => ({
 
 function cloneDraft(data) {
   return JSON.parse(JSON.stringify(data));
+}
+
+function collectNestedDependents(classes, outerClassId, acc = new Set()) {
+  (classes || []).forEach((cls) => {
+    if (cls.outerClassId === outerClassId && !acc.has(cls.id)) {
+      acc.add(cls.id);
+      collectNestedDependents(classes, cls.id, acc);
+    }
+  });
+  return acc;
 }
 
 export default function SolutionManagement() {
@@ -164,6 +175,12 @@ export default function SolutionManagement() {
     return challenge?.classes?.find((cls) => cls.id === selectedClassRef.classId) || null;
   }, [draft, selectedClassRef]);
 
+  const selectedChallengeClasses = useMemo(() => {
+    if (!draft || !selectedClassRef) return [];
+    const challenge = draft.challenges.find((c) => c.id === selectedClassRef.challengeId);
+    return challenge?.classes || [];
+  }, [draft, selectedClassRef]);
+
   const selectedChallenge = useMemo(() => {
     if (!draft || !selectedChallengeId || selectedClassRef) return null;
     return draft.challenges.find((c) => c.id === selectedChallengeId) || null;
@@ -289,21 +306,24 @@ export default function SolutionManagement() {
       if (selectedClassRef?.challengeId === challengeId) setSelectedClassRef(null);
       if (selectedChallengeId === challengeId) setSelectedChallengeId(null);
     } else if (type === 'class') {
+      const challenge = draft.challenges.find((c) => c.id === challengeId);
+      const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+      nestedIds.add(classId);
       setDraft({
         ...draft,
         challenges: draft.challenges.map((c) => (
           c.id === challengeId
             ? {
                 ...c,
-                classes: c.classes.filter((cls) => cls.id !== classId),
+                classes: c.classes.filter((cls) => !nestedIds.has(cls.id)),
                 relations: (c.relations || []).filter(
-                  (rel) => rel.sourceClassId !== classId && rel.targetClassId !== classId,
+                  (rel) => !nestedIds.has(rel.sourceClassId) && !nestedIds.has(rel.targetClassId),
                 ),
               }
             : c
         )),
       });
-      if (selectedClassRef?.classId === classId) setSelectedClassRef(null);
+      if (selectedClassRef?.classId && nestedIds.has(selectedClassRef.classId)) setSelectedClassRef(null);
     }
     setConfirmDelete(null);
   };
@@ -415,6 +435,7 @@ export default function SolutionManagement() {
               scopeId: scopeOptions[0]?.id,
               declaringTypeId: declaringTypeOptions[0]?.id,
               isAbstract: false,
+              isStatic: false,
               fields: [],
               methods: [],
               constructors: [],
@@ -431,13 +452,22 @@ export default function SolutionManagement() {
           }}
           onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
           onDeleteChallenge={(challengeId) => setConfirmDelete({ type: 'challenge', challengeId })}
-          onDeleteClass={(challengeId, classId) => setConfirmDelete({ type: 'class', challengeId, classId })}
+          formatClassLabel={formatQualifiedClassName}
+          onDeleteClass={(challengeId, classId) => {
+            const challenge = draft?.challenges?.find((c) => c.id === challengeId);
+            const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+            const nestedNames = (challenge?.classes || [])
+              .filter((cls) => nestedIds.has(cls.id))
+              .map((cls) => formatQualifiedClassName(cls, challenge?.classes));
+            setConfirmDelete({ type: 'class', challengeId, classId, nestedNames });
+          }}
         />
 
         <div className="min-w-0 flex-1">
           {selectedClass ? (
             <ClassDetailPanel
               classData={selectedClass}
+              challengeClasses={selectedChallengeClasses}
               scopeOptions={scopeOptions}
               declaringTypeOptions={declaringTypeOptions}
               onChange={updateSelectedClass}
@@ -535,6 +565,13 @@ export default function SolutionManagement() {
           <p className="mb-4 text-sm text-foreground-secondary">
             This will remove the selected item from the lab structure
             {confirmDelete.type === 'lab' ? ' and delete all problems, classes, and related grading references after save.' : '.'}
+            {confirmDelete.type === 'class' && confirmDelete.nestedNames?.length > 0 && (
+              <>
+                {' '}Nested classes that will also be removed:
+                {' '}
+                <span className="font-medium text-foreground">{confirmDelete.nestedNames.join(', ')}</span>.
+              </>
+            )}
             {' '}Student submission data may be orphaned. Continue?
           </p>
           <div className="flex gap-2">

@@ -9,9 +9,11 @@ public record ClassStructureDTO(
         Integer scopeId,
         Integer declaringTypeId,
         boolean isAbstract,
+        boolean isStatic,
         List<FieldStructureDTO> fields,
         List<MethodStructureDTO> methods,
         List<ConstructorStructureDTO> constructors,
+        UUID outerClassId,
         int weight) {
 
     public ClassStructureDTO(UUID id,
@@ -22,6 +24,18 @@ public record ClassStructureDTO(
                              List<FieldStructureDTO> fields,
                              List<MethodStructureDTO> methods,
                              List<ConstructorStructureDTO> constructors) {
-        this(id, name, scopeId, declaringTypeId, isAbstract, fields, methods, constructors, 1);
+        this(id, name, scopeId, declaringTypeId, isAbstract, false, fields, methods, constructors, null, 1);
+    }
+
+    public ClassStructureDTO(UUID id,
+                             String name,
+                             Integer scopeId,
+                             Integer declaringTypeId,
+                             boolean isAbstract,
+                             List<FieldStructureDTO> fields,
+                             List<MethodStructureDTO> methods,
+                             List<ConstructorStructureDTO> constructors,
+                             int weight) {
+        this(id, name, scopeId, declaringTypeId, isAbstract, false, fields, methods, constructors, null, weight);
     }
 }

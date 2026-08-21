@@ -34,7 +34,7 @@ public class ClassReflectionGrader {
         List<PendingConstructorResult> constructors = new ArrayList<>();
 
         for (ClassRubric expectedClass : context.challengeRubric().classes()) {
-            ParsedClass parsed = context.parsedByName().get(expectedClass.name());
+            ParsedClass parsed = context.resolve(expectedClass);
             int classWeight = MemberWeightCalculator.configuredWeight(expectedClass.weight());
 
             if (parsed == null) {
@@ -54,10 +54,14 @@ public class ClassReflectionGrader {
                 continue;
             }
 
-            double classAccuracy = PartialCreditEvaluator.accuracy(List.of(
-                    PartialCreditEvaluator.matches(expectedClass.scope(), parsed.scope).get(0),
-                    PartialCreditEvaluator.matches(expectedClass.declaringType(), parsed.declaringType).get(0),
-                    expectedClass.isAbstract() == parsed.isAbstract));
+            List<Boolean> classChecks = new ArrayList<>();
+            classChecks.add(PartialCreditEvaluator.matches(expectedClass.scope(), parsed.scope).get(0));
+            classChecks.add(PartialCreditEvaluator.matches(expectedClass.declaringType(), parsed.declaringType).get(0));
+            classChecks.add(expectedClass.isAbstract() == parsed.isAbstract);
+            if (expectedClass.isNested()) {
+                classChecks.add(expectedClass.isStatic() == parsed.isStatic);
+            }
+            double classAccuracy = PartialCreditEvaluator.accuracy(classChecks);
             weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
 
             Map<String, ParsedField> parsedFields = parsed.fields.stream()
@@ -91,7 +95,11 @@ public class ClassReflectionGrader {
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
-                ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
+                ParsedConstructor match = findMatchingConstructor(
+                        parsed.constructors,
+                        expectedConstructor.parameterTypes(),
+                        expectedClass.isNested() && !expectedClass.isStatic(),
+                        parsed.outerSimpleName);
                 double accuracy = match == null ? 0 : PartialCreditEvaluator.accuracy(List.of(
                         true,
                         PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0),
@@ -126,9 +134,20 @@ public class ClassReflectionGrader {
         return null;
     }
 
-    private ParsedConstructor findMatchingConstructor(List<ParsedConstructor> candidates, List<String> expectedParamTypes) {
+    private ParsedConstructor findMatchingConstructor(List<ParsedConstructor> candidates,
+                                                      List<String> expectedParamTypes,
+                                                      boolean stripImplicitOuterParam,
+                                                      String outerSimpleName) {
         for (ParsedConstructor pc : candidates) {
-            if (sameTypes(pc.parameterTypes, expectedParamTypes)) {
+            List<String> actualParams = pc.parameterTypes;
+            if (stripImplicitOuterParam
+                    && outerSimpleName != null
+                    && !outerSimpleName.isBlank()
+                    && !actualParams.isEmpty()
+                    && equalsIgnoreCase(actualParams.get(0), outerSimpleName)) {
+                actualParams = actualParams.subList(1, actualParams.size());
+            }
+            if (sameTypes(actualParams, expectedParamTypes)) {
                 return pc;
             }
         }

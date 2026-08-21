@@ -317,7 +317,8 @@ public class GradingService {
         computation.testcaseApplicable = pipelineResult.testcaseApplicable();
         computation.snapshot = parsedSubmissionSnapshotBuilder.build(
                 challengeRubric,
-                pipelineResult.parsedClasses(),
+                pipelineResult.gradingContext().parsedByName(),
+                pipelineResult.gradingContext().parsedByQualifiedName(),
                 pipelineResult.mmdResult().diagram());
         return computation;
     }

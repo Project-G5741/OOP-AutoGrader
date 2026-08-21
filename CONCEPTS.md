@@ -10,6 +10,15 @@ The pre-grading slice that receives a multipart folder, validates path structure
 ### Package normalization
 Pre-compile transformation of student Java sources that removes `package ...;` declarations and same-challenge cross-imports so all classes compile into the default package. Grading rubrics and reflection use simple class names against flat `classes/` output; when normalization runs, students see a non-blocking warning that package declarations were ignored.
 
+### Qualified rubric class name
+A rubric class entry's grading identity: the simple `name` when no outer class is linked, or `Outer.Inner` when an optional outer-class link points to another class in the same challenge. Used to match compiled nested types (`Outer$Inner.class`) during class-reflection grading.
+
+### Outer-class link
+Optional rubric relationship from a nested class entry to its enclosing class within the same challenge. Flat rubric rows (not a nested editor tree); enables qualified-name matching and disambiguates simple-name collisions between nested classes under different outers.
+
+### Static nested flag
+Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`; re-uploading the same attempt updates scores in place rather than creating a new attempt row.
 

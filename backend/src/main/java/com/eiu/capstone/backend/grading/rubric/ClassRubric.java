@@ -6,9 +6,11 @@ import java.util.UUID;
 public record ClassRubric(
         UUID id,
         String name,
+        String outerClassName,
         String scope,
         String declaringType,
         boolean isAbstract,
+        boolean isStatic,
         List<FieldRubric> fields,
         List<MethodRubric> methods,
         List<ConstructorRubric> constructors,
@@ -22,6 +24,29 @@ public record ClassRubric(
                        List<FieldRubric> fields,
                        List<MethodRubric> methods,
                        List<ConstructorRubric> constructors) {
-        this(id, name, scope, declaringType, isAbstract, fields, methods, constructors, 1);
+        this(id, name, null, scope, declaringType, isAbstract, false, fields, methods, constructors, 1);
+    }
+
+    public ClassRubric(UUID id,
+                       String name,
+                       String scope,
+                       String declaringType,
+                       boolean isAbstract,
+                       List<FieldRubric> fields,
+                       List<MethodRubric> methods,
+                       List<ConstructorRubric> constructors,
+                       int weight) {
+        this(id, name, null, scope, declaringType, isAbstract, false, fields, methods, constructors, weight);
+    }
+
+    public boolean isNested() {
+        return outerClassName != null && !outerClassName.isBlank();
+    }
+
+    public String qualifiedName() {
+        if (outerClassName == null || outerClassName.isBlank()) {
+            return name;
+        }
+        return outerClassName + "." + name;
     }
 }

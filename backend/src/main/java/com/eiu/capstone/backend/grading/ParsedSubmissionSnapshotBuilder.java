@@ -27,18 +27,29 @@ public class ParsedSubmissionSnapshotBuilder {
     public ChallengeSnapshot build(ChallengeRubric rubric,
                                    List<ParsedClass> parsedClasses,
                                    ParsedMmdDiagram diagram) {
+        return build(rubric, ParsedClassIndex.of(parsedClasses), diagram);
+    }
+
+    public ChallengeSnapshot build(ChallengeRubric rubric,
+                                   Map<String, ParsedClass> parsedByName,
+                                   Map<String, ParsedClass> parsedByQualifiedName,
+                                   ParsedMmdDiagram diagram) {
+        return build(rubric, new ParsedClassIndex(parsedByName, parsedByQualifiedName), diagram);
+    }
+
+    public ChallengeSnapshot build(ChallengeRubric rubric,
+                                   ParsedClassIndex parsedClassIndex,
+                                   ParsedMmdDiagram diagram) {
         ChallengeSnapshot snapshot = new ChallengeSnapshot();
-        Map<String, ParsedClass> parsedByName = parsedClasses.stream()
-                .collect(Collectors.toMap(pc -> pc.simpleName, pc -> pc, (a, b) -> a));
-        snapshot.classSnapshot = buildClassSnapshot(rubric, parsedByName);
+        snapshot.classSnapshot = buildClassSnapshot(rubric, parsedClassIndex);
         snapshot.mmdSnapshot = buildMmdSnapshot(rubric, diagram);
         return snapshot;
     }
 
-    private ClassSnapshot buildClassSnapshot(ChallengeRubric rubric, Map<String, ParsedClass> parsedByName) {
+    private ClassSnapshot buildClassSnapshot(ChallengeRubric rubric, ParsedClassIndex parsedClassIndex) {
         ClassSnapshot classSnapshot = new ClassSnapshot();
         for (ClassRubric expectedClass : rubric.classes()) {
-            ParsedClass parsed = parsedByName.get(expectedClass.name());
+            ParsedClass parsed = parsedClassIndex.resolve(expectedClass);
             if (parsed == null) {
                 continue;
             }
@@ -78,7 +89,7 @@ public class ParsedSubmissionSnapshotBuilder {
                     continue;
                 }
                 ClassConstructorEntry entry = new ClassConstructorEntry();
-                entry.name = expectedClass.name();
+                entry.name = expectedClass.qualifiedName();
                 entry.scope = match.scope;
                 entry.params = formatParamTypes(match.parameterTypes);
                 classSnapshot.constructors.put(expectedConstructor.id().toString(), entry);
