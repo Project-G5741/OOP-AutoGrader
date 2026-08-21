@@ -333,7 +333,7 @@ Step 12: return ChallengePipelineResult(...)
 
 ### 7.1 Reflection parsing — `ReflectionClassParser.parseClasses(classesDir)`
 
-**Lines 23–56:** List all `.class` files in `classesDir`, excluding inner classes (`$` in filename).
+**Lines 23–56:** List `.class` files in `classesDir`. Top-level classes and one-level nested classes (`Outer$Inner`) are loaded; anonymous/local and deeper nesting (`$` more than once) are skipped. Nested classes are matched by qualified rubric identity (`Outer.Inner`).
 
 **Lines 39–54:** Create `URLClassLoader` pointing at `classesDir`, load each class by simple name:
 

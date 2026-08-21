@@ -691,6 +691,26 @@ public class LabStructureService {
         classEntity.setDeclaringType(resolveMasterData(ctx, dto.declaringTypeId(), "declaring type"));
         classEntity.setAbstract(dto.isAbstract());
         classEntity.setWeight(normalizeWeight(dto.weight()));
+        if (dto.outerClassId() != null) {
+            if (dto.id() != null && dto.id().equals(dto.outerClassId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class cannot be its own outer class");
+            }
+            ClassEntity outer = ctx.classesById.get(dto.outerClassId());
+            if (outer == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid outer class id: " + dto.outerClassId());
+            }
+            if (outer.getChallenge() == null || !outer.getChallenge().getId().equals(challenge.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must belong to the same problem");
+            }
+            if (outer.getOuterClass() != null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must be a top-level class");
+            }
+            classEntity.setOuterClass(outer);
+            classEntity.setStatic(dto.isStatic());
+        } else {
+            classEntity.setOuterClass(null);
+            classEntity.setStatic(false);
+        }
         return classEntity;
     }
 
@@ -976,6 +996,13 @@ public class LabStructureService {
     private void deleteClassCascade(SaveContext ctx, ClassEntity classEntity) {
         UUID classId = classEntity.getId();
         UUID challengeId = classEntity.getChallenge().getId();
+        List<ClassEntity> nestedDependents = ctx.classesByChallengeId.getOrDefault(challengeId, List.of()).stream()
+                .filter(candidate -> candidate.getOuterClass() != null
+                        && classId.equals(candidate.getOuterClass().getId()))
+                .toList();
+        for (ClassEntity nested : nestedDependents) {
+            deleteClassCascade(ctx, nested);
+        }
         deleteRelationsForClass(ctx, classId);
         for (Field field : List.copyOf(ctx.fieldsByClassId.getOrDefault(classId, List.of()))) {
             deleteField(ctx, field);
@@ -1124,9 +1151,11 @@ public class LabStructureService {
                 classEntity.getScope().getId(),
                 classEntity.getDeclaringType().getId(),
                 classEntity.isAbstract(),
+                classEntity.isStatic(),
                 fieldDtos,
                 methodDtos,
                 constructorDtos,
+                classEntity.getOuterClass() != null ? classEntity.getOuterClass().getId() : null,
                 normalizeWeight(classEntity.getWeight()));
     }
 

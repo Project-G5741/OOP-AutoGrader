@@ -233,9 +233,11 @@ public class LabRubricService {
         return new ClassRubric(
                 classEntity.getId(),
                 classEntity.getName(),
+                classEntity.getOuterClass() != null ? classEntity.getOuterClass().getName() : null,
                 classEntity.getScope().getName(),
                 classEntity.getDeclaringType().getName(),
                 classEntity.isAbstract(),
+                classEntity.isStatic(),
                 fieldRubrics,
                 methodRubrics,
                 constructorRubrics,

@@ -21,6 +21,7 @@ export default function StructureSidebar({
   onDeleteLab,
   onDeleteChallenge,
   onDeleteClass,
+  formatClassLabel,
 }) {
   return (
     <aside className="w-full max-w-xs shrink-0 rounded-xl border border-border bg-surface dark:border-border">
@@ -99,7 +100,7 @@ export default function StructureSidebar({
                               >
                                 <span className="flex items-center gap-2 truncate">
                                   <Code2 className="h-3.5 w-3.5" />
-                                  {cls.name || 'Untitled class'}
+                                  {formatClassLabel ? formatClassLabel(cls, challenge.classes) : (cls.name || 'Untitled class')}
                                   {cls.weight > 0 && (
                                     <span className="text-[10px] text-foreground-muted">wt {cls.weight}</span>
                                   )}

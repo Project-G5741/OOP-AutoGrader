@@ -139,7 +139,7 @@ public class GradingPipeline {
                 classResult,
                 mmdResult,
                 testcaseResult,
-                parsedClasses);
+                context);
     }
 
     private Integer extractChallengeNumber(String challengeFolderKey) {
@@ -158,5 +158,5 @@ public class GradingPipeline {
             ClassReflectionGrader.ClassPillarResult classResult,
             MmdPillarGrader.MmdPillarResult mmdResult,
             TestcaseGrader.TestcasePillarResult testcaseResult,
-            List<com.eiu.capstone.backend.grading.ParsedClass> parsedClasses) {}
+            ChallengeGradingContext gradingContext) {}
 }
