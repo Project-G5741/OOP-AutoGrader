@@ -1,0 +1,55 @@
+---
+description: OOP AutoGrader — stack, run commands, auth, and domain overview
+alwaysApply: true
+---
+
+# OOP AutoGrader (EIU Capstone)
+
+`project_tracker: github`
+
+## What this is
+
+Full-stack auto-grader: students upload Java + MMD; backend compiles and grades via reflection against a PostgreSQL rubric.
+
+## Run
+
+| Command | Effect |
+|---|---|
+| `npm start` (repo root) | Frontend `:5173` + backend `:8002` |
+| `npm run backend` | Spring Boot API |
+| `npm run frontend` | Vite dev server |
+| `mvn spring-boot:run` | Backend only from `backend/` |
+
+## Stack
+
+- **Backend:** Spring Boot 3.2, Java 17, PostgreSQL, JWT + Google OAuth (`@eiu.edu.vn` only)
+- **Frontend:** React 18, Vite 7, Tailwind 3, `react-router-dom`, `@react-oauth/google`
+
+## Key paths
+
+| Area | Contract doc |
+|---|---|
+| Repo-wide DOX | `AGENTS.md` |
+| Backend API & pipeline | `backend/AGENTS.md` |
+| Frontend SPA | `frontend/AGENTS.md` |
+| Domain vocabulary | `CONCEPTS.md` |
+| Past solutions | `docs/solutions/` (search before debugging) |
+| CE skills | `.cursor/skills/` |
+
+## Auth & security notes
+
+- Google OAuth restricted to `@eiu.edu.vn`; JWT session for uploads.
+- `JwtService` regenerates signing key on restart — tokens invalidate on restart.
+- Most endpoints unauthenticated except upload/history and `/api/users/*` (lecturer JWT).
+
+## Grading (summary)
+
+Upload → rubric cache → parallel compile per challenge → parallel reflect + MMD + testcases → cleanup temp dir under `SUBMISSION_BASE_DIR`.
+
+Student UI uses **latest attempt** per lab, not `highest_score` from progress rows.
+
+## Environment
+
+- Backend: copy `backend/.env.backend.example` → `backend/.env`
+- Frontend: copy `frontend/.env.example` → `frontend/.env`
+- Swagger: `http://localhost:8002/swagger-ui/index.html`

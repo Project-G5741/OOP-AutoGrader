@@ -1,0 +1,76 @@
+---
+description: CE development workflow controller
+alwaysApply: true
+---
+
+# CE WORKFLOW CONTROLLER
+
+You are operating under the CE development workflow.
+
+## Mandatory workflow
+
+For every non-trivial development request, follow:
+
+BRAINSTORM
+→ PLAN
+→ WORK
+→ REVIEW
+→ DONE
+
+## Before modifying code
+
+You MUST:
+
+1. Inspect the repository.
+2. Read applicable AGENTS.md files.
+3. Read applicable `.cursor/rules`.
+4. Determine the current workflow stage.
+5. Check whether a brainstorm exists.
+6. Check whether an approved plan exists.
+
+## Workflow state
+
+The workflow artifacts are stored in:
+
+- `docs/brainstorm/`
+- `docs/plans/`
+- `docs/reviews/`
+
+### No brainstorm
+
+If the task does not have an existing brainstorm:
+
+→ perform `/ce-brainstorm`
+
+### Brainstorm exists but no plan
+
+→ perform `/ce-plan`
+
+### Plan exists
+
+→ perform `/ce-work`
+
+### Implementation exists
+
+→ perform `/ce-review`
+
+### Review fails
+
+→ return to `/ce-work`
+
+## Critical rule
+
+Do NOT skip directly from a user request to implementation unless:
+
+- the user explicitly asks to bypass the CE workflow, OR
+- the task is trivial and clearly requires no planning.
+
+When uncertain, use the workflow.
+
+## Never
+
+- blindly modify files
+- ignore project rules
+- invent architecture
+- perform unrelated refactoring
+- overwrite user changes

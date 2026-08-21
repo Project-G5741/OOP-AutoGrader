@@ -1,0 +1,39 @@
+---
+description: Code quality — minimal diffs, conventions, tests, and review discipline
+globs: backend/**/*.java,frontend/**/*.{js,jsx},**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Code quality
+
+## Change discipline
+
+- Focused diff only — no drive-by refactors or unrelated formatting.
+- Reuse and extend existing functions/components; do not reimplement parallel abstractions.
+- No over-engineering: no one-line helpers, excessive error handling, or speculative edge cases.
+
+## Backend (Spring Boot)
+
+- Controllers thin; logic in `service/` or `grading/`.
+- Upload/compile failures → `SubmissionProcessingException` (422 via `GlobalExceptionHandler`).
+- New endpoints need CORS in `CorsConfig` when called from the SPA.
+- Requires JDK (not JRE) for `JavaCompilerService`.
+
+## Frontend (React + Vite)
+
+- Pages in `src/pages/`; shared widgets in `src/components/`.
+- Use semantic Tailwind tokens (`bg-primary`, `text-success`) — not raw `blue-600` or hex.
+- Theme: edit `src/theme/tokens.js` and `src/theme/brand.js`; run `npm run theme:sync` after token edits.
+- API errors: `src/utils/apiError.js` — friendly messages only, never raw backend `message`/`detail`.
+- `fetch` + `API_BASE` pattern until a shared client exists.
+
+## Tests
+
+- No automated suite project-wide yet; add tests only when requested or they cover real behavior.
+- Backend: `mvn test` from `backend/` when touching compile/submission paths.
+- Frontend: `npm run build` must succeed.
+
+## Review
+
+- Subjective style nits without a project standard are not findings.
+- Anchor review to `AGENTS.md` contracts and the actual diff scope.

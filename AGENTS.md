@@ -82,6 +82,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 | Path | Scope |
 |---|---|
+| `.cursor/rules/` | Cursor MDC rules: core behavior, issue tracker, git, code quality, project context (`project_tracker: github`) |
 | `backend/AGENTS.md` | Spring Boot API: auth, users, labs, submission pipeline, config, security |
 | `frontend/AGENTS.md` | React + Vite SPA: auth, role dashboards, API patterns, build/deploy |
 | `docs/PROGRAM_REPORT.md` | Program overview: purpose, target users, features, setup, and how to run |
