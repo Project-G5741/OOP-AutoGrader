@@ -1,0 +1,33 @@
+---
+description: Git safety — commits, pushes, PRs, and forbidden operations
+alwaysApply: false
+---
+
+# Git
+
+## Commits
+
+- **Only commit when the user explicitly asks.** If unclear, ask first.
+- Never update git config.
+- Never skip hooks (`--no-verify`, `--no-gpg-sign`) unless the user explicitly requests.
+- Avoid `git commit --amend` unless: user requested amend, HEAD was created by you in this session, and commit was not pushed.
+- If a hook rejects a commit, fix and create a **new** commit — never amend a failed commit.
+- Pass commit messages via HEREDOC for correct formatting.
+
+## Pushes and destructive ops
+
+- Never force-push to `main`/`master` — warn if requested.
+- Never run destructive commands (`push --force`, hard reset) unless explicitly requested.
+- Do not push unless the user explicitly asks.
+
+## Pull requests
+
+- Use `gh` for all GitHub tasks (issues, PRs, checks).
+- Before creating a PR: `git status`, `git diff`, `git log`, and `git diff [base]...HEAD`.
+- Draft PR summary from **all** commits on the branch, not just the latest.
+
+## PR creation flow
+
+1. Push with `-u` if needed.
+2. `gh pr create` with title and HEREDOC body (Summary + Test plan).
+3. Return the PR URL to the user.

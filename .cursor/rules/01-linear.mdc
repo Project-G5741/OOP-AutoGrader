@@ -1,0 +1,30 @@
+---
+description: Issue tracker workflows — Linear MCP, GitHub Issues, and CE plan handoff
+alwaysApply: false
+---
+
+# Issue tracker
+
+`project_tracker: github` — default for this repo. Use GitHub Issues and `gh` for issue creation from CE plans.
+
+## When to apply
+
+- Creating issues from `ce-plan` / `ce-brainstorm` handoff
+- Triaging, linking PRs to issues, or reading open work
+- User mentions Linear, GitHub Issues, or ticket IDs
+
+## GitHub (default)
+
+- Prefer `gh issue create`, `gh pr create`, `gh pr view` when `gh` is installed and authenticated.
+- Persist tracker choice in root `AGENTS.md` as `project_tracker: github` when the user confirms.
+
+## Linear (when configured)
+
+- Requires Linear MCP in `.cursor/mcp.json` or `LINEAR_API_KEY` via `mcp-remote https://mcp.linear.app/mcp`.
+- Use Linear tools for find/create/update issues when the user or plan explicitly references Linear.
+- Do not assume Linear is available — check MCP tools before calling.
+
+## Issue content
+
+- Title: short, action-oriented.
+- Body: problem, scope, acceptance criteria, links to plans in `<root>/plans/` when relevant.
