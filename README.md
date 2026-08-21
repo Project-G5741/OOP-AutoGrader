@@ -13,26 +13,35 @@ Students upload folders of Java source (`.java`) and Mermaid class diagrams (`.m
 ### For students
 
 - Sign in with Google (`@eiu.edu.vn`) or student code (IRN) + password
+- First-time Google users complete a one-time setup to link IRN and password
 - Select a lab, drag-and-drop a submission folder, and receive instant feedback
 - View per-challenge scores with **Class**, **MMD**, and **Testcase** result tabs
-- Track submission history and attempt counts
+- Track submission history and attempt counts (dashboard shows the **latest attempt**, not highest score)
+- Students not enrolled in the current term can view history but cannot submit new work
 
 ### For lecturers
 
 - Create and edit lab rubrics — challenges, classes, fields, methods, constructors, relations, and operational testcases
-- Monitor class performance, grade matrices, and at-risk students
-- Manage user accounts (CRUD, bulk import)
+- Set per-lab deadlines; students see urgency indicators on the lab list
+- Manage academic terms — enroll students, import rosters from Excel, set the current term
+- Monitor class performance, cross-lab grade matrices, and at-risk students (&lt; 70%)
+- Review plagiarism flags (git history, metadata, and file-hash similarity)
+- Manage user accounts (CRUD, bulk import, suspend/restore students)
 - View analytics dashboards and export rosters
+
+### Dual-role users
+
+Users with both `STUDENT` and `LECTURER` roles land on the lecturer dashboard after login. Student routes remain available at `/student-dashboard` and `/student-history`.
 
 ---
 
 ## How grading works
 
-Each **challenge** is scored across up to **three equal pillars**. Challenge score = arithmetic mean of applicable pillar percentages. Lab score = mean across all challenges (missing challenges count as 0%).
+Each **challenge** is scored across up to **three pillars** (Class, MMD, Operational Testcase). Pillar weights are configurable per challenge (default 1 each). Challenge score is a weighted mean of applicable pillar percentages. Lab score is the mean across all challenges (missing challenges count as 0%).
 
 | Pillar | What it checks | Technique |
 |--------|----------------|-----------|
-| **Class (Declaration)** | Fields, methods, constructors, visibility, types | Java reflection on compiled `.class` files |
+| **Class (Declaration)** | Fields, methods, constructors, visibility, types, nested/static classes | Java reflection on compiled `.class` files |
 | **MMD (Diagram)** | Classes and relations in UML | Parse Mermaid `.mmd`, compare to rubric |
 | **Operational Testcase** | Runtime behavior | Invoke student code via reflection; assert return values, stdout, field state, exceptions |
 
@@ -74,13 +83,14 @@ flowchart TB
 
     subgraph API["Spring Boot API :8002"]
         Controllers["REST Controllers"]
-        Services["Services — auth, storage"]
+        Services["Services — auth, storage, terms"]
         Grading["Grading Engine — reflection + MMD + testcases"]
+        Plagiarism["Plagiarism checks"]
         JPA["Spring Data JPA"]
     end
 
     subgraph DB["PostgreSQL"]
-        Rubric["Labs, rubrics, testcases"]
+        Rubric["Labs, rubrics, testcases, terms"]
         Results["Submissions, scores, progress"]
     end
 
@@ -89,6 +99,7 @@ flowchart TB
     DropZone -->|"POST multipart"| Controllers
     Controllers --> Services
     Services --> Grading
+    Services --> Plagiarism
     Services --> JPA
     Grading --> JPA
     JPA --> DB
@@ -106,7 +117,7 @@ The frontend calls the backend directly with `fetch` (no Vite proxy). CORS is co
 
 ## Tech stack
 
-**Frontend:** React 18 · Vite 7 · Tailwind CSS · `@react-oauth/google` · `lucide-react`
+**Frontend:** React 18 · Vite 7 · Tailwind CSS · `@react-oauth/google` · `lucide-react` · `jspdf` · `xlsx`
 
 **Backend:** Java 17 · Spring Boot 3.2 · Spring Web / Security / Data JPA · JWT · Springdoc OpenAPI
 
@@ -119,20 +130,31 @@ The frontend calls the backend directly with `fetch` (no Vite proxy). CORS is co
 ```text
 OOP-AutoGrader/
 ├── package.json              # Root scripts (npm start runs both tiers)
+├── CONCEPTS.md               # Domain vocabulary
+├── docs/
+│   ├── PROGRAM_REPORT.md     # Full program overview
+│   ├── HOW_IT_RUNS.md        # Runtime architecture and flows
+│   ├── GRADING_WORKFLOWS.md  # Grading pipeline reference
+│   ├── sql/                  # Operator-run schema scripts
+│   └── solutions/            # Documented fixes and patterns
 ├── frontend/                 # React + Vite SPA
 │   ├── src/
 │   │   ├── App.jsx           # Auth state, role-guarded routes
-│   │   ├── pages/            # StudentDashboard, LecturerDashboard, Login, …
+│   │   ├── pages/            # Dashboards, login, term management
 │   │   ├── components/       # DropZone, dashboards, shared UI
 │   │   └── theme/            # Design tokens (tokens.js, brand.js)
+│   ├── DEPLOY_VERCEL.md
 │   └── .env.example
 └── backend/                  # Spring Boot API
     ├── src/main/java/com/eiu/capstone/backend/
     │   ├── controller/       # REST endpoints
     │   ├── service/          # Auth, submission storage, compilation
     │   ├── grading/          # Three-pillar grading engine
+    │   ├── plagiarism/       # Git / metadata / file-hash checks
     │   ├── model/            # JPA entities
     │   └── repository/       # Data access
+    ├── DEPLOY_RENDER.md
+    ├── Dockerfile
     ├── .env.backend.example
     └── pom.xml
 ```
@@ -143,10 +165,12 @@ OOP-AutoGrader/
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- **Java JDK 17+** and Apache Maven
-- PostgreSQL (local or cloud)
-- Google OAuth client ID
+| Requirement | Notes |
+|-------------|-------|
+| Node.js 18+ and npm | Root `npm install` installs frontend and backend deps |
+| **Java JDK 17+** and Apache Maven | JDK required — backend compiles student code at runtime |
+| PostgreSQL | Local instance or Neon cloud |
+| Google OAuth client ID | Restricted to `@eiu.edu.vn` in production |
 
 ### 1. Clone and install
 
@@ -167,6 +191,14 @@ DB_PASSWORD=<your-password>
 GOOGLE_CLIENT_ID=<your-google-client-id>
 FRONTEND_URL=http://localhost:5173
 SUBMISSION_BASE_DIR=submissions
+
+# Password reset (local dev)
+MAIL_PROVIDER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=<email>
+MAIL_PASSWORD=<app-password>
+MAIL_FROM=<email>
 ```
 
 **Frontend** — copy `frontend/.env.example` → `frontend/.env`:
@@ -176,7 +208,7 @@ VITE_GOOGLE_CLIENT_ID=<your-google-client-id>
 VITE_API_URL=http://localhost:8002
 ```
 
-Create the PostgreSQL database `oop_autograder`. Schema is managed externally — SQL scripts live in `docs/sql/`.
+Create the PostgreSQL database `oop_autograder`. Schema is managed externally — apply scripts from `docs/sql/` as needed.
 
 ### 3. Run
 
@@ -188,9 +220,41 @@ npm start
 |---------|-----|
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8002 |
+| Health check | http://localhost:8002/ |
 | Swagger UI | http://localhost:8002/swagger-ui/index.html |
 
-Or run separately: `npm run frontend` / `npm run backend`.
+Or run separately: `npm run frontend` / `npm run backend` (or `mvn spring-boot:run` from `backend/`).
+
+### 4. Verify
+
+| Check | Command / action |
+|-------|------------------|
+| Backend tests | `cd backend && mvn test` |
+| Frontend build | `cd frontend && npm run build` |
+| Manual upload | Log in as student → drag `challenge_1/*.java` folder → confirm scores appear |
+
+---
+
+## Application routes
+
+### Student
+
+| Path | Screen |
+|------|--------|
+| `/` | Login, forgot password |
+| `/student-dashboard` | Lab selection, upload, live results |
+| `/student-history` | Past submissions and per-lab stats |
+
+### Lecturer
+
+| Path | Screen |
+|------|--------|
+| `/lecturer-dashboard` | Grading overview, challenge tabs, submission table |
+| `/lecturer-grading` | Cross-lab grade matrix |
+| `/lecturer-users` | User management |
+| `/lecturer-solution` | Lab / rubric structure editor |
+| `/lecturer-report` | Analytics reports |
+| `/lecturer-terms` | Term enrollment and roster management |
 
 ---
 
@@ -198,21 +262,27 @@ Or run separately: `npm run frontend` / `npm run backend`.
 
 | Controller | Base path | Purpose |
 |------------|-----------|---------|
+| `RootController` | `/` | Liveness probe (`GET /` → `ok`) |
 | `AuthController` | `/api/auth` | Login, Google OAuth, password reset |
-| `SubmissionController` | `/api/submissions` | Upload + grade, student history |
-| `LabController` | `/api/labs` | Lab list, stats, lecturer submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Rubric CRUD, testcase save, dry-run |
-| `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade matrix |
+| `SubmissionController` | `/api/submissions` | Upload + grade, student history (JWT) |
+| `LabController` | `/api/labs` | Lab list, stats, lecturer submissions, export |
+| `LecturerRubricController` | `/api/lecturer/labs` | Rubric CRUD, testcase save, dry-run, deadlines |
+| `LecturerTermController` | `/api/lecturer/terms` | Terms, enrollment, Excel import, roster |
+| `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade matrix, plagiarism flags |
+| `StudentAccessController` | `/api/students` | Current-term enrollment check |
 | `AnalyticsController` | `/api/analytics` | Dashboard, student reports |
-| `UserController` | `/api/users` | User CRUD (lecturer JWT required) |
+| `UserController` | `/api/users` | User CRUD, suspend/restore (lecturer JWT) |
+| `TermController` | `/api/terms` | Academic term list |
+| `MasterDataController` | `/api/master-data` | Scope / type / relation lookups |
 
 ### Critical path — student upload
 
 ```
 POST /api/submissions/{labId}/{attemptNumber}/upload
-  → Load rubric snapshot (LabRubricCache)
-  → SubmissionStorageService — parallel compile per challenge
+  → Load rubric snapshot (cached, TTL 30 min)
+  → SubmissionStorageService — parallel in-memory compile per challenge
   → GradingService — ClassReflectionGrader + MmdPillarGrader + TestcaseGrader
+  → Plagiarism checks (git, metadata, file-hash Jaccard)
   → Persist results to PostgreSQL
   → Return lab_result JSON bundle for immediate UI rendering
   → Delete temp upload folder
@@ -226,9 +296,10 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
 |--------|------|
 | **Google OAuth** | Frontend sends Google ID token → backend validates `@eiu.edu.vn` domain → returns JWT |
 | **IRN + Password** | Student or teacher code + password login |
+| **First-time Google user** | Redirected to setup screen to set IRN and password |
 | **Forgot password** | Email reset link (SMTP locally, Brevo API on Render) |
 
-JWT claims include `email`, `name`, `roles`, and `irn`. Tokens are stored in `sessionStorage` (`accessToken`, `user`).
+JWT claims include `email`, `name`, `roles`, and `irn`. Tokens are stored in `sessionStorage` (`accessToken`, `user`). Note: `JwtService` regenerates its signing key on backend restart — sessions invalidate on restart.
 
 ---
 
@@ -236,9 +307,11 @@ JWT claims include `email`, `name`, `roles`, and `irn`. Tokens are stored in `se
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| Frontend | **Vercel** | Static build from `frontend/dist` |
-| Backend | **Render** (Docker) | Multi-stage Dockerfile; requires JDK |
-| Database | **Neon PostgreSQL** | Use pooler hostname for JVM |
+| Frontend | **Vercel** | Static build from `frontend/dist`; see [frontend/DEPLOY_VERCEL.md](frontend/DEPLOY_VERCEL.md) |
+| Backend | **Render** (Docker) | Multi-stage Dockerfile; requires JDK; see [backend/DEPLOY_RENDER.md](backend/DEPLOY_RENDER.md) |
+| Database | **Neon PostgreSQL** | Use `-pooler` hostname for production JVM |
+
+Production env: set `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` at frontend build time; set `MAIL_PROVIDER=brevo` on Render (SMTP ports blocked on free tier).
 
 ---
 
@@ -247,10 +320,13 @@ JWT claims include `email`, `name`, `roles`, and `irn`. Tokens are stored in `se
 | Document | Description |
 |----------|-------------|
 | [docs/PROGRAM_REPORT.md](docs/PROGRAM_REPORT.md) | Full program overview — users, features, setup |
+| [docs/OBJECTIVES.md](docs/OBJECTIVES.md) | Project objectives |
 | [docs/HOW_IT_RUNS.md](docs/HOW_IT_RUNS.md) | Runtime architecture and end-to-end flows |
 | [docs/GRADING_WORKFLOWS.md](docs/GRADING_WORKFLOWS.md) | Grading pipeline detail |
-| [docs/explainers/oop-autograder-system-walkthrough.html](docs/explainers/oop-autograder-system-walkthrough.html) | Visual system walkthrough |
+| [docs/solutions/](docs/solutions/) | Documented fixes and patterns (search before debugging) |
 | [CONCEPTS.md](CONCEPTS.md) | Domain vocabulary (grading pillars, entities) |
+| [backend/AGENTS.md](backend/AGENTS.md) | Backend API and submission pipeline contracts |
+| [frontend/AGENTS.md](frontend/AGENTS.md) | Frontend routes, auth, and API integration |
 
 ---
 
