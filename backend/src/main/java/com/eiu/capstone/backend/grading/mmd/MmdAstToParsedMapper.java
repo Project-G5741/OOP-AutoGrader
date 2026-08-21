@@ -31,7 +31,8 @@ import com.eiu.capstone.backend.grading.mmd.ast.MmdTopLevelNode;
 public final class MmdAstToParsedMapper {
 
     private static final Pattern STEREOTYPE = Pattern.compile(
-            "^<<\\s*(enumerate|interface|abstract|final)\\s*>>\\s*$", Pattern.CASE_INSENSITIVE);
+            "^<<\\s*(enumeration|enumerate|enum|interface|abstract|final)\\s*>>\\s*$",
+            Pattern.CASE_INSENSITIVE);
 
     private static final Set<String> PRIMITIVE_TYPES = Set.of(
             "byte", "short", "int", "long", "float", "double", "boolean", "char", "void");
@@ -498,10 +499,16 @@ public final class MmdAstToParsedMapper {
         if (value == null || value.isEmpty()) {
             return value;
         }
-        if ("enumerate".equalsIgnoreCase(value)) {
+        if (isEnumStereotypeKeyword(value)) {
             return "Enumeration";
         }
         return capitalize(value);
+    }
+
+    private static boolean isEnumStereotypeKeyword(String value) {
+        return "enum".equalsIgnoreCase(value)
+                || "enumerate".equalsIgnoreCase(value)
+                || "enumeration".equalsIgnoreCase(value);
     }
 
     private static String capitalize(String value) {
