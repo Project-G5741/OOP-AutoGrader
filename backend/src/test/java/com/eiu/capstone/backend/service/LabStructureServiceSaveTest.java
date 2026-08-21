@@ -24,7 +24,7 @@ import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
-import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
@@ -65,8 +65,10 @@ class LabStructureServiceSaveTest {
     @Mock private MethodDeclarationRepository methodDeclarationRepository;
     @Mock private ConstructorDeclarationRepository constructorDeclarationRepository;
     @Mock private MasterDataRepository masterDataRepository;
-    @Mock private LabRubricCache labRubricCache;
+    @Mock private com.eiu.capstone.backend.grading.rubric.LabRubricCache labRubricCache;
     @Mock private TestcaseRubricService testcaseRubricService;
+    @Mock private LabStatisticsCache labStatisticsCache;
+    @Mock private LabDeadlineHelper labDeadlineHelper;
 
     private RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
 
@@ -99,6 +101,8 @@ class LabStructureServiceSaveTest {
                 masterDataRepository,
                 rubricCacheInvalidationSupport,
                 testcaseRubricService,
+                labStatisticsCache,
+                labDeadlineHelper,
                 false);
 
         labId = UUID.randomUUID();
@@ -135,7 +139,7 @@ class LabStructureServiceSaveTest {
                         List.of(),
                         List.of())),
                 List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
 
         Challenge challenge = new Challenge();
         challenge.setId(challengeId);
@@ -176,7 +180,7 @@ class LabStructureServiceSaveTest {
                 classId, "Car", 1, 2, false, List.of(fieldDto), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
                 challengeId, "Problem", 1, List.of(classDto), List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
 
         Challenge challenge = new Challenge();
         challenge.setId(challengeId);
@@ -226,7 +230,7 @@ class LabStructureServiceSaveTest {
                 classId, "Car", 1, 2, false, List.of(), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
                 challengeId, "Problem", 1, List.of(classDto), List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
 
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(challenge));

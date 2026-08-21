@@ -12,6 +12,11 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.DTO.ChallengeBreakdownDTO;
@@ -33,6 +38,9 @@ public class StudentHistoryService {
 
     private static final BigDecimal PASS_THRESHOLD = new BigDecimal("80");
     private static final BigDecimal FAIL_THRESHOLD = new BigDecimal("50");
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final String STATUS_SORT_EXPRESSION =
+            "CASE WHEN score IS NULL THEN 0 WHEN score < 50 THEN 1 WHEN score > 80 THEN 3 ELSE 2 END";
 
     private final StudentLabProgressRepository studentLabProgressRepository;
     private final LabSubmissionRepository labSubmissionRepository;
@@ -57,21 +65,80 @@ public class StudentHistoryService {
         return summaries;
     }
 
-    public StudentHistoryResponse getHistory(UUID userId, UUID labId) {
-        List<LabSubmission> submissions = labId == null
-                ? labSubmissionRepository.findByUser_IdWithLabOrderBySubmittedAtDesc(userId)
-                : labSubmissionRepository.findByUser_IdAndLab_IdWithLabOrderByAttemptNumberDesc(userId, labId);
+    public StudentHistoryResponse getHistory(UUID userId, UUID labId, int page, int size, String sort) {
+        int safePage = Math.max(page, 0);
+        int safeSize = size > 0 ? size : DEFAULT_PAGE_SIZE;
+        Pageable pageable = PageRequest.of(safePage, safeSize, resolveHistorySort(sort));
+
+        Page<LabSubmission> submissionPage = labId == null
+                ? labSubmissionRepository.findHistoryPageByUserId(userId, pageable)
+                : labSubmissionRepository.findHistoryPageByUserIdAndLabId(userId, labId, pageable);
 
         Map<UUID, List<SubmissionChallengeResult>> challengeResultsBySubmission =
-                loadChallengeResultsBySubmission(submissions);
+                loadChallengeResultsBySubmission(submissionPage.getContent());
 
-        List<StudentSubmissionHistoryItemDTO> items = submissions.stream()
+        List<StudentSubmissionHistoryItemDTO> items = submissionPage.getContent().stream()
                 .map(submission -> toHistoryItem(submission, challengeResultsBySubmission.getOrDefault(
                         submission.getId(), List.of())))
                 .toList();
 
-        StudentHistoryStatsDTO stats = computeStats(submissions, labId);
-        return new StudentHistoryResponse(items, stats);
+        StudentHistoryStatsDTO stats = computeStatsForScope(userId, labId);
+        return new StudentHistoryResponse(
+                items,
+                stats,
+                submissionPage.getNumber(),
+                submissionPage.getSize(),
+                submissionPage.getTotalElements(),
+                submissionPage.getTotalPages());
+    }
+
+    Sort resolveHistorySort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return Sort.by(Sort.Direction.DESC, "submittedAt");
+        }
+        String[] parts = sort.split(",", 2);
+        String field = parts[0].trim();
+        Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+
+        return switch (field) {
+            case "labName" -> Sort.by(direction, "lab.name");
+            case "attempt" -> Sort.by(direction, "attemptNumber");
+            case "score" -> Sort.by(direction, "score");
+            case "submittedAt" -> Sort.by(direction, "submittedAt");
+            case "status" -> JpaSort.unsafe(direction, STATUS_SORT_EXPRESSION);
+            default -> Sort.by(Sort.Direction.DESC, "submittedAt");
+        };
+    }
+
+    StudentHistoryStatsDTO computeStatsForScope(UUID userId, UUID labId) {
+        long totalSubmissions = labId == null
+                ? labSubmissionRepository.countByUser_Id(userId)
+                : labSubmissionRepository.countByUser_IdAndLab_Id(userId, labId);
+        if (totalSubmissions == 0) {
+            return new StudentHistoryStatsDTO(0, 0, null, null);
+        }
+
+        int labsAttempted = labId != null
+                ? 1
+                : (int) labSubmissionRepository.countDistinctLabsByUserId(userId);
+
+        BigDecimal averageScore = labId == null
+                ? labSubmissionRepository.averageScoreForUser(userId)
+                : labSubmissionRepository.averageScoreForUserAndLab(userId, labId);
+        if (averageScore != null) {
+            averageScore = averageScore.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal bestScore = labId == null
+                ? labSubmissionRepository.bestScoreForUser(userId)
+                : labSubmissionRepository.bestScoreForUserAndLab(userId, labId);
+
+        return new StudentHistoryStatsDTO(
+                labsAttempted,
+                (int) totalSubmissions,
+                averageScore,
+                bestScore);
     }
 
     private Map<UUID, List<SubmissionChallengeResult>> loadChallengeResultsBySubmission(List<LabSubmission> submissions) {

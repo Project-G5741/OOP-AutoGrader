@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import com.eiu.capstone.backend.model.UserAccount;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 
 import jakarta.validation.constraints.Email;
@@ -91,6 +92,7 @@ public class UserDTO {
         private String irn;
         private String fullName;
         private String email;
+        @JsonProperty("isActive")
         private boolean isActive;
         private Set<String> roles;
         private String studentCode;

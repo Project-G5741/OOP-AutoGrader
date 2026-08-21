@@ -31,23 +31,37 @@ public class JwtAuthHelper {
         }
     }
 
-    public void requireRole(Claims claims, String requiredRole) {
+    public boolean hasRole(Claims claims, String requiredRole) {
         if (claims == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing bearer token");
+            return false;
         }
         Object rawRoles = claims.get("roles");
         if (!(rawRoles instanceof List<?> roles) || roles.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Insufficient permissions");
+            return false;
         }
         String normalizedRequired = normalizeRoleName(requiredRole);
-        boolean allowed = roles.stream()
+        return roles.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
                 .map(this::normalizeRoleName)
                 .anyMatch(normalizedRequired::equals);
-        if (!allowed) {
+    }
+
+    public void requireRole(Claims claims, String requiredRole) {
+        if (!hasRole(claims, requiredRole)) {
+            if (claims == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing bearer token");
+            }
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Insufficient permissions");
         }
+    }
+
+    public void requireLecturer(String authHeader) {
+        requireRole(parseBearerToken(authHeader), "LECTURER");
+    }
+
+    public boolean isStudentOnly(Claims claims) {
+        return hasRole(claims, "STUDENT") && !hasRole(claims, "LECTURER");
     }
 
     private String normalizeRoleName(String roleName) {

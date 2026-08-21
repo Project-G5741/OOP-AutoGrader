@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,6 +30,7 @@ import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
+import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator.WeightedPercentage;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
@@ -49,6 +51,7 @@ import com.eiu.capstone.backend.service.ParsedSubmissionSnapshotStore;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
 import com.eiu.capstone.backend.utility.CompletableFutures;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
 public class GradingService {
@@ -70,6 +73,7 @@ public class GradingService {
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
+    private final boolean timingLog;
 
     public GradingService(ChallengeRepository challengeRepository,
                           FieldRepository fieldRepository,
@@ -84,7 +88,8 @@ public class GradingService {
                           TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
-                          ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore) {
+                          ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
+                          @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
@@ -99,6 +104,7 @@ public class GradingService {
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
+        this.timingLog = timingLog;
     }
 
     public GradingOutcome gradeSubmission(LabSubmission submission,
@@ -107,20 +113,37 @@ public class GradingService {
                                       Map<String, List<MultipartFile>> mmdByChallenge,
                                       boolean skipExistingLoad) {
 
+        long totalStart = System.currentTimeMillis();
+
+        long loadStart = System.currentTimeMillis();
         GradingService.ExistingResults existing = skipExistingLoad
                 ? emptyExistingResults()
                 : gradingResultStore.loadExisting(submission);
+        long loadMs = System.currentTimeMillis() - loadStart;
+
+        long computeStart = System.currentTimeMillis();
         GradingComputationResult computed = computeAgainstSnapshot(
                 rubric, challengeFolderResults, mmdByChallenge, submission, existing);
+        long computeMs = System.currentTimeMillis() - computeStart;
+
+        long saveStart = System.currentTimeMillis();
         gradingResultStore.save(computed);
         parsedSubmissionSnapshotStore.save(submission.getId(), computed.snapshotsByChallengeId);
+        long saveMs = System.currentTimeMillis() - saveStart;
 
+        long assembleStart = System.currentTimeMillis();
         var labResult = labResultAssembler.assemble(
                 submission.getId(),
                 rubric,
                 computed,
                 compileErrorsByChallengeId(rubric, challengeFolderResults),
                 packageNormalizationNoticesByChallengeId(rubric, challengeFolderResults));
+        TimingLog.block(timingLog, "Grade submission",
+                "load existing", loadMs,
+                "compute", computeMs,
+                "save", saveMs,
+                "assemble", System.currentTimeMillis() - assembleStart,
+                "total", System.currentTimeMillis() - totalStart);
         return new GradingOutcome(
                 computed.overallScore,
                 computed.gradedChallenges,
@@ -229,16 +252,16 @@ public class GradingService {
             }
         }
 
-        List<BigDecimal> overallChallengeScores = new ArrayList<>();
+        List<WeightedPercentage> overallChallengeScores = new ArrayList<>();
         for (ChallengeRubric challengeRubric : rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
                 .toList()) {
             BigDecimal challengeScore = percentagesByChallengeNumber.getOrDefault(challengeRubric.challengeNumber(), BigDecimal.ZERO);
             result.challengePercentages.add(challengeScore);
-            overallChallengeScores.add(challengeScore);
+            overallChallengeScores.add(new WeightedPercentage(challengeRubric.weight(), challengeScore));
         }
 
-        result.overallScore = PillarScoreAggregator.labPercentage(overallChallengeScores);
+        result.overallScore = PillarScoreAggregator.weightedLabPercentage(overallChallengeScores);
         return result;
     }
 
@@ -294,7 +317,8 @@ public class GradingService {
         computation.testcaseApplicable = pipelineResult.testcaseApplicable();
         computation.snapshot = parsedSubmissionSnapshotBuilder.build(
                 challengeRubric,
-                pipelineResult.parsedClasses(),
+                pipelineResult.gradingContext().parsedByName(),
+                pipelineResult.gradingContext().parsedByQualifiedName(),
                 pipelineResult.mmdResult().diagram());
         return computation;
     }
@@ -305,6 +329,7 @@ public class GradingService {
         com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta meta =
                 new com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta();
         meta.mmdSubmitted = mmdResult.mmdSubmitted();
+        meta.parseError = mmdResult.parseError();
         Map<String, Boolean> stereotypeMap = new java.util.HashMap<>();
         for (ClassRubric expectedClass : challengeRubric.classes()) {
             stereotypeMap.put(expectedClass.id().toString(), mmdResult.outcome().isClassPresent(expectedClass.id()));

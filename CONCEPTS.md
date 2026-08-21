@@ -10,6 +10,15 @@ The pre-grading slice that receives a multipart folder, validates path structure
 ### Package normalization
 Pre-compile transformation of student Java sources that removes `package ...;` declarations and same-challenge cross-imports so all classes compile into the default package. Grading rubrics and reflection use simple class names against flat `classes/` output; when normalization runs, students see a non-blocking warning that package declarations were ignored.
 
+### Qualified rubric class name
+A rubric class entry's grading identity: the simple `name` when no outer class is linked, or `Outer.Inner` when an optional outer-class link points to another class in the same challenge. Used to match compiled nested types (`Outer$Inner.class`) during class-reflection grading.
+
+### Outer-class link
+Optional rubric relationship from a nested class entry to its enclosing class within the same challenge. Flat rubric rows (not a nested editor tree); enables qualified-name matching and disambiguates simple-name collisions between nested classes under different outers.
+
+### Static nested flag
+Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`; re-uploading the same attempt updates scores in place rather than creating a new attempt row.
 
@@ -20,10 +29,16 @@ A persisted per-element grading outcome (field, method, constructor, or challeng
 An in-memory, immutable graph of the lab's expected OOP structure (challenges, classes, members, class relations) loaded once per grading request, optionally from cache.
 
 ### MMD grading
-Diagram-side grading of an uploaded `.mmd` file: parse Mermaid class syntax into the same rubric entity shapes used for Java reflection, compare against the solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
+Diagram-side grading of an uploaded `.mmd` file: parse Mermaid `classDiagram` syntax (per `grading-mermaid-oop-class-diagrams.md`) into rubric entity shapes, compare against the lecturer solution, and persist per-element pass/fail for the MMD tab. Under the rebuilt three-pillar model, MMD is one independent grading pillar (not AND-merged with Java at score time).
+
+### MMD parse error
+A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements score incorrect; a human-readable error message is persisted and shown on the student MMD tab. Upload still succeeds.
 
 ### Grading pillar
-One of up to three equal scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the arithmetic mean of only the applicable pillar percentages — 3-way, 2-way (50/50), or Declaration-Test-only as pillars drop out. Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
+One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class and MMD use lecturer-set `class_weight` / `mmd_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
+
+### Scoring weight
+A positive integer (default 1) that scales how much a challenge, class shell, or MMD pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
 
 ### Operational testcase
 A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).
@@ -71,10 +86,21 @@ A per-(student, lab) tracking row holding highest score, attempt count, and best
 Cross-lab paginated matrix of enrolled students versus labs, showing per-lab highest scores and a total average. Lecturer sorts and exports use server-side ordering; per-lab column sort ranks students by that lab's highest score among rows with a submission (`last_submitted_at` set), matching the displayed cell values.
 
 ### Term enrollment
-Maps an active student to a term (`term_enrollment`). The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
+Maps an active student to a term (`term_enrollment`). Lecturers create terms by year, add students (manually or by Excel: match **IRN and email** to an existing account), and mark one term as **current**. Students enrolled in the current term can open the dashboard and submit; other active students only see history. Lecturers can **suspend** a student-only account (`is_active=false`); that student cannot log in until restored. Suspended students stay on the term roster with a Suspended badge. Lecturer and dual-role accounts cannot be suspended this way.
+
+The lecturer lab roster paginates enrolled students for the lab's term, then LEFT JOINs `student_lab_progress` and submission/challenge data per student.
 
 ### Lecturer lab roster
 The unique set of enrolled/active students for a lab's term/course. Challenge and overview tables paginate this population; submission and progress data are LEFT JOINed per student afterward.
+
+### Lab deadline
+Optional calendar date on a lab, defaulting to the parent term's end date when set at creation. The effective cutoff is 23:59:59 Vietnam time (UTC+7) on that date. Lecturers manage it in Solution Management and may extend it to a later date.
+
+### Plagiarism check
+Three independent comparisons of one lab submission against other students in the same lab: (1) ordered git commit hashes from the uploaded `.git` must match 100% in the same order; (2) git metadata (config user plus ordered author name/email/timestamp) must match 100%; (3) SHA-256 hashes of `.java` and `.mmd` bytes use Jaccard similarity and flag above 90%. Any firing check marks the pair flagged.
+
+### Lecturer score cutoff
+The rule that only lab submissions with a timestamp on or before the lab's active deadline end count toward lecturer-facing scores and aggregates (roster, grade overview, analytics, exports, challenge tabs). Submissions after cutoff still grade and persist for the student; extending the deadline widens the cutoff so lecturer views recalculate from full submission history.
 
 ### Dual-role user
 A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.

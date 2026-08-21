@@ -1,11 +1,13 @@
 // src/components/student/StudentHistoryPage.jsx
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 import { 
   History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, 
   CheckCircle2, XCircle, RefreshCw 
 } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
-import { sortRows, toggleSortState } from '../../utils/sort';
+import { buildServerSortParam, toggleSortState } from '../../utils/sort';
+
+const HISTORY_PAGE_SIZE = 10;
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -87,8 +89,15 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   });
   const [labsSummary, setLabsSummary] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: HISTORY_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+  });
 
   const emptyStats = {
     totalSubmissions: 0,
@@ -97,12 +106,20 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
     labsAttempted: 0,
   };
 
-  const fetchHistoryData = useCallback(async (labId = null) => {
-    const url = labId 
-      ? `${API_BASE}/api/submissions/my-history?labId=${labId}`
-      : `${API_BASE}/api/submissions/my-history`;
+  const fetchHistoryData = useCallback(async ({ labId = null, page = 0, sortState = historySort } = {}) => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(HISTORY_PAGE_SIZE),
+    });
+    if (labId) {
+      params.set('labId', labId);
+    }
+    const sortParam = buildServerSortParam(sortState);
+    if (sortParam) {
+      params.set('sort', sortParam);
+    }
 
-    const response = await fetch(url, {
+    const response = await fetch(`${API_BASE}/api/submissions/my-history?${params.toString()}`, {
       headers: {
         Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
       },
@@ -110,13 +127,24 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
 
     if (!response.ok) {
       console.info('History API not available yet, using empty data');
-      return { submissions: [], stats: emptyStats };
+      return {
+        submissions: [],
+        stats: emptyStats,
+        page: 0,
+        size: HISTORY_PAGE_SIZE,
+        totalElements: 0,
+        totalPages: 0,
+      };
     }
 
     const data = await response.json();
     return {
       submissions: data.submissions || [],
       stats: data.stats || emptyStats,
+      page: data.page ?? 0,
+      size: data.size ?? HISTORY_PAGE_SIZE,
+      totalElements: data.totalElements ?? 0,
+      totalPages: data.totalPages ?? 0,
     };
   }, []);
 
@@ -137,77 +165,124 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
     return { labsSummary: data || [], labOptions: labs };
   }, []);
 
-  const loadPageData = useCallback(async (labId = null) => {
-    setLoading(true);
+  const applyHistoryData = useCallback((historyData, { syncStats = false } = {}) => {
+    setSubmissions(historyData.submissions);
+    setPagination({
+      page: historyData.page,
+      size: historyData.size,
+      total: historyData.totalElements,
+      totalPages: historyData.totalPages,
+    });
+    if (syncStats) {
+      setStats(historyData.stats);
+    }
+  }, []);
+
+  const loadHistorySection = useCallback(async ({
+    labId = null,
+    page = 0,
+    sortState = historySort,
+    syncStats = false,
+  } = {}) => {
+    setTableLoading(true);
+    try {
+      const historyData = await fetchHistoryData({ labId, page, sortState });
+      applyHistoryData(historyData, { syncStats });
+    } catch (err) {
+      console.info('Could not fetch submission history:', err.message);
+      setSubmissions([]);
+      if (syncStats) {
+        setStats(emptyStats);
+      }
+      setPagination({ page: 0, size: HISTORY_PAGE_SIZE, total: 0, totalPages: 0 });
+    } finally {
+      setTableLoading(false);
+    }
+  }, [applyHistoryData, fetchHistoryData, historySort]);
+
+  const loadFullPage = useCallback(async ({
+    labId = null,
+    page = 0,
+    sortState = historySort,
+  } = {}) => {
+    setInitialLoading(true);
     try {
       const [historyData, labsData] = await Promise.all([
-        fetchHistoryData(labId),
+        fetchHistoryData({ labId, page, sortState }),
         fetchLabsSummaryData(),
       ]);
-      setSubmissions(historyData.submissions);
-      setStats(historyData.stats);
+      applyHistoryData(historyData, { syncStats: true });
       setLabsSummary(labsData.labsSummary);
       setLabOptions(labsData.labOptions);
     } catch (err) {
       console.info('Could not fetch submission history:', err.message);
       setSubmissions([]);
       setStats(emptyStats);
+      setPagination({ page: 0, size: HISTORY_PAGE_SIZE, total: 0, totalPages: 0 });
       setLabsSummary([]);
       setLabOptions(['All Labs']);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
-  }, [fetchHistoryData, fetchLabsSummaryData]);
+  }, [applyHistoryData, fetchHistoryData, fetchLabsSummaryData, historySort]);
 
   useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
+    void loadFullPage();
+    // Initial load only; pagination/sort/filter handlers fetch targeted sections.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resolveLabId = useCallback((labName) => {
+    if (labName === 'All Labs') return null;
+    const lab = labsSummary.find((l) => l.name === labName);
+    return lab?.id ?? null;
+  }, [labsSummary]);
 
   const handleFilterChange = (labName) => {
     setSelectedLab(labName);
-    if (labName === 'All Labs') {
-      void loadPageData();
-    } else {
-      const lab = labsSummary.find((l) => l.name === labName);
-      if (lab) {
-        void loadPageData(lab.id);
-      }
-    }
+    setExpandedRow(null);
+    void loadHistorySection({
+      labId: resolveLabId(labName),
+      page: 0,
+      sortState: historySort,
+      syncStats: true,
+    });
   };
 
   const handleRefresh = () => {
-    if (selectedLab === 'All Labs') {
-      void loadPageData();
-    } else {
-      const lab = labsSummary.find((l) => l.name === selectedLab);
-      if (lab) {
-        void loadPageData(lab.id);
-      }
-    }
+    void loadFullPage({
+      labId: resolveLabId(selectedLab),
+      page: pagination.page,
+      sortState: historySort,
+    });
+  };
+
+  const handlePageChange = (nextPage) => {
+    setExpandedRow(null);
+    void loadHistorySection({
+      labId: resolveLabId(selectedLab),
+      page: nextPage,
+      sortState: historySort,
+    });
   };
 
   const toggleRow = (id) => {
     setExpandedRow(expandedRow === id ? null : id);
   };
 
-  // ===== Computed Values =====
-
-  const filteredSubmissions = useMemo(() => {
-    return sortRows(submissions, historySort.field, historySort.direction, (item) => {
-      if (historySort.field === 'labName') return item.lab?.name || '';
-      if (historySort.field === 'status') return deriveSubmissionStatus(item.score);
-      if (historySort.field === 'attempt') return item.attemptNumber;
-      if (historySort.field === 'score') return item.score;
-      if (historySort.field === 'submittedAt') return item.submittedAt;
-      return item[historySort.field];
-    });
-  }, [submissions, historySort]);
-
   const handleHistorySort = (field) => {
-    setHistorySort((prev) => toggleSortState(prev, field));
+    const nextSort = toggleSortState(historySort, field);
+    setHistorySort(nextSort);
+    setExpandedRow(null);
+    void loadHistorySection({
+      labId: resolveLabId(selectedLab),
+      page: 0,
+      sortState: nextSort,
+    });
   };
 
-  // ===== Render =====
+  const showPagination = pagination.totalPages > 1 || pagination.total > pagination.size;
+  const isPageBusy = initialLoading || tableLoading;
 
   const formatStatValue = (value) => {
     if (value === null || value === undefined) return '--';
@@ -275,14 +350,14 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
             className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 text-foreground-muted ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-foreground-muted ${isPageBusy ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
       {/* ===== Stats Cards ===== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {loading ? (
+        {initialLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="rounded-3xl border border-border bg-surface p-5 animate-pulse">
               <div className="h-4 w-24 rounded bg-surface-tertiary" />
@@ -306,7 +381,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
 
       {/* ===== Labs Summary Sidebar + Submissions Table ===== */}
       <div className="grid gap-6 xl:grid-cols-[0.6fr_1fr]">
-        {loading ? (
+        {initialLoading ? (
           <>
             <section className="rounded-3xl border border-border bg-surface p-6 animate-pulse">
               <div className="h-4 w-40 rounded bg-surface-tertiary" />
@@ -360,7 +435,12 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
         </section>
 
         {/* Submissions Table */}
-        <section className="rounded-3xl border border-border bg-surface p-6 overflow-hidden">
+        <section className="relative rounded-3xl border border-border bg-surface p-6 overflow-hidden">
+          {tableLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-surface/70 backdrop-blur-[1px]">
+              <RefreshCw className="h-6 w-6 animate-spin text-foreground-muted" />
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-muted">
@@ -369,7 +449,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
             </div>
           </div>
 
-          {filteredSubmissions.length === 0 ? (
+          {submissions.length === 0 ? (
             <div className="py-12 text-center text-foreground-disabled">
               <p>No submissions found</p>
             </div>
@@ -387,7 +467,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSubmissions.map((item, index) => {
+                  {submissions.map((item, index) => {
                     const isExpanded = expandedRow === item.id;
                     const status = deriveSubmissionStatus(item.score);
 
@@ -469,6 +549,31 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                   })}
                 </tbody>
               </table>
+              {showPagination && (
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <p className="text-sm text-foreground-secondary">
+                    Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={pagination.page <= 0}
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pagination.page >= pagination.totalPages - 1}
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

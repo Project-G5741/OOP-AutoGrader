@@ -4,5 +4,5 @@ import java.util.List;
 import java.util.UUID;
 
 public record AuthResponse(String accessToken, UUID id, String email, String name, String domain, List<String> roles,
-                           String irn, String studentCode, String lecturerCode) {
+                           String irn, String studentCode, String lecturerCode, boolean inCurrentTerm) {
 }

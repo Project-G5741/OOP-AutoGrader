@@ -21,8 +21,16 @@ import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 class StudentHistoryServiceTest {
@@ -81,6 +89,48 @@ class StudentHistoryServiceTest {
         assertEquals(3, stats.totalSubmissions());
         assertEquals(0, stats.averageScore().compareTo(new BigDecimal("80.00")));
         assertEquals(0, stats.bestScore().compareTo(new BigDecimal("90.00")));
+    }
+
+    @Test
+    void resolveHistorySort_defaultsToSubmittedAtDesc() {
+        Sort sort = studentHistoryService.resolveHistorySort(null);
+        assertEquals("submittedAt", sort.iterator().next().getProperty());
+        assertEquals(Sort.Direction.DESC, sort.iterator().next().getDirection());
+    }
+
+    @Test
+    void resolveHistorySort_parsesLabNameAsc() {
+        Sort sort = studentHistoryService.resolveHistorySort("labName,asc");
+        assertEquals("lab.name", sort.iterator().next().getProperty());
+        assertEquals(Sort.Direction.ASC, sort.iterator().next().getDirection());
+    }
+
+    @Test
+    void getHistory_returnsPagedItemsAndScopeStats() {
+        UUID userId = UUID.randomUUID();
+        UUID labId = UUID.randomUUID();
+        Lab lab = mock(Lab.class);
+        when(lab.getId()).thenReturn(labId);
+        when(lab.getName()).thenReturn("Test Lab");
+
+        LabSubmission submission = submissionWithScore(new BigDecimal("85.00"));
+        submission.setLab(lab);
+        Page<LabSubmission> page = new PageImpl<>(List.of(submission), PageRequest.of(0, 10), 25);
+
+        when(labSubmissionRepository.findHistoryPageByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
+        when(labSubmissionRepository.countByUser_Id(userId)).thenReturn(25L);
+        when(submissionChallengeResultRepository.findBySubmission_IdInWithChallenge(any())).thenReturn(List.of());
+        when(labSubmissionRepository.countDistinctLabsByUserId(userId)).thenReturn(3L);
+        when(labSubmissionRepository.averageScoreForUser(userId)).thenReturn(new BigDecimal("82.50"));
+        when(labSubmissionRepository.bestScoreForUser(userId)).thenReturn(new BigDecimal("95.00"));
+
+        var response = studentHistoryService.getHistory(userId, null, 0, 10, "submittedAt,desc");
+
+        assertEquals(1, response.submissions().size());
+        assertEquals(25, response.totalElements());
+        assertEquals(3, response.totalPages());
+        assertEquals(25, response.stats().totalSubmissions());
+        assertEquals(3, response.stats().labsAttempted());
     }
 
     @Test

@@ -12,7 +12,11 @@ public final class MemberWeightCalculator {
         return 1;
     }
 
-    public static int testcaseWeight(int configuredWeight) {
+    public static int configuredWeight(int configuredWeight) {
         return configuredWeight > 0 ? configuredWeight : 1;
+    }
+
+    public static int testcaseWeight(int configuredWeight) {
+        return configuredWeight(configuredWeight);
     }
 }

@@ -272,7 +272,7 @@ mvn spring-boot:run
 |---------|-----|
 | Web UI | http://localhost:5173 |
 | API base | http://localhost:8002 |
-| Health check | http://localhost:8002/api/health |
+| Health check | http://localhost:8002/ |
 | Swagger UI | http://localhost:8002/swagger-ui/index.html |
 | OpenAPI JSON | http://localhost:8002/v3/api-docs |
 
@@ -292,7 +292,7 @@ See `frontend/DEPLOY_VERCEL.md` and `backend/DEPLOY_RENDER.md` for deployment st
 
 | Check | Command / Action |
 |-------|------------------|
-| Backend health | `GET /api/health` |
+| Backend liveness | `GET /` |
 | Frontend build | `cd frontend && npm run build` |
 | Backend tests | `cd backend && mvn test` |
 | Manual upload | Log in as student → drag `challenge_1/*.java` folder → confirm scores appear |
@@ -334,7 +334,7 @@ See `frontend/DEPLOY_VERCEL.md` and `backend/DEPLOY_RENDER.md` for deployment st
 | `AnalyticsController` | `/api/analytics` | Dashboard, student reports |
 | `MasterDataController` | `/api/master-data` | Scope/type/relation lookups |
 | `TermController` | `/api/terms` | Academic terms |
-| `HealthController` | `/api/health` | Health check |
+| `RootController` | `/` | Liveness probe |
 
 ---
 

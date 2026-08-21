@@ -12,6 +12,7 @@ export default function AppShell({
   className = '',
   onCommand,
   hideUserMenu = false,
+  hideHome = false,
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors overflow-x-hidden">
@@ -23,6 +24,7 @@ export default function AppShell({
             onNavigate={onNavigate}
             onCommand={onCommand}
             hideUserMenu={hideUserMenu}
+            hideHome={hideHome}
           />
 
           {showNav && (

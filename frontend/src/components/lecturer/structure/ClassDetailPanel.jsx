@@ -1,6 +1,8 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { formatQualifiedClassName } from '../../../utils/classNaming';
 import ParameterRows from './ParameterRows';
+import WeightInput from './WeightInput';
 
 function ScopeSelect({ value, options, onChange }) {
   return (
@@ -34,7 +36,13 @@ function Section({ title, count, children, defaultOpen = true }) {
   );
 }
 
-export default function ClassDetailPanel({ classData, scopeOptions, declaringTypeOptions, onChange }) {
+export default function ClassDetailPanel({
+  classData,
+  challengeClasses,
+  scopeOptions,
+  declaringTypeOptions,
+  onChange,
+}) {
   if (!classData) {
     return (
       <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
@@ -44,6 +52,11 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
   }
 
   const patch = (updates) => onChange({ ...classData, ...updates });
+
+  const outerClassOptions = (challengeClasses || []).filter(
+    (cls) => cls.id !== classData.id && !cls.outerClassId,
+  );
+  const qualifiedPreview = formatQualifiedClassName(classData, challengeClasses);
 
   const updateFields = (fields) => patch({ fields });
   const updateMethods = (methods) => patch({ methods });
@@ -73,10 +86,54 @@ export default function ClassDetailPanel({ classData, scopeOptions, declaringTyp
               onChange={(declaringTypeId) => patch({ declaringTypeId })}
             />
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-foreground-muted">Outer class (optional)</label>
+            <select
+              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              value={classData.outerClassId ?? ''}
+              onChange={(e) => {
+                const outerClassId = e.target.value || null;
+                if (!outerClassId) {
+                  patch({ outerClassId: null, isStatic: false });
+                } else if (!classData.outerClassId) {
+                  patch({ outerClassId, isStatic: true });
+                } else {
+                  patch({ outerClassId });
+                }
+              }}
+            >
+              <option value="">None (top-level)</option>
+              {outerClassOptions.map((cls) => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs text-foreground-muted">Qualified identity</label>
+            <p className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground-secondary">
+              {qualifiedPreview || '—'}
+            </p>
+          </div>
+          <WeightInput
+            id={`class-weight-${classData.id}`}
+            label="Class weight"
+            value={classData.weight}
+            onChange={(weight) => patch({ weight })}
+          />
           <label className="flex items-center gap-2 text-sm text-foreground-secondary">
             <input type="checkbox" checked={classData.isAbstract} onChange={(e) => patch({ isAbstract: e.target.checked })} />
             Abstract
           </label>
+          {classData.outerClassId && (
+            <label className="flex items-center gap-2 text-sm text-foreground-secondary">
+              <input
+                type="checkbox"
+                checked={!!classData.isStatic}
+                onChange={(e) => patch({ isStatic: e.target.checked })}
+              />
+              Static nested
+            </label>
+          )}
         </div>
       </Section>
 

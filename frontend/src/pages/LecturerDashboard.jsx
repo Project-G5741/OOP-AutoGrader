@@ -14,8 +14,10 @@ import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
 import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
 import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
+import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
+import TermManagement from './TermManagement';
 import { formatNumber, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
@@ -23,6 +25,7 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiErro
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
+const GRADE_OVERVIEW_PAGE_SIZE = 10;
 const GRADE_OVERVIEW_EXPORT_PAGE_SIZE = 100;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,
@@ -139,7 +142,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [gradeOverviewPagination, setGradeOverviewPagination] = useState({
     total: 0,
     page: 0,
-    size: ROSTER_PAGE_SIZE,
+    size: GRADE_OVERVIEW_PAGE_SIZE,
     totalPages: 0,
   });
   const [loadingGradeOverview, setLoadingGradeOverview] = useState(false);
@@ -151,6 +154,8 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
   const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
   const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
+  const [flaggedLabIds, setFlaggedLabIds] = useState(() => new Set());
+  const [flaggedLabsByStudentId, setFlaggedLabsByStudentId] = useState({});
   const [challengeSort, setChallengeSort] = useState({ field: 'studentName', direction: 'asc' });
   const [challenges, setChallenges] = useState([]);
   const [challengesLabId, setChallengesLabId] = useState(null);
@@ -177,6 +182,27 @@ export default function LecturerDashboard({ user, onLogout }) {
       setLabsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingLabs(false);
+    }
+  }, []);
+
+  const fetchPlagiarismFlags = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/lecturer/plagiarism/flags`, { headers: authHeaders() });
+      if (!response.ok) {
+        setFlaggedLabIds(new Set());
+        setFlaggedLabsByStudentId({});
+        return;
+      }
+      const data = await response.json();
+      setFlaggedLabIds(new Set((data.flaggedLabIds ?? []).map((id) => String(id))));
+      const byStudent = {};
+      Object.entries(data.flaggedLabsByStudentId ?? {}).forEach(([studentId, labIds]) => {
+        byStudent[studentId] = labIds ?? [];
+      });
+      setFlaggedLabsByStudentId(byStudent);
+    } catch {
+      setFlaggedLabIds(new Set());
+      setFlaggedLabsByStudentId({});
     }
   }, []);
 
@@ -323,7 +349,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setGradeOverviewError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
+        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() },
       );
       if (!response.ok) {
@@ -340,7 +366,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       setGradeOverviewPagination({
         total: data.totalElements ?? 0,
         page: data.page ?? 0,
-        size: data.size ?? ROSTER_PAGE_SIZE,
+        size: data.size ?? GRADE_OVERVIEW_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
     } catch (err) {
@@ -355,7 +381,8 @@ export default function LecturerDashboard({ user, onLogout }) {
   useEffect(() => {
     fetchLabs();
     fetchOverview();
-  }, [fetchLabs, fetchOverview]);
+    fetchPlagiarismFlags();
+  }, [fetchLabs, fetchOverview, fetchPlagiarismFlags]);
 
   useEffect(() => {
     if (activeNav === 'grading') {
@@ -440,10 +467,12 @@ export default function LecturerDashboard({ user, onLogout }) {
         gradeOverviewPagination.page,
         formatGradeOverviewSortParam(gradeOverviewSort),
       );
+      fetchPlagiarismFlags();
       return;
     }
     fetchOverview();
     fetchLabs();
+    fetchPlagiarismFlags();
     if (selectedLabId) {
       void Promise.all([
         fetchSubmissions(selectedLabId, pagination.page, `${rosterSort.field},${rosterSort.direction}`),
@@ -684,8 +713,9 @@ export default function LecturerDashboard({ user, onLogout }) {
                               : 'border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-primary-light'
                           }`}
                         >
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{formatText(lab.name)}</div>
+                          <div className="inline-flex h-4 min-w-0 items-center leading-4 whitespace-nowrap">
+                            <span className="font-medium">{formatText(lab.name)}</span>
+                            <PlagiarismDangerMark show={labHasPlagiarism(lab.id, flaggedLabIds)} />
                           </div>
                           {selectedLabId === lab.id && (
                             <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
@@ -699,8 +729,9 @@ export default function LecturerDashboard({ user, onLogout }) {
                 <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-foreground">
+                      <h3 className="inline-flex h-5 items-center leading-5 whitespace-nowrap text-base font-semibold text-foreground">
                         {formatText(selectedLab?.name)}
+                        <PlagiarismDangerMark show={labHasPlagiarism(selectedLab?.id, flaggedLabIds)} />
                       </h3>
                     </div>
                   </div>
@@ -804,11 +835,13 @@ export default function LecturerDashboard({ user, onLogout }) {
                       ) : (
                         <div>
                           <div className="mb-4 flex items-center justify-between gap-3">
-                            <h4 className="text-base font-semibold text-foreground">
-                              {activeChallengeTab
-                                ? `${challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index)} Submissions`
-                                : 'Challenge Submissions'}
-                            </h4>
+                            <div>
+                              <h4 className="text-base font-semibold text-foreground">
+                                {activeChallengeTab
+                                  ? `${activeChallengeTab.challenge.name ?? `Challenge ${activeChallengeTab.index + 1}`} Submissions`
+                                  : 'Challenge Submissions'}
+                              </h4>
+                            </div>
                           </div>
                           {challengeSubmissionsError && (
                             <p className="mb-4 text-sm text-warning-text">{challengeSubmissionsError}</p>
@@ -870,6 +903,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                 onStudentSelect={handleGradeStudentSelect}
                 sortState={gradeOverviewSort}
                 onSort={handleGradeOverviewSort}
+                flaggedLabIds={flaggedLabIds}
+                flaggedLabsByStudentId={flaggedLabsByStudentId}
               />
               {selectedGradeStudent && (
                 <GradeOverviewSubmissionHistory
@@ -890,6 +925,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <UserManagement hideNav noShell user={user} onLogout={onLogout} />
           </div>
+        ) : activeNav === 'terms' ? (
+          <TermManagement />
         ) : activeNav === 'projects' ? (
           <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <SolutionManagement />

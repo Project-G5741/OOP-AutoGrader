@@ -1,7 +1,9 @@
 package com.eiu.capstone.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -166,5 +168,64 @@ class UserServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> userService.updateUser(userId, request));
         assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void suspendStudent_setsInactive() {
+        UserAccount student = studentAccount();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(student));
+        when(userRepository.save(student)).thenReturn(student);
+
+        UserDTO.UserResponse result = userService.suspendStudent(userId);
+
+        assertFalse(result.isActive());
+        assertFalse(student.getIsActive());
+    }
+
+    @Test
+    void restoreStudent_setsActive() {
+        UserAccount student = studentAccount();
+        student.setIsActive(false);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(student));
+        when(userRepository.save(student)).thenReturn(student);
+
+        UserDTO.UserResponse result = userService.restoreStudent(userId);
+
+        assertTrue(result.isActive());
+        assertTrue(student.getIsActive());
+    }
+
+    @Test
+    void suspendStudent_lecturer_throws400() {
+        UserAccount lecturer = studentAccount();
+        lecturer.setRoles(Set.of(new Role("LECTURER")));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(lecturer));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> userService.suspendStudent(userId));
+        assertEquals(400, ex.getStatusCode().value());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void suspendStudent_dualRole_throws400() {
+        UserAccount dual = studentAccount();
+        dual.setRoles(Set.of(new Role("STUDENT"), new Role("LECTURER")));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(dual));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> userService.suspendStudent(userId));
+        assertEquals(400, ex.getStatusCode().value());
+    }
+
+    private UserAccount studentAccount() {
+        UserAccount student = new UserAccount();
+        student.setFullName("Student One");
+        student.setEmail("student@eiu.edu.vn");
+        student.setPasswordHash("hash");
+        student.setStudentCode("111");
+        student.setIsActive(true);
+        student.setRoles(new HashSet<>(Set.of(new Role("STUDENT"))));
+        return student;
     }
 }

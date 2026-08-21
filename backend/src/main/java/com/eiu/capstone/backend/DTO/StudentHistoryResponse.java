@@ -4,5 +4,9 @@ import java.util.List;
 
 public record StudentHistoryResponse(
         List<StudentSubmissionHistoryItemDTO> submissions,
-        StudentHistoryStatsDTO stats) {
+        StudentHistoryStatsDTO stats,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages) {
 }

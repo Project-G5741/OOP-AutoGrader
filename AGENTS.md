@@ -95,4 +95,4 @@ When the user requests a durable behavior change, record it here or in the relev
 - Full-stack OOP AutoGrader for EIU Capstone — students upload Java + MMD, backend compiles and grades via reflection against a PostgreSQL rubric
 - Root `npm start` runs frontend (`:5173`) and backend (`:8002`) concurrently
 - Google OAuth restricted to `@eiu.edu.vn`; JWT session for authenticated uploads
-- No automated test suite in either tier yet
+- Backend has a partial `mvn test` suite (`SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, `PasswordResetServiceTest`, and related unit tests); frontend has no automated tests yet

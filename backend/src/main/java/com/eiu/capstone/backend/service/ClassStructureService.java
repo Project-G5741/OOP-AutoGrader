@@ -17,6 +17,7 @@ import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
+import com.eiu.capstone.backend.utility.TimingLog;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -159,17 +160,44 @@ public class ClassStructureService {
                 Map.of());
     }
 
-    public List<MmdClassDTO> getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
+    public MmdResponseDTO getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
-            return List.of();
+            return new MmdResponseDTO(List.of(), null);
         }
-        List<MmdClassDTO> result = buildMmdDataForSubmission(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing mmd_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        MmdResponseDTO result = buildMmdResponseForSubmission(resolvedSubmissionId, challengeId);
+        TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId, UUID challengeId) {
+        return buildMmdResponseForSubmission(submissionId, challengeId, null, null);
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId,
+                                                        UUID challengeId,
+                                                        MmdGradingOutcome mmdOutcome,
+                                                        Boolean mmdSubmittedOverride) {
+        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge == null) {
+            return new MmdResponseDTO(List.of(), null);
+        }
+        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        List<MmdClassDTO> classes = buildMmdData(
+                structure,
+                challengeId,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot);
+        String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+        return new MmdResponseDTO(classes, parseError);
     }
 
     public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId, UUID challengeId) {
@@ -313,7 +341,7 @@ public class ClassStructureService {
                                 : relation.getTargetClassEntity().getName();
                         String relType = relationEntry != null
                                 ? relationEntry.relType
-                                : MmdComparisonService.normalizeRelationTypeName(relation.getRelationType().getName());
+                                : MmdComparisonService.displayRelationTypeName(relation.getRelationType().getName());
                         return new MmdRelationDTO(from, to, relType, ok, error);
                     })
                     .toList();
@@ -332,6 +360,9 @@ public class ClassStructureService {
                                                  ChallengeMmdMeta mmdMeta,
                                                  SubmissionCorrectIds correctIds) {
         if (mmdMeta.mmdSubmitted) {
+            return true;
+        }
+        if (mmdMeta.parseError != null && !mmdMeta.parseError.isBlank()) {
             return true;
         }
         if (!mmdMeta.relationErrors.isEmpty()) {
@@ -406,9 +437,7 @@ public class ClassStructureService {
         }
         List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
         String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing class_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
         return new ClassTabResponse(result, notice);
     }
 
@@ -423,9 +452,7 @@ public class ClassStructureService {
             return List.of();
         }
         List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
-        if (timingLog) {
-            System.out.printf("read_timing testcase_ms=%d%n", System.currentTimeMillis() - start);
-        }
+        TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
         return result;
     }
 
@@ -552,13 +579,20 @@ public class ClassStructureService {
                     .toList();
 
             result.add(new ClassDetailDTO(
-                    ce.getName(),
+                    formatClassDisplayName(ce),
                     resolveClassType(ce, masterData),
                     compileError != null ? "error" : resolveStatus(fields, constructors, methods),
                     compileError,
                     fields, constructors, methods));
         }
         return result;
+    }
+
+    private String formatClassDisplayName(ClassEntity classEntity) {
+        if (classEntity.getOuterClass() == null) {
+            return classEntity.getName();
+        }
+        return classEntity.getOuterClass().getName() + "." + classEntity.getName();
     }
 
     private String resolveClassType(ClassEntity ce, Map<Integer, String> masterData) {

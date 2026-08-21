@@ -11,12 +11,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
+import com.eiu.capstone.backend.DTO.MmdResponseDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
@@ -40,14 +40,11 @@ public class LabResultAssembler {
 
     private final ClassStructureService classStructureService;
     private final TestcaseResultMapper testcaseResultMapper;
-    private final boolean timingLog;
 
     public LabResultAssembler(ClassStructureService classStructureService,
-                              TestcaseResultMapper testcaseResultMapper,
-                              @Value("${app.grading.timing-log:false}") boolean timingLog) {
+                              TestcaseResultMapper testcaseResultMapper) {
         this.classStructureService = classStructureService;
         this.testcaseResultMapper = testcaseResultMapper;
-        this.timingLog = timingLog;
     }
 
     public Map<String, ChallengeDetailBundleDTO> assemble(
@@ -56,8 +53,6 @@ public class LabResultAssembler {
             GradingService.GradingComputationResult computed,
             Map<UUID, String> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId) {
-
-        long start = System.currentTimeMillis();
 
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
@@ -100,7 +95,7 @@ public class LabResultAssembler {
 
             MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
             ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
-            List<MmdClassDTO> mmdData = classStructureService.buildMmdData(
+            List<MmdClassDTO> mmdClasses = classStructureService.buildMmdData(
                     structure,
                     challengeId,
                     correctIds,
@@ -109,6 +104,11 @@ public class LabResultAssembler {
                     mmdMeta,
                     submissionId,
                     snapshot);
+            String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+            if (parseError == null && mmdResult != null) {
+                parseError = mmdResult.parseError();
+            }
+            MmdResponseDTO mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
 
             List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
 
@@ -134,14 +134,10 @@ public class LabResultAssembler {
                     "testcase", pillarScores.testcaseApplicable());
 
             labResult.put("challenge_" + number, new ChallengeDetailBundleDTO(
-                    classData, mmdData, testcases, scores, scoreApplicability,
+                    classData, mmdResponse, testcases, scores, scoreApplicability,
                     normalizationNotices.get(challengeId)));
         }
 
-        if (timingLog) {
-            System.out.printf("grading_timing assemble_ms=%d challenges=%d%n",
-                    System.currentTimeMillis() - start, challengeRubrics.size());
-        }
         return labResult;
     }
 

@@ -1,13 +1,15 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import Toast from '../components/ui/Toast';
-import { ROUTES } from '../utils/authRoutes';
+import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
+import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
+import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -42,11 +44,13 @@ function mapOperationalTestcases(testcases = []) {
 
 function applyChallengeBundle(bundle) {
   if (!bundle) {
-    return { classData: [], mmdData: [], testCases: [], normalizationNotice: null };
+    return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
   }
+  const mmd = mmdFromChallengeBundle(bundle);
   return {
     classData: bundle.class ?? [],
-    mmdData: bundle.mmd ?? [],
+    mmdData: mmd.classes,
+    mmdParseError: mmd.parseError,
     testCases: mapOperationalTestcases(bundle.testcases),
     normalizationNotice: bundle.normalizationNotice ?? bundle.normalization_notice ?? null,
   };
@@ -62,10 +66,20 @@ function parseClassTabResponse(json) {
   };
 }
 
-function applyCachedBundleToState(cachedBundle, setClassData, setMmdData, setTestCases, setClassNormalizationNotice) {
+function applyCachedBundleToState(
+    cachedBundle,
+    setClassData,
+    setMmdData,
+    setMmdParseError,
+    setTestCases,
+    setClassNormalizationNotice,
+) {
   const bundle = applyChallengeBundle(cachedBundle);
   setClassData(bundle.classData);
   setMmdData(bundle.mmdData);
+  if (setMmdParseError) {
+    setMmdParseError(bundle.mmdParseError);
+  }
   setTestCases(bundle.testCases);
   if (setClassNormalizationNotice) {
     setClassNormalizationNotice(bundle.normalizationNotice);
@@ -101,9 +115,11 @@ function challengeScoresFromBundles(indexedLabResult) {
 export default function StudentDashboard({ user, onLogout, view = 'dashboard' }) {
   const navigate = useNavigate();
   const showHistory = view === 'history';
+  const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [labs, setLabs] = useState([]);
+  const [labSummariesById, setLabSummariesById] = useState({});
   const [selectedLabId, setSelectedLabId] = useState(null);
   const [labsError, setLabsError] = useState(null);
 
@@ -112,6 +128,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [challengesError, setChallengesError] = useState(null);
 
   const [mmdData, setMmdData] = useState([]);
+  const [mmdParseError, setMmdParseError] = useState(null);
   const [classData, setClassData] = useState([]);
   const [classNormalizationNotice, setClassNormalizationNotice] = useState(null);
   const [testCases, setTestCases] = useState([]);
@@ -223,6 +240,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
       return;
     }
@@ -231,6 +249,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
       return;
     }
@@ -238,10 +257,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const cachedBundle = !force && labResultCacheRef.current[challengeId];
     if (cachedBundle) {
       const bundle = applyCachedBundleToState(
-          cachedBundle, setClassData, setMmdData, setTestCases, setClassNormalizationNotice);
+          cachedBundle,
+          setClassData,
+          setMmdData,
+          setMmdParseError,
+          setTestCases,
+          setClassNormalizationNotice);
       classDataCacheRef.current[challengeId] = bundle.classData;
       classNoticeCacheRef.current[challengeId] = bundle.normalizationNotice;
-      mmdDataCacheRef.current[challengeId] = bundle.mmdData;
+      mmdDataCacheRef.current[challengeId] = {
+        classes: bundle.mmdData,
+        parseError: bundle.mmdParseError,
+      };
       testcaseDataCacheRef.current[challengeId] = bundle.testCases;
       return;
     }
@@ -255,7 +282,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (cachedClass && cachedMmd && cachedTestcases) {
       setClassData(cachedClass);
       setClassNormalizationNotice(cachedNotice);
-      setMmdData(cachedMmd);
+      const parsedMmd = parseMmdResponse(cachedMmd);
+      setMmdData(parsedMmd.classes);
+      setMmdParseError(parsedMmd.parseError);
       setTestCases(cachedTestcases);
       return;
     }
@@ -286,7 +315,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
       const classJson = classRes.ok ? await classRes.json() : [];
       const parsedClass = parseClassTabResponse(classJson);
-      const mmdJson = mmdRes.ok ? await mmdRes.json() : [];
+      const mmdJson = mmdRes.ok ? await mmdRes.json() : { classes: [], parseError: null };
+      const parsedMmd = parseMmdResponse(mmdJson);
       const testcaseJson = testcaseRes.ok ? await testcaseRes.json() : [];
 
       if (!cachedClass) {
@@ -294,29 +324,60 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         classNoticeCacheRef.current[challengeId] = parsedClass.normalizationNotice;
       }
       if (!cachedMmd) {
-        mmdDataCacheRef.current[challengeId] = mmdJson;
+        mmdDataCacheRef.current[challengeId] = parsedMmd;
       }
       if (!cachedTestcases) {
         testcaseDataCacheRef.current[challengeId] = mapOperationalTestcases(testcaseJson);
       }
       setClassData(parsedClass.classData);
       setClassNormalizationNotice(parsedClass.normalizationNotice);
-      setMmdData(mmdJson);
+      setMmdData(parsedMmd.classes);
+      setMmdParseError(parsedMmd.parseError);
       setTestCases(mapOperationalTestcases(testcaseJson));
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
     }
   }, [studentId]);
 
+  const fetchLabSummaries = useCallback(async () => {
+    const token = sessionStorage.getItem('accessToken');
+    if (!token) {
+      setLabSummariesById({});
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/submissions/my-labs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const byId = {};
+      for (const summary of data) {
+        if (summary?.id != null) {
+          byId[summary.id] = summary;
+        }
+      }
+      setLabSummariesById(byId);
+    } catch (err) {
+      console.info('Failed to fetch lab summaries:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchLabs() {
+      if (showHistory || !inCurrentTerm) {
+        setLabs([]);
+        setIsLoadingLabs(false);
+        return;
+      }
       setIsLoadingLabs(true);
       try {
-        const res = await fetch(`${API_BASE}/api/labs`);
+        const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
@@ -333,6 +394,31 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
+    if (!showHistory && inCurrentTerm) {
+      fetchLabSummaries();
+    }
+  }, [fetchLabSummaries, inCurrentTerm, showHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshAccess() {
+      try {
+        const res = await fetch(`${API_BASE}/api/students/term-access`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          const next = Boolean(data.inCurrentTerm);
+          setInCurrentTerm(next);
+          patchStoredUser({ inCurrentTerm: next });
+        }
+      } catch {
+        // keep login-time value
+      }
+    }
+    refreshAccess();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -348,6 +434,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
     }
   }, [selectedLabId, revealedLabIds]);
@@ -361,6 +448,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
       return;
     }
@@ -368,7 +456,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const cachedBundle = labResultCacheRef.current[selectedChallengeId];
     if (cachedBundle) {
       applyCachedBundleToState(
-          cachedBundle, setClassData, setMmdData, setTestCases, setClassNormalizationNotice);
+          cachedBundle,
+          setClassData,
+          setMmdData,
+          setMmdParseError,
+          setTestCases,
+          setClassNormalizationNotice);
       return;
     }
 
@@ -378,7 +471,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (cachedClass && cachedMmd && cachedTestcases) {
       setClassData(cachedClass);
       setClassNormalizationNotice(classNoticeCacheRef.current[selectedChallengeId] ?? null);
-      setMmdData(cachedMmd);
+      const parsedMmd = parseMmdResponse(cachedMmd);
+      setMmdData(parsedMmd.classes);
+      setMmdParseError(parsedMmd.parseError);
       setTestCases(cachedTestcases);
       return;
     }
@@ -416,6 +511,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     testcaseDataCacheRef.current = {};
     labResultCacheRef.current = {};
     setMmdData([]);
+    setMmdParseError(null);
     setClassData([]);
     setClassNormalizationNotice(null);
     setTestCases([]);
@@ -427,6 +523,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
       return;
     }
@@ -435,13 +532,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setClassData([]);
       setClassNormalizationNotice(null);
       setMmdData([]);
+      setMmdParseError(null);
       setTestCases([]);
       return;
     }
     const cachedBundle = labResultCacheRef.current[challengeId];
     if (cachedBundle) {
       applyCachedBundleToState(
-          cachedBundle, setClassData, setMmdData, setTestCases, setClassNormalizationNotice);
+          cachedBundle,
+          setClassData,
+          setMmdData,
+          setMmdParseError,
+          setTestCases,
+          setClassNormalizationNotice);
       return;
     }
     const cachedClass = classDataCacheRef.current[challengeId];
@@ -449,7 +552,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const cachedTestcases = testcaseDataCacheRef.current[challengeId];
     setClassData(cachedClass ?? []);
     setClassNormalizationNotice(classNoticeCacheRef.current[challengeId] ?? null);
-    setMmdData(cachedMmd ?? []);
+    const parsedMmd = parseMmdResponse(cachedMmd ?? { classes: [], parseError: null });
+    setMmdData(parsedMmd.classes);
+    setMmdParseError(parsedMmd.parseError);
     setTestCases(cachedTestcases ?? []);
   };
 
@@ -505,6 +610,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setNextAttemptNumber(Number(uploadResponse.totalSubmissions) + 1);
     }
 
+    fetchLabSummaries();
+
     setRevealedLabIds((prev) =>
       prev.includes(selectedLabId) ? prev : [...prev, selectedLabId]
     );
@@ -518,10 +625,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         const cachedBundle = indexedLabResult[selectedChallengeId];
         if (cachedBundle) {
           const bundle = applyCachedBundleToState(
-              cachedBundle, setClassData, setMmdData, setTestCases, setClassNormalizationNotice);
+              cachedBundle,
+              setClassData,
+              setMmdData,
+              setMmdParseError,
+              setTestCases,
+              setClassNormalizationNotice);
           classDataCacheRef.current[selectedChallengeId] = bundle.classData;
           classNoticeCacheRef.current[selectedChallengeId] = bundle.normalizationNotice;
-          mmdDataCacheRef.current[selectedChallengeId] = bundle.mmdData;
+          mmdDataCacheRef.current[selectedChallengeId] = {
+            classes: bundle.mmdData,
+            parseError: bundle.mmdParseError,
+          };
           testcaseDataCacheRef.current[selectedChallengeId] = bundle.testCases;
         } else {
           await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
@@ -534,6 +649,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         setClassData([]);
         setClassNormalizationNotice(null);
         setMmdData([]);
+        setMmdParseError(null);
         setTestCases([]);
       }
     } finally {
@@ -543,7 +659,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
-      navigate(ROUTES.studentDashboard);
+      navigate(inCurrentTerm ? ROUTES.studentDashboard : ROUTES.studentHistory);
     } else if (cmd === 'history') {
       navigate(ROUTES.studentHistory);
     } else if (cmd === 'changePassword') {
@@ -551,11 +667,15 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   };
 
+  if (view === 'dashboard' && !inCurrentTerm) {
+    return <Navigate to={ROUTES.studentHistory} replace />;
+  }
+
   const isInitialLoading = isLoadingLabs || (isLoadingChallenges && challenges.length === 0);
 
   return (
     <>
-      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand}>
+      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand} hideHome={!inCurrentTerm} className="!mt-0">
         <div className="w-full">
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
@@ -573,12 +693,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             <StudentUI
               user={user}
               labs={labs}
+              labSummariesById={labSummariesById}
               selectedLabId={selectedLabId}
               onLabChange={handleLabChange}
               challenges={challenges}
               selectedChallengeId={selectedChallengeId}
               onChallengeChange={handleChallengeChange}
               mmdData={mmdData}
+              mmdParseError={mmdParseError}
               classData={classData}
               classNormalizationNotice={classNormalizationNotice}
               testCases={testCases}

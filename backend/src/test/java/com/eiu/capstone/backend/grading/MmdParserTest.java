@@ -16,15 +16,23 @@ class MmdParserTest {
   private final MmdParser parser = new MmdParser();
   private final MmdComparisonService comparisonService = new MmdComparisonService();
 
+  private static String withHeader(String body) {
+    String trimmed = body.stripLeading();
+    if (trimmed.startsWith("classDiagram")) {
+      return body;
+    }
+    return "classDiagram\n" + body;
+  }
+
   @Test
   void parsesMermaidStyleFieldsTypeThenName() {
-    String mmd = """
+    String mmd = withHeader("""
         class Car {
           -int yearModel
           -String make
           -int speed
         }
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
     ParsedMmdClass car = diagram.classes.get(0);
@@ -40,13 +48,13 @@ class MmdParserTest {
 
   @Test
   void gradesMermaidStylePrivateFieldsAgainstRubric() {
-    String mmd = """
+    String mmd = withHeader("""
         class Car {
           -int yearModel
           -String make
           -int speed
         }
-        """;
+        """);
 
     var yearModelId = java.util.UUID.randomUUID();
     var makeId = java.util.UUID.randomUUID();
@@ -81,11 +89,11 @@ class MmdParserTest {
 
   @Test
   void parsesConstructorParametersNameColonType() {
-    String mmd = """
+    String mmd = withHeader("""
         class Car {
           +Car(yearModel: int, make: String)
         }
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
     ParsedMmdClass car = diagram.classes.get(0);
@@ -97,11 +105,11 @@ class MmdParserTest {
 
   @Test
   void gradesConstructorWithNameColonTypeParameters() {
-    String mmd = """
+    String mmd = withHeader("""
         class Car {
           +Car(yearModel: int, make: String)
         }
-        """;
+        """);
 
     var ctorId = java.util.UUID.randomUUID();
     var classId = java.util.UUID.randomUUID();
@@ -130,13 +138,13 @@ class MmdParserTest {
 
   @Test
   void parsesMermaidStaticAndAbstractMethodModifiers() {
-    String mmd = """
+    String mmd = withHeader("""
         class Logger {
           -static Logger instance$
           +getInstance() Logger$
           +log(message String) void
         }
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
     ParsedMmdClass logger = diagram.classes.get(0);
@@ -160,11 +168,11 @@ class MmdParserTest {
 
   @Test
   void parsesMethodParametersWithNameColonType() {
-    String mmd = """
+    String mmd = withHeader("""
         class Logger {
           +log(message: String) void
         }
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
     ParsedMethod log = diagram.classes.get(0).methods.get(0);
@@ -174,7 +182,7 @@ class MmdParserTest {
 
   @Test
   void gradesLoggerSingletonDiagramAgainstRubric() {
-    String mmd = """
+    String mmd = withHeader("""
         classDiagram
             class Logger {
                 -static Logger instance
@@ -182,7 +190,7 @@ class MmdParserTest {
                 +getInstance() Logger$
                 +log(message: String) void
             }
-        """;
+        """);
 
     var instanceId = java.util.UUID.randomUUID();
     var ctorId = java.util.UUID.randomUUID();
@@ -220,11 +228,11 @@ class MmdParserTest {
 
   @Test
   void gradesStaticMarkerWhenRubricDoesNotRequireStatic() {
-    String mmd = """
+    String mmd = withHeader("""
         class Logger {
           +getInstance() Logger$
         }
-        """;
+        """);
 
     var getInstanceId = java.util.UUID.randomUUID();
     var classId = java.util.UUID.randomUUID();
@@ -252,11 +260,11 @@ class MmdParserTest {
 
   @Test
   void parsesCanonicalMermaidStaticMarkerAfterParentheses() {
-    String mmd = """
+    String mmd = withHeader("""
         class Logger {
           +getInstance()$ Logger
         }
-        """;
+        """);
 
     ParsedMethod getInstance = parser.parse(mmd).classes.get(0).methods.get(0);
 
@@ -267,13 +275,13 @@ class MmdParserTest {
 
   @Test
   void gradesInterfaceMethodsWithoutExplicitAbstractMarker() {
-    String mmd = """
+    String mmd = withHeader("""
         class Coffee {
           <<interface>>
           +getCost() double
           +getDescription() String
         }
-        """;
+        """);
 
     var getCostId = java.util.UUID.randomUUID();
     var getDescriptionId = java.util.UUID.randomUUID();
@@ -306,9 +314,9 @@ class MmdParserTest {
 
   @Test
   void parsesAggregationArrowWithRelationLabel() {
-    String mmd = """
+    String mmd = withHeader("""
         BaseDecorator o--> Coffee : wraps
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
 
@@ -321,9 +329,9 @@ class MmdParserTest {
 
   @Test
   void gradesAggregationRelationWithLabelAgainstRubric() {
-    String mmd = """
+    String mmd = withHeader("""
         BaseDecorator o--> Coffee : wraps
-        """;
+        """);
 
     var relationId = java.util.UUID.randomUUID();
     var baseId = java.util.UUID.randomUUID();
@@ -346,9 +354,9 @@ class MmdParserTest {
 
   @Test
   void parsesDependencyRelationWithLabel() {
-    String mmd = """
+    String mmd = withHeader("""
         Main ..> Logger : uses
-        """;
+        """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
 
@@ -357,5 +365,53 @@ class MmdParserTest {
     assertEquals("dependency", relation.relationType);
     assertEquals("Main", relation.sourceClassName);
     assertEquals("Logger", relation.targetClassName);
+  }
+
+  @Test
+  void parsesRealizationArrowsAsEquivalentImplementorToInterface() {
+    ParsedMmdRelation triangleOnInterface = parser.parse(withHeader("Coffee <|.. SimpleCoffee")).relations.get(0);
+    ParsedMmdRelation arrowToInterface = parser.parse(withHeader("SimpleCoffee ..|> Coffee")).relations.get(0);
+
+    assertEquals("realization", triangleOnInterface.relationType);
+    assertEquals("realization", arrowToInterface.relationType);
+    assertEquals("SimpleCoffee", triangleOnInterface.sourceClassName);
+    assertEquals("Coffee", triangleOnInterface.targetClassName);
+    assertEquals(triangleOnInterface.sourceClassName, arrowToInterface.sourceClassName);
+    assertEquals(triangleOnInterface.targetClassName, arrowToInterface.targetClassName);
+  }
+
+  @Test
+  void gradesImplementationAndRealizationRubricTypesAsEquivalent() {
+    String mmd = withHeader("SimpleCoffee ..|> Coffee");
+
+    var relationId = java.util.UUID.randomUUID();
+    var coffeeId = java.util.UUID.randomUUID();
+    var simpleCoffeeId = java.util.UUID.randomUUID();
+    ChallengeRubric implementationRubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(simpleCoffeeId, "SimpleCoffee", "public", "CLASS", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, simpleCoffeeId, "SimpleCoffee", coffeeId, "Coffee", "Implementation")),
+        java.util.List.of());
+
+    ChallengeRubric realizationRubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(simpleCoffeeId, "SimpleCoffee", "public", "CLASS", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, simpleCoffeeId, "SimpleCoffee", coffeeId, "Coffee", "Realization")),
+        java.util.List.of());
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+
+    assertTrue(comparisonService.compare(implementationRubric, diagram).isRelationCorrect(relationId));
+    assertTrue(comparisonService.compare(realizationRubric, diagram).isRelationCorrect(relationId));
   }
 }

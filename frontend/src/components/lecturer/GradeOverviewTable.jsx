@@ -1,5 +1,6 @@
 import { formatNumber, formatText } from '../../utils/formatters';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import PlagiarismDangerMark, { labHasPlagiarism, studentLabHasPlagiarism } from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -13,6 +14,8 @@ export default function GradeOverviewTable({
   onStudentSelect,
   sortState,
   onSort,
+  flaggedLabIds,
+  flaggedLabsByStudentId,
 }) {
   const labColumns = Array.isArray(labs) ? labs : [];
   const rows = Array.isArray(students) ? students : [];
@@ -60,6 +63,7 @@ export default function GradeOverviewTable({
                 onSort={onSort}
                 stopRowClick
                 className={HEADER_CLASS}
+                after={<PlagiarismDangerMark show={labHasPlagiarism(lab.labId, flaggedLabIds)} />}
               />
             ))}
           </tr>
@@ -91,11 +95,19 @@ export default function GradeOverviewTable({
                 <td className="px-4 py-3 text-sm text-foreground">{formatText(student.studentName)}</td>
                 <td className="px-4 py-3 text-sm text-foreground">{formatText(student.irn)}</td>
                 <td className="px-4 py-3 text-sm font-semibold text-foreground">{formatNumber(student.totalScore)}</td>
-                {(student.labScores ?? []).map((score, index) => (
-                  <td key={`${student.studentId}-${labColumns[index]?.labId ?? index}`} className="px-4 py-3 text-sm text-foreground">
-                    {formatNumber(score)}
-                  </td>
-                ))}
+                {(student.labScores ?? []).map((score, index) => {
+                  const labId = labColumns[index]?.labId;
+                  return (
+                    <td key={`${student.studentId}-${labId ?? index}`} className="px-4 py-3 text-sm text-foreground align-middle">
+                      <span className="inline-flex h-4 items-center leading-4 whitespace-nowrap tabular-nums">
+                        {formatNumber(score)}
+                        <PlagiarismDangerMark
+                          show={studentLabHasPlagiarism(student.studentId, labId, flaggedLabsByStudentId)}
+                        />
+                      </span>
+                    </td>
+                  );
+                })}
               </tr>
               );
             })

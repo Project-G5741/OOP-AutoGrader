@@ -29,8 +29,19 @@ public class ClassEntity {
             foreignKey = @ForeignKey(name = "class_entity_declaring_type_fkey"))
     private MasterData declaringType;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "outer_class_id",
+            foreignKey = @ForeignKey(name = "class_entity_outer_class_id_fkey"))
+    private ClassEntity outerClass;
+
     @Column(name = "is_abstract", nullable = false)
     private boolean isAbstract = false;
+
+    @Column(name = "is_static", nullable = false)
+    private boolean isStatic = false;
+
+    @Column(name = "weight", nullable = false)
+    private int weight = 1;
 
     public ClassEntity() {}
 
@@ -74,11 +85,35 @@ public class ClassEntity {
         this.declaringType = declaringType;
     }
 
+    public ClassEntity getOuterClass() {
+        return outerClass;
+    }
+
+    public void setOuterClass(ClassEntity outerClass) {
+        this.outerClass = outerClass;
+    }
+
     public boolean isAbstract() {
         return isAbstract;
     }
 
     public void setAbstract(boolean anAbstract) {
         isAbstract = anAbstract;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
+    public void setStatic(boolean aStatic) {
+        isStatic = aStatic;
+    }
+
+    public int getWeight() {
+        return weight;
+    }
+
+    public void setWeight(int weight) {
+        this.weight = weight;
     }
 }

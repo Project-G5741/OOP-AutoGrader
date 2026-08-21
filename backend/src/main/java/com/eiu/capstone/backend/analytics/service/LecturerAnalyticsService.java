@@ -5,8 +5,10 @@ import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -26,6 +28,7 @@ import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.mapper.AnalyticsMapper;
 import com.eiu.capstone.backend.analytics.repository.LecturerAnalyticsRepository;
+import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.service.ChallengeService;
 
 @Service
@@ -38,15 +41,18 @@ public class LecturerAnalyticsService {
     private final ChallengeService challengeService;
     private final LecturerOverviewCache lecturerOverviewCache;
     private final LabStatisticsCache labStatisticsCache;
+    private final PlagiarismService plagiarismService;
 
     public LecturerAnalyticsService(LecturerAnalyticsRepository lecturerAnalyticsRepository,
                                     ChallengeService challengeService,
                                     LecturerOverviewCache lecturerOverviewCache,
-                                    LabStatisticsCache labStatisticsCache) {
+                                    LabStatisticsCache labStatisticsCache,
+                                    PlagiarismService plagiarismService) {
         this.lecturerAnalyticsRepository = lecturerAnalyticsRepository;
         this.challengeService = challengeService;
         this.lecturerOverviewCache = lecturerOverviewCache;
         this.labStatisticsCache = labStatisticsCache;
+        this.plagiarismService = plagiarismService;
     }
 
     public LecturerOverviewResponse getOverview() {
@@ -166,6 +172,7 @@ public class LecturerAnalyticsService {
                     items.add(item);
                 }
             }
+            items = withPlagiarismFlags(labId, items);
         }
 
         return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
@@ -181,7 +188,7 @@ public class LecturerAnalyticsService {
                 items.add(item);
             }
         }
-        return items;
+        return withPlagiarismFlags(labId, items);
     }
 
     public Page<ChallengeStudentRowDTO> getChallengeStudentRoster(UUID labId,
@@ -204,13 +211,14 @@ public class LecturerAnalyticsService {
                     items.add(item);
                 }
             }
+            items = withChallengePlagiarismFlags(labId, items);
         }
 
         return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
     }
 
     public GradeOverviewResponse getGradeOverview(int page, int size, String sort) {
-        int safeSize = size <= 0 ? 5 : Math.min(size, 100);
+        int safeSize = size <= 0 ? 10 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveGradeOverviewSort(sort);
 
@@ -322,6 +330,61 @@ public class LecturerAnalyticsService {
         );
     }
 
+    private List<SubmissionSummaryDTO> withPlagiarismFlags(UUID labId, List<SubmissionSummaryDTO> items) {
+        Set<UUID> ids = new HashSet<>();
+        for (SubmissionSummaryDTO item : items) {
+            if (item.submissionId() != null) {
+                ids.add(item.submissionId());
+            }
+        }
+        Set<UUID> flagged = plagiarismService.flaggedSubmissionIds(labId, ids);
+        if (flagged.isEmpty()) {
+            return items;
+        }
+        List<SubmissionSummaryDTO> marked = new ArrayList<>(items.size());
+        for (SubmissionSummaryDTO item : items) {
+            marked.add(new SubmissionSummaryDTO(
+                    item.studentId(),
+                    item.studentName(),
+                    item.studentCode(),
+                    item.score(),
+                    item.attempt(),
+                    item.submittedAt(),
+                    item.bestSubmission(),
+                    item.submissionId(),
+                    item.hasSubmission(),
+                    item.submissionId() != null && flagged.contains(item.submissionId())));
+        }
+        return marked;
+    }
+
+    private List<ChallengeStudentRowDTO> withChallengePlagiarismFlags(UUID labId, List<ChallengeStudentRowDTO> items) {
+        Set<UUID> ids = new HashSet<>();
+        for (ChallengeStudentRowDTO item : items) {
+            if (item.submissionId() != null) {
+                ids.add(item.submissionId());
+            }
+        }
+        Set<UUID> flagged = plagiarismService.flaggedSubmissionIds(labId, ids);
+        if (flagged.isEmpty()) {
+            return items;
+        }
+        List<ChallengeStudentRowDTO> marked = new ArrayList<>(items.size());
+        for (ChallengeStudentRowDTO item : items) {
+            marked.add(new ChallengeStudentRowDTO(
+                    item.studentId(),
+                    item.studentName(),
+                    item.studentCode(),
+                    item.score(),
+                    item.attempts(),
+                    item.submittedAt(),
+                    item.hasSubmission(),
+                    item.submissionId(),
+                    item.submissionId() != null && flagged.contains(item.submissionId())));
+        }
+        return marked;
+    }
+
     private SubmissionSummaryDTO toLabRosterRow(Object[] row) {
         if (row == null || row.length < 8) {
             return null;
@@ -420,7 +483,7 @@ public class LecturerAnalyticsService {
         String field = parts[0].trim().toLowerCase();
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
-            case "score" -> "p.highest_score";
+            case "score" -> "qb.score";
             case "attempt" -> "latest_sub.attempt_number";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";

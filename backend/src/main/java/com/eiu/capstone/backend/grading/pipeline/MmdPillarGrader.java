@@ -39,6 +39,7 @@ public class MmdPillarGrader {
         boolean mmdSubmitted = content != null && content.length > 0;
         MmdGradingOutcome outcome;
         ParsedMmdDiagram diagram = null;
+        String parseError = null;
         if (!mmdSubmitted) {
             outcome = MmdGradingOutcome.allIncorrect(collectElements(challengeRubric));
         } else {
@@ -46,6 +47,7 @@ public class MmdPillarGrader {
                 diagram = mmdParser.parseBytes(content);
                 outcome = mmdComparisonService.compare(challengeRubric, diagram);
             } catch (MmdParseException ex) {
+                parseError = ex.getMessage();
                 outcome = MmdGradingOutcome.allIncorrect(collectElements(challengeRubric));
             }
         }
@@ -54,7 +56,8 @@ public class MmdPillarGrader {
             boolean present = outcome.isClassPresent(expectedClass.id());
             boolean typeOk = outcome.isClassCorrect(expectedClass.id());
             double classAccuracy = PartialCreditEvaluator.accuracy(List.of(present, typeOk));
-            weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), classAccuracy));
+            weighted.add(new WeightedAccuracy(
+                    MemberWeightCalculator.configuredWeight(expectedClass.weight()), classAccuracy));
 
             for (var field : expectedClass.fields()) {
                 boolean ok = outcome.isFieldCorrect(field.id());
@@ -85,7 +88,8 @@ public class MmdPillarGrader {
                 outcome,
                 diagram,
                 mmdSubmitted,
-                relations);
+                relations,
+                parseError);
     }
 
     private MmdGradingOutcome.ChallengeRubricElements collectElements(ChallengeRubric rubric) {
@@ -119,7 +123,7 @@ public class MmdPillarGrader {
      * invoked, so this returns a zero/empty result rather than a computed-and-discarded score.
      */
     public static MmdPillarResult notApplicable() {
-        return new MmdPillarResult(BigDecimal.ZERO, new MmdGradingOutcome(), null, false, List.of());
+        return new MmdPillarResult(BigDecimal.ZERO, new MmdGradingOutcome(), null, false, List.of(), null);
     }
 
     public record MmdPillarResult(
@@ -127,7 +131,8 @@ public class MmdPillarGrader {
             MmdGradingOutcome outcome,
             ParsedMmdDiagram diagram,
             boolean mmdSubmitted,
-            List<PendingRelationResult> relations) {}
+            List<PendingRelationResult> relations,
+            String parseError) {}
 
     public record PendingRelationResult(java.util.UUID relationId, boolean correct) {}
 }

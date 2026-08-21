@@ -26,6 +26,9 @@ public class Term {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @Column(name = "is_current", nullable = false)
+    private boolean current;
+
     public Term() {}
 
     public UUID getId() { return id; }
@@ -41,4 +44,7 @@ public class Term {
 
     public LocalDate getEndDate() { return endDate; }
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public boolean isCurrent() { return current; }
+    public void setCurrent(boolean current) { this.current = current; }
 }

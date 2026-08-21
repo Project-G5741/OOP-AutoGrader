@@ -4,11 +4,15 @@ import { useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
 
-export default function Header({ onLogout, user, onNavigate, onCommand, hideUserMenu = false }) {
+export default function Header({ onLogout, user, onNavigate, onCommand, hideUserMenu = false, hideHome = false }) {
   const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
 
   const handleLogoClick = () => {
+    if (hideHome) {
+      if (onCommand) onCommand('history');
+      return;
+    }
     if (onCommand) onCommand('home');
     else if (onNavigate) onNavigate('dashboard');
   };
@@ -84,9 +88,11 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
                     </div>
                   </div>
                   <div className="space-y-2 p-3">
+                    {!hideHome && (
                     <button onClick={() => handleMenu('home')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Home className="h-4 w-4" /> Home
                     </button>
+                    )}
                     <button onClick={() => handleMenu('history')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Clock className="h-4 w-4" /> History
                     </button>

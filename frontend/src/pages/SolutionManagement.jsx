@@ -7,6 +7,7 @@ import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDeta
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import { authHeaders } from '../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
+import { formatQualifiedClassName } from '../utils/classNaming';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -14,11 +15,22 @@ const emptyDraft = (lab) => ({
   id: lab.id,
   name: lab.name,
   termId: lab.termId || null,
+  deadlineDate: lab.deadlineDate ?? null,
   challenges: [],
 });
 
 function cloneDraft(data) {
   return JSON.parse(JSON.stringify(data));
+}
+
+function collectNestedDependents(classes, outerClassId, acc = new Set()) {
+  (classes || []).forEach((cls) => {
+    if (cls.outerClassId === outerClassId && !acc.has(cls.id)) {
+      acc.add(cls.id);
+      collectNestedDependents(classes, cls.id, acc);
+    }
+  });
+  return acc;
 }
 
 export default function SolutionManagement() {
@@ -42,6 +54,7 @@ export default function SolutionManagement() {
   const [showCreateLab, setShowCreateLab] = useState(false);
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
+  const [newLabDeadline, setNewLabDeadline] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [challengeTabById, setChallengeTabById] = useState({});
 
@@ -88,6 +101,13 @@ export default function SolutionManagement() {
       ...challenge,
       relations: challenge.relations || [],
       hasMmd: challenge.hasMmd !== false,
+      weight: challenge.weight > 0 ? challenge.weight : 1,
+      classWeight: challenge.classWeight > 0 ? challenge.classWeight : 1,
+      mmdWeight: challenge.mmdWeight > 0 ? challenge.mmdWeight : 1,
+      classes: (challenge.classes || []).map((cls) => ({
+        ...cls,
+        weight: cls.weight > 0 ? cls.weight : 1,
+      })),
     }));
     const snapshot = cloneDraft(structure);
     structureCacheRef.current[labId] = { draft: cloneDraft(nextDraft), snapshot };
@@ -155,6 +175,12 @@ export default function SolutionManagement() {
     return challenge?.classes?.find((cls) => cls.id === selectedClassRef.classId) || null;
   }, [draft, selectedClassRef]);
 
+  const selectedChallengeClasses = useMemo(() => {
+    if (!draft || !selectedClassRef) return [];
+    const challenge = draft.challenges.find((c) => c.id === selectedClassRef.challengeId);
+    return challenge?.classes || [];
+  }, [draft, selectedClassRef]);
+
   const selectedChallenge = useMemo(() => {
     if (!draft || !selectedChallengeId || selectedClassRef) return null;
     return draft.challenges.find((c) => c.id === selectedChallengeId) || null;
@@ -195,26 +221,20 @@ export default function SolutionManagement() {
         throw new Error(await readFriendlyApiError(res, 'save'));
       }
       const saved = await res.json();
-      const nextDraft = cloneDraft(saved);
-      nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
-        ...challenge,
-        relations: challenge.relations || [],
-        hasMmd: challenge.hasMmd !== false,
-      }));
-      const snapshot = cloneDraft(saved);
-      structureCacheRef.current[selectedLabId] = { draft: cloneDraft(nextDraft), snapshot };
-      setDraft(nextDraft);
-      setSavedSnapshot(snapshot);
+      applyStructure(selectedLabId, saved);
+      const savedChallenges = saved.challenges || [];
       if (selectedClassRef) {
-        const challenge = nextDraft.challenges.find((c) => c.id === selectedClassRef.challengeId);
+        const challenge = savedChallenges.find((c) => c.id === selectedClassRef.challengeId);
         const cls = challenge?.classes?.find((c) => c.id === selectedClassRef.classId);
         if (!cls) setSelectedClassRef(null);
       }
       if (selectedChallengeId) {
-        const challenge = nextDraft.challenges.find((c) => c.id === selectedChallengeId);
+        const challenge = savedChallenges.find((c) => c.id === selectedChallengeId);
         if (!challenge) setSelectedChallengeId(null);
       }
-      setLabs((prev) => prev.map((lab) => (lab.id === saved.id ? { ...lab, name: saved.name } : lab)));
+      setLabs((prev) => prev.map((lab) => (
+        lab.id === saved.id ? { ...lab, name: saved.name ?? lab.name } : lab
+      )));
       setToast({ message: 'Lab structure saved.', type: 'success' });
     } catch (e) {
       setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
@@ -226,10 +246,12 @@ export default function SolutionManagement() {
 
   const handleCreateLab = async () => {
     if (!newLabName.trim() || !newLabTermId) return;
+    const body = { name: newLabName.trim(), termId: newLabTermId };
+    if (newLabDeadline) body.deadlineDate = newLabDeadline;
     const res = await fetch(`${API_BASE}/api/lecturer/labs`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ name: newLabName.trim(), termId: newLabTermId }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
     const created = await res.json();
@@ -237,7 +259,29 @@ export default function SolutionManagement() {
     setShowCreateLab(false);
     setNewLabName('');
     setNewLabTermId('');
+    setNewLabDeadline('');
     await selectLab(created.id, true);
+  };
+
+  const handleDeadlineChange = async (deadlineDate) => {
+    if (!selectedLabId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/deadline`, {
+        method: 'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ deadlineDate: deadlineDate || null }),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const updated = await res.json();
+      setDraft((prev) => (prev ? { ...prev, deadlineDate: updated.deadlineDate ?? null } : prev));
+      setSavedSnapshot((prev) => (prev ? { ...prev, deadlineDate: updated.deadlineDate ?? null } : prev));
+      setLabs((prev) => prev.map((lab) => (
+        lab.id === selectedLabId ? { ...lab, deadlineDate: updated.deadlineDate ?? null } : lab
+      )));
+      setToast({ message: 'Lab deadline updated.', type: 'success' });
+    } catch (e) {
+      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    }
   };
 
   const runDelete = async () => {
@@ -262,21 +306,24 @@ export default function SolutionManagement() {
       if (selectedClassRef?.challengeId === challengeId) setSelectedClassRef(null);
       if (selectedChallengeId === challengeId) setSelectedChallengeId(null);
     } else if (type === 'class') {
+      const challenge = draft.challenges.find((c) => c.id === challengeId);
+      const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+      nestedIds.add(classId);
       setDraft({
         ...draft,
         challenges: draft.challenges.map((c) => (
           c.id === challengeId
             ? {
                 ...c,
-                classes: c.classes.filter((cls) => cls.id !== classId),
+                classes: c.classes.filter((cls) => !nestedIds.has(cls.id)),
                 relations: (c.relations || []).filter(
-                  (rel) => rel.sourceClassId !== classId && rel.targetClassId !== classId,
+                  (rel) => !nestedIds.has(rel.sourceClassId) && !nestedIds.has(rel.targetClassId),
                 ),
               }
             : c
         )),
       });
-      if (selectedClassRef?.classId === classId) setSelectedClassRef(null);
+      if (selectedClassRef?.classId && nestedIds.has(selectedClassRef.classId)) setSelectedClassRef(null);
     }
     setConfirmDelete(null);
   };
@@ -296,6 +343,32 @@ export default function SolutionManagement() {
           <h2 className="text-xl font-semibold text-foreground">Solution Management</h2>
           <p className="text-sm text-foreground-secondary">Define lab rubric structure for grading.</p>
         </div>
+
+        {draft && (
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface-secondary px-4 py-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+                Lab deadline
+              </label>
+              <input
+                type="date"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm dark:text-white"
+                value={draft.deadlineDate ?? ''}
+                onChange={(e) => handleDeadlineChange(e.target.value || null)}
+              />
+            </div>
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface"
+              onClick={() => handleDeadlineChange(null)}
+            >
+              Clear deadline
+            </button>
+            <p className="text-xs text-foreground-muted pb-2">
+              End of day 23:59 Vietnam time. Empty = never expires for lecturer views.
+            </p>
+          </div>
+        )}
 
         {error && <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">{error}</div>}
 
@@ -348,6 +421,9 @@ export default function SolutionManagement() {
               classes: [],
               relations: [],
               hasMmd: true,
+              weight: 1,
+              classWeight: 1,
+              mmdWeight: 1,
             };
             setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
             setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
@@ -359,9 +435,11 @@ export default function SolutionManagement() {
               scopeId: scopeOptions[0]?.id,
               declaringTypeId: declaringTypeOptions[0]?.id,
               isAbstract: false,
+              isStatic: false,
               fields: [],
               methods: [],
               constructors: [],
+              weight: 1,
             };
             setDraft({
               ...draft,
@@ -374,13 +452,22 @@ export default function SolutionManagement() {
           }}
           onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
           onDeleteChallenge={(challengeId) => setConfirmDelete({ type: 'challenge', challengeId })}
-          onDeleteClass={(challengeId, classId) => setConfirmDelete({ type: 'class', challengeId, classId })}
+          formatClassLabel={formatQualifiedClassName}
+          onDeleteClass={(challengeId, classId) => {
+            const challenge = draft?.challenges?.find((c) => c.id === challengeId);
+            const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+            const nestedNames = (challenge?.classes || [])
+              .filter((cls) => nestedIds.has(cls.id))
+              .map((cls) => formatQualifiedClassName(cls, challenge?.classes));
+            setConfirmDelete({ type: 'class', challengeId, classId, nestedNames });
+          }}
         />
 
         <div className="min-w-0 flex-1">
           {selectedClass ? (
             <ClassDetailPanel
               classData={selectedClass}
+              challengeClasses={selectedChallengeClasses}
               scopeOptions={scopeOptions}
               declaringTypeOptions={declaringTypeOptions}
               onChange={updateSelectedClass}
@@ -434,13 +521,27 @@ export default function SolutionManagement() {
               <select
                 className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 value={newLabTermId}
-                onChange={(e) => setNewLabTermId(e.target.value)}
+                onChange={(e) => {
+                  const termId = e.target.value;
+                  setNewLabTermId(termId);
+                  const term = terms.find((t) => String(t.id) === String(termId));
+                  setNewLabDeadline(term?.endDate ?? '');
+                }}
               >
                 <option value="">Select term</option>
                 {terms.map((term) => (
                   <option key={term.id} value={term.id}>{term.label}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-foreground-muted">Deadline (optional)</label>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                value={newLabDeadline}
+                onChange={(e) => setNewLabDeadline(e.target.value)}
+              />
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={handleCreateLab} className="rounded-lg bg-primary px-4 py-2 text-sm text-white">Create</button>
@@ -464,6 +565,13 @@ export default function SolutionManagement() {
           <p className="mb-4 text-sm text-foreground-secondary">
             This will remove the selected item from the lab structure
             {confirmDelete.type === 'lab' ? ' and delete all problems, classes, and related grading references after save.' : '.'}
+            {confirmDelete.type === 'class' && confirmDelete.nestedNames?.length > 0 && (
+              <>
+                {' '}Nested classes that will also be removed:
+                {' '}
+                <span className="font-medium text-foreground">{confirmDelete.nestedNames.join(', ')}</span>.
+              </>
+            )}
             {' '}Student submission data may be orphaned. Continue?
           </p>
           <div className="flex gap-2">

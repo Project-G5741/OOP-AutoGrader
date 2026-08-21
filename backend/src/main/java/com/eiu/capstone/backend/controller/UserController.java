@@ -49,17 +49,13 @@ public class UserController {
         this.jwtAuthHelper = jwtAuthHelper;
     }
 
-    private void requireLecturer(String authHeader) {
-        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
-        jwtAuthHelper.requireRole(claims, "LECTURER");
-    }
 
     @GetMapping("getAllUser")
     public ResponseEntity<?> getAllUser(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         if (page != null || size != null) {
             int safePage = page != null ? Math.max(page, 0) : 0;
             int safeSize = size != null && size > 0 ? Math.min(size, 100) : 50;
@@ -74,7 +70,7 @@ public class UserController {
     public ResponseEntity<UserAccount> getUser(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID id) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         UserAccount user = userService.getUser(id);
         return ResponseEntity.ok(user);
     }
@@ -83,7 +79,7 @@ public class UserController {
     public ResponseEntity<UserAccount> addUser(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody CreateUserRequest request) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         UserAccount created = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -92,7 +88,7 @@ public class UserController {
     public ResponseEntity<List<BulkCreateResult>> addUsers(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody List<CreateUserRequest> requests) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         List<BulkCreateResult> results = userService.createUser(requests);
         return ResponseEntity.status(HttpStatus.CREATED).body(results);
     }
@@ -101,9 +97,25 @@ public class UserController {
     public ResponseEntity<UserAccount> deleteUser(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID id) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         UserAccount user = userService.deleteUser(id);
         return ResponseEntity.ok(user);
+    }
+
+    @PostMapping("/{id}/suspend")
+    public ResponseEntity<UserDTO.UserResponse> suspendStudent(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID id) {
+        jwtAuthHelper.requireLecturer(authHeader);
+        return ResponseEntity.ok(userService.suspendStudent(id));
+    }
+
+    @PostMapping("/{id}/unsuspend")
+    public ResponseEntity<UserDTO.UserResponse> restoreStudent(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID id) {
+        jwtAuthHelper.requireLecturer(authHeader);
+        return ResponseEntity.ok(userService.restoreStudent(id));
     }
 
     @PutMapping("/{id}")
@@ -111,7 +123,7 @@ public class UserController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable("id") UUID id,
             @Valid @RequestBody UserDTO.UpdateUserRequest request) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         UserDTO.UserResponse updated = userService.updateUser(id, request);
         return ResponseEntity.ok(updated);
     }

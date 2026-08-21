@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.grading;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -24,11 +25,10 @@ public class MmdComparisonService {
         }
 
         MmdGradingOutcome outcome = new MmdGradingOutcome();
-        Map<String, ParsedMmdClass> parsedByName = diagram.classes.stream()
-                .collect(Collectors.toMap(c -> c.name, c -> c, (a, b) -> a));
+        Map<String, ParsedMmdClass> classIndex = classIndex(diagram);
 
         for (ClassRubric expectedClass : rubric.classes()) {
-            ParsedMmdClass parsed = parsedByName.get(expectedClass.name());
+            ParsedMmdClass parsed = resolveClass(classIndex, expectedClass.name());
             outcome.setClassPresent(expectedClass.id(), parsed != null);
             outcome.setClass(expectedClass.id(), parsed != null && classTypeMatches(expectedClass, parsed));
 
@@ -82,11 +82,35 @@ public class MmdComparisonService {
 
         for (RelationRubric expectedRelation : rubric.relations()) {
             boolean correct = diagram.relations.stream().anyMatch(parsed ->
-                    relationMatches(expectedRelation, parsed));
+                    relationMatches(expectedRelation, parsed, classIndex));
             outcome.setRelation(expectedRelation.id(), correct);
         }
 
         return outcome;
+    }
+
+    private Map<String, ParsedMmdClass> classIndex(ParsedMmdDiagram diagram) {
+        if (diagram.classByName != null && !diagram.classByName.isEmpty()) {
+            return diagram.classByName;
+        }
+        return diagram.classes.stream()
+                .collect(Collectors.toMap(c -> c.name, c -> c, (a, b) -> a, LinkedHashMap::new));
+    }
+
+    private ParsedMmdClass resolveClass(Map<String, ParsedMmdClass> classIndex, String name) {
+        if (name == null) {
+            return null;
+        }
+        String trimmed = name.trim();
+        ParsedMmdClass direct = classIndex.get(trimmed);
+        if (direct != null) {
+            return direct;
+        }
+        int dot = trimmed.lastIndexOf('.');
+        if (dot >= 0) {
+            return classIndex.get(trimmed.substring(dot + 1));
+        }
+        return null;
     }
 
     private MmdGradingOutcome.ChallengeRubricElements collectElementIds(ChallengeRubric rubric) {
@@ -100,14 +124,22 @@ public class MmdComparisonService {
 
     private boolean classTypeMatches(ClassRubric expected, ParsedMmdClass parsed) {
         String expectedType = normalizeDeclaringType(expected.declaringType());
-        String actualType = parsed.stereotypeType == null ? "CLASS" : parsed.stereotypeType.toUpperCase(Locale.ROOT);
-        if ("ENUMERATE".equals(actualType)) {
-            actualType = "ENUM";
-        }
-        if ("ABSTRACT".equals(actualType)) {
-            actualType = "CLASS";
-        }
+        String actualType = normalizeMmdStereotypeType(parsed.stereotypeType);
         return expectedType.equals(actualType);
+    }
+
+    private static String normalizeMmdStereotypeType(String stereotypeType) {
+        if (stereotypeType == null || stereotypeType.isBlank()) {
+            return "CLASS";
+        }
+        String upper = stereotypeType.trim().toUpperCase(Locale.ROOT);
+        if ("ENUM".equals(upper) || "ENUMERATE".equals(upper) || "ENUMERATION".equals(upper)) {
+            return "ENUM";
+        }
+        if ("ABSTRACT".equals(upper)) {
+            return "CLASS";
+        }
+        return upper;
     }
 
     private String normalizeDeclaringType(String declaringType) {
@@ -141,27 +173,41 @@ public class MmdComparisonService {
         if (diagram == null) {
             return false;
         }
+        Map<String, ParsedMmdClass> classIndex = classIndex(diagram);
         return diagram.relations.stream().anyMatch(parsed ->
-                classesConnected(parsed, expected.sourceClassName(), expected.targetClassName()));
+                classesConnected(parsed, expected.sourceClassName(), expected.targetClassName(), classIndex));
     }
 
-    private boolean classesConnected(ParsedMmdRelation parsed, String source, String target) {
-        return (namesEqual(parsed.sourceClassName, source) && namesEqual(parsed.targetClassName, target))
-                || (namesEqual(parsed.sourceClassName, target) && namesEqual(parsed.targetClassName, source));
+    private boolean classesConnected(
+            ParsedMmdRelation parsed, String source, String target, Map<String, ParsedMmdClass> classIndex) {
+        return (classNamesMatch(parsed.sourceClassName, source, classIndex)
+                && classNamesMatch(parsed.targetClassName, target, classIndex))
+                || (classNamesMatch(parsed.sourceClassName, target, classIndex)
+                && classNamesMatch(parsed.targetClassName, source, classIndex));
     }
 
-    private boolean relationMatches(RelationRubric expected, ParsedMmdRelation parsed) {
+    private boolean relationMatches(
+            RelationRubric expected, ParsedMmdRelation parsed, Map<String, ParsedMmdClass> classIndex) {
         if (!relationTypesMatch(expected.relationTypeName(), parsed.relationType)) {
             return false;
         }
-        boolean forward = namesEqual(expected.sourceClassName(), parsed.sourceClassName)
-                && namesEqual(expected.targetClassName(), parsed.targetClassName);
-        if (forward) return true;
-        if ("link".equals(parsed.relationType)) {
-            return namesEqual(expected.sourceClassName(), parsed.targetClassName)
-                    && namesEqual(expected.targetClassName(), parsed.sourceClassName);
+        boolean forward = classNamesMatch(expected.sourceClassName(), parsed.sourceClassName, classIndex)
+                && classNamesMatch(expected.targetClassName(), parsed.targetClassName, classIndex);
+        if (forward) {
+            return true;
+        }
+        if (isUndirectedRelationType(parsed.relationType)) {
+            return classNamesMatch(expected.sourceClassName(), parsed.targetClassName, classIndex)
+                    && classNamesMatch(expected.targetClassName(), parsed.sourceClassName, classIndex);
         }
         return false;
+    }
+
+    private static boolean isUndirectedRelationType(String relationType) {
+        return "link".equals(relationType)
+                || "dashed_link".equals(relationType)
+                || "bidirectional_association".equals(relationType)
+                || "bidirectional_inheritance".equals(relationType);
     }
 
     private boolean relationTypesMatch(String expectedName, String parsedCanonical) {
@@ -172,6 +218,15 @@ public class MmdComparisonService {
     public static String normalizeRelationTypeName(String name) {
         if (name == null) return "";
         String lower = name.trim().toLowerCase(Locale.ROOT);
+        if (lower.contains("bidirectional") && lower.contains("inherit")) {
+            return "bidirectional_inheritance";
+        }
+        if (lower.contains("bidirectional")) {
+            return "bidirectional_association";
+        }
+        if (lower.contains("dashed")) {
+            return "dashed_link";
+        }
         if (lower.contains("general") || lower.contains("inherit") || lower.contains("extend")) return "inheritance";
         if (lower.contains("compos")) return "composition";
         if (lower.contains("aggreg")) return "aggregation";
@@ -181,6 +236,15 @@ public class MmdComparisonService {
         if (lower.contains("realiz") || lower.contains("implement")) return "realization";
         if (lower.contains("link")) return "link";
         return lower.replace(' ', '_');
+    }
+
+    /** Preferred UI label for canonical relation types (realization → implementation). */
+    public static String displayRelationTypeName(String name) {
+        String canonical = normalizeRelationTypeName(name);
+        if ("realization".equals(canonical)) {
+            return "implementation";
+        }
+        return canonical;
     }
 
     private boolean isGetter(MethodRubric method) {
@@ -229,8 +293,24 @@ public class MmdComparisonService {
         return expected.trim().equalsIgnoreCase(actual.trim());
     }
 
-    private boolean namesEqual(String a, String b) {
-        if (a == null || b == null) return false;
-        return a.trim().equals(b.trim());
+    private boolean classNamesMatch(String left, String right, Map<String, ParsedMmdClass> classIndex) {
+        if (left == null || right == null) {
+            return false;
+        }
+        if (left.trim().equals(right.trim())) {
+            return true;
+        }
+        ParsedMmdClass leftClass = resolveClass(classIndex, left);
+        ParsedMmdClass rightClass = resolveClass(classIndex, right);
+        if (leftClass != null && rightClass != null) {
+            return leftClass == rightClass;
+        }
+        return simpleName(left).equals(simpleName(right));
+    }
+
+    private static String simpleName(String name) {
+        String trimmed = name.trim();
+        int dot = trimmed.lastIndexOf('.');
+        return dot >= 0 ? trimmed.substring(dot + 1) : trimmed;
     }
 }
