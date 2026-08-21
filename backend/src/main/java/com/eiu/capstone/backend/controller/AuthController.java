@@ -18,10 +18,12 @@ import com.eiu.capstone.backend.model.ForgotPasswordRequest;
 import com.eiu.capstone.backend.model.GoogleLoginUpsertRequest;
 import com.eiu.capstone.backend.model.LoginRequest;
 import com.eiu.capstone.backend.model.ResetPasswordRequest;
+import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.GoogleTokenVerifier;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.PasswordResetService;
+import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.UserService;
 
 import jakarta.validation.Valid;
@@ -35,15 +37,18 @@ public class AuthController {
     private final UserAccountRepository userAccountRepository;
     private final UserService userService;
     private final PasswordResetService passwordResetService;
+    private final StudentTermAccessService studentTermAccessService;
 
     public AuthController(GoogleTokenVerifier googleTokenVerifier, JwtService jwtService,
             UserAccountRepository userAccountRepository, UserService userService,
-            PasswordResetService passwordResetService) {
+            PasswordResetService passwordResetService,
+            StudentTermAccessService studentTermAccessService) {
         this.googleTokenVerifier = googleTokenVerifier;
         this.jwtService = jwtService;
         this.userAccountRepository = userAccountRepository;
         this.userService = userService;
         this.passwordResetService = passwordResetService;
+        this.studentTermAccessService = studentTermAccessService;
     }
 
     @PostMapping("/google")
@@ -53,15 +58,12 @@ public class AuthController {
         var userAccount = userAccountRepository.findByEmail(tokenInfo.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "Account not registered in the system"));
+        requireActiveAccount(userAccount);
 
-        List<String> roleNames = userAccount.getRoles().stream()
-                .map(role -> role.getName().toUpperCase())
-                .toList();
+        List<String> roleNames = roleNamesFrom(userAccount);
 
         var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
-        var response = new AuthResponse(jwt, userAccount.getId(), tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(),
-                roleNames, userAccount.getIrn(), userAccount.getStudentCode(), userAccount.getTeacherCode());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toAuthResponse(jwt, userAccount, tokenInfo.getDomain(), roleNames));
     }
 
     @PostMapping("/google/upsert")
@@ -75,29 +77,21 @@ public class AuthController {
                 request.password(),
                 request.role());
 
-        List<String> roleNames = userAccount.getRoles().stream()
-                .map(role -> role.getName().toUpperCase())
-                .toList();
+        List<String> roleNames = roleNamesFrom(userAccount);
 
         var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
-        var response = new AuthResponse(jwt, userAccount.getId(), tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(),
-                roleNames, userAccount.getIrn(), userAccount.getStudentCode(), userAccount.getTeacherCode());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toAuthResponse(jwt, userAccount, tokenInfo.getDomain(), roleNames));
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> authenticateWithIrnPassword(@Valid @RequestBody LoginRequest request) {
         try {
             var userAccount = userService.authenticateByIrn(request.irn(), request.password());
-            List<String> roleNames = userAccount.getRoles().stream()
-                    .map(role -> role.getName().toUpperCase())
-                    .toList();
+            List<String> roleNames = roleNamesFrom(userAccount);
 
             var jwt = jwtService.createToken(userAccount.getEmail(), userAccount.getFullName(), "local", roleNames,
                     userAccount.getIrn());
-            return ResponseEntity
-                    .ok(new AuthResponse(jwt, userAccount.getId(), userAccount.getEmail(), userAccount.getFullName(), "local", roleNames,
-                            userAccount.getIrn(), userAccount.getStudentCode(), userAccount.getTeacherCode()));
+            return ResponseEntity.ok(toAuthResponse(jwt, userAccount, "local", roleNames));
         } catch (BadCredentialsException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ex.getMessage());
         }
@@ -116,5 +110,32 @@ public class AuthController {
         passwordResetService.completeReset(
                 request.token(), request.newPassword(), request.confirmPassword());
         return ResponseEntity.ok().build();
+    }
+
+    private void requireActiveAccount(UserAccount userAccount) {
+        if (userAccount == null || !userAccount.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.LOCKED, "This account is inactive");
+        }
+    }
+
+    private List<String> roleNamesFrom(UserAccount userAccount) {
+        return userAccount.getRoles().stream()
+                .map(role -> role.getName().toUpperCase())
+                .toList();
+    }
+
+    private AuthResponse toAuthResponse(String jwt, UserAccount userAccount, String domain, List<String> roleNames) {
+        boolean inCurrentTerm = studentTermAccessService.isInCurrentTerm(userAccount);
+        return new AuthResponse(
+                jwt,
+                userAccount.getId(),
+                userAccount.getEmail(),
+                userAccount.getFullName(),
+                domain,
+                roleNames,
+                userAccount.getIrn(),
+                userAccount.getStudentCode(),
+                userAccount.getTeacherCode(),
+                inCurrentTerm);
     }
 }

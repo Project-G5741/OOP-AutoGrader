@@ -1,6 +1,5 @@
 package com.eiu.capstone.backend.controller;
 
-import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,29 +7,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
-import com.eiu.capstone.backend.model.Term;
-import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.service.TermService;
 
 @RestController
 @RequestMapping("/api/terms")
 public class TermController {
 
-    private final TermRepository termRepository;
+    private final TermService termService;
 
-    public TermController(TermRepository termRepository) {
-        this.termRepository = termRepository;
+    public TermController(TermService termService) {
+        this.termService = termService;
     }
 
     @GetMapping
     public List<TermSummaryDTO> listTerms() {
-        return termRepository.findAllWithAcademicYear().stream()
-                .sorted(Comparator
-                        .comparing((Term t) -> t.getAcademicYear().getYearLabel()).reversed()
-                        .thenComparing(Term::getTermNumber))
-                .map(term -> new TermSummaryDTO(
-                        term.getId(),
-                        term.getAcademicYear().getYearLabel() + " — Term " + term.getTermNumber(),
-                        term.getEndDate()))
-                .toList();
+        return termService.listTerms();
     }
 }

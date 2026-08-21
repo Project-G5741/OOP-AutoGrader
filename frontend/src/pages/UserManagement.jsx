@@ -44,6 +44,7 @@ const normalizeUser = (user) => {
     studentCode: user.studentCode || '',
     teacherCode: user.teacherCode || '',
     fullname: user.fullName || user.fullname || '',
+    isActive: readIsActive(user),
     role: uniqueRoles[0] || '',
     roles: uniqueRoles.map((name) => ({ name })),
     roleNames: uniqueRoles,
@@ -53,6 +54,13 @@ const normalizeUser = (user) => {
 };
 
 const PAGE_SIZE = 10;
+
+function readIsActive(user) {
+  if (typeof user?.isActive === 'boolean') return user.isActive;
+  if (typeof user?.active === 'boolean') return user.active;
+  if (typeof user?.is_active === 'boolean') return user.is_active;
+  return true;
+}
 
 export default function UserManagement({ hideNav = false, user, onLogout, noShell = false }) {
   const { isDark } = useTheme();
@@ -69,6 +77,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const userSortAccessor = (user, field) => {
     if (field === 'role') {
       return user.roleNames?.[0] || user.role || '';
+    }
+    if (field === 'status') {
+      return user.isActive === false ? 'suspended' : 'active';
     }
     return user[field] ?? '';
   };
@@ -134,6 +145,11 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const openDelete = (item) => {
     setSelected(item);
     setModal('delete');
+  };
+
+  const openSuspend = (item) => {
+    setSelected(item);
+    setModal(item.isActive === false ? 'restore' : 'suspend');
   };
 
   const handleRoleToggle = (roleName) => {
@@ -263,6 +279,34 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     }
   };
 
+  const handleSuspendToggle = async () => {
+    if (!selected) return;
+    const suspending = modal === 'suspend';
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+      const path = suspending ? 'suspend' : 'unsuspend';
+      const resp = await fetch(`${API_BASE}/api/users/${selected.id}/${path}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error('You are not authorized to suspend students.');
+      }
+      if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'save'));
+      const updated = await resp.json();
+      setUsers((prev) => prev.map((item) => (
+        item.id === selected.id
+          ? { ...item, isActive: readIsActive(updated) }
+          : item
+      )));
+    } catch (error) {
+      console.error('Failed to update student access', error);
+      alert(toFriendlyError(error, 'save'));
+    } finally {
+      setModal(null);
+    }
+  };
+
   const handleDelete = async () => {
     if (!selected) return;
     try {
@@ -313,6 +357,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         loading={loading}
         onEdit={openEdit}
         onDelete={openDelete}
+        onSuspend={openSuspend}
         roleColors={ROLE_COLORS}
       />
     </main>
@@ -342,6 +387,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         }}
         onSave={handleSave}
         onDelete={handleDelete}
+        onSuspendToggle={handleSuspendToggle}
         onFieldChange={handleFieldChange}
         onRoleToggle={handleRoleToggle}
       />

@@ -1,9 +1,10 @@
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, Moon, Sun } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'grading', label: 'Grading', icon: ClipboardList },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'terms', label: 'Terms', icon: CalendarDays },
   { id: 'projects', label: 'Solution', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];

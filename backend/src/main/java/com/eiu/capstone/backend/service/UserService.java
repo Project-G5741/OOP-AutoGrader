@@ -163,6 +163,9 @@ public class UserService {
 
         UserAccount user = existingByEmail.orElseGet(() -> existingByIrn.orElseGet(UserAccount::new));
         boolean isNewUser = user.getId() == null;
+        if (!isNewUser && !user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        }
 
         user.setEmail(email);
         user.setFullName(fullName);
@@ -201,6 +204,9 @@ public class UserService {
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid IRN or password");
         }
+        if (!user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        }
 
         return user;
     }
@@ -213,6 +219,39 @@ public class UserService {
         UserAccount user = userRepository.getReferenceById(id);
         user.setIsActive(false);
         return userRepository.save(user);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse suspendStudent(UUID id) {
+        return setStudentActive(id, false);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse restoreStudent(UUID id) {
+        return setStudentActive(id, true);
+    }
+
+    private UserDTO.UserResponse setStudentActive(UUID id, boolean active) {
+        UserAccount user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (!hasRole(user, "STUDENT")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only students can be suspended");
+        }
+        if (hasRole(user, "LECTURER")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend a lecturer account");
+        }
+        user.setIsActive(active);
+        return UserDTO.UserResponse.fromEntity(userRepository.save(user));
+    }
+
+    private boolean hasRole(UserAccount user, String roleName) {
+        if (user.getRoles() == null) {
+            return false;
+        }
+        String required = normalizeRoleName(roleName);
+        return user.getRoles().stream()
+                .map(role -> normalizeRoleName(role.getName()))
+                .anyMatch(required::equals);
     }
 
     @Transactional

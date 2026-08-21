@@ -43,6 +43,7 @@ import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
+import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
@@ -77,6 +78,7 @@ public class SubmissionController {
     private final LabStatisticsCache labStatisticsCache;
     private final LecturerOverviewCache lecturerOverviewCache;
     private final PlagiarismService plagiarismService;
+    private final StudentTermAccessService studentTermAccessService;
     private final boolean timingLog;
 
     public SubmissionController(JwtService jwtService,
@@ -95,6 +97,7 @@ public class SubmissionController {
                                  LabStatisticsCache labStatisticsCache,
                                  LecturerOverviewCache lecturerOverviewCache,
                                  PlagiarismService plagiarismService,
+                                 StudentTermAccessService studentTermAccessService,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtService = jwtService;
         this.submissionStorageService = submissionStorageService;
@@ -112,6 +115,7 @@ public class SubmissionController {
         this.labStatisticsCache = labStatisticsCache;
         this.lecturerOverviewCache = lecturerOverviewCache;
         this.plagiarismService = plagiarismService;
+        this.studentTermAccessService = studentTermAccessService;
         this.timingLog = timingLog;
     }
 
@@ -147,8 +151,9 @@ public class SubmissionController {
         UserAccount userAccount = resolveStudentUser(authHeader);
         String irn = parseAuthHeader(authHeader).get("irn", String.class);
 
-        Lab lab = labRepository.findById(labId)
+        Lab lab = labRepository.findByIdWithTerm(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        studentTermAccessService.requireCanSubmit(userAccount, lab);
 
         String requestId = UUID.randomUUID().toString();
         Path submissionFolderToDelete = null;

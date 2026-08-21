@@ -134,6 +134,28 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void completeReset_inactiveUser_throwsNotFound() {
+        String rawToken = PasswordResetService.generateRawToken();
+        String tokenHash = PasswordResetService.hashToken(rawToken);
+
+        when(activeUser.getIsActive()).thenReturn(false);
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUser(activeUser);
+        resetToken.setTokenHash(tokenHash);
+        resetToken.setExpiresAt(OffsetDateTime.now().plusMinutes(10));
+        resetToken.setCreatedAt(OffsetDateTime.now());
+
+        when(tokenRepository.findByTokenHashAndUsedAtIsNull(tokenHash)).thenReturn(Optional.of(resetToken));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> passwordResetService.completeReset(rawToken, "newpass", "newpass"));
+
+        assertEquals(404, ex.getStatusCode().value());
+        verify(userRepository, never()).save(any());
+        verify(activeUser, never()).setPasswordHash(any());
+    }
+
+    @Test
     void completeReset_validToken_updatesPasswordAndMarksUsed() {
         String rawToken = PasswordResetService.generateRawToken();
         String tokenHash = PasswordResetService.hashToken(rawToken);

@@ -17,6 +17,7 @@ import { exportGradeOverview, exportRosterRows } from '../components/lecturer/ex
 import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
+import TermManagement from './TermManagement';
 import { formatNumber, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
@@ -24,6 +25,7 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiErro
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
+const GRADE_OVERVIEW_PAGE_SIZE = 10;
 const GRADE_OVERVIEW_EXPORT_PAGE_SIZE = 100;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,
@@ -140,7 +142,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [gradeOverviewPagination, setGradeOverviewPagination] = useState({
     total: 0,
     page: 0,
-    size: ROSTER_PAGE_SIZE,
+    size: GRADE_OVERVIEW_PAGE_SIZE,
     totalPages: 0,
   });
   const [loadingGradeOverview, setLoadingGradeOverview] = useState(false);
@@ -347,7 +349,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setGradeOverviewError(null);
     try {
       const response = await fetch(
-        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
+        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() },
       );
       if (!response.ok) {
@@ -364,7 +366,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       setGradeOverviewPagination({
         total: data.totalElements ?? 0,
         page: data.page ?? 0,
-        size: data.size ?? ROSTER_PAGE_SIZE,
+        size: data.size ?? GRADE_OVERVIEW_PAGE_SIZE,
         totalPages: data.totalPages ?? 0,
       });
     } catch (err) {
@@ -923,6 +925,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <UserManagement hideNav noShell user={user} onLogout={onLogout} />
           </div>
+        ) : activeNav === 'terms' ? (
+          <TermManagement />
         ) : activeNav === 'projects' ? (
           <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
             <SolutionManagement />

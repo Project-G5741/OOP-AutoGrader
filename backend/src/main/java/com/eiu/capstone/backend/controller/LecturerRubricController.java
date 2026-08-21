@@ -28,8 +28,6 @@ import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseDryRunService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
-import io.jsonwebtoken.Claims;
-
 @RestController
 @RequestMapping("/api/lecturer/labs")
 public class LecturerRubricController {
@@ -49,16 +47,11 @@ public class LecturerRubricController {
         this.jwtAuthHelper = jwtAuthHelper;
     }
 
-    private void requireLecturer(String authHeader) {
-        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
-        jwtAuthHelper.requireRole(claims, "LECTURER");
-    }
-
     @GetMapping("/{labId}/structure")
     public LabStructureResponse getStructure(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return labStructureService.loadForEditor(labId);
     }
 
@@ -67,7 +60,7 @@ public class LecturerRubricController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @RequestBody LabStructureResponse payload) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return labStructureService.saveLabStructure(labId, payload);
     }
 
@@ -75,7 +68,7 @@ public class LecturerRubricController {
     public ResponseEntity<LabStructureResponse> createLab(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody CreateLabRequest request) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         LabStructureResponse created = labStructureService.createLab(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -85,7 +78,7 @@ public class LecturerRubricController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @RequestBody UpdateLabDeadlineRequest request) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return labStructureService.updateLabDeadline(labId, request);
     }
 
@@ -93,7 +86,7 @@ public class LecturerRubricController {
     public ResponseEntity<Void> deleteLab(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         labStructureService.deleteLabCascade(labId);
         return ResponseEntity.noContent().build();
     }
@@ -103,7 +96,7 @@ public class LecturerRubricController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseRubricService.loadForChallenge(labId, challengeId);
     }
 
@@ -113,7 +106,7 @@ public class LecturerRubricController {
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestBody List<TestcaseStructureDTO> testcases) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseRubricService.saveForChallenge(labId, challengeId, testcases);
     }
 
@@ -123,7 +116,7 @@ public class LecturerRubricController {
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestBody TestcaseDryRunRequest request) {
-        requireLecturer(authHeader);
+        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseDryRunService.dryRun(labId, challengeId, request);
     }
 }

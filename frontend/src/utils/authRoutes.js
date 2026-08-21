@@ -5,6 +5,7 @@ export const ROUTES = {
   lecturerUsers: '/lecturer-users',
   lecturerSolution: '/lecturer-solution',
   lecturerReport: '/lecturer-report',
+  lecturerTerms: '/lecturer-terms',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
 };
@@ -39,9 +40,15 @@ export function hasAnyRole(userRoles, requiredRoles) {
   return requiredRoles.some((role) => hasRole(userRoles, role));
 }
 
-export function defaultDashboardPath(roles = []) {
+export function isInCurrentTerm(value) {
+  return value !== false;
+}
+
+export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
   if (hasRole(roles, 'LECTURER')) return ROUTES.lecturerDashboard;
-  if (hasRole(roles, 'STUDENT')) return ROUTES.studentDashboard;
+  if (hasRole(roles, 'STUDENT')) {
+    return isInCurrentTerm(inCurrentTerm) ? ROUTES.studentDashboard : ROUTES.studentHistory;
+  }
   return ROUTES.login;
 }
 
@@ -59,12 +66,25 @@ export function readStoredUser() {
   }
 }
 
+export function patchStoredUser(partial) {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem('user') || 'null');
+    if (!stored || typeof stored !== 'object') return;
+    const next = { ...stored, ...partial };
+    if (JSON.stringify(stored) === JSON.stringify(next)) return;
+    sessionStorage.setItem('user', JSON.stringify(next));
+  } catch {
+    // keep in-memory session
+  }
+}
+
 export const LECTURER_NAV_TO_ROUTE = {
   dashboard: ROUTES.lecturerDashboard,
   grading: ROUTES.lecturerGrading,
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,
   reports: ROUTES.lecturerReport,
+  terms: ROUTES.lecturerTerms,
 };
 
 export const LECTURER_ROUTE_TO_NAV = Object.fromEntries(

@@ -9,14 +9,18 @@ export const FRIENDLY = {
   UPLOAD_FAILED: 'Upload failed. Please try again.',
 };
 
+const ACCOUNT_INACTIVE = 'This account is inactive.';
+
 const AUTH_ERROR_MESSAGES = {
   login: {
     401: FRIENDLY.LOGIN_WRONG,
+    403: ACCOUNT_INACTIVE,
     default: FRIENDLY.SOMETHING_WRONG,
   },
   google: {
     401: 'Unable to sign in with Google. Please try again.',
     403: 'Unable to sign in with Google. Please try again.',
+    423: ACCOUNT_INACTIVE,
     default: 'Unable to sign in with Google. Please try again.',
   },
   setup: {
@@ -47,6 +51,8 @@ const CLIENT_VALIDATION_PREFIXES = [
   'Google login did not receive',
   'Google login failed',
   'You are not authorized',
+  'Could not find Student ID',
+  'Not matched:',
 ];
 
 function collectFriendlyMessages() {

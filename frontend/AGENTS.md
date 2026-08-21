@@ -39,6 +39,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 - No `AuthContext` — auth state lives in `App.jsx` `useState` + `sessionStorage`
 - Keys: `accessToken`, `user` (JSON with `roles` array)
+- `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
 - Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
@@ -68,6 +69,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, Excel import by IRN + email; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
