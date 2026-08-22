@@ -6,6 +6,9 @@ import App from './App.jsx'
 import './index.css'
 
 import { ThemeProvider } from './context/ThemeContext.jsx'
+import { applyBrandFavicon } from './theme/applyBrandFavicon.js'
+
+applyBrandFavicon()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

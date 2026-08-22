@@ -54,7 +54,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 ### Theme
 
 - **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — primary, secondary, success, error, warning, surfaces, chart, etc.)
-- **Edit logo and app naming in one file:** `src/theme/brand.js` — icon (`GraduationCap` by default) or custom image import; consumed via `AppLogo` (`src/components/ui/AppLogo.jsx`)
+- **Edit logo and app naming in one file:** `src/theme/brand.js` — in-app logo is always the graduation cap (`AppLogo`); tab favicon comes from any image in `public/brand/` (`.png`, `.svg`, `.webp`, …) via `npm run theme:sync`
 - After editing tokens, run `npm run theme:sync` (also runs automatically before `dev` / `build`) to regenerate `src/theme/tokens.generated.css`
 - Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
