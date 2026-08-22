@@ -2,24 +2,29 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * BRAND CONFIG — edit this file ONLY to change logo and app naming.
  *
- * Logo icon: change `icon` to any lucide-react component.
- * Logo image: import a file and set `image` — it overrides the icon everywhere.
- *   Example:
- *     import logoImage from '../assets/brand/logo.png';
- *     logo: { image: logoImage, icon: GraduationCap, alt: 'OOP AutoGrader' }
+ * Browser tab icon (favicon):
+ *   Drop any image into frontend/public/brand/
+ *   Supported: .png .svg .webp .ico .jpg .jpeg .gif .avif
+ *   Any filename works. Optional: name it logo.<ext> to take priority.
+ *   Run dev/build (or npm run theme:sync) to pick up new files.
+ *
+ * In-app logo (login, header): always the graduation cap icon below.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import { GraduationCap } from 'lucide-react';
-
-// import logoImage from '../assets/brand/logo.png';
+import { brandAssets } from './brand.assets.generated.js';
 
 export const brand = {
   appName: 'OOP AutoGrader',
   loginTitle: 'Lab Management System',
 
+  favicon: {
+    url: brandAssets.favicon?.url ?? null,
+    type: brandAssets.favicon?.type ?? null,
+  },
+
   logo: {
-    image: null, // logoImage — set to a Vite import to use a custom picture
     icon: GraduationCap,
     alt: 'OOP AutoGrader',
   },
