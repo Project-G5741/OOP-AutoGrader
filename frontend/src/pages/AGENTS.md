@@ -116,7 +116,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Student lab sidebar list populated from API; click selects the lab for upload/results
 - Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN + email (drag/drop or click); suspend/restore student-only accounts from the roster
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in
-- Active student not in the current term lands on History with Home hidden
+- Active student not in the current term lands on History with Home hidden; History shows the out-of-term warning banner above **Submission History**
 
 ## Child DOX Index
 

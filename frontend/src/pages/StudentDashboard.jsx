@@ -705,6 +705,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               user={user}
               onLogout={onLogout}
               onNavigate={() => navigate(ROUTES.studentDashboard)}
+              inCurrentTerm={inCurrentTerm}
             />
           ) : (
             <StudentUI
