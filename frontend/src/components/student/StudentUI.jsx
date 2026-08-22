@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   CheckCircle2,
   XCircle,
+  MinusCircle,
   Lock,
   ChevronDown,
   ChevronUp,
@@ -29,8 +30,37 @@ function formatIoDisplay(value) {
 }
 
 // Component con dùng chung
-function Tick({ ok }) {
-  return ok ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" /> : <XCircle className="w-4 h-4 text-error flex-shrink-0" />;
+function Tick({ ok, partial }) {
+  if (partial) {
+    return <MinusCircle className="w-4 h-4 shrink-0 text-warning" />;
+  }
+  return ok
+    ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+    : <XCircle className="w-4 h-4 text-error flex-shrink-0" />;
+}
+
+function ClassStatusIcon({ status }) {
+  if (status === 'success') {
+    return <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />;
+  }
+  if (status === 'warning') {
+    return <MinusCircle className="h-5 w-5 shrink-0 text-warning" />;
+  }
+  if (status === 'error') {
+    return <XCircle className="h-5 w-5 shrink-0 text-error" />;
+  }
+  return null;
+}
+
+function classGradeCounts(cls) {
+  const fields = cls.fields ?? [];
+  const constructors = cls.constructors ?? [];
+  const methods = cls.methods ?? [];
+  const allItems = [...fields, ...constructors, ...methods];
+  const passCount = allItems.filter((item) => item.ok).length;
+  const total = allItems.length;
+  const pct = total ? Math.round((passCount / total) * 100) : 100;
+  return { passCount, total, pct };
 }
 
 function StatusBadge({ status }) {
@@ -226,21 +256,11 @@ export default function StudentUI({
   });
 
   const classScore = bundleScore(currentBundle, 'class', {
-    ok: classData.reduce((sum, cls) => {
-      const fieldsOk = cls.fields?.filter((f) => f.ok).length || 0;
-      const ctorsOk = cls.constructors?.filter((c) => c.ok).length || 0;
-      const methodsOk = cls.methods?.filter((m) => m.ok).length || 0;
-      return sum + fieldsOk + ctorsOk + methodsOk;
-    }, 0),
-    total: classData.reduce((sum, cls) => {
-      const fieldCount = cls.fields?.length || 0;
-      const ctorCount = cls.constructors?.length || 0;
-      const methodCount = cls.methods?.length || 0;
-      return sum + fieldCount + ctorCount + methodCount;
-    }, 0),
+    ok: classData.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0),
+    total: classData.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0),
     pct: (() => {
-      const total = classData.reduce((sum, cls) => sum + (cls.fields?.length || 0) + (cls.constructors?.length || 0) + (cls.methods?.length || 0), 0);
-      const ok = classData.reduce((sum, cls) => sum + (cls.fields?.filter((f) => f.ok).length || 0) + (cls.constructors?.filter((c) => c.ok).length || 0) + (cls.methods?.filter((m) => m.ok).length || 0), 0);
+      const total = classData.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0);
+      const ok = classData.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0);
       return total ? Math.round((ok / total) * 100) : 0;
     })(),
   });
@@ -543,9 +563,7 @@ export default function StudentUI({
                         const constructors = cls.constructors ?? [];
                         const methods = cls.methods ?? [];
                         const isOpen = expandedClassName === cls.name;
-                        const allItems = [...fields, ...constructors, ...methods];
-                        const passCount = allItems.filter((item) => item.ok).length;
-                        const clsPct = allItems.length ? Math.round((passCount / allItems.length) * 100) : 100;
+                        const { passCount, total: gradeTotal, pct: clsPct } = classGradeCounts(cls);
 
                         return (
                           <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
@@ -554,12 +572,15 @@ export default function StudentUI({
                               onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
                               className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-5 py-4 text-left transition hover:bg-surface-secondary bg-surface-secondary hover:bg-surface-tertiary"
                             >
-                              <div>
-                                <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
-                                <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
+                              <div className="flex min-w-0 items-start gap-3">
+                                <ClassStatusIcon status={cls.status} />
+                                <div className="min-w-0">
+                                  <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
+                                  <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
+                                </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <ScorePill ok={passCount} total={allItems.length} pct={clsPct} />
+                                <ScorePill ok={passCount} total={gradeTotal || 1} pct={clsPct} />
                                 {isOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
                               </div>
                             </button>
@@ -571,12 +592,12 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>
                                     <div className="space-y-2">
                                       {fields.map((f, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok ? 'bg-surface-secondary bg-background/40' : f.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-info-text">{f.name}: {f.dataType}</p>
                                             <p className="mt-0.5 text-[10px] text-foreground-muted">{f.scope || '—'}</p>
                                           </div>
-                                          <Tick ok={f.ok} />
+                                          <Tick ok={f.ok} partial={f.partial} />
                                         </div>
                                       ))}
                                     </div>
@@ -588,12 +609,12 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-warning">Constructors</p>
                                     <div className="space-y-2">
                                       {constructors.map((c, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok ? 'bg-surface-secondary bg-background/40' : c.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-warning-text">{c.name}({c.params})</p>
                                             <p className="mt-0.5 text-[10px] text-foreground-muted">{c.scope || '—'}</p>
                                           </div>
-                                          <Tick ok={c.ok} />
+                                          <Tick ok={c.ok} partial={c.partial} />
                                         </div>
                                       ))}
                                     </div>
@@ -605,12 +626,12 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-success">Methods</p>
                                     <div className="space-y-2">
                                       {methods.map((m, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok ? 'bg-surface-secondary bg-background/40' : m.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-success-text">{m.name}(): {m.returnType}</p>
                                             <p className="mt-0.5 text-[10px] text-foreground-muted">{m.scope || '—'}</p>
                                           </div>
-                                          <Tick ok={m.ok} />
+                                          <Tick ok={m.ok} partial={m.partial} />
                                         </div>
                                       ))}
                                     </div>

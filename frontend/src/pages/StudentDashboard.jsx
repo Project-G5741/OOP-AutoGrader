@@ -42,13 +42,30 @@ function mapOperationalTestcases(testcases = []) {
   }));
 }
 
+function normalizeClassMember(item) {
+  return {
+    ...item,
+    ok: item.ok ?? item.isCorrect ?? false,
+    partial: item.partial === true,
+  };
+}
+
+function normalizeClassData(classes = []) {
+  return classes.map((cls) => ({
+    ...cls,
+    fields: (cls.fields ?? []).map(normalizeClassMember),
+    constructors: (cls.constructors ?? []).map(normalizeClassMember),
+    methods: (cls.methods ?? []).map(normalizeClassMember),
+  }));
+}
+
 function applyChallengeBundle(bundle) {
   if (!bundle) {
     return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
   }
   const mmd = mmdFromChallengeBundle(bundle);
   return {
-    classData: bundle.class ?? [],
+    classData: normalizeClassData(bundle.class ?? []),
     mmdData: mmd.classes,
     mmdParseError: mmd.parseError,
     testCases: mapOperationalTestcases(bundle.testcases),
@@ -58,10 +75,10 @@ function applyChallengeBundle(bundle) {
 
 function parseClassTabResponse(json) {
   if (Array.isArray(json)) {
-    return { classData: json, normalizationNotice: null };
+    return { classData: normalizeClassData(json), normalizationNotice: null };
   }
   return {
-    classData: json?.classes ?? [],
+    classData: normalizeClassData(json?.classes ?? []),
     normalizationNotice: json?.normalizationNotice ?? json?.normalization_notice ?? null,
   };
 }
