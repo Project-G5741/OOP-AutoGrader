@@ -676,6 +676,9 @@ public class ClassStructureService {
         if ("error".equals(shellStatus)) {
             return "error";
         }
+        if (fields.isEmpty() && constructors.isEmpty() && methods.isEmpty()) {
+            return "success";
+        }
         return resolveMemberStatus(fields, constructors, methods);
     }
 

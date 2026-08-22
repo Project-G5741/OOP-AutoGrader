@@ -58,7 +58,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 - MMD / Declaration Test / Operation Test tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a short prompt to submit first.
 - After upload, tabs appear and are filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown when results are revealed.
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
-- Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (red X when wrong); when the shell fails, member rows are all fail (no green ticks); orange minus applies only to fields/methods/constructors with partial attribute credit when the shell passes
+- Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (green check when correct, red X when wrong). A type with no rubric fields/constructors/methods (e.g. an enum) counts as `1/1 · 100%` from the shell, not `0/1`. When the shell fails, member rows are all fail (no green ticks); orange minus applies only to fields/methods/constructors with partial attribute credit when the shell passes
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
