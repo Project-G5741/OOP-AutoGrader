@@ -84,7 +84,7 @@ export default function StudentLabSidebar({
                         <ItemTitle className={selected ? 'text-primary-text' : undefined}>
                           {lab.name}
                         </ItemTitle>
-                        <ItemDescription>{formatLabDeadlineMeta(lab)}</ItemDescription>
+                        <ItemDescription>{formatLabDeadlineMeta(lab, { withUrgencyHint: false })}</ItemDescription>
                       </ItemContent>
                       {badge && (
                         <ItemActions>

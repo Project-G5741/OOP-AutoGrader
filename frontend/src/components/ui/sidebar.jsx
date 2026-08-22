@@ -148,22 +148,35 @@ export function Sidebar({
   }
 
   return (
-    <aside
-      data-slot="sidebar"
+    <div
+      data-slot="sidebar-gap"
       data-state={state}
-      data-variant={variant}
-      data-side={side}
       data-collapsible={state === 'collapsed' ? collapsible : ''}
       className={cn(
-        'relative hidden h-auto w-[var(--sidebar-width)] shrink-0 flex-col border-border bg-surface text-foreground md:flex',
-        side === 'left' ? 'border-r' : 'border-l',
-        state === 'collapsed' && collapsible === 'offcanvas' && 'w-0 overflow-hidden border-0',
-        className,
+        'relative hidden shrink-0 self-stretch overflow-hidden transition-[width] duration-300 ease-in-out md:block',
+        state === 'collapsed' && collapsible === 'offcanvas'
+          ? 'w-0 min-w-0'
+          : 'w-[var(--sidebar-width)]',
       )}
-      {...props}
     >
-      {children}
-    </aside>
+      <aside
+        data-slot="sidebar"
+        data-state={state}
+        data-variant={variant}
+        data-side={side}
+        className={cn(
+          'flex h-full w-[var(--sidebar-width)] min-w-[var(--sidebar-width)] flex-col border-border bg-surface text-foreground transition-transform duration-300 ease-in-out',
+          side === 'left' ? 'border-r' : 'border-l',
+          state === 'collapsed' && collapsible === 'offcanvas' && (
+            side === 'left' ? '-translate-x-full' : 'translate-x-full'
+          ),
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </aside>
+    </div>
   );
 }
 

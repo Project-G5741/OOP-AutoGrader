@@ -40,14 +40,15 @@ export function labUrgencyChipClasses(urgencyState, selected) {
   return selected ? `${base} ring-2 ring-primary ring-offset-1 ring-offset-background` : base;
 }
 
-export function formatLabDeadlineMeta(lab) {
+export function formatLabDeadlineMeta(lab, { withUrgencyHint = true } = {}) {
   if (!lab?.deadlineDate) return 'No deadline';
   const date = lab.deadlineDate;
-  const hint = {
-    WARNING: ' · 3 days left',
-    URGENT: ' · 1 day left',
-    EXPIRED: ' · expired · practice OK',
-  }[lab.urgencyState] ?? '';
+  const hint = withUrgencyHint
+    ? {
+        WARNING: ' · 3 days left',
+        URGENT: ' · 1 day left',
+      }[lab.urgencyState] ?? ''
+    : '';
   return `due ${date}${hint}`;
 }
 

@@ -10,7 +10,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
-| `StudentNotificationBell.jsx` | Bell icon + dropdown; deadline and submission reminders from `buildStudentNotifications` |
+| `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -48,9 +48,10 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Lab list layout (`StudentUI.jsx`)
 
-- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
 - Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
+- Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
 
 ### Result tabs (`StudentUI.jsx`)
 
@@ -68,7 +69,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Dashboard stats row (`StudentUI.jsx`)
 
-- Stats are lab-scoped; `StudentDashboard` clears attempt/latest on lab change and reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API).
+- Stats are lab-scoped; `StudentDashboard` clears attempt/latest only when switching to a **different** lab, then reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API). Clicking the already-selected lab is a no-op.
 - **Total Submissions** and **Latest Submission** always reflect DB history for the selected lab.
 - **Current Grade** follows the same session-reveal rule as challenge sidebar scores: `--/--` until the student completes an upload in the current browser session for that lab; then shows the score from the upload response. Switching labs resets the grade until that lab is uploaded again in-session.
 

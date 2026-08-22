@@ -296,7 +296,6 @@ export default function StudentUI({
           <StudentNotificationBell
             labs={labs}
             labSummariesById={labSummariesById}
-            onSelectLab={onLabChange}
           />
         </header>
 

@@ -518,6 +518,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   ]);
 
   const handleLabChange = (labId) => {
+    if (labId == null || String(labId) === String(selectedLabId)) return;
     statsFetchGenRef.current += 1;
     setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
     setSelectedLabId(labId);
