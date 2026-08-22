@@ -41,15 +41,15 @@ public class ClassReflectionGrader {
                 weighted.add(new WeightedAccuracy(classWeight, 0));
                 for (FieldRubric f : expectedClass.fields()) {
                     weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), 0));
-                    fields.add(new PendingFieldResult(f.id(), false));
+                    fields.add(new PendingFieldResult(f.id(), false, false));
                 }
                 for (MethodRubric m : expectedClass.methods()) {
                     weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), 0));
-                    methods.add(new PendingMethodResult(m.id(), false));
+                    methods.add(new PendingMethodResult(m.id(), false, false));
                 }
                 for (ConstructorRubric c : expectedClass.constructors()) {
                     weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), 0));
-                    constructors.add(new PendingConstructorResult(c.id(), false));
+                    constructors.add(new PendingConstructorResult(c.id(), false, false));
                 }
                 continue;
             }
@@ -61,15 +61,18 @@ public class ClassReflectionGrader {
             if (expectedClass.isNested()) {
                 classChecks.add(expectedClass.isStatic() == parsed.isStatic);
             }
-            double classAccuracy = PartialCreditEvaluator.accuracy(classChecks);
+            double classAccuracy = classChecks.stream().allMatch(Boolean::booleanValue) ? 1.0 : 0.0;
             weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
+            boolean shellPassed = classAccuracy >= 1.0;
 
             Map<String, ParsedField> parsedFields = parsed.fields.stream()
                     .collect(java.util.stream.Collectors.toMap(f -> f.name, f -> f, (a, b) -> a));
             for (FieldRubric expectedField : expectedClass.fields()) {
                 ParsedField pf = parsedFields.get(expectedField.name());
                 double accuracy;
-                if (pf == null) {
+                if (!shellPassed) {
+                    accuracy = 0;
+                } else if (pf == null) {
                     accuracy = 0;
                 } else {
                     accuracy = PartialCreditEvaluator.accuracy(List.of(
@@ -78,20 +81,29 @@ public class ClassReflectionGrader {
                             PartialCreditEvaluator.matches(expectedField.dataType(), pf.dataType).get(0)));
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
-                fields.add(new PendingFieldResult(expectedField.id(), accuracy >= 1.0));
+                fields.add(new PendingFieldResult(
+                        expectedField.id(), shellPassed && accuracy >= 1.0, shellPassed && accuracy > 0 && accuracy < 1.0));
             }
 
             for (MethodRubric expectedMethod : expectedClass.methods()) {
                 ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
-                double accuracy = match == null ? 0 : PartialCreditEvaluator.accuracy(List.of(
-                        true,
-                        PartialCreditEvaluator.matches(expectedMethod.scope(), match.scope).get(0),
-                        PartialCreditEvaluator.matches(expectedMethod.returnType(), match.returnType).get(0),
-                        expectedMethod.isStatic() == match.isStatic,
-                        expectedMethod.isAbstract() == match.isAbstract,
-                        expectedMethod.isFinal() == match.isFinal));
+                double accuracy;
+                if (!shellPassed) {
+                    accuracy = 0;
+                } else if (match == null) {
+                    accuracy = 0;
+                } else {
+                    accuracy = PartialCreditEvaluator.accuracy(List.of(
+                            true,
+                            PartialCreditEvaluator.matches(expectedMethod.scope(), match.scope).get(0),
+                            PartialCreditEvaluator.matches(expectedMethod.returnType(), match.returnType).get(0),
+                            expectedMethod.isStatic() == match.isStatic,
+                            expectedMethod.isAbstract() == match.isAbstract,
+                            expectedMethod.isFinal() == match.isFinal));
+                }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
-                methods.add(new PendingMethodResult(expectedMethod.id(), accuracy >= 1.0));
+                methods.add(new PendingMethodResult(
+                        expectedMethod.id(), shellPassed && accuracy >= 1.0, shellPassed && accuracy > 0 && accuracy < 1.0));
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
@@ -100,12 +112,22 @@ public class ClassReflectionGrader {
                         expectedConstructor.parameterTypes(),
                         expectedClass.isNested() && !expectedClass.isStatic(),
                         parsed.outerSimpleName);
-                double accuracy = match == null ? 0 : PartialCreditEvaluator.accuracy(List.of(
-                        true,
-                        PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0),
-                        constructorDefaultMatches(expectedConstructor, match)));
+                double accuracy;
+                if (!shellPassed) {
+                    accuracy = 0;
+                } else if (match == null) {
+                    accuracy = 0;
+                } else {
+                    accuracy = PartialCreditEvaluator.accuracy(List.of(
+                            true,
+                            PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0),
+                            constructorDefaultMatches(expectedConstructor, match)));
+                }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
-                constructors.add(new PendingConstructorResult(expectedConstructor.id(), accuracy >= 1.0));
+                constructors.add(new PendingConstructorResult(
+                        expectedConstructor.id(),
+                        shellPassed && accuracy >= 1.0,
+                        shellPassed && accuracy > 0 && accuracy < 1.0));
             }
         }
 
@@ -182,7 +204,7 @@ public class ClassReflectionGrader {
             List<PendingMethodResult> methods,
             List<PendingConstructorResult> constructors) {}
 
-    public record PendingFieldResult(java.util.UUID fieldId, boolean correct) {}
-    public record PendingMethodResult(java.util.UUID methodId, boolean correct) {}
-    public record PendingConstructorResult(java.util.UUID constructorId, boolean correct) {}
+    public record PendingFieldResult(java.util.UUID fieldId, boolean correct, boolean partial) {}
+    public record PendingMethodResult(java.util.UUID methodId, boolean correct, boolean partial) {}
+    public record PendingConstructorResult(java.util.UUID constructorId, boolean correct, boolean partial) {}
 }

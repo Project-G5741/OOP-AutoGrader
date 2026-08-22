@@ -320,6 +320,9 @@ public class GradingService {
                 pipelineResult.gradingContext().parsedByName(),
                 pipelineResult.gradingContext().parsedByQualifiedName(),
                 pipelineResult.mmdResult().diagram());
+        parsedSubmissionSnapshotBuilder.enrichMemberGrades(
+                computation.snapshot.classSnapshot,
+                pipelineResult.classResult());
         return computation;
     }
 

@@ -3,10 +3,10 @@ package com.eiu.capstone.backend.DTO;
 import java.util.List;
 
 /**
- * `type` is e.g. "ABSTRACT CLASS", "CLASS", "INTERFACE" — derived from
- * class_entity.is_abstract + class_entity.declaring_type (resolved via master_data).
+ * `type` is e.g. "ABSTRACT CLASS", "CLASS", "INTERFACE" — from the student's parsed
+ * submission when a snapshot exists; otherwise from rubric class_entity fields.
  * `status` is one of "success" | "warning" | "error" | "info", computed from
- * how many of this class's fields/constructors/methods were graded correct.
+ * class-shell checks (binary) plus fields/constructors/methods correctness.
  */
 public record ClassDetailDTO(
         String name,

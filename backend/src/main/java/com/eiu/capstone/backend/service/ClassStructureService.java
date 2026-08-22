@@ -5,6 +5,8 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
+import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.MmdGradingOutcome;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
@@ -517,53 +519,78 @@ public class ClassStructureService {
         ParsedSubmissionSnapshot.ClassSnapshot classSnapshot = snapshot != null ? snapshot.classSnapshot : null;
         List<ClassDetailDTO> result = new ArrayList<>();
         for (ClassEntity ce : classes) {
+            ClassShellEntry shellEntry = classSnapshot != null
+                    ? classSnapshot.shells.get(ce.getId().toString())
+                    : null;
+            String shellStatus = shellEntry != null
+                    ? resolveShellStatus(ce, shellEntry, masterData)
+                    : null;
+            boolean membersGated = compileError != null || "error".equals(shellStatus);
+
             List<ClassFieldDetailDTO> fields = structure.fieldsByClassId().getOrDefault(ce.getId(), List.of()).stream()
                     .map(f -> {
-                        boolean ok = correctIds.fieldIds().contains(f.getId());
                         ClassFieldEntry entry = classSnapshot != null
                                 ? classSnapshot.fields.get(f.getId().toString())
                                 : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveFieldGrade(classSnapshot, f, entry, masterData, correctIds));
                         if (entry != null) {
-                            return new ClassFieldDetailDTO(entry.name, entry.scope, entry.dataType, ok);
+                            return new ClassFieldDetailDTO(
+                                    entry.name, entry.scope, entry.dataType, memberGrade.ok(), memberGrade.partial());
                         }
                         return new ClassFieldDetailDTO(
                                 f.getName(),
                                 resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
                                 f.getFieldDeclaration().getDataType(),
-                                ok);
+                                memberGrade.ok(),
+                                memberGrade.partial());
                     })
                     .toList();
 
             List<ClassConstructorDetailDTO> constructors = structure.constructorsByClassId()
                     .getOrDefault(ce.getId(), List.of()).stream()
                     .map(c -> {
-                        boolean ok = correctIds.constructorIds().contains(c.getId());
                         ClassConstructorEntry entry = classSnapshot != null
                                 ? classSnapshot.constructors.get(c.getId().toString())
                                 : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveConstructorGrade(
+                                        classSnapshot,
+                                        c,
+                                        entry,
+                                        structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()),
+                                        masterData,
+                                        correctIds));
                         if (entry != null) {
-                            return new ClassConstructorDetailDTO(entry.name, entry.scope, entry.params, ok);
+                            return new ClassConstructorDetailDTO(
+                                    entry.name, entry.scope, entry.params, memberGrade.ok(), memberGrade.partial());
                         }
                         return new ClassConstructorDetailDTO(
                                 c.getName(),
                                 resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
                                 formatParams(structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()), true),
-                                ok);
+                                memberGrade.ok(),
+                                memberGrade.partial());
                     })
                     .toList();
 
             List<ClassMethodDetailDTO> methods = structure.methodsByClassId().getOrDefault(ce.getId(), List.of()).stream()
                     .map(m -> {
-                        boolean ok = correctIds.methodIds().contains(m.getId());
                         ClassMethodEntry entry = classSnapshot != null
                                 ? classSnapshot.methods.get(m.getId().toString())
                                 : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveMethodGrade(classSnapshot, m, entry, masterData, correctIds));
                         if (entry != null) {
                             return new ClassMethodDetailDTO(
                                     entry.name,
                                     formatMethodModifiers(entry.scope, entry.isStatic, entry.isAbstract, entry.isFinal),
                                     entry.returnType,
-                                    ok);
+                                    memberGrade.ok(),
+                                    memberGrade.partial());
                         }
                         MethodDeclaration declaration = m.getMethodDeclaration();
                         return new ClassMethodDetailDTO(
@@ -574,14 +601,27 @@ public class ClassStructureService {
                                         declaration.isAbstract(),
                                         declaration.isFinal()),
                                 declaration.getReturnType(),
-                                ok);
+                                memberGrade.ok(),
+                                memberGrade.partial());
                     })
                     .toList();
 
+            String displayType = shellEntry != null
+                    ? formatStudentClassType(shellEntry)
+                    : resolveClassType(ce, masterData);
+            String cardStatus;
+            if (compileError != null) {
+                cardStatus = "error";
+            } else if (shellEntry != null) {
+                cardStatus = resolveClassCardStatus(shellStatus, fields, constructors, methods);
+            } else {
+                cardStatus = resolveMemberStatus(fields, constructors, methods);
+            }
+
             result.add(new ClassDetailDTO(
                     formatClassDisplayName(ce),
-                    resolveClassType(ce, masterData),
-                    compileError != null ? "error" : resolveStatus(fields, constructors, methods),
+                    displayType,
+                    cardStatus,
                     compileError,
                     fields, constructors, methods));
         }
@@ -600,6 +640,199 @@ public class ClassStructureService {
         return ce.isAbstract() ? "ABSTRACT " + declaringType : declaringType;
     }
 
+    private String formatStudentClassType(ClassShellEntry entry) {
+        String declaringType = normalizeDeclaringType(entry.declaringType);
+        String label = declaringType != null ? declaringType.toUpperCase(Locale.ROOT) : "CLASS";
+        if (entry.isAbstract && !"interface".equals(declaringType) && !"enum".equals(declaringType)) {
+            return "ABSTRACT " + label;
+        }
+        return label;
+    }
+
+    private String resolveShellStatus(ClassEntity ce, ClassShellEntry entry, Map<Integer, String> masterData) {
+        if (entry == null) {
+            return "error";
+        }
+        return buildShellChecks(ce, entry, masterData).stream().allMatch(Boolean::booleanValue) ? "success" : "error";
+    }
+
+    private List<Boolean> buildShellChecks(ClassEntity ce, ClassShellEntry entry, Map<Integer, String> masterData) {
+        List<Boolean> checks = new ArrayList<>();
+        checks.add(PartialCreditEvaluator.matches(
+                resolveMasterDataLabel(ce.getScope(), masterData), entry.scope).get(0));
+        checks.add(PartialCreditEvaluator.matches(
+                resolveClassTypeLabel(ce, masterData), entry.declaringType).get(0));
+        checks.add(ce.isAbstract() == entry.isAbstract);
+        if (ce.getOuterClass() != null) {
+            checks.add(ce.isStatic() == entry.isStatic);
+        }
+        return checks;
+    }
+
+    private String resolveClassCardStatus(String shellStatus,
+                                          List<ClassFieldDetailDTO> fields,
+                                          List<ClassConstructorDetailDTO> constructors,
+                                          List<ClassMethodDetailDTO> methods) {
+        if ("error".equals(shellStatus)) {
+            return "error";
+        }
+        return resolveMemberStatus(fields, constructors, methods);
+    }
+
+    private MemberGrade gateMemberGrade(boolean membersGated, MemberGrade memberGrade) {
+        return membersGated ? FAILED_MEMBER_GRADE : memberGrade;
+    }
+
+    private MemberGrade resolveFieldGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           Field field,
+                                           ClassFieldEntry entry,
+                                           Map<Integer, String> masterData,
+                                           SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.fieldGrades.get(field.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeFieldAccuracy(field, entry, masterData));
+        }
+        return new MemberGrade(correctIds.fieldIds().contains(field.getId()), false);
+    }
+
+    private MemberGrade resolveMethodGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           Method method,
+                                           ClassMethodEntry entry,
+                                           Map<Integer, String> masterData,
+                                           SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.methodGrades.get(method.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeMethodAccuracy(method, entry, masterData));
+        }
+        return new MemberGrade(correctIds.methodIds().contains(method.getId()), false);
+    }
+
+    private MemberGrade resolveConstructorGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                                Constructor constructor,
+                                                ClassConstructorEntry entry,
+                                                List<Parameter> rubricParams,
+                                                Map<Integer, String> masterData,
+                                                SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.constructorGrades.get(constructor.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeConstructorAccuracy(constructor, entry, rubricParams, masterData));
+        }
+        return new MemberGrade(correctIds.constructorIds().contains(constructor.getId()), false);
+    }
+
+    private double computeFieldAccuracy(Field field, ClassFieldEntry entry, Map<Integer, String> masterData) {
+        FieldDeclaration declaration = field.getFieldDeclaration();
+        return PartialCreditEvaluator.accuracy(List.of(
+                true,
+                PartialCreditEvaluator.matches(
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
+                PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0)));
+    }
+
+    private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {
+        MethodDeclaration declaration = method.getMethodDeclaration();
+        return PartialCreditEvaluator.accuracy(List.of(
+                true,
+                PartialCreditEvaluator.matches(
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
+                PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0),
+                declaration.isStatic() == entry.isStatic,
+                declaration.isAbstract() == entry.isAbstract,
+                declaration.isFinal() == entry.isFinal));
+    }
+
+    private double computeConstructorAccuracy(Constructor constructor,
+                                              ClassConstructorEntry entry,
+                                              List<Parameter> rubricParams,
+                                              Map<Integer, String> masterData) {
+        List<String> expectedParams = rubricParams.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
+                .map(Parameter::getDataType)
+                .toList();
+        List<String> actualParams = parseSnapshotParamTypes(entry.params);
+        boolean defaultMatches = !constructor.getConstructorDeclaration().isDefault()
+                || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
+        return PartialCreditEvaluator.accuracy(List.of(
+                sameParamTypes(actualParams, expectedParams),
+                PartialCreditEvaluator.matches(
+                        resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
+                        entry.scope).get(0),
+                defaultMatches));
+    }
+
+    private List<String> parseSnapshotParamTypes(String params) {
+        if (params == null || params.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(params.split(","))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .toList();
+    }
+
+    private boolean sameParamTypes(List<String> actual, List<String> expected) {
+        if (actual.size() != expected.size()) {
+            return false;
+        }
+        for (int i = 0; i < actual.size(); i++) {
+            if (!equalsIgnoreCase(actual.get(i), expected.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private MemberGrade memberGradeFromAccuracy(double accuracy) {
+        if (accuracy >= 1.0) {
+            return new MemberGrade(true, false);
+        }
+        if (accuracy > 0) {
+            return new MemberGrade(false, true);
+        }
+        return new MemberGrade(false, false);
+    }
+
+    private MemberGrade resolveMemberGradeFromLabel(String gradeLabel) {
+        return switch (gradeLabel) {
+            case "pass" -> new MemberGrade(true, false);
+            case "partial" -> new MemberGrade(false, true);
+            default -> new MemberGrade(false, false);
+        };
+    }
+
+    private boolean equalsIgnoreCase(String a, String b) {
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        return a.trim().equalsIgnoreCase(b.trim());
+    }
+
+    private record MemberGrade(boolean ok, boolean partial) {}
+
+    private static final MemberGrade FAILED_MEMBER_GRADE = new MemberGrade(false, false);
+
+    private String normalizeDeclaringType(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
     private String resolveMasterDataLabel(MasterData masterData, Map<Integer, String> valueMap) {
         if (masterData == null) {
             return "-";
@@ -611,19 +844,34 @@ public class ClassStructureService {
         return valueMap.getOrDefault(id, masterData.getName() != null ? masterData.getName() : "-");
     }
 
-    private String resolveStatus(List<ClassFieldDetailDTO> fields,
-                                  List<ClassConstructorDetailDTO> constructors,
-                                  List<ClassMethodDetailDTO> methods) {
+    private String resolveMemberStatus(List<ClassFieldDetailDTO> fields,
+                                       List<ClassConstructorDetailDTO> constructors,
+                                       List<ClassMethodDetailDTO> methods) {
         long total = fields.size() + constructors.size() + methods.size();
-        if (total == 0) return "info";
+        if (total == 0) {
+            return "info";
+        }
 
-        long correct = fields.stream().filter(ClassFieldDetailDTO::ok).count()
+        long pass = fields.stream().filter(ClassFieldDetailDTO::ok).count()
                 + constructors.stream().filter(ClassConstructorDetailDTO::ok).count()
                 + methods.stream().filter(ClassMethodDetailDTO::ok).count();
+        boolean anyPartial = fields.stream().anyMatch(ClassFieldDetailDTO::partial)
+                || constructors.stream().anyMatch(ClassConstructorDetailDTO::partial)
+                || methods.stream().anyMatch(ClassMethodDetailDTO::partial);
+        long fail = fields.stream().filter(f -> !f.ok() && !f.partial()).count()
+                + constructors.stream().filter(c -> !c.ok() && !c.partial()).count()
+                + methods.stream().filter(m -> !m.ok() && !m.partial()).count();
 
-        if (correct == total) return "success";
-        if (correct == 0) return "error";
-        return "warning";
+        if (pass == total) {
+            return "success";
+        }
+        if (fail == total) {
+            return "error";
+        }
+        if (anyPartial || pass > 0) {
+            return "warning";
+        }
+        return "error";
     }
 
     private String formatParams(List<Parameter> params, boolean includeType) {
