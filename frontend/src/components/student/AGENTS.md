@@ -20,7 +20,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - Fetches `GET /api/submissions/my-history` with `page`, `size` (10), optional `labId`, and `sort` (server-side); plus `GET /api/submissions/my-labs`
 - Filter by lab name via dropdown; server-side table sort via clickable column headers; prev/next pagination (10 rows per page)
 - Expanded rows show challenge-level results only
-- Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score)
+- Scores display via shared `formatNumber` (`Math.round`) — same rounding as the student dashboard and lecturer views
+- Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score); thresholds use the rounded display score
 
 ### ChangePasswordModal
 
@@ -48,9 +49,6 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 - Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
 - Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
-=========
-- **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
->>>>>>>>> Temporary merge branch 2
 
 ### Result tabs (`StudentUI.jsx`)
 

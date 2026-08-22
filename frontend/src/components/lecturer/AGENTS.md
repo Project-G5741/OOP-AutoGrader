@@ -28,7 +28,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `MmdScoreBreakdown.jsx` | Expandable MMD class + relations breakdown for lecturer drawer |
 
-| `LecturerSubmissionDrawer.jsx` | Right drawer: Class | MMD tabs, challenge detail + export |
+| `LecturerSubmissionDrawer.jsx` | Right drawer: Class | MMD tabs (MMD hidden when `has_mmd=false`), challenge detail + export |
 
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View |
 
@@ -71,7 +71,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster **View** opens `LabAttemptHistoryDrawer` (`GET /api/labs/{labId}/students/{studentId}/attempts`)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`)
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`)
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
 - Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
