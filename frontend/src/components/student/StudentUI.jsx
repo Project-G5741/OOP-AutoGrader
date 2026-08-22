@@ -311,7 +311,7 @@ export default function StudentUI({
             buttonText="Select Project"
             labId={selectedLabId}
             attemptNumber={nextAttemptNumber}
-            authToken={user?.accessToken}
+            authToken={sessionStorage.getItem('accessToken')}
             onUploadComplete={onUploadComplete}
           />
         </div>

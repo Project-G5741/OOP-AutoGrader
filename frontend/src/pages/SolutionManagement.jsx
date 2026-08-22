@@ -96,10 +96,10 @@ export default function SolutionManagement() {
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
-      fetch(`${API_BASE}/api/master-data?category=SCOPE`),
-      fetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`),
-      fetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`),
-      fetch(`${API_BASE}/api/terms`),
+      fetch(`${API_BASE}/api/master-data?category=SCOPE`, { headers: authHeaders() }),
+      fetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`, { headers: authHeaders() }),
+      fetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`, { headers: authHeaders() }),
+      fetch(`${API_BASE}/api/terms`, { headers: authHeaders() }),
     ]);
     if (scopeRes.ok) setScopeOptions(await scopeRes.json());
     if (declaringRes.ok) setDeclaringTypeOptions(await declaringRes.json());

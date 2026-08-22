@@ -37,15 +37,19 @@ public class LecturerAnalyticsController {
     }
 
     @GetMapping("/overview")
-    public ResponseEntity<LecturerOverviewResponse> getOverview() {
+    public ResponseEntity<LecturerOverviewResponse> getOverview(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return ResponseEntity.ok(lecturerAnalyticsService.getOverview());
     }
 
     @GetMapping("/grade-overview")
     public ResponseEntity<GradeOverviewResponse> getGradeOverview(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "studentName,asc") String sort) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return ResponseEntity.ok(lecturerAnalyticsService.getGradeOverview(page, size, sort));
     }
 

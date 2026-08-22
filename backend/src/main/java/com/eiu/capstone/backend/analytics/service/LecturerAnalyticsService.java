@@ -465,11 +465,11 @@ public class LecturerAnalyticsService {
         String field = parts[0].trim().toLowerCase();
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
-            case "score" -> "challenge_sub.scr_score";
+            case "score" -> "challenge_best.best_score";
             case "attempts", "attempt" -> "challenge_attempts.attempt_count";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
-            case "submittedat", "submitted_at" -> "challenge_sub.submitted_at";
+            case "submittedat", "submitted_at" -> "challenge_latest.submitted_at";
             default -> "u.full_name";
         };
         return new SortSpec(column, direction);

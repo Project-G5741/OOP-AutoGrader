@@ -115,7 +115,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN + email (drag/drop or click); suspend/restore student-only accounts from the roster
+- Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN + email (drag/drop or click); search available and enrolled rosters; suspend/restore student-only accounts from the roster
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 

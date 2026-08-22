@@ -187,7 +187,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
     setChallengesError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges`);
+      const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
       if (!res.ok) {
         throw new Error(await friendlyLoadErrorFromResponse(res));
       }
@@ -227,7 +227,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const generation = statsFetchGenRef.current;
     try {
       const statsRes = await fetch(
-        `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`
+        `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`,
+        { headers: authHeaders() },
       );
       if (generation !== statsFetchGenRef.current) return;
       if (statsRes.ok) {
@@ -321,13 +322,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
                 normalizationNotice: classNoticeCacheRef.current[challengeId] ?? null,
               }),
             })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`),
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
         cachedMmd
           ? Promise.resolve({ ok: true, json: async () => cachedMmd })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`),
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
         cachedTestcases
           ? Promise.resolve({ ok: true, json: async () => cachedTestcases })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`),
+          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
       ]);
 
       const classJson = classRes.ok ? await classRes.json() : [];

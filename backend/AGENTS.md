@@ -29,7 +29,7 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 | `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM |
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials |
 | `GOOGLE_CLIENT_ID` | Google OAuth audience validation |
-| `JWT_SECRET` | Defined in config but **not currently used** by `JwtService` |
+| `JWT_SECRET` | JWT signing key (≥32 bytes); used by `JwtService` when set |
 | `FRONTEND_URL` | CORS allowed origin; fallback reset-link base when `Origin` header absent |
 | `RESET_FRONTEND_URL` | Optional override for fallback reset-link base (defaults to `FRONTEND_URL`) |
 
@@ -63,10 +63,15 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 ### Security posture
 
-- `SecurityConfig` permits all requests; CSRF disabled
-- JWT is parsed manually in `SubmissionController` for upload and student history reads — other endpoints are unauthenticated except lecturer JWT via `JwtAuthHelper.requireLecturer` (`/api/users/*`, `/api/lecturer/labs`, `/api/lecturer/terms`)
-- `JwtService` regenerates signing key on every restart (tokens invalidated on restart)
-- Google auth enforces `@eiu.edu.vn` domain via `GoogleTokenVerifier`
+- `SecurityConfig` still permits all requests at the filter level (CSRF disabled); sensitive routes enforce JWT in controllers via `JwtAuthHelper`
+- **Lecturer JWT required:** `/api/users/*` (except self-service `POST /change-password`), `/api/lecturer/labs`, `/api/lecturer/terms`, `/api/lecturer` analytics, `/api/analytics`, `/api/master-data`, `/api/terms`, lecturer lab statistics/submissions/export/attempts on `/api/labs`
+- **Student or lecturer JWT:** challenge reads, lab stats (students scoped to self via `resolveStudentScope`), submission upload and student history
+- **Public:** `/api/auth/*` (Google upsert creates **STUDENT** only for new accounts; existing accounts rejected), health/liveness
+- `JwtService` uses `jwt.secret` from config when set (≥32 bytes); dev fallback when unset/placeholder
+- `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
+- Google auth enforces `@eiu.edu.vn` domain and configured `GOOGLE_CLIENT_ID` audience via `GoogleTokenVerifier`
+- Password-reset request does not reveal whether an email exists (anti-enumeration)
+- JWT routes re-check active account via `requireActiveUser`
 
 ### Persistence
 
@@ -128,7 +133,7 @@ Grading tuning properties (`application.properties`):
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter; `page`, `size`, `sort` for pagination)
-- `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
+- `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; **score** is highest qualifying challenge score before deadline; **attempts** / **submittedAt** from latest graded attempt; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of highest lab scores, missing labs as 0; threshold < 70)
 - `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated, default page size 10; per-lab score from `student_lab_progress.highest_score`; total = sum ÷ lab count); sort by `studentName`, `irn`, `score`, or `labScore,<labUuid>,<asc|desc>`

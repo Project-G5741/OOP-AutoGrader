@@ -182,8 +182,7 @@ public class LecturerAnalyticsRepository {
                   AND EXISTS (
                       SELECT 1
                       FROM lab_submission s
-                      JOIN lab l ON l.id = s.lab_id
-                      WHERE s.user_id = u.id AND s.lab_id = l.id
+                      WHERE s.user_id = u.id AND s.lab_id = :labId
                         AND (l.deadline_date IS NULL
                              OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
                   )
@@ -378,6 +377,13 @@ public class LecturerAnalyticsRepository {
         return CHALLENGE_GRADED_SUBMISSION_EXISTS.replace("s2.", submissionAlias + ".");
     }
 
+    private static String formatChallengeOrderBy(String sortColumn, String sortDirection) {
+        if ("challenge_best.best_score".equals(sortColumn)) {
+            return "challenge_best.best_score " + sortDirection + " NULLS LAST";
+        }
+        return sortColumn + " " + sortDirection;
+    }
+
     public List<Object[]> findChallengeStudentRoster(UUID labId,
                                                      UUID challengeId,
                                                      String sortColumn,
@@ -388,23 +394,30 @@ public class LecturerAnalyticsRepository {
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
-                       challenge_sub.scr_score,
+                       challenge_best.best_score,
                        COALESCE(challenge_attempts.attempt_count, 0),
-                       challenge_sub.submitted_at,
-                       (challenge_sub.id IS NOT NULL) AS has_submission,
-                       challenge_sub.id AS submission_id
+                       challenge_latest.submitted_at,
+                       (challenge_latest.id IS NOT NULL) AS has_submission,
+                       challenge_latest.id AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN LATERAL (
-                    SELECT s.id, s.submitted_at, scr.score AS scr_score, scr.id AS scr_id
+                    SELECT MAX(scr.score) AS best_score
                     FROM lab_submission s
                     LEFT JOIN submission_challenge_result scr
                         ON scr.submission_id = s.id AND scr.challenge_id = :challengeId
                     WHERE s.user_id = u.id AND s.lab_id = l.id
                       AND """ + LAB_DEADLINE_SUBMISSION_FILTER + """
                       AND """ + challengeGradedSubmissionExists("s") + """
+                ) challenge_best ON true
+                LEFT JOIN LATERAL (
+                    SELECT s.id, s.submitted_at
+                    FROM lab_submission s
+                    WHERE s.user_id = u.id AND s.lab_id = l.id
+                      AND """ + LAB_DEADLINE_SUBMISSION_FILTER + """
+                      AND """ + challengeGradedSubmissionExists("s") + """
                     ORDER BY s.attempt_number DESC
                     LIMIT 1
-                ) challenge_sub ON true
+                ) challenge_latest ON true
                 LEFT JOIN LATERAL (
                     SELECT COUNT(DISTINCT s2.id) AS attempt_count
                     FROM lab_submission s2
@@ -412,9 +425,9 @@ public class LecturerAnalyticsRepository {
                       AND """ + LAB_DEADLINE_SUBMISSION_FILTER.replace("s.", "s2.") + """
                       AND """ + CHALLENGE_GRADED_SUBMISSION_EXISTS + """
                 ) challenge_attempts ON true
-                ORDER BY %s %s
+                ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
-                """.formatted(sortColumn, sortDirection);
+                """.formatted(formatChallengeOrderBy(sortColumn, sortDirection));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("labId", labId);
         query.setParameter("challengeId", challengeId);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, FileSpreadsheet, Plus, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
+import { CalendarDays, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
 import { authHeaders } from '../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
@@ -15,6 +15,11 @@ const EMPTY_FORM = {
   setCurrent: false,
 };
 
+function matchesStudentSearch(student, query) {
+  const haystack = `${student.fullName || ''} ${student.studentCode || ''} ${student.email || ''}`.toLowerCase();
+  return haystack.includes(query);
+}
+
 export default function TermManagement() {
   const [terms, setTerms] = useState([]);
   const [selectedTermId, setSelectedTermId] = useState(null);
@@ -28,12 +33,26 @@ export default function TermManagement() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [availableSearch, setAvailableSearch] = useState('');
+  const [rosterSearch, setRosterSearch] = useState('');
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
     () => terms.find((term) => String(term.id) === String(selectedTermId)) ?? null,
     [terms, selectedTermId],
   );
+
+  const filteredAvailable = useMemo(() => {
+    const query = availableSearch.trim().toLowerCase();
+    if (!query) return available;
+    return available.filter((student) => matchesStudentSearch(student, query));
+  }, [available, availableSearch]);
+
+  const filteredStudents = useMemo(() => {
+    const query = rosterSearch.trim().toLowerCase();
+    if (!query) return students;
+    return students.filter((student) => matchesStudentSearch(student, query));
+  }, [students, rosterSearch]);
 
   const loadTerms = useCallback(async () => {
     const response = await fetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
@@ -59,6 +78,8 @@ export default function TermManagement() {
     setStudents(Array.isArray(data?.enrolled) ? data.enrolled : []);
     setAvailable(Array.isArray(data?.available) ? data.available : []);
     setSelectedStudentIds([]);
+    setAvailableSearch('');
+    setRosterSearch('');
   }, []);
 
   const refreshSelectedTerm = useCallback(async (termId) => {
@@ -90,10 +111,19 @@ export default function TermManagement() {
     };
   }, [loadTerms, loadTermStudents]);
 
+  const toggleStudentSelection = (studentId) => {
+    const id = String(studentId);
+    setSelectedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
+  };
+
   const handleSelectTerm = async (termId) => {
     setSelectedTermId(termId);
     setError('');
     setNotice('');
+    setAvailableSearch('');
+    setRosterSearch('');
     try {
       await loadTermStudents(termId);
     } catch (err) {
@@ -461,65 +491,115 @@ export default function TermManagement() {
                   Add students
                 </p>
                 <p className="mb-3 text-sm text-foreground-muted">
-                  Drop an Excel file with Student ID (IRN) and Email, or click to browse. Extra columns are ignored. Only existing active students are added.
+                  Import from Excel (IRN + Email) or search and select students to add manually. Only existing active students can be enrolled.
                 </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
-                  className="hidden"
-                  onChange={handleImportFile}
-                />
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={handleDragOver}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDropExcel}
-                  className={`mb-3 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-sm transition-colors disabled:opacity-50 ${
-                    isDragging
-                      ? 'border-primary bg-primary-light text-primary-text'
-                      : 'border-border bg-surface-secondary text-foreground-secondary hover:border-primary hover:bg-primary-light'
-                  }`}
-                >
-                  <FileSpreadsheet className="h-6 w-6" />
-                  <span className="font-medium text-foreground">Drop Excel here or click to import</span>
-                  <span className="text-xs text-foreground-muted">.xlsx, .xls, or .csv</span>
-                </button>
-                {available.length === 0 ? (
-                  <p className="text-sm text-foreground-muted">All active students are already in this term.</p>
-                ) : (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <select
-                      multiple
-                      className="min-h-[120px] w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
-                      value={selectedStudentIds}
-                      onChange={(e) =>
-                        setSelectedStudentIds(Array.from(e.target.selectedOptions, (option) => option.value))
-                      }
-                    >
-                      {available.map((student) => (
-                        <option key={student.id} value={student.id}>
-                          {student.fullName} ({student.studentCode || student.email})
-                        </option>
-                      ))}
-                    </select>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_2fr]">
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                      className="hidden"
+                      onChange={handleImportFile}
+                    />
                     <button
                       type="button"
-                      disabled={saving || selectedStudentIds.length === 0}
-                      onClick={handleEnroll}
-                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                      disabled={saving}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragEnter={handleDragOver}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDropExcel}
+                      className={`flex h-full min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-6 text-sm transition-colors disabled:opacity-50 ${
+                        isDragging
+                          ? 'border-primary bg-primary-light text-primary-text'
+                          : 'border-border bg-surface-secondary text-foreground-secondary hover:border-primary hover:bg-primary-light'
+                      }`}
                     >
-                      <UserPlus className="h-4 w-4" />
-                      Add
+                      <FileSpreadsheet className="h-6 w-6" />
+                      <span className="text-center font-medium text-foreground">Drop Excel or click to import</span>
+                      <span className="text-center text-xs text-foreground-muted">.xlsx, .xls, or .csv</span>
                     </button>
                   </div>
-                )}
+
+                  <div className="flex min-h-[160px] flex-col gap-2">
+                    {available.length === 0 ? (
+                      <p className="flex flex-1 items-center text-sm text-foreground-muted">
+                        All active students are already in this term.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+                          <input
+                            type="text"
+                            placeholder="Search by name, IRN, or email…"
+                            value={availableSearch}
+                            onChange={(e) => setAvailableSearch(e.target.value)}
+                            className="w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-3 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                        <div className="max-h-40 flex-1 overflow-y-auto rounded-lg border border-border bg-surface-secondary">
+                          {filteredAvailable.length === 0 ? (
+                            <p className="px-3 py-4 text-sm text-foreground-muted">No students match your search.</p>
+                          ) : (
+                            <ul className="divide-y divide-border">
+                              {filteredAvailable.map((student) => {
+                                const studentId = String(student.id);
+                                const checked = selectedStudentIds.includes(studentId);
+                                return (
+                                  <li key={student.id}>
+                                    <label className="flex cursor-pointer items-start gap-2 px-3 py-2 text-sm hover:bg-surface">
+                                      <input
+                                        type="checkbox"
+                                        className="mt-0.5"
+                                        checked={checked}
+                                        onChange={() => toggleStudentSelection(studentId)}
+                                      />
+                                      <span className="text-foreground">
+                                        {student.fullName}
+                                        <span className="text-foreground-muted">
+                                          {' '}
+                                          ({student.studentCode || student.email})
+                                        </span>
+                                      </span>
+                                    </label>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving || selectedStudentIds.length === 0}
+                          onClick={handleEnroll}
+                          className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          {selectedStudentIds.length > 0
+                            ? `Add selected (${selectedStudentIds.length})`
+                            : 'Add selected'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-border">
+                <div className="border-b border-border px-4 py-3">
+                  <div className="relative max-w-xs">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+                    <input
+                      type="text"
+                      placeholder="Search enrolled students…"
+                      value={rosterSearch}
+                      onChange={(e) => setRosterSearch(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-3 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border text-left text-sm text-foreground-secondary">
@@ -537,8 +617,14 @@ export default function TermManagement() {
                           No students in this term yet
                         </td>
                       </tr>
+                    ) : filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-foreground-muted">
+                          No students match your search
+                        </td>
+                      </tr>
                     ) : (
-                      students.map((student) => (
+                      filteredStudents.map((student) => (
                         <tr key={student.id} className="border-b border-border">
                           <td className="px-4 py-3 text-sm text-foreground">{student.fullName}</td>
                           <td className="px-4 py-3 text-sm text-foreground">{student.studentCode || '—'}</td>

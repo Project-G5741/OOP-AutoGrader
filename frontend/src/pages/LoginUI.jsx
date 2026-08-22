@@ -94,14 +94,11 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
       const data = await response.json();
       
-      // Save token to storage
-      if (data.accessToken) {
-        localStorage.setItem('token', data.accessToken);
-        if (remember) {
-          localStorage.setItem('rememberedIrn', irn);
-        } else {
-          localStorage.removeItem('rememberedIrn');
-        }
+      // Token is stored in sessionStorage by App.handleLoginSuccess
+      if (remember) {
+        localStorage.setItem('rememberedIrn', irn);
+      } else {
+        localStorage.removeItem('rememberedIrn');
       }
       
       onLoginSuccess?.(data);
@@ -133,13 +130,6 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
       if (resp.ok) {
         const data = await resp.json();
-        
-        // Save token to storage
-        if (data.accessToken) {
-          localStorage.setItem('token', data.accessToken);
-          console.log('✅ Token saved to localStorage from Google login');
-        }
-        
         onLoginSuccess?.(data);
         return;
       }
@@ -173,11 +163,6 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
   const handleCompleteFirstTime = async (createdData) => {
     setShowFirstTimeSetup(false);
-    // Save token if available
-    if (createdData?.accessToken) {
-      localStorage.setItem('token', createdData.accessToken);
-      console.log('✅ Token saved from first-time setup');
-    }
     onLoginSuccess?.(createdData);
   };
 

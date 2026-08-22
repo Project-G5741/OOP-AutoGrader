@@ -1,9 +1,10 @@
 import { brand } from './brand';
 
-/** Keep the tab icon in sync when brand.assets changes at runtime (dev HMR). */
-export function applyBrandFavicon() {
-  const { url, type } = brand.favicon;
-  if (!url) return;
+function applyFromConfig({ url, type }) {
+  if (!url) {
+    document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
+    return;
+  }
 
   const ensureLink = (rel) => {
     let link = document.querySelector(`link[rel="${rel}"]`);
@@ -19,8 +20,24 @@ export function applyBrandFavicon() {
   icon.href = url;
   if (type) icon.type = type;
 
-  if (type === 'image/png' || type === 'image/jpeg' || type === 'image/webp') {
-    const touch = ensureLink('apple-touch-icon');
-    touch.href = url;
+  const isRaster = type === 'image/png' || type === 'image/jpeg' || type === 'image/webp';
+  const touch = document.querySelector('link[rel="apple-touch-icon"]');
+
+  if (isRaster) {
+    const touchLink = touch ?? ensureLink('apple-touch-icon');
+    touchLink.href = url;
+  } else if (touch) {
+    touch.remove();
   }
+}
+
+/** Apply generated favicon at startup; re-apply when brand assets hot-reload in dev. */
+export function applyBrandFavicon(brandConfig = brand) {
+  applyFromConfig(brandConfig.favicon);
+}
+
+if (import.meta.hot) {
+  import.meta.hot.accept('./brand.assets.generated.js', () => {
+    import('./brand.js').then(({ brand: freshBrand }) => applyBrandFavicon(freshBrand));
+  });
 }

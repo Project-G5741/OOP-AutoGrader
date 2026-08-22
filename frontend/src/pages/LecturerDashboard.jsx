@@ -13,12 +13,13 @@ import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverview
 import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
 import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
+import GradeDistributionChart from '../components/lecturer/GradeDistributionChart';
 import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
 import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
-import { formatNumber, formatText, hasItems } from '../utils/formatters';
+import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -574,7 +575,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const labStatFields = useMemo(() => [
     { label: 'Average Score', value: formatNumber(labStatistics?.averageScore) },
-    { label: 'Completion Rate', value: formatNumber(labStatistics?.completionRate) },
+    { label: 'Completion Rate', value: formatPercent(labStatistics?.completionRate) },
     { label: 'Highest Score', value: formatNumber(labStatistics?.highestScore) },
     { label: 'Lowest Score', value: formatNumber(labStatistics?.lowestScore) },
     { label: 'Total Submissions', value: formatNumber(labStatistics?.submissionCount) },
@@ -646,7 +647,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const handleShellCommand = useCallback((cmd) => {
     if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
     else if (cmd === 'history') navigate(ROUTES.lecturerSolution);
-    else if (cmd === 'editProfile') setShowProfile(true);
+    else if (cmd === 'changePassword' || cmd === 'editProfile') setShowProfile(true);
   }, [navigate]);
 
   const handleNavChange = useCallback((navId) => {
@@ -784,22 +785,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                                   Grade distribution
                                 </p>
                                 {hasItems(labStatistics?.gradeDistribution) ? (
-                                  <dl className="mt-3 grid grid-cols-[7ch_auto] items-baseline gap-x-2 gap-y-1.5 text-sm">
-                                    {labStatistics.gradeDistribution.flatMap((bucket) => [
-                                      <dt
-                                        key={`${bucket.range}-label`}
-                                        className="tabular-nums text-right text-foreground-secondary"
-                                      >
-                                        {bucket.range}
-                                      </dt>,
-                                      <dd
-                                        key={`${bucket.range}-count`}
-                                        className="m-0 font-medium tabular-nums text-primary dark:text-primary-text"
-                                      >
-                                        {formatNumber(bucket.count)}
-                                      </dd>,
-                                    ])}
-                                  </dl>
+                                  <GradeDistributionChart distribution={labStatistics.gradeDistribution} />
                                 ) : (
                                   <p className="mt-3 text-sm text-foreground-secondary">No data available</p>
                                 )}
@@ -826,7 +812,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                               <SubmissionTable
                                 submissions={submissions}
                                 summary={{
-                                  submissionCount: labStatistics?.submissionCount ?? null,
+                                  studentsSubmitted: labStatistics?.studentsSubmitted ?? null,
                                   studentCount: labStatistics?.studentCount ?? null,
                                   completionRate: labStatistics?.completionRate ?? null,
                                 }}

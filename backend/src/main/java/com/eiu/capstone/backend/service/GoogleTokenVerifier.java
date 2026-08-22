@@ -60,7 +60,12 @@ public class GoogleTokenVerifier {
             throw new GoogleTokenVerificationException("Email is not verified by Google.", "email_verified is false or email is missing.");
         }
 
-        if (googleClientId != null && !googleClientId.isBlank() && !googleClientId.equals(tokenInfo.getAud())) {
+        if (googleClientId == null || googleClientId.isBlank()) {
+            throw new GoogleTokenVerificationException(
+                    "Google client ID is not configured.", "Set GOOGLE_CLIENT_ID in the environment.");
+        }
+
+        if (!googleClientId.equals(tokenInfo.getAud())) {
             throw new GoogleTokenVerificationException("Token audience mismatch.", "The token was not issued for the configured Google client ID.");
         }
 
