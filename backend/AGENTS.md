@@ -139,11 +139,11 @@ Grading tuning properties (`application.properties`):
 - Controllers stay thin; business logic belongs in `service/` or `grading/`
 - Throw `SubmissionProcessingException` for upload/compile failures — handled by `GlobalExceptionHandler` (422)
 - `LabService` exists but `LabController` calls `LabRepository` directly — follow existing pattern per endpoint
-- New API endpoints need CORS coverage in `CorsConfig` if called from frontend
+- New API endpoints need CORS coverage in `CorsConfig` if called from frontend; `allowedMethods` must include `PATCH` (lab deadline set/clear uses `PATCH /api/lecturer/labs/{labId}/deadline`)
 
 ## Verification
 
-- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
+- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `CorsPatchDeadlineTest`, `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 
 ## Child DOX Index

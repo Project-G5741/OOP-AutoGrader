@@ -5,6 +5,7 @@ import Toast from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
 import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
+import DatePicker from '../components/ui/DatePicker';
 import { authHeaders } from '../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
@@ -21,6 +22,23 @@ const emptyDraft = (lab) => ({
 
 function cloneDraft(data) {
   return JSON.parse(JSON.stringify(data));
+}
+
+function toDateInputValue(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (Array.isArray(value) && value.length >= 3) {
+    const [year, month, day] = value;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+function isValidCalendarDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
 }
 
 function collectNestedDependents(classes, outerClassId, acc = new Set()) {
@@ -57,6 +75,8 @@ export default function SolutionManagement() {
   const [newLabDeadline, setNewLabDeadline] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [challengeTabById, setChallengeTabById] = useState({});
+  const [deadlineInput, setDeadlineInput] = useState('');
+  const [deadlineSaving, setDeadlineSaving] = useState(false);
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) return false;
@@ -69,6 +89,10 @@ export default function SolutionManagement() {
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
+
+  useEffect(() => {
+    setDeadlineInput(toDateInputValue(savedSnapshot?.deadlineDate));
+  }, [selectedLabId, savedSnapshot?.deadlineDate]);
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
@@ -264,24 +288,64 @@ export default function SolutionManagement() {
     await selectLab(created.id, true);
   };
 
+  const applyDeadlineToSelectedLab = (labId, deadlineDate) => {
+    const normalized = toDateInputValue(deadlineDate) || null;
+    setDraft((prev) => (prev ? { ...prev, deadlineDate: normalized } : prev));
+    setSavedSnapshot((prev) => (prev ? { ...prev, deadlineDate: normalized } : prev));
+    setLabs((prev) => prev.map((lab) => (
+      lab.id === labId ? { ...lab, deadlineDate: normalized } : lab
+    )));
+    const cached = structureCacheRef.current[labId];
+    if (cached) {
+      cached.draft = { ...cached.draft, deadlineDate: normalized };
+      cached.snapshot = { ...cached.snapshot, deadlineDate: normalized };
+    }
+  };
+
   const handleDeadlineChange = async (deadlineDate) => {
-    if (!selectedLabId) return;
+    if (!selectedLabId || deadlineSaving) return;
+    const nextDeadline = toDateInputValue(deadlineDate) || null;
+    if (nextDeadline && !isValidCalendarDate(nextDeadline)) {
+      setToast({
+        message: 'That day does not exist. Pick a valid date from the calendar, then save.',
+        type: 'error',
+      });
+      return;
+    }
+    if (deadlineDate !== null && !nextDeadline) {
+      setToast({
+        message: 'Pick a valid date from the calendar, then click Save deadline.',
+        type: 'error',
+      });
+      return;
+    }
+    const previousDeadline = toDateInputValue(savedSnapshot?.deadlineDate) || null;
+    setDeadlineSaving(true);
+    applyDeadlineToSelectedLab(selectedLabId, nextDeadline);
+    setDeadlineInput(nextDeadline ?? '');
     try {
       const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/deadline`, {
         method: 'PATCH',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ deadlineDate: deadlineDate || null }),
+        body: JSON.stringify({ deadlineDate: nextDeadline }),
       });
       if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
       const updated = await res.json();
-      setDraft((prev) => (prev ? { ...prev, deadlineDate: updated.deadlineDate ?? null } : prev));
-      setSavedSnapshot((prev) => (prev ? { ...prev, deadlineDate: updated.deadlineDate ?? null } : prev));
-      setLabs((prev) => prev.map((lab) => (
-        lab.id === selectedLabId ? { ...lab, deadlineDate: updated.deadlineDate ?? null } : lab
-      )));
-      setToast({ message: 'Lab deadline updated.', type: 'success' });
+      const savedDeadline = updated.deadlineDate ?? null;
+      applyDeadlineToSelectedLab(selectedLabId, savedDeadline);
+      setDeadlineInput(savedDeadline ?? '');
+      setToast({
+        message: savedDeadline
+          ? `${draft?.name || 'Lab'} deadline saved.`
+          : `${draft?.name || 'Lab'} deadline cleared.`,
+        type: 'success',
+      });
     } catch (e) {
+      applyDeadlineToSelectedLab(selectedLabId, previousDeadline);
+      setDeadlineInput(previousDeadline ?? '');
       setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    } finally {
+      setDeadlineSaving(false);
     }
   };
 
@@ -349,24 +413,33 @@ export default function SolutionManagement() {
           <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface-secondary px-4 py-3">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-                Lab deadline
+                Deadline for {draft.name}
               </label>
-              <input
-                type="date"
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm dark:text-white"
-                value={draft.deadlineDate ?? ''}
-                onChange={(e) => handleDeadlineChange(e.target.value || null)}
+              <DatePicker
+                value={deadlineInput}
+                disabled={deadlineSaving}
+                placeholder="Select Date..."
+                onChange={setDeadlineInput}
               />
             </div>
             <button
               type="button"
-              className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface"
+              className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={deadlineSaving}
+              onClick={() => handleDeadlineChange(deadlineInput)}
+            >
+              {deadlineSaving ? 'Saving…' : 'Save deadline'}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={deadlineSaving}
               onClick={() => handleDeadlineChange(null)}
             >
               Clear deadline
             </button>
             <p className="text-xs text-foreground-muted pb-2">
-              End of day 23:59 Vietnam time. Empty = never expires for lecturer views.
+              Use the calendar to pick a real date, then Save. End of day 23:59 Vietnam time.
             </p>
           </div>
         )}
@@ -538,11 +611,11 @@ export default function SolutionManagement() {
             </div>
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Deadline (optional)</label>
-              <input
-                type="date"
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              <DatePicker
+                className="w-full bg-surface-secondary"
                 value={newLabDeadline}
-                onChange={(e) => setNewLabDeadline(e.target.value)}
+                placeholder="Select Date..."
+                onChange={setNewLabDeadline}
               />
             </div>
             <div className="flex gap-2">
