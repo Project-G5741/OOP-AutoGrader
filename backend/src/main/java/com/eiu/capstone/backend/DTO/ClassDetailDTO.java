@@ -7,6 +7,7 @@ import java.util.List;
  * submission when a snapshot exists; otherwise from rubric class_entity fields.
  * `status` is one of "success" | "warning" | "error" | "info", computed from
  * class-shell checks (binary) plus fields/constructors/methods correctness.
+ * A matching shell with no members is "success" (not "info").
  */
 public record ClassDetailDTO(
         String name,

@@ -14,7 +14,7 @@ function Tick({ ok, partial }) {
 }
 
 function ClassStatusIcon({ status }) {
-  if (status === 'success') {
+  if (status === 'success' || status === 'info') {
     return <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />;
   }
   if (status === 'warning') {
@@ -31,9 +31,13 @@ function classGradeCounts(cls) {
   const constructors = cls.constructors ?? [];
   const methods = cls.methods ?? [];
   const allItems = [...fields, ...constructors, ...methods];
+  if (allItems.length === 0) {
+    const shellOk = cls.status !== 'error';
+    return { passCount: shellOk ? 1 : 0, total: 1, pct: shellOk ? 100 : 0 };
+  }
   const passCount = allItems.filter((item) => item.ok).length;
   const total = allItems.length;
-  const pct = total ? Math.round((passCount / total) * 100) : 100;
+  const pct = Math.round((passCount / total) * 100);
   return { passCount, total, pct };
 }
 
@@ -112,7 +116,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <ScorePill ok={clsPass} total={clsTotal || 1} pct={clsPct} />
+                    <ScorePill ok={clsPass} total={clsTotal} pct={clsPct} />
                     {isOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
                   </div>
                 </button>

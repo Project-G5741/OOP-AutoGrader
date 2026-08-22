@@ -111,6 +111,75 @@ class ClassStructureServiceShellDisplayTest {
     assertEquals(false, cakeFactory.methods().get(0).partial());
   }
 
+  @Test
+  void buildClassData_memberlessEnumWithMatchingShell_isSuccess() {
+    ClassDetailDTO flowerType = buildMemberlessEnum("enum");
+    assertEquals("ENUM", flowerType.type());
+    assertEquals("success", flowerType.status());
+    assertEquals(0, flowerType.fields().size());
+    assertEquals(0, flowerType.constructors().size());
+    assertEquals(0, flowerType.methods().size());
+  }
+
+  @Test
+  void buildClassData_memberlessEnumWithWrongDeclaringType_isError() {
+    ClassDetailDTO flowerType = buildMemberlessEnum("class");
+    assertEquals("CLASS", flowerType.type());
+    assertEquals("error", flowerType.status());
+  }
+
+  private ClassDetailDTO buildMemberlessEnum(String studentDeclaringType) {
+    UUID challengeId = UUID.randomUUID();
+    UUID classId = UUID.randomUUID();
+
+    MasterData publicScope = masterData(1, "PUBLIC");
+    MasterData enumType = masterData(3, "ENUM");
+
+    ClassEntity classEntity = new ClassEntity();
+    classEntity.setId(classId);
+    classEntity.setName("FlowerType");
+    classEntity.setScope(publicScope);
+    classEntity.setDeclaringType(enumType);
+    classEntity.setAbstract(false);
+    classEntity.setWeight(1);
+
+    Challenge challenge = new Challenge();
+    challenge.setId(challengeId);
+    classEntity.setChallenge(challenge);
+
+    LabChallengeStructureBundle structure = new LabChallengeStructureBundle(
+        Map.of(1, "PUBLIC", 3, "ENUM"),
+        Map.of(challengeId, List.of(classEntity)),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of());
+
+    ClassShellEntry shell = new ClassShellEntry();
+    shell.scope = "public";
+    shell.declaringType = studentDeclaringType;
+    shell.isAbstract = false;
+    shell.isStatic = false;
+
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.shells.put(classId.toString(), shell);
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassData(
+        structure,
+        challengeId,
+        new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+        null,
+        snapshot);
+
+    assertEquals(1, result.size());
+    return result.get(0);
+  }
+
   private static MasterData masterData(int id, String name) {
     MasterData masterData = new MasterData();
     masterData.setId(id);
