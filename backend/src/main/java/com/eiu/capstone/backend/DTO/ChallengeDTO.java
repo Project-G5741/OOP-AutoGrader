@@ -15,9 +15,10 @@ public record ChallengeDTO(
         int weight,
         int classWeight,
         int mmdWeight,
+        int testcaseWeight,
         boolean hasMmd) {
 
     public ChallengeDTO(UUID id, int challengeNumber, String name, Integer score) {
-        this(id, challengeNumber, name, score, 1, 1, 1, true);
+        this(id, challengeNumber, name, score, 1, 1, 1, 1, true);
     }
 }

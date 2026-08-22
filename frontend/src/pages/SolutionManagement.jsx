@@ -104,6 +104,7 @@ export default function SolutionManagement() {
       weight: challenge.weight > 0 ? challenge.weight : 1,
       classWeight: challenge.classWeight > 0 ? challenge.classWeight : 1,
       mmdWeight: challenge.mmdWeight > 0 ? challenge.mmdWeight : 1,
+      testcaseWeight: challenge.testcaseWeight > 0 ? challenge.testcaseWeight : 1,
       classes: (challenge.classes || []).map((cls) => ({
         ...cls,
         weight: cls.weight > 0 ? cls.weight : 1,
@@ -424,6 +425,7 @@ export default function SolutionManagement() {
               weight: 1,
               classWeight: 1,
               mmdWeight: 1,
+              testcaseWeight: 1,
             };
             setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
             setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));

@@ -114,7 +114,7 @@ public class GradingPipeline {
                 challengeRubric.mmdWeight(),
                 testcaseResult.pillarPercentage(),
                 testcaseApplicable,
-                1);
+                challengeRubric.testcaseWeight());
         long scoreMs = System.currentTimeMillis() - scoreStart;
         TimingLog.block(timingLog, "Challenge " + challengeKey,
                 "parse", parseMs,

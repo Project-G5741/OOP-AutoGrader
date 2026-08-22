@@ -73,7 +73,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
-- Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
+- Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
 - Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. Flag if any check fires. Missing `.git` skips git/metadata only.
 - `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
 - `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely)

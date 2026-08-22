@@ -245,7 +245,8 @@ public class LabStructureService {
                             saved.isHasMmd(),
                             saved.getWeight(),
                             saved.getClassWeight(),
-                            saved.getMmdWeight());
+                            saved.getMmdWeight(),
+                            saved.getTestcaseWeight());
                 })
                 .toList();
         TimingLog.block(timingLog, "Save lab structure",
@@ -529,6 +530,7 @@ public class LabStructureService {
         challenge.setWeight(normalizeWeight(dto.weight()));
         challenge.setClassWeight(normalizeWeight(dto.classWeight()));
         challenge.setMmdWeight(normalizeWeight(dto.mmdWeight()));
+        challenge.setTestcaseWeight(normalizeWeight(dto.testcaseWeight()));
         if (isNew) {
             challenge.setChallengeNumber(allocateChallengeNumber(usedChallengeNumbers, dto.challengeNumber()));
         } else {
@@ -1111,7 +1113,8 @@ public class LabStructureService {
                 challenge.isHasMmd(),
                 normalizeWeight(challenge.getWeight()),
                 normalizeWeight(challenge.getClassWeight()),
-                normalizeWeight(challenge.getMmdWeight()));
+                normalizeWeight(challenge.getMmdWeight()),
+                normalizeWeight(challenge.getTestcaseWeight()));
     }
 
     private ClassStructureDTO toClassDto(ClassEntity classEntity,

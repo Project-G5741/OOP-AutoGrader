@@ -49,7 +49,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/lecturer/plagiarism/flags`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `terms` | `TermManagement` | Live `/api/lecturer/terms` create/set current/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |
-| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`); challenge / class / MMD weights persist on structure save; labs have no weight |
+| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections
