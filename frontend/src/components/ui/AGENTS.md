@@ -16,10 +16,10 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Fixed viewport toast (`success` / `error`), auto-dismiss (default 3s) |
 | `AppLogo.jsx` | App logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
-| `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger` (project tokens; no Radix) |
+| `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
 | `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`) |
-| `separator.jsx` | Horizontal or vertical divider |
+| `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 
 ## Local Contracts
@@ -34,10 +34,11 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - Header: `Authorization: Bearer ${authToken}`
 - Errors surfaced in-component (`uploadError`); API failures use friendly messages from `apiError.js` (never raw backend diagnostics)
 
-### Button, Card, Select
+### Button, Card, Select, DatePicker
 
 - Tailwind-styled, dark-mode aware via parent `dark` class on `<html>`
 - No external state management — controlled via props
+- `DatePicker` stores ISO `Y-m-d` (API) and shows `d.m.Y`; calendar-only (no free typing of invalid days)
 
 ## Work Guidance
 

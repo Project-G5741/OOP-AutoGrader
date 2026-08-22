@@ -18,6 +18,7 @@ React 18 + Vite 7 SPA for the OOP AutoGrader: Google/IRN login, role-based dashb
 - `react-router-dom` installed; `App.jsx` uses URL routes with role guards (`RequireRole`)
 - `@react-oauth/google` for Google sign-in
 - `lucide-react` for icons
+- `flatpickr` for lecturer date fields (`DatePicker` in `src/components/ui/`)
 
 ### Environment
 

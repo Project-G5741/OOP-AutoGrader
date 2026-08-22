@@ -10,7 +10,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
-| `StudentNotificationBell.jsx` | Bell icon + dropdown; deadline and submission reminders from `buildStudentNotifications` |
+| `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -18,7 +18,9 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 ### StudentHistoryPage
 
 - Fetches `GET /api/submissions/my-history` with `page`, `size` (10), optional `labId`, and `sort` (server-side); plus `GET /api/submissions/my-labs`
-- Filter by lab name via dropdown; server-side table sort via clickable column headers; prev/next pagination (10 rows per page)
+- Out-of-term students (`inCurrentTerm === false`, from `StudentDashboard` or `user.inCurrentTerm`) see a warning banner above **Submission History**: amber tokens (`bg-warning-bg`, `text-warning-text`) for attention required — not error red; no border
+- Filter by lab via Performance by Lab rows (click to filter, click again to show all); server-side table sort via clickable column headers; prev/next pagination (10 rows per page)
+- Two-column body from `xl`: Performance by Lab ~3/10 width, All Submissions ~7/10
 - Expanded rows show challenge-level results only
 - Scores display via shared `formatNumber` (`Math.round`) — same rounding as the student dashboard and lecturer views
 - Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score); thresholds use the rounded display score
@@ -46,15 +48,17 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Lab list layout (`StudentUI.jsx`)
 
-- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, deadline, urgency badge)
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
 - Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
+- Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
 
 ### Result tabs (`StudentUI.jsx`)
 
 - MMD / Declaration Test / Operation Test tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a short prompt to submit first.
 - After upload, tabs appear and are filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown when results are revealed.
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
+- Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (red X when wrong); when the shell fails, member rows are all fail (no green ticks); orange minus applies only to fields/methods/constructors with partial attribute credit when the shell passes
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
@@ -65,7 +69,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Dashboard stats row (`StudentUI.jsx`)
 
-- Stats are lab-scoped; `StudentDashboard` clears attempt/latest on lab change and reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API).
+- Stats are lab-scoped; `StudentDashboard` clears attempt/latest only when switching to a **different** lab, then reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API). Clicking the already-selected lab is a no-op.
 - **Total Submissions** and **Latest Submission** always reflect DB history for the selected lab.
 - **Current Grade** follows the same session-reveal rule as challenge sidebar scores: `--/--` until the student completes an upload in the current browser session for that lab; then shows the score from the upload response. Switching labs resets the grade until that lab is uploaded again in-session.
 
@@ -78,7 +82,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 ## Verification
 
 - Manual: log in as student, toggle history view, open profile modal
-- Out-of-term active students see History only (Home hidden); inactive students cannot log in
+- Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
 
 ## Child DOX Index

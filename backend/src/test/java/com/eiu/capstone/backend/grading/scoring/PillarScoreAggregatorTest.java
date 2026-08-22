@@ -117,6 +117,16 @@ class PillarScoreAggregatorTest {
     }
 
     @Test
+    void challengePercentage_heavyTestcasePullsScoreTowardTestcase() {
+        // (0*1 + 100*4) / 5 = 80.00
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.ZERO, 1,
+                BigDecimal.ZERO, false, 1,
+                BigDecimal.valueOf(100), true, 4);
+        assertEquals(new BigDecimal("80.00"), result);
+    }
+
+    @Test
     void pillarPercentage_heavierClassShellDominatesMembers() {
         // (1.0*4 + 0.0*1) / 5 * 100 = 80.00
         BigDecimal result = PillarScoreAggregator.pillarPercentage(List.of(

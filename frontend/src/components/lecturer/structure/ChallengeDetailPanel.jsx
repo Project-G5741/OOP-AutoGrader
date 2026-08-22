@@ -23,7 +23,7 @@ export default function ChallengeDetailPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-3">
+      <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 xl:grid-cols-4">
         <WeightInput
           id={`challenge-weight-${challenge.id}`}
           label="Challenge weight"
@@ -41,6 +41,12 @@ export default function ChallengeDetailPanel({
           label="MMD weight"
           value={challenge.mmdWeight}
           onChange={(mmdWeight) => onMmdChange({ ...challenge, mmdWeight })}
+        />
+        <WeightInput
+          id={`challenge-testcase-weight-${challenge.id}`}
+          label="Operational testcase weight"
+          value={challenge.testcaseWeight}
+          onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
         />
       </div>
       <div className="flex gap-1 border-b border-border">

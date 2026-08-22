@@ -13,14 +13,15 @@ public record ChallengeRubric(
         boolean hasMmd,
         int weight,
         int classWeight,
-        int mmdWeight) {
+        int mmdWeight,
+        int testcaseWeight) {
 
     public ChallengeRubric(UUID challengeId,
                            int challengeNumber,
                            String name,
                            List<ClassRubric> classes,
                            List<RelationRubric> relations) {
-        this(challengeId, challengeNumber, name, classes, relations, List.of(), true, 1, 1, 1);
+        this(challengeId, challengeNumber, name, classes, relations, List.of(), true, 1, 1, 1, 1);
     }
 
     public ChallengeRubric(UUID challengeId,
@@ -29,7 +30,7 @@ public record ChallengeRubric(
                            List<ClassRubric> classes,
                            List<RelationRubric> relations,
                            List<TestcaseRubric> testcases) {
-        this(challengeId, challengeNumber, name, classes, relations, testcases, true, 1, 1, 1);
+        this(challengeId, challengeNumber, name, classes, relations, testcases, true, 1, 1, 1, 1);
     }
 
     public ChallengeRubric(UUID challengeId,
@@ -39,6 +40,6 @@ public record ChallengeRubric(
                            List<RelationRubric> relations,
                            List<TestcaseRubric> testcases,
                            boolean hasMmd) {
-        this(challengeId, challengeNumber, name, classes, relations, testcases, hasMmd, 1, 1, 1);
+        this(challengeId, challengeNumber, name, classes, relations, testcases, hasMmd, 1, 1, 1, 1);
     }
 }

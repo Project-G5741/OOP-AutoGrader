@@ -35,10 +35,10 @@ Diagram-side grading of an uploaded `.mmd` file: parse Mermaid `classDiagram` sy
 A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements score incorrect; a human-readable error message is persisted and shown on the student MMD tab. Upload still succeeds.
 
 ### Grading pillar
-One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class and MMD use lecturer-set `class_weight` / `mmd_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
+One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class, MMD, and testcase use lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
 
 ### Scoring weight
-A positive integer (default 1) that scales how much a challenge, class shell, or MMD pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
+A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
 
 ### Operational testcase
 A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).

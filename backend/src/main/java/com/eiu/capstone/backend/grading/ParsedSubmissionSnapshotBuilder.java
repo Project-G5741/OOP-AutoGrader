@@ -11,9 +11,11 @@ import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapsh
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassConstructorEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassFieldEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdRelationEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdSnapshot;
+import com.eiu.capstone.backend.grading.pipeline.ClassReflectionGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
@@ -53,6 +55,13 @@ public class ParsedSubmissionSnapshotBuilder {
             if (parsed == null) {
                 continue;
             }
+
+            ClassShellEntry shell = new ClassShellEntry();
+            shell.scope = parsed.scope;
+            shell.declaringType = parsed.declaringType;
+            shell.isAbstract = parsed.isAbstract;
+            shell.isStatic = parsed.isStatic;
+            classSnapshot.shells.put(expectedClass.id().toString(), shell);
 
             Map<String, ParsedField> parsedFields = parsed.fields.stream()
                     .collect(Collectors.toMap(f -> f.name, f -> f, (a, b) -> a));
@@ -96,6 +105,43 @@ public class ParsedSubmissionSnapshotBuilder {
             }
         }
         return classSnapshot;
+    }
+
+    public void enrichMemberGrades(ClassSnapshot classSnapshot,
+                                   ClassReflectionGrader.ClassPillarResult classResult) {
+        if (classSnapshot == null || classResult == null) {
+            return;
+        }
+        for (ClassReflectionGrader.PendingFieldResult field : classResult.fields()) {
+            classSnapshot.fieldGrades.put(field.fieldId().toString(), memberGradeLabel(field));
+        }
+        for (ClassReflectionGrader.PendingMethodResult method : classResult.methods()) {
+            classSnapshot.methodGrades.put(method.methodId().toString(), memberGradeLabel(method));
+        }
+        for (ClassReflectionGrader.PendingConstructorResult constructor : classResult.constructors()) {
+            classSnapshot.constructorGrades.put(constructor.constructorId().toString(), memberGradeLabel(constructor));
+        }
+    }
+
+    private static String memberGradeLabel(ClassReflectionGrader.PendingFieldResult result) {
+        if (result.correct()) {
+            return "pass";
+        }
+        return result.partial() ? "partial" : "fail";
+    }
+
+    private static String memberGradeLabel(ClassReflectionGrader.PendingMethodResult result) {
+        if (result.correct()) {
+            return "pass";
+        }
+        return result.partial() ? "partial" : "fail";
+    }
+
+    private static String memberGradeLabel(ClassReflectionGrader.PendingConstructorResult result) {
+        if (result.correct()) {
+            return "pass";
+        }
+        return result.partial() ? "partial" : "fail";
     }
 
     private MmdSnapshot buildMmdSnapshot(ChallengeRubric rubric, ParsedMmdDiagram diagram) {

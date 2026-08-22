@@ -185,7 +185,8 @@ public class LabRubricService {
                             classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd(),
                             Math.max(1, challenge.getWeight()),
                             Math.max(1, challenge.getClassWeight()),
-                            Math.max(1, challenge.getMmdWeight())));
+                            Math.max(1, challenge.getMmdWeight()),
+                            Math.max(1, challenge.getTestcaseWeight())));
         }
 
         return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));

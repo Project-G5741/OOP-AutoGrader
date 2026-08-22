@@ -10,7 +10,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, persistence, `lab_result` assembly |
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
-| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar with partial credit on declarations; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%); when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
@@ -60,7 +60,7 @@ SubmissionController
 ### Scoring
 
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
-- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight` and `challenge.mmd_weight` (testcase pillar weight stays 1)
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar

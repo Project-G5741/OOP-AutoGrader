@@ -51,6 +51,9 @@ public class Challenge {
     @Column(name = "mmd_weight", nullable = false)
     private int mmdWeight = 1;
 
+    @Column(name = "testcase_weight", nullable = false)
+    private int testcaseWeight = 1;
+
     public Challenge() {}
 
     public UUID getId() { return id; }
@@ -76,4 +79,7 @@ public class Challenge {
 
     public int getMmdWeight() { return mmdWeight; }
     public void setMmdWeight(int mmdWeight) { this.mmdWeight = mmdWeight; }
+
+    public int getTestcaseWeight() { return testcaseWeight; }
+    public void setTestcaseWeight(int testcaseWeight) { this.testcaseWeight = testcaseWeight; }
 }

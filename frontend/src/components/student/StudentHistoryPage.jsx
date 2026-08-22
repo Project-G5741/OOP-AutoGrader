@@ -2,11 +2,12 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { 
   History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, 
-  CheckCircle2, XCircle, RefreshCw 
+  CheckCircle2, XCircle, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber } from '../../utils/formatters';
 import { buildServerSortParam, toggleSortState } from '../../utils/sort';
+import { isInCurrentTerm } from '../../utils/authRoutes';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -80,11 +81,10 @@ function ScoreBar({ score }) {
 
 // ==================== MAIN COMPONENT ====================
 
-export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
+export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurrentTerm }) {
   // ===== States =====
   const [submissions, setSubmissions] = useState([]);
-  const [labOptions, setLabOptions] = useState(['All Labs']);
-  const [selectedLab, setSelectedLab] = useState('All Labs');
+  const [selectedLabId, setSelectedLabId] = useState(null);
   const [stats, setStats] = useState({
     totalSubmissions: 0,
     averageScore: null,
@@ -161,12 +161,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
 
     if (!response.ok) {
       console.info('Labs summary API not available yet');
-      return { labsSummary: [], labOptions: ['All Labs'] };
+      return [];
     }
 
     const data = await response.json();
-    const labs = ['All Labs', ...data.map((lab) => lab.name)];
-    return { labsSummary: data || [], labOptions: labs };
+    return data || [];
   }, []);
 
   const applyHistoryData = useCallback((historyData, { syncStats = false } = {}) => {
@@ -216,15 +215,13 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
         fetchLabsSummaryData(),
       ]);
       applyHistoryData(historyData, { syncStats: true });
-      setLabsSummary(labsData.labsSummary);
-      setLabOptions(labsData.labOptions);
+      setLabsSummary(labsData);
     } catch (err) {
       console.info('Could not fetch submission history:', err.message);
       setSubmissions([]);
       setStats(emptyStats);
       setPagination({ page: 0, size: HISTORY_PAGE_SIZE, total: 0, totalPages: 0 });
       setLabsSummary([]);
-      setLabOptions(['All Labs']);
     } finally {
       setInitialLoading(false);
     }
@@ -236,17 +233,12 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const resolveLabId = useCallback((labName) => {
-    if (labName === 'All Labs') return null;
-    const lab = labsSummary.find((l) => l.name === labName);
-    return lab?.id ?? null;
-  }, [labsSummary]);
-
-  const handleFilterChange = (labName) => {
-    setSelectedLab(labName);
+  const handleLabSelect = (labId) => {
+    const nextId = String(selectedLabId) === String(labId) ? null : labId;
+    setSelectedLabId(nextId);
     setExpandedRow(null);
     void loadHistorySection({
-      labId: resolveLabId(labName),
+      labId: nextId,
       page: 0,
       sortState: historySort,
       syncStats: true,
@@ -255,7 +247,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
 
   const handleRefresh = () => {
     void loadFullPage({
-      labId: resolveLabId(selectedLab),
+      labId: selectedLabId,
       page: pagination.page,
       sortState: historySort,
     });
@@ -264,7 +256,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   const handlePageChange = (nextPage) => {
     setExpandedRow(null);
     void loadHistorySection({
-      labId: resolveLabId(selectedLab),
+      labId: selectedLabId,
       page: nextPage,
       sortState: historySort,
     });
@@ -279,7 +271,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
     setHistorySort(nextSort);
     setExpandedRow(null);
     void loadHistorySection({
-      labId: resolveLabId(selectedLab),
+      labId: selectedLabId,
       page: 0,
       sortState: nextSort,
     });
@@ -327,8 +319,22 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
     },
   ];
 
+  const enrolledInCurrentTerm = inCurrentTerm ?? isInCurrentTerm(user?.inCurrentTerm);
+
   return (
     <div className="w-full flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-8 max-w-full overflow-x-hidden">
+      {!enrolledInCurrentTerm && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-xl bg-warning-bg px-4 py-3 text-sm text-warning-text"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
+          <p>
+            You do not belong to any class in this term. If you do, please contact your lecturer for submission permissions.
+          </p>
+        </div>
+      )}
+
       {/* ===== Header ===== */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
@@ -339,24 +345,14 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
             <h1 className="text-xl font-semibold text-foreground">Submission History</h1>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={selectedLab}
-            onChange={(e) => handleFilterChange(e.target.value)}
-            className="rounded-2xl border border-border bg-surface px-4 py-2 text-sm text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            {labOptions.map((labName) => (
-              <option key={labName} value={labName}>{labName}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleRefresh}
-            className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 text-foreground-muted ${isPageBusy ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          className="p-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors"
+          title="Refresh"
+        >
+          <RefreshCw className={`w-4 h-4 text-foreground-muted ${isPageBusy ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* ===== Stats Cards ===== */}
@@ -384,7 +380,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
       </div>
 
       {/* ===== Labs Summary Sidebar + Submissions Table ===== */}
-      <div className="grid gap-6 xl:grid-cols-[0.6fr_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
         {initialLoading ? (
           <>
             <section className="rounded-3xl border border-border bg-surface p-6 animate-pulse">
@@ -409,31 +405,50 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
           {labsSummary.length === 0 ? (
             <p className="mt-6 text-sm text-foreground-disabled text-center">No labs attempted yet</p>
           ) : (
-            <div className="mt-6 space-y-4">
-              {labsSummary.map((lab) => (
-                <div key={lab.id} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-foreground-secondary">{lab.name}</span>
-                    {lab.bestScore !== null && lab.bestScore !== undefined ? (
-                      <span className={`font-semibold ${
-                        lab.bestScore >= 90 ? 'text-success-text' :
-                        lab.bestScore >= 75 ? 'text-info-text' :
-                        lab.bestScore >= 60 ? 'text-warning-text' :
-                        'text-error-text'
-                      }`}>{formatNumber(lab.bestScore)}</span>
-                    ) : (
-                      <span className="text-foreground-disabled">--</span>
+            <div className="mt-6 space-y-2">
+              {labsSummary.map((lab) => {
+                const isSelected = String(selectedLabId) === String(lab.id);
+                return (
+                  <button
+                    key={lab.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => handleLabSelect(lab.id)}
+                    className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${
+                      isSelected
+                        ? 'bg-primary-light'
+                        : 'hover:bg-surface-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className={isSelected ? 'font-medium text-primary-text' : 'text-foreground-secondary'}>
+                        {lab.name}
+                      </span>
+                      {lab.bestScore !== null && lab.bestScore !== undefined ? (
+                        <span className={`font-semibold ${
+                          lab.bestScore >= 90 ? 'text-success-text' :
+                          lab.bestScore >= 75 ? 'text-info-text' :
+                          lab.bestScore >= 60 ? 'text-warning-text' :
+                          'text-error-text'
+                        }`}>{formatNumber(lab.bestScore)}</span>
+                      ) : (
+                        <span className="text-foreground-disabled">--</span>
+                      )}
+                    </div>
+                    {lab.bestScore !== null && lab.bestScore !== undefined && (
+                      <div className="mt-2">
+                        <ScoreBar score={lab.bestScore} />
+                      </div>
                     )}
-                  </div>
-                  {lab.bestScore !== null && lab.bestScore !== undefined && <ScoreBar score={lab.bestScore} />}
-                  <p className="text-xs text-foreground-muted">
-                    {lab.attempts || 0} attempt{lab.attempts > 1 ? 's' : ''}
-                    {lab.lastSubmittedAt && (
-                      <> · Last: {new Date(lab.lastSubmittedAt).toLocaleDateString()}</>
-                    )}
-                  </p>
-                </div>
-              ))}
+                    <p className="mt-2 text-xs text-foreground-muted">
+                      {lab.attempts || 0} attempt{lab.attempts > 1 ? 's' : ''}
+                      {lab.lastSubmittedAt && (
+                        <> · Last: {new Date(lab.lastSubmittedAt).toLocaleDateString()}</>
+                      )}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>

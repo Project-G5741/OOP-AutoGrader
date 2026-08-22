@@ -22,9 +22,21 @@ public class ParsedSubmissionSnapshot {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ClassSnapshot {
+        public Map<String, ClassShellEntry> shells = new HashMap<>();
+        public Map<String, String> fieldGrades = new HashMap<>();
+        public Map<String, String> methodGrades = new HashMap<>();
+        public Map<String, String> constructorGrades = new HashMap<>();
         public Map<String, ClassFieldEntry> fields = new HashMap<>();
         public Map<String, ClassMethodEntry> methods = new HashMap<>();
         public Map<String, ClassConstructorEntry> constructors = new HashMap<>();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ClassShellEntry {
+        public String scope;
+        public String declaringType;
+        public boolean isAbstract;
+        public boolean isStatic;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

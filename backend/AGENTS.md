@@ -73,7 +73,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - JPA entities in `model/`, repositories in `repository/`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
-- Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
+- Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
 - Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. Flag if any check fires. Missing `.git` skips git/metadata only.
 - `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
 - `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely)
@@ -120,7 +120,7 @@ Grading tuning properties (`application.properties`):
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
 - Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
-- Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; when missing (legacy submissions or storage wipe), tabs fall back to rubric-template labels
+- Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match
 - `GET /api/labs` — student-facing lab list (`deadlineDate`, `urgencyState`); with a student JWT, only current-term labs if the student is enrolled; lecturers still see all labs. Upload loads the lab with `findByIdWithTerm` so submit access does not lazy-load `lab.term`.
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution)
 - `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** is best qualifying submission before lab deadline (null when none or only late submissions); sort by `studentName` or `score`
@@ -139,11 +139,11 @@ Grading tuning properties (`application.properties`):
 - Controllers stay thin; business logic belongs in `service/` or `grading/`
 - Throw `SubmissionProcessingException` for upload/compile failures — handled by `GlobalExceptionHandler` (422)
 - `LabService` exists but `LabController` calls `LabRepository` directly — follow existing pattern per endpoint
-- New API endpoints need CORS coverage in `CorsConfig` if called from frontend
+- New API endpoints need CORS coverage in `CorsConfig` if called from frontend; `allowedMethods` must include `PATCH` (lab deadline set/clear uses `PATCH /api/lecturer/labs/{labId}/deadline`)
 
 ## Verification
 
-- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
+- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `CorsPatchDeadlineTest`, `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 
 ## Child DOX Index

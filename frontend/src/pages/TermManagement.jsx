@@ -3,6 +3,7 @@ import { CalendarDays, FileSpreadsheet, Plus, Star, Trash2, UserPlus, Ban, UserC
 import { authHeaders } from '../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
+import DatePicker from '../components/ui/DatePicker';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -348,20 +349,20 @@ export default function TermManagement() {
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-xs text-foreground-muted">Start date (optional)</span>
-              <input
-                type="date"
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
+              <DatePicker
+                className="w-full bg-surface-secondary"
                 value={form.startDate}
-                onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
+                placeholder="Select Date..."
+                onChange={(startDate) => setForm((prev) => ({ ...prev, startDate }))}
               />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-xs text-foreground-muted">End date (optional)</span>
-              <input
-                type="date"
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
+              <DatePicker
+                className="w-full bg-surface-secondary"
                 value={form.endDate}
-                onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                placeholder="Select Date..."
+                onChange={(endDate) => setForm((prev) => ({ ...prev, endDate }))}
               />
             </label>
           </div>

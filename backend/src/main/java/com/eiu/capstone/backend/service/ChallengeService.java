@@ -98,6 +98,7 @@ public class ChallengeService {
                     Math.max(1, challenge.getWeight()),
                     Math.max(1, challenge.getClassWeight()),
                     Math.max(1, challenge.getMmdWeight()),
+                    Math.max(1, challenge.getTestcaseWeight()),
                     challenge.isHasMmd()));
         }
 

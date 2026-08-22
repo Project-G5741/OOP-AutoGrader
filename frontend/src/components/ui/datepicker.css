@@ -1,0 +1,74 @@
+/* Flatpickr calendar — project tokens (not OpenFrontend CSS). */
+.flatpickr-calendar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 24px rgb(15 23 42 / 0.16);
+  color: var(--text-primary);
+  z-index: 70;
+}
+
+.flatpickr-months {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+  color: var(--text-primary);
+  fill: var(--text-primary);
+}
+
+.flatpickr-weekdays {
+  background: var(--surface-secondary);
+}
+
+span.flatpickr-weekday {
+  color: var(--text-secondary);
+}
+
+.flatpickr-day {
+  color: var(--text-primary);
+}
+
+.flatpickr-day:hover,
+.flatpickr-day:focus {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.flatpickr-day.today {
+  border-color: var(--primary);
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: var(--text-muted);
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+  fill: var(--primary);
+}
+
+input.flatpickr-input[readonly],
+input.flatpickr-alt-input[readonly] {
+  cursor: pointer;
+  background: var(--surface);
+}
+
+input.flatpickr-alt-input {
+  box-sizing: border-box;
+  min-width: 11rem;
+  width: 100%;
+}

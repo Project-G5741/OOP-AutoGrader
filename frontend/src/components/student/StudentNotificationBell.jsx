@@ -1,17 +1,36 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { buildStudentNotifications, notificationSeverityClasses } from '../../utils/studentNotifications';
+
+const READ_STORAGE_KEY = 'oop-student-notif-read';
+
+function loadReadIds() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(READ_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistReadIds(ids) {
+  sessionStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...ids]));
+}
 
 export default function StudentNotificationBell({
   labs = [],
   labSummariesById = {},
-  onSelectLab = () => {},
   className = '',
 }) {
   const [open, setOpen] = useState(false);
+  const [readIds, setReadIds] = useState(() => new Set(loadReadIds()));
   const rootRef = useRef(null);
   const notifications = buildStudentNotifications(labs, labSummariesById);
-  const hasUnread = notifications.length > 0;
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !readIds.has(item.id)).length,
+    [notifications, readIds],
+  );
+  const hasUnread = unreadCount > 0;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -25,10 +44,13 @@ export default function StudentNotificationBell({
   }, [open]);
 
   function handleNotificationClick(notification) {
-    if (notification.labId) {
-      onSelectLab(notification.labId);
-    }
-    setOpen(false);
+    setReadIds((prev) => {
+      if (prev.has(notification.id)) return prev;
+      const next = new Set(prev);
+      next.add(notification.id);
+      persistReadIds(next);
+      return next;
+    });
   }
 
   return (
@@ -54,7 +76,9 @@ export default function StudentNotificationBell({
           <div className="border-b border-border px-4 py-3">
             <p className="text-sm font-semibold text-foreground">Notifications</p>
             <p className="text-xs text-foreground-muted">
-              {hasUnread ? `${notifications.length} item${notifications.length === 1 ? '' : 's'}` : 'All caught up'}
+              {hasUnread
+                ? `${unreadCount} unread item${unreadCount === 1 ? '' : 's'}`
+                : 'All caught up'}
             </p>
           </div>
           <ul className="max-h-72 overflow-y-auto p-2">
@@ -63,18 +87,21 @@ export default function StudentNotificationBell({
                 No notifications right now.
               </li>
             ) : (
-              notifications.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleNotificationClick(item)}
-                    className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition-colors hover:opacity-90 ${notificationSeverityClasses(item.severity)}`}
-                  >
-                    <p className="text-sm font-medium text-foreground">{item.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">{item.message}</p>
-                  </button>
-                </li>
-              ))
+              notifications.map((item) => {
+                const read = readIds.has(item.id);
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleNotificationClick(item)}
+                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition-colors hover:opacity-90 ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : ''}`}
+                    >
+                      <p className="text-sm font-medium text-foreground">{item.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">{item.message}</p>
+                    </button>
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>

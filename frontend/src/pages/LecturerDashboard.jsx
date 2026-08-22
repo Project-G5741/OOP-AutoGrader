@@ -691,7 +691,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                 </button>
               }
             >
-              <div className="grid gap-6 lg:grid-cols-[0.28fr_1fr]">
+              <div className="grid min-w-0 gap-6 lg:grid-cols-[0.28fr_minmax(0,1fr)]">
                 <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
                   <div className="mb-3">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
@@ -726,18 +726,18 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
+                <div className="min-w-0 rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="inline-flex h-5 items-center leading-5 whitespace-nowrap text-base font-semibold text-foreground">
-                        {formatText(selectedLab?.name)}
+                    <div className="min-w-0">
+                      <h3 className="inline-flex h-5 min-w-0 items-center leading-5 text-base font-semibold text-foreground">
+                        <span className="truncate">{formatText(selectedLab?.name)}</span>
                         <PlagiarismDangerMark show={labHasPlagiarism(selectedLab?.id, flaggedLabIds)} />
                       </h3>
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="flex gap-3 overflow-x-auto border-b border-border pb-2">
+                  <div className="mt-4 min-w-0">
+                    <div className="scrollbar-themed -mx-1 flex min-w-0 gap-3 overflow-x-auto border-b border-border px-1 pb-2">
                       <button
                         type="button"
                         onClick={() => setActiveTab('overview')}
@@ -770,11 +770,11 @@ export default function LecturerDashboard({ user, onLogout }) {
                             </div>
                           ) : (
                             <>
-                              <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                              <div className="grid w-full grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
                                 {labStatFields.map((stat) => (
-                                  <div key={stat.label}>
+                                  <div key={stat.label} className="min-w-0">
                                     <p className="text-xs text-foreground-muted">{stat.label}</p>
-                                    <p className="text-xl font-semibold text-foreground">{stat.value}</p>
+                                    <p className="text-xl font-semibold tabular-nums text-foreground">{stat.value}</p>
                                   </div>
                                 ))}
                               </div>
@@ -784,14 +784,22 @@ export default function LecturerDashboard({ user, onLogout }) {
                                   Grade distribution
                                 </p>
                                 {hasItems(labStatistics?.gradeDistribution) ? (
-                                  <div className="mt-3 space-y-2">
-                                    {labStatistics.gradeDistribution.map((bucket) => (
-                                      <div key={bucket.range} className="flex items-center justify-between text-sm">
-                                        <span className="text-foreground-secondary">{bucket.range}</span>
-                                        <span className="font-medium text-primary dark:text-primary-text">{formatNumber(bucket.count)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <dl className="mt-3 grid grid-cols-[7ch_auto] items-baseline gap-x-2 gap-y-1.5 text-sm">
+                                    {labStatistics.gradeDistribution.flatMap((bucket) => [
+                                      <dt
+                                        key={`${bucket.range}-label`}
+                                        className="tabular-nums text-right text-foreground-secondary"
+                                      >
+                                        {bucket.range}
+                                      </dt>,
+                                      <dd
+                                        key={`${bucket.range}-count`}
+                                        className="m-0 font-medium tabular-nums text-primary dark:text-primary-text"
+                                      >
+                                        {formatNumber(bucket.count)}
+                                      </dd>,
+                                    ])}
+                                  </dl>
                                 ) : (
                                   <p className="mt-3 text-sm text-foreground-secondary">No data available</p>
                                 )}
