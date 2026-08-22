@@ -97,7 +97,8 @@ public class ChallengeService {
                     score,
                     Math.max(1, challenge.getWeight()),
                     Math.max(1, challenge.getClassWeight()),
-                    Math.max(1, challenge.getMmdWeight())));
+                    Math.max(1, challenge.getMmdWeight()),
+                    challenge.isHasMmd()));
         }
 
         TimingLog.line(timingLog, "Read challenges", System.currentTimeMillis() - start);

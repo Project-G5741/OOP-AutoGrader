@@ -5,26 +5,26 @@ import {
   CheckCircle2, XCircle, RefreshCw 
 } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import { formatNumber } from '../../utils/formatters';
 import { buildServerSortParam, toggleSortState } from '../../utils/sort';
 
 const HISTORY_PAGE_SIZE = 10;
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+function roundedScore(value) {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  if (Number.isNaN(num)) return null;
+  return Math.round(num);
+}
+
 function deriveSubmissionStatus(score) {
-  const numericScore = score != null ? Number(score) : null;
-  if (numericScore == null || Number.isNaN(numericScore)) return 'unknown';
+  const numericScore = roundedScore(score);
+  if (numericScore == null) return 'unknown';
   if (numericScore < 50) return 'failed';
   if (numericScore > 80) return 'passed';
   return 'partial';
-}
-
-function formatScore(value) {
-  if (value === null || value === undefined) return '--';
-  const num = Number(value);
-  if (Number.isNaN(num)) return '--';
-  if (Number.isInteger(num)) return String(num);
-  return num.toFixed(2).replace(/\.?0+$/, '');
 }
 
 // ==================== SUB-COMPONENTS ====================
@@ -47,7 +47,10 @@ function ScorePill({ score }) {
   if (score === null || score === undefined) {
     return <span className="text-foreground-disabled text-sm">--</span>;
   }
-  const numericScore = Number(score);
+  const numericScore = roundedScore(score);
+  if (numericScore == null) {
+    return <span className="text-foreground-disabled text-sm">--</span>;
+  }
   const color = numericScore >= 90 
     ? 'text-success-text' 
     : numericScore >= 75 
@@ -55,21 +58,22 @@ function ScorePill({ score }) {
       : numericScore >= 60 
         ? 'text-warning-text' 
         : 'text-error-text';
-  return <span className={`font-semibold ${color}`}>{formatScore(score)}</span>;
+  return <span className={`font-semibold ${color}`}>{formatNumber(score)}</span>;
 }
 
 function ScoreBar({ score }) {
-  if (score === null || score === undefined) return null;
-  const color = score >= 90 
+  const numericScore = roundedScore(score);
+  if (numericScore == null) return null;
+  const color = numericScore >= 90 
     ? 'bg-gradient-to-r from-success to-success-hover' 
-    : score >= 75 
+    : numericScore >= 75 
       ? 'bg-gradient-to-r from-info to-info-hover' 
-      : score >= 60 
+      : numericScore >= 60 
         ? 'bg-gradient-to-r from-warning to-warning-hover' 
         : 'bg-gradient-to-r from-error to-error-hover';
   return (
     <div className="h-2 overflow-hidden rounded-full bg-surface-tertiary">
-      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(score, 100)}%` }} />
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(numericScore, 100)}%` }} />
     </div>
   );
 }
@@ -287,7 +291,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
   const formatStatValue = (value) => {
     if (value === null || value === undefined) return '--';
     if (typeof value === 'number') {
-      return formatScore(value);
+      return formatNumber(value);
     }
     return value;
   };
@@ -416,7 +420,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                         lab.bestScore >= 75 ? 'text-info-text' :
                         lab.bestScore >= 60 ? 'text-warning-text' :
                         'text-error-text'
-                      }`}>{formatScore(lab.bestScore)}</span>
+                      }`}>{formatNumber(lab.bestScore)}</span>
                     ) : (
                       <span className="text-foreground-disabled">--</span>
                     )}
@@ -526,7 +530,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate }) {
                                           </div>
                                           {cr.score !== undefined && cr.score !== null && (
                                             <span className="text-xs text-foreground-muted">
-                                              Score: {formatScore(cr.score)}
+                                              Score: {formatNumber(cr.score)}
                                             </span>
                                           )}
                                         </div>

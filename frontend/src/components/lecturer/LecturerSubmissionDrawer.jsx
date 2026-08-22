@@ -30,8 +30,10 @@ export default function LecturerSubmissionDrawer({
   labId,
   challengeId,
   challengeLabel,
+  hasMmd = true,
   student,
 }) {
+  const mmdApplicable = hasMmd !== false;
   const [activeTab, setActiveTab] = useState('class');
   const [classData, setClassData] = useState([]);
   const [mmdData, setMmdData] = useState([]);
@@ -44,6 +46,12 @@ export default function LecturerSubmissionDrawer({
       setActiveTab('class');
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!mmdApplicable && activeTab === 'mmd') {
+      setActiveTab('class');
+    }
+  }, [mmdApplicable, activeTab]);
 
   useEffect(() => {
     if (!open || !labId || !challengeId || !student?.studentId) {
@@ -86,21 +94,23 @@ export default function LecturerSubmissionDrawer({
         }
       }
 
-      try {
-        const mmdResponse = await fetch(mmdUrl, { headers: authHeaders() });
-        if (!mmdResponse.ok) {
-          throw new Error(await friendlyLoadErrorFromResponse(mmdResponse));
-        }
-        const mmdJson = await mmdResponse.json();
-        if (!cancelled) {
-          const parsedMmd = parseMmdResponse(mmdJson);
-          setMmdData(parsedMmd.classes);
-          setMmdError(parsedMmd.parseError);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setMmdData([]);
-          setMmdError(toFriendlyError(err, 'read'));
+      if (mmdApplicable) {
+        try {
+          const mmdResponse = await fetch(mmdUrl, { headers: authHeaders() });
+          if (!mmdResponse.ok) {
+            throw new Error(await friendlyLoadErrorFromResponse(mmdResponse));
+          }
+          const mmdJson = await mmdResponse.json();
+          if (!cancelled) {
+            const parsedMmd = parseMmdResponse(mmdJson);
+            setMmdData(parsedMmd.classes);
+            setMmdError(parsedMmd.parseError);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setMmdData([]);
+            setMmdError(toFriendlyError(err, 'read'));
+          }
         }
       }
 
@@ -113,7 +123,7 @@ export default function LecturerSubmissionDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, labId, challengeId, student?.studentId, student?.submissionId]);
+  }, [open, labId, challengeId, mmdApplicable, student?.studentId, student?.submissionId]);
 
   if (!open || !student) {
     return null;
@@ -174,14 +184,16 @@ export default function LecturerSubmissionDrawer({
           </div>
         </div>
 
-        <div className="flex border-b border-border px-5">
-          <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
-            Declaration Test
-          </button>
-          <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
-            MMD
-          </button>
-        </div>
+        {mmdApplicable ? (
+          <div className="flex border-b border-border px-5">
+            <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
+              Declaration Test
+            </button>
+            <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
+              MMD
+            </button>
+          </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
