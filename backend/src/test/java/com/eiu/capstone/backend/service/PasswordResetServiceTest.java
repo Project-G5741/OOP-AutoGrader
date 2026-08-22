@@ -68,14 +68,13 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void requestReset_unknownEmail_throwsNotFound() {
+    void requestReset_unknownEmail_silentNoEnumeration() {
         when(userRepository.findByEmailIgnoreCase("missing@eiu.edu.vn")).thenReturn(Optional.empty());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> passwordResetService.requestReset("missing@eiu.edu.vn"));
+        passwordResetService.requestReset("missing@eiu.edu.vn");
 
-        assertEquals(404, ex.getStatusCode().value());
         verify(emailService, never()).sendResetLink(any(), any());
+        verify(tokenRepository, never()).save(any());
     }
 
     @Test

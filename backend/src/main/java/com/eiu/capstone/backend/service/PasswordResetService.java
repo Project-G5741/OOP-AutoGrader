@@ -68,11 +68,9 @@ public class PasswordResetService {
     @Transactional
     public void requestReset(String email, String requestOrigin) {
         String normalizedEmail = normalizeEmail(email);
-        UserAccount user = userRepository.findByEmailIgnoreCase(normalizedEmail)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "No account found for this email"));
-        if (!user.getIsActive()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found for this email");
+        UserAccount user = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (user == null || !user.getIsActive()) {
+            return;
         }
 
         tokenRepository.deleteByUser_IdAndUsedAtIsNull(user.getId());

@@ -40,7 +40,7 @@ import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
-import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
@@ -53,7 +53,6 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 import com.eiu.capstone.backend.utility.TimingLog;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 
 @RestController
 @RequestMapping("/api/submissions")
@@ -62,7 +61,7 @@ public class SubmissionController {
     private static final Pattern CHALLENGE_NUMBER_PATTERN =
             Pattern.compile("challenge_(\\d+)", Pattern.CASE_INSENSITIVE);
 
-    private final JwtService jwtService;
+    private final JwtAuthHelper jwtAuthHelper;
     private final SubmissionStorageService submissionStorageService;
     private final UserAccountRepository userAccountRepository;
     private final LabRepository labRepository;
@@ -81,7 +80,7 @@ public class SubmissionController {
     private final StudentTermAccessService studentTermAccessService;
     private final boolean timingLog;
 
-    public SubmissionController(JwtService jwtService,
+    public SubmissionController(JwtAuthHelper jwtAuthHelper,
                                  SubmissionStorageService submissionStorageService,
                                  UserAccountRepository userAccountRepository,
                                  LabRepository labRepository,
@@ -99,7 +98,7 @@ public class SubmissionController {
                                  PlagiarismService plagiarismService,
                                  StudentTermAccessService studentTermAccessService,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
-        this.jwtService = jwtService;
+        this.jwtAuthHelper = jwtAuthHelper;
         this.submissionStorageService = submissionStorageService;
         this.userAccountRepository = userAccountRepository;
         this.labRepository = labRepository;
@@ -149,7 +148,7 @@ public class SubmissionController {
         long totalStart = System.currentTimeMillis();
 
         UserAccount userAccount = resolveStudentUser(authHeader);
-        String irn = parseAuthHeader(authHeader).get("irn", String.class);
+        String irn = jwtAuthHelper.parseBearerToken(authHeader).get("irn", String.class);
 
         Lab lab = labRepository.findByIdWithTerm(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
@@ -312,25 +311,14 @@ public class SubmissionController {
     }
 
     private UserAccount resolveStudentUser(String authHeader) {
-        Claims claims = parseAuthHeader(authHeader);
+        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
+        UserAccount user = jwtAuthHelper.requireActiveUser(claims);
+        jwtAuthHelper.requireRole(claims, "STUDENT");
         String irn = claims.get("irn", String.class);
         if (irn == null || irn.isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "This account has no IRN on file (teacher accounts cannot submit labs)");
         }
-        String email = claims.get("email", String.class);
-        return userAccountRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user"));
-    }
-
-    private Claims parseAuthHeader(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing bearer token");
-        }
-        try {
-            return jwtService.parseToken(authHeader.substring(7));
-        } catch (JwtException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
-        }
+        return user;
     }
 }

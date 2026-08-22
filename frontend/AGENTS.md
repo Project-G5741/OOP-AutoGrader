@@ -29,7 +29,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`) |
 
-`VITE_*` vars are baked in at build time. `App.jsx` has a hardcoded fallback Google client ID.
+`VITE_*` vars are baked in at build time. `VITE_GOOGLE_CLIENT_ID` is required for production builds; Vite dev falls back to the shared EIU client ID when unset.
 
 ### Run
 
@@ -39,7 +39,8 @@ Copy `frontend/.env.example` to `frontend/.env`:
 ### Auth and session
 
 - No `AuthContext` — auth state lives in `App.jsx` `useState` + `sessionStorage`
-- Keys: `accessToken`, `user` (JSON with `roles` array)
+- Keys: `accessToken`, `user` (JSON with `roles` array) — both in `sessionStorage`; `readStoredUser` requires a token
+- Legacy `localStorage.token` cleared on logout only (not written)
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
 - Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
@@ -54,8 +55,9 @@ Copy `frontend/.env.example` to `frontend/.env`:
 ### Theme
 
 - **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — primary, secondary, success, error, warning, surfaces, chart, etc.)
-- **Edit logo and app naming in one file:** `src/theme/brand.js` — in-app logo is always the graduation cap (`AppLogo`); tab favicon comes from any image in `public/brand/` (`.png`, `.svg`, `.webp`, …) via `npm run theme:sync`
-- After editing tokens, run `npm run theme:sync` (also runs automatically before `dev` / `build`) to regenerate `src/theme/tokens.generated.css`
+- **App naming + in-app logo:** `src/theme/brand.js` — graduation cap icon via `AppLogo` (`src/components/ui/AppLogo.jsx`)
+- **Tab favicon:** drop an image into `public/brand/` (`.png`, `.svg`, `.webp`, …). Optional `logo.<ext>` takes priority (`png` > `svg` > `webp` > …); otherwise newest file wins. Mid-session drops need `npm run theme:sync` (or restart dev).
+- **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css`, `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
 - Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers

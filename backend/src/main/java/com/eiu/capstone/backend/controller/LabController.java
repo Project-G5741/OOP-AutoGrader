@@ -69,9 +69,11 @@ public class LabController {
 
     private List<Lab> labsVisibleToCaller(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return labRepository.findAll();
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "Missing bearer token");
         }
         Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
+        jwtAuthHelper.requireActiveUser(claims);
         if (!jwtAuthHelper.isStudentOnly(claims)) {
             return labRepository.findAll();
         }
@@ -93,35 +95,50 @@ public class LabController {
 
     /** Lab-scoped stats for parallel dashboard load (same data as challenge stats route). */
     @GetMapping("/{labId}/stats")
-    public StatsDTO getStats(@PathVariable UUID labId,
-                             @RequestParam(required = false) UUID studentId) {
-        return statsService.getStats(labId, studentId);
+    public StatsDTO getStats(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @RequestParam(required = false) UUID studentId) {
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        return statsService.getStats(labId, scopedStudentId);
     }
 
     @GetMapping("/{labId}/statistics")
-    public LabStatisticsResponse getStatistics(@PathVariable UUID labId) {
+    public LabStatisticsResponse getStatistics(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return lecturerAnalyticsService.getLabStatistics(labId);
     }
 
     @GetMapping("/{labId}/submissions")
-    public org.springframework.data.domain.Page<SubmissionSummaryDTO> getSubmissions(@PathVariable UUID labId,
+    public org.springframework.data.domain.Page<SubmissionSummaryDTO> getSubmissions(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "5") int size,
                                                      @RequestParam(required = false) String sort,
                                                      @RequestParam(required = false) String afterName,
                                                      @RequestParam(required = false) UUID afterId) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort, afterName, afterId);
     }
 
     @GetMapping("/{labId}/submissions/export")
-    public List<SubmissionSummaryDTO> exportSubmissions(@PathVariable UUID labId,
+    public List<SubmissionSummaryDTO> exportSubmissions(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
                                                         @RequestParam(required = false) String sort) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return lecturerAnalyticsService.getLabSubmissionsExport(labId, sort);
     }
 
     @GetMapping("/{labId}/students/{studentId}/attempts")
-    public List<LabAttemptHistoryItemDTO> getStudentAttempts(@PathVariable UUID labId,
+    public List<LabAttemptHistoryItemDTO> getStudentAttempts(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
                                                              @PathVariable UUID studentId) {
+        jwtAuthHelper.requireLecturer(authHeader);
         return lecturerAnalyticsService.getLabAttemptHistory(labId, studentId);
     }
 }

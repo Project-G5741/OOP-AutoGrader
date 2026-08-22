@@ -161,31 +161,26 @@ public class UserService {
         Optional<UserAccount> existingByEmail = userRepository.findByEmail(email);
         Optional<UserAccount> existingByIrn = userRepository.findByStudentCodeOrTeacherCode(irn, irn);
 
+        if (existingByEmail.isPresent() && existingByIrn.isPresent()
+                && !existingByEmail.get().getId().equals(existingByIrn.get().getId())) {
+            throw new IllegalArgumentException("IRN is already linked to another account");
+        }
+
         UserAccount user = existingByEmail.orElseGet(() -> existingByIrn.orElseGet(UserAccount::new));
         boolean isNewUser = user.getId() == null;
-        if (!isNewUser && !user.getIsActive()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        if (!isNewUser) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Account already registered. Sign in with Google or IRN/password.");
         }
 
         user.setEmail(email);
         user.setFullName(fullName);
         user.setDateOfBirth(dateOfBirth);
         user.setPasswordHash(passwordEncoder.encode(password));
-
-        if (isLecturerRole(roleName)) {
-            user.setTeacherCode(irn);
-            user.setStudentCode(null);
-        } else {
-            user.setStudentCode(irn);
-            user.setTeacherCode(null);
-        }
-
-        user.setRoles(resolveRoles(Set.of(normalizeRoleName(roleName))));
-
-        if (isNewUser) {
-            user.setIsActive(true);
-            return userRepository.save(user);
-        }
+        user.setStudentCode(irn);
+        user.setTeacherCode(null);
+        user.setRoles(resolveRoles(Set.of("STUDENT")));
+        user.setIsActive(true);
         return userRepository.save(user);
     }
 

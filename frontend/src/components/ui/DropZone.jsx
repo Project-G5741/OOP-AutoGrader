@@ -133,8 +133,9 @@ export default function DropZone({
       setUploadError('Missing lab or attempt info — cannot upload.');
       return;
     }
-    if (!authToken) {
-      console.error('DropZone: authToken not provided, cannot upload.');
+    const token = authToken || sessionStorage.getItem('accessToken');
+    if (!token) {
+      console.error('DropZone: no access token, cannot upload.');
       setUploadError('You must be signed in to upload.');
       return;
     }
@@ -154,7 +155,7 @@ export default function DropZone({
       const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });

@@ -53,6 +53,7 @@ export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
 }
 
 export function readStoredUser() {
+  if (!sessionStorage.getItem('accessToken')) return null;
   try {
     const saved = sessionStorage.getItem('user');
     if (!saved) return null;

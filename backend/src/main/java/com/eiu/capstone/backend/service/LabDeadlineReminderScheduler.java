@@ -14,7 +14,13 @@ public class LabDeadlineReminderScheduler {
 
     @Scheduled(fixedRate = 60_000)
     public void sendDeadlineReminders() {
-        labDeadlineEmailService.processThreshold((short) 72);
-        labDeadlineEmailService.processThreshold((short) 24);
+        try {
+            labDeadlineEmailService.processThreshold((short) 72);
+            labDeadlineEmailService.processThreshold((short) 24);
+        } catch (Exception ex) {
+            // Schema drift or transient DB errors should not spam the log every minute.
+            org.slf4j.LoggerFactory.getLogger(LabDeadlineReminderScheduler.class)
+                    .warn("Deadline reminder job skipped: {}", ex.getMessage());
+        }
     }
 }

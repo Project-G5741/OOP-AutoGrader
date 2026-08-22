@@ -31,7 +31,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - Client-side filter: `.mmd`, `.java`, and `.git/**`. Root may include `.git` beside `challenge_*` folders. Do not mention plagiarism to the student.
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload`
-- Header: `Authorization: Bearer ${authToken}`
+- Header: `Authorization: Bearer ${authToken || sessionStorage accessToken}`
 - Errors surfaced in-component (`uploadError`); API failures use friendly messages from `apiError.js` (never raw backend diagnostics)
 
 ### Button, Card, Select, DatePicker

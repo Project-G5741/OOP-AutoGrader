@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getChangePasswordErrors, isFormValid, validatePassword } from '../../utils/validation';
-import { readFriendlyAuthError, toFriendlyError } from '../../utils/apiError';
+import { authHeaders } from '../../utils/authHeaders';
 
 export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -29,11 +29,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-      const token =
-        propToken ||
-        localStorage.getItem('token') ||
-        sessionStorage.getItem('token') ||
-        user?.accessToken;
+      const token = propToken || sessionStorage.getItem('accessToken');
 
       if (!token) {
         setError('No authentication token found. Please login again.');

@@ -4,7 +4,9 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-  "901862485743-on3umlivpedse7hosvjtjqdpqr57s69i.apps.googleusercontent.com";
+  (import.meta.env.DEV
+    ? "901862485743-on3umlivpedse7hosvjtjqdpqr57s69i.apps.googleusercontent.com"
+    : "");
 import Login from "./pages/Login";
 import ResetPasswordUI from "./pages/ResetPasswordUI";
 import LecturerDashboard from "./pages/LecturerDashboard";
@@ -34,6 +36,18 @@ export default function App() {
   const [loginMessage, setLoginMessage] = useState(null);
   const [user, setUser] = useState(readStoredUser);
 
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8 text-center text-foreground">
+        <p>
+          Missing <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code>. Copy{' '}
+          <code className="font-mono">frontend/.env.example</code> to{' '}
+          <code className="font-mono">frontend/.env</code> and set the Google client ID.
+        </p>
+      </div>
+    );
+  }
+
   const handleLoginSuccess = useCallback((data) => {
     const roles = normalizeRoleList(data.roles);
     const userPayload = { ...data, roles };
@@ -46,6 +60,7 @@ export default function App() {
   const handleLogout = useCallback(() => {
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("user");
+    localStorage.removeItem("token");
     setUser(null);
     navigate(ROUTES.login);
   }, [navigate]);

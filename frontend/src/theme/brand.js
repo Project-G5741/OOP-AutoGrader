@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * BRAND CONFIG — edit this file ONLY to change logo and app naming.
+ * BRAND CONFIG — app naming and in-app logo icon live here.
  *
  * Browser tab icon (favicon):
  *   Drop any image into frontend/public/brand/
@@ -26,6 +26,5 @@ export const brand = {
 
   logo: {
     icon: GraduationCap,
-    alt: 'OOP AutoGrader',
   },
 };

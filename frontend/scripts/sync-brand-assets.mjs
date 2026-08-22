@@ -34,20 +34,36 @@ function isImageFile(name) {
   return EXT_ORDER.includes(ext);
 }
 
+function fileMtimeMs(name) {
+  try {
+    const stat = statSync(path.join(brandDir, name));
+    return stat.isFile() ? stat.mtimeMs : -1;
+  } catch {
+    return -1;
+  }
+}
+
+function findLogoFile(files) {
+  for (const ext of EXT_ORDER) {
+    const preferred = `logo.${ext}`;
+    const match = files.find((name) => name.toLowerCase() === preferred);
+    if (match) return match;
+  }
+  return null;
+}
+
 function pickFaviconFile() {
   if (!existsSync(brandDir)) return null;
 
   const files = readdirSync(brandDir).filter((name) => !name.startsWith('.') && isImageFile(name));
   if (files.length === 0) return null;
 
-  for (const ext of EXT_ORDER) {
-    const preferred = `logo.${ext}`;
-    if (files.includes(preferred)) return preferred;
-  }
+  const logoFile = findLogoFile(files);
+  if (logoFile) return logoFile;
 
-  return files.sort(
-    (a, b) => statSync(path.join(brandDir, b)).mtimeMs - statSync(path.join(brandDir, a)).mtimeMs,
-  )[0];
+  return files
+    .filter((name) => fileMtimeMs(name) >= 0)
+    .sort((a, b) => fileMtimeMs(b) - fileMtimeMs(a))[0] ?? null;
 }
 
 function faviconTags(favicon) {
@@ -91,8 +107,8 @@ const generated = `/** AUTO-GENERATED — do not edit. Source: public/brand/ | R
 export const brandAssets = ${JSON.stringify({ favicon }, null, 2)};
 `;
 
-writeFileSync(outPath, generated, 'utf8');
 patchIndexHtml(favicon);
+writeFileSync(outPath, generated, 'utf8');
 
 if (favicon) {
   console.log('Tab favicon:', favicon.url, `(${favicon.type})`);

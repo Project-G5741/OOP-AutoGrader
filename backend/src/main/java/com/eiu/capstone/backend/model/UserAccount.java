@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -86,6 +89,7 @@ public class UserAccount {
         this.dateOfBirth = dateOfBirth;
     }
 
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }

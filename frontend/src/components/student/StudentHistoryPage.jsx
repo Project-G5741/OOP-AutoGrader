@@ -102,6 +102,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
     total: 0,
     totalPages: 0,
   });
+  const [pageError, setPageError] = useState(null);
 
   const emptyStats = {
     totalSubmissions: 0,
@@ -129,16 +130,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       },
     });
 
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
     if (!response.ok) {
-      console.info('History API not available yet, using empty data');
-      return {
-        submissions: [],
-        stats: emptyStats,
-        page: 0,
-        size: HISTORY_PAGE_SIZE,
-        totalElements: 0,
-        totalPages: 0,
-      };
+      throw new Error('Could not load submission history. Please try again.');
     }
 
     const data = await response.json();
@@ -159,9 +155,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       },
     });
 
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Your session has expired. Please sign in again.');
+    }
     if (!response.ok) {
-      console.info('Labs summary API not available yet');
-      return [];
+      throw new Error('Could not load lab summary. Please try again.');
     }
 
     const data = await response.json();
@@ -188,11 +186,12 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
     syncStats = false,
   } = {}) => {
     setTableLoading(true);
+    setPageError(null);
     try {
       const historyData = await fetchHistoryData({ labId, page, sortState });
       applyHistoryData(historyData, { syncStats });
     } catch (err) {
-      console.info('Could not fetch submission history:', err.message);
+      setPageError(err.message || 'Could not load submission history.');
       setSubmissions([]);
       if (syncStats) {
         setStats(emptyStats);
@@ -209,6 +208,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
     sortState = historySort,
   } = {}) => {
     setInitialLoading(true);
+    setPageError(null);
     try {
       const [historyData, labsData] = await Promise.all([
         fetchHistoryData({ labId, page, sortState }),
@@ -217,7 +217,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       applyHistoryData(historyData, { syncStats: true });
       setLabsSummary(labsData);
     } catch (err) {
-      console.info('Could not fetch submission history:', err.message);
+      setPageError(err.message || 'Could not load submission history.');
       setSubmissions([]);
       setStats(emptyStats);
       setPagination({ page: 0, size: HISTORY_PAGE_SIZE, total: 0, totalPages: 0 });
@@ -332,6 +332,16 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
           <p>
             You do not belong to any class in this term. If you do, please contact your lecturer for submission permissions.
           </p>
+        </div>
+      )}
+
+      {pageError && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl bg-error-bg px-4 py-3 text-sm text-error-text"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-error" aria-hidden />
+          <p>{pageError}</p>
         </div>
       )}
 

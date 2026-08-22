@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -20,6 +21,9 @@ import jakarta.annotation.PostConstruct;
 @Service
 public class JwtService {
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
     @Value("${jwt.validity-seconds}")
     private long validitySeconds;
 
@@ -27,10 +31,16 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        // Generated fresh every time the app starts — not loaded from config.
-        // This means tokens signed before a restart can no longer be verified,
-        // forcing all users to log in again after every deploy/restart.
-        signingKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+        if (jwtSecret == null || jwtSecret.isBlank()
+                || "replace_me_change_this_to_a_secret_at_least_32_chars".equals(jwtSecret.trim())) {
+            signingKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+        } else {
+            byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+            if (keyBytes.length < 32) {
+                throw new IllegalStateException("jwt.secret must be at least 32 bytes");
+            }
+            signingKey = Keys.hmacShaKeyFor(keyBytes);
+        }
     }
 
     public String createToken(GoogleTokenInfo tokenInfo, List<String> roles, String irn) {
@@ -67,5 +77,4 @@ public class JwtService {
     public SecretKey getSigningKey() {
         return signingKey;
     }
-    
 }

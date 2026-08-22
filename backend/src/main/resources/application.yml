@@ -17,7 +17,7 @@ server:
   port: ${PORT:8002}
 
 google:
-  client-id: ${901862485743-on3umlivpedse7hosvjtjqdpqr57s69i.apps.googleusercontent.com:}
+  client-id: ${GOOGLE_CLIENT_ID:}
 
 allowed-domain: eiu.edu.vn
 

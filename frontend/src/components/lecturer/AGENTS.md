@@ -23,6 +23,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `LecturerOverviewCard.jsx` | Summary stat cards |
 
 | `SubmissionTable.jsx` | Enrolled-student roster / challenge submission table |
+| `GradeDistributionChart.jsx` | Horizontal bar chart for lab overview grade distribution |
 
 | `ClassScoreBreakdown.jsx` | Expandable Java class/member grading breakdown |
 
@@ -72,6 +73,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Roster **View** opens `LabAttemptHistoryDrawer` (`GET /api/labs/{labId}/students/{studentId}/attempts`)
 
 - Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`)
+- Challenge tab **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)

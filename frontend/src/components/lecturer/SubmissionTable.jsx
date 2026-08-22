@@ -1,6 +1,6 @@
 import { Eye } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
-import { formatNumber, formatText } from '../../utils/formatters';
+import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
@@ -84,19 +84,19 @@ export default function SubmissionTable({
             })
           )}
 
-          {(summary?.submissionCount != null || summary?.studentCount != null || summary?.completionRate != null) && (
+          {(summary?.studentsSubmitted != null || summary?.studentCount != null || summary?.completionRate != null) && (
             <tr className="border-t border-primary bg-primary-light">
               <td colSpan={6} className="px-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-primary-text">
                   <span className="font-bold text-primary-text">SUMMARY</span>
                   <span className="text-center">
-                    Submissions: <span className="text-primary-text">{formatNumber(summary?.submissionCount)}</span>
+                    Submitted: <span className="text-primary-text">{formatNumber(summary?.studentsSubmitted)}</span>
                   </span>
                   <span className="text-center">
                     Enrolled: <span className="text-primary-text">{formatNumber(summary?.studentCount)}</span>
                   </span>
                   <span className="text-center">
-                    Completion: <span className="text-primary-text">{formatNumber(summary?.completionRate)}</span>
+                    Completion: <span className="text-primary-text">{formatPercent(summary?.completionRate)}</span>
                   </span>
                 </div>
               </td>
