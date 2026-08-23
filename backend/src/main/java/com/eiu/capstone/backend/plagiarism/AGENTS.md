@@ -18,7 +18,7 @@ Detect copied lab submissions with three independent checks: ordered git history
 - Same-student attempts are not compared
 - Missing `.git` skips git and metadata; hash still runs on `.java` / `.mmd`
 - Flag if any check fires
-- Lecturer-only: roster `plagiarismFlagged`, danger mark after flagged lab names, `GET /api/lecturer/plagiarism/flags`, `GET /api/lecturer/labs/{labId}/plagiarism`
+- Lecturer-only: roster `plagiarismFlagged`, danger mark after flagged lab names, `GET /api/lecturer/plagiarism/flags` (includes `overlapByStudentAndLab` max `hashSimilarity` per student-lab), `GET /api/lecturer/labs/{labId}/plagiarism`
 - Students are never notified of a plagiarism flag
 - Schema: `docs/sql/2026-08-19-plagiarism.sql`
 

@@ -157,6 +157,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
   const [flaggedLabIds, setFlaggedLabIds] = useState(() => new Set());
   const [flaggedLabsByStudentId, setFlaggedLabsByStudentId] = useState({});
+  const [overlapByStudentAndLab, setOverlapByStudentAndLab] = useState({});
   const [challengeSort, setChallengeSort] = useState({ field: 'studentName', direction: 'asc' });
   const [challenges, setChallenges] = useState([]);
   const [challengesLabId, setChallengesLabId] = useState(null);
@@ -192,6 +193,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       if (!response.ok) {
         setFlaggedLabIds(new Set());
         setFlaggedLabsByStudentId({});
+        setOverlapByStudentAndLab({});
         return;
       }
       const data = await response.json();
@@ -201,9 +203,19 @@ export default function LecturerDashboard({ user, onLogout }) {
         byStudent[studentId] = labIds ?? [];
       });
       setFlaggedLabsByStudentId(byStudent);
+      const overlap = {};
+      Object.entries(data.overlapByStudentAndLab ?? {}).forEach(([studentId, byLab]) => {
+        const labs = {};
+        Object.entries(byLab ?? {}).forEach(([labId, similarity]) => {
+          labs[labId] = similarity;
+        });
+        overlap[studentId] = labs;
+      });
+      setOverlapByStudentAndLab(overlap);
     } catch {
       setFlaggedLabIds(new Set());
       setFlaggedLabsByStudentId({});
+      setOverlapByStudentAndLab({});
     }
   }, []);
 
@@ -899,6 +911,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                 onSort={handleGradeOverviewSort}
                 flaggedLabIds={flaggedLabIds}
                 flaggedLabsByStudentId={flaggedLabsByStudentId}
+                overlapByStudentAndLab={overlapByStudentAndLab}
               />
               {selectedGradeStudent && (
                 <GradeOverviewSubmissionHistory

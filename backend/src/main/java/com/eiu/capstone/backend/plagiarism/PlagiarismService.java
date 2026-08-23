@@ -119,6 +119,7 @@ public class PlagiarismService {
         List<SubmissionPlagiarismMatch> matches = matchRepository.findByFlaggedTrue();
         Set<UUID> flaggedLabIds = new HashSet<>();
         Map<UUID, Set<UUID>> labsByStudent = new java.util.HashMap<>();
+        Map<UUID, Map<UUID, BigDecimal>> overlapByStudentAndLab = new java.util.HashMap<>();
         Set<UUID> submissionIds = new HashSet<>();
         for (SubmissionPlagiarismMatch match : matches) {
             flaggedLabIds.add(match.getLabId());
@@ -132,14 +133,23 @@ public class PlagiarismService {
             }
         }
         for (SubmissionPlagiarismMatch match : matches) {
-            addStudentLab(labsByStudent, submissionsById.get(match.getSubmissionId()), match.getLabId());
-            addStudentLab(labsByStudent, submissionsById.get(match.getOtherSubmissionId()), match.getLabId());
+            LabSubmission left = submissionsById.get(match.getSubmissionId());
+            LabSubmission right = submissionsById.get(match.getOtherSubmissionId());
+            addStudentLab(labsByStudent, left, match.getLabId());
+            addStudentLab(labsByStudent, right, match.getLabId());
+            BigDecimal similarity = match.getHashSimilarity() != null ? match.getHashSimilarity() : BigDecimal.ZERO;
+            mergeOverlap(overlapByStudentAndLab, left, match.getLabId(), similarity);
+            mergeOverlap(overlapByStudentAndLab, right, match.getLabId(), similarity);
         }
         Map<UUID, List<UUID>> flaggedLabsByStudentId = new java.util.LinkedHashMap<>();
         for (Map.Entry<UUID, Set<UUID>> entry : labsByStudent.entrySet()) {
             flaggedLabsByStudentId.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
-        return new PlagiarismFlagsDTO(List.copyOf(flaggedLabIds), flaggedLabsByStudentId);
+        Map<UUID, Map<UUID, BigDecimal>> overlapOut = new java.util.LinkedHashMap<>();
+        for (Map.Entry<UUID, Map<UUID, BigDecimal>> entry : overlapByStudentAndLab.entrySet()) {
+            overlapOut.put(entry.getKey(), Map.copyOf(entry.getValue()));
+        }
+        return new PlagiarismFlagsDTO(List.copyOf(flaggedLabIds), flaggedLabsByStudentId, Map.copyOf(overlapOut));
     }
 
     @Transactional(readOnly = true)
@@ -207,6 +217,24 @@ public class PlagiarismService {
             return;
         }
         labsByStudent.computeIfAbsent(submission.getUser().getId(), ignored -> new HashSet<>()).add(labId);
+    }
+
+    private static void mergeOverlap(
+            Map<UUID, Map<UUID, BigDecimal>> overlapByStudentAndLab,
+            LabSubmission submission,
+            UUID labId,
+            BigDecimal similarity) {
+        if (submission == null || submission.getUser() == null || submission.getUser().getId() == null
+                || labId == null || similarity == null) {
+            return;
+        }
+        UUID studentId = submission.getUser().getId();
+        Map<UUID, BigDecimal> byLab =
+                overlapByStudentAndLab.computeIfAbsent(studentId, ignored -> new java.util.HashMap<>());
+        BigDecimal current = byLab.get(labId);
+        if (current == null || similarity.compareTo(current) > 0) {
+            byLab.put(labId, similarity);
+        }
     }
 
     private static String displayName(LabSubmission submission) {

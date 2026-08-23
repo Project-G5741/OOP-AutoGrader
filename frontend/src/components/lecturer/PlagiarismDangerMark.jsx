@@ -35,3 +35,23 @@ export function studentLabHasPlagiarism(studentId, labId, flaggedLabsByStudentId
   const labs = flaggedLabsByStudentId[studentId] ?? flaggedLabsByStudentId[String(studentId)] ?? [];
   return labs.some((id) => String(id) === String(labId));
 }
+
+/** Max hash similarity 0–1 (or already 0–100) from flags payload; returns percent 0–100 or null. */
+export function studentLabOverlapPercent(studentId, labId, overlapByStudentAndLab) {
+  if (!studentId || !labId || !overlapByStudentAndLab) {
+    return null;
+  }
+  const byLab =
+    overlapByStudentAndLab[studentId] ??
+    overlapByStudentAndLab[String(studentId)] ??
+    null;
+  if (!byLab) {
+    return null;
+  }
+  const raw = byLab[labId] ?? byLab[String(labId)];
+  if (raw == null || Number.isNaN(Number(raw))) {
+    return null;
+  }
+  const value = Number(raw);
+  return value <= 1 ? value * 100 : value;
+}
