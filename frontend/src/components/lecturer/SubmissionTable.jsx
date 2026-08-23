@@ -1,7 +1,7 @@
 import { Eye } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
-import PlagiarismDangerMark from './PlagiarismDangerMark';
+import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -24,6 +24,8 @@ export default function SubmissionTable({
   requireSubmissionForView = true,
   sortState,
   onSort,
+  labId = null,
+  overlapByStudentAndLab = null,
 }) {
   const rows = Array.isArray(submissions) ? submissions : [];
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
@@ -58,6 +60,11 @@ export default function SubmissionTable({
           ) : (
             rows.map((submission, index) => {
               const canView = requireSubmissionForView ? submission.hasSubmission !== false : true;
+              const flagged = Boolean(submission.plagiarismFlagged);
+              const overlapPercent = flagged
+                ? studentLabOverlapPercent(submission.studentId, labId, overlapByStudentAndLab)
+                : null;
+              const showOverlap = flagged && overlapPercent != null && overlapPercent > 0;
               return (
                 <tr key={`${submission.studentCode ?? submission.studentId ?? 'row'}-${index}`} className="border-b border-border">
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentName)}</td>
@@ -66,7 +73,16 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
                   <td className="px-4 py-3 align-middle">
-                    <PlagiarismDangerMark show={Boolean(submission.plagiarismFlagged)} className="ml-0" />
+                    {flagged ? (
+                      <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                        <PlagiarismDangerMark show className="ml-0" />
+                        {showOverlap ? (
+                          <span className="text-[10px] font-medium text-warning-text dark:text-warning">
+                            {Math.round(overlapPercent)}%
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <button

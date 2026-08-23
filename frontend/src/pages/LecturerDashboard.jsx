@@ -835,6 +835,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                                 requireSubmissionForView={false}
                                 sortState={rosterSort}
                                 onSort={handleRosterSort}
+                                labId={selectedLabId}
+                                overlapByStudentAndLab={overlapByStudentAndLab}
                               />
                             )}
                           </div>
@@ -867,6 +869,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                               viewLabel="View"
                               sortState={challengeSort}
                               onSort={handleChallengeSort}
+                              labId={selectedLabId}
+                              overlapByStudentAndLab={overlapByStudentAndLab}
                             />
                           )}
                         </div>
