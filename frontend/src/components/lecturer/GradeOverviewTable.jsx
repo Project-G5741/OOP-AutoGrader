@@ -23,7 +23,7 @@ function LabScoreCell({ score, flagged, overlapPercent }) {
           <span className="absolute left-full top-1/2 ml-1.5 flex -translate-y-1/2 items-center gap-0.5 whitespace-nowrap">
             <PlagiarismDangerMark show className="ml-0" />
             {showOverlap ? (
-              <span className="text-[10px] font-medium text-warning">{Math.round(overlapPercent)}%</span>
+              <span className="text-[10px] font-medium text-warning-text dark:text-warning">{Math.round(overlapPercent)}%</span>
             ) : null}
           </span>
         ) : null}
