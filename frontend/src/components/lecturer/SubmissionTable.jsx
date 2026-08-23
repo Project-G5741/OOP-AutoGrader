@@ -1,7 +1,7 @@
 import { Eye } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
-import PlagiarismDangerMark from './PlagiarismDangerMark';
+import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -24,6 +24,8 @@ export default function SubmissionTable({
   requireSubmissionForView = true,
   sortState,
   onSort,
+  labId = null,
+  overlapByStudentAndLab = null,
 }) {
   const rows = Array.isArray(submissions) ? submissions : [];
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
@@ -58,6 +60,11 @@ export default function SubmissionTable({
           ) : (
             rows.map((submission, index) => {
               const canView = requireSubmissionForView ? submission.hasSubmission !== false : true;
+              const flagged = Boolean(submission.plagiarismFlagged);
+              const overlapPercent = flagged
+                ? studentLabOverlapPercent(submission.studentId, labId, overlapByStudentAndLab)
+                : null;
+              const showOverlap = flagged && overlapPercent != null && overlapPercent > 0;
               return (
                 <tr key={`${submission.studentCode ?? submission.studentId ?? 'row'}-${index}`} className="border-b border-border">
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentName)}</td>
@@ -66,7 +73,16 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
                   <td className="px-4 py-3 align-middle">
-                    <PlagiarismDangerMark show={Boolean(submission.plagiarismFlagged)} className="ml-0" />
+                    {flagged ? (
+                      <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                        <PlagiarismDangerMark show className="ml-0" />
+                        {showOverlap ? (
+                          <span className="text-[10px] font-medium text-warning-text dark:text-warning">
+                            {Math.round(overlapPercent)}%
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -84,10 +100,13 @@ export default function SubmissionTable({
             })
           )}
 
-          {(summary?.studentsSubmitted != null || summary?.studentCount != null || summary?.completionRate != null) && (
+          {(summary?.studentsSubmitted != null
+            || summary?.studentCount != null
+            || summary?.completionRate != null
+            || summary?.plagiarismRate != null) && (
             <tr className="border-t border-primary bg-primary-light">
               <td colSpan={6} className="px-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-primary-text">
+                <div className="grid grid-cols-5 items-center gap-4 text-sm font-semibold text-primary-text">
                   <span className="font-bold text-primary-text">SUMMARY</span>
                   <span className="text-center">
                     Submitted: <span className="text-primary-text">{formatNumber(summary?.studentsSubmitted)}</span>
@@ -97,6 +116,9 @@ export default function SubmissionTable({
                   </span>
                   <span className="text-center">
                     Completion: <span className="text-primary-text">{formatPercent(summary?.completionRate)}</span>
+                  </span>
+                  <span className="text-center">
+                    Plagiarism: <span className="text-primary-text">{formatPercent(summary?.plagiarismRate)}</span>
                   </span>
                 </div>
               </td>

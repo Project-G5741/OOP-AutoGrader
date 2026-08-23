@@ -827,6 +827,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                                   studentsSubmitted: labStatistics?.studentsSubmitted ?? null,
                                   studentCount: labStatistics?.studentCount ?? null,
                                   completionRate: labStatistics?.completionRate ?? null,
+                                  plagiarismRate: labStatistics?.plagiarismRate ?? null,
                                 }}
                                 pagination={pagination}
                                 onPageChange={handlePageChange}
@@ -834,6 +835,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                                 requireSubmissionForView={false}
                                 sortState={rosterSort}
                                 onSort={handleRosterSort}
+                                labId={selectedLabId}
+                                overlapByStudentAndLab={overlapByStudentAndLab}
                               />
                             )}
                           </div>
@@ -866,6 +869,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                               viewLabel="View"
                               sortState={challengeSort}
                               onSort={handleChallengeSort}
+                              labId={selectedLabId}
+                              overlapByStudentAndLab={overlapByStudentAndLab}
                             />
                           )}
                         </div>

@@ -14,6 +14,7 @@ public record LabStatisticsResponse(
         long studentCount,
         long studentsSubmitted,
         BigDecimal completionRate,
+        BigDecimal plagiarismRate,
         List<GradeDistributionBucket> gradeDistribution) {
 
     public record GradeDistributionBucket(String range, long count) {

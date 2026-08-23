@@ -65,8 +65,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster pagination counts **unique enrolled students** for the lab's term (`term_enrollment`), page size **5**
 
-- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; a warning triangle shows when `plagiarismFlagged` is true
-- Lecturer-only warning triangle (`PlagiarismDangerMark`) is a 16×16 SVG sharing the text midline with lab name or score. On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab`) sit to the right on one line when flagged. Display-only (no click-to-details). Students are not notified.
+- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; when `plagiarismFlagged` is true the Plagiarism column shows the warning triangle plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
+- Lecturer-only warning triangle (`PlagiarismDangerMark`) is a 16×16 SVG sharing the text midline with lab name or score. On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab`) sit to the right on one line when flagged. Roster / challenge tables use the same mark + overlap % in the Plagiarism column. Display-only (no click-to-details). Students are not notified.
 - `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer.
 
 - Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)

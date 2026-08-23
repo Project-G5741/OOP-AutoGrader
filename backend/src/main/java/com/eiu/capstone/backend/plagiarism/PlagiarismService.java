@@ -152,6 +152,32 @@ public class PlagiarismService {
         return new PlagiarismFlagsDTO(List.copyOf(flaggedLabIds), flaggedLabsByStudentId, Map.copyOf(overlapOut));
     }
 
+    /**
+     * Unique students involved in at least one flagged match for the lab (either side).
+     */
+    @Transactional(readOnly = true)
+    public long countFlaggedStudentsForLab(UUID labId) {
+        if (labId == null) {
+            return 0L;
+        }
+        List<SubmissionPlagiarismMatch> matches = matchRepository.findByLabIdAndFlaggedTrue(labId);
+        if (matches.isEmpty()) {
+            return 0L;
+        }
+        Set<UUID> submissionIds = new HashSet<>();
+        for (SubmissionPlagiarismMatch match : matches) {
+            submissionIds.add(match.getSubmissionId());
+            submissionIds.add(match.getOtherSubmissionId());
+        }
+        Set<UUID> studentIds = new HashSet<>();
+        for (LabSubmission submission : labSubmissionRepository.findAllWithUserByIdIn(submissionIds)) {
+            if (submission.getUser() != null && submission.getUser().getId() != null) {
+                studentIds.add(submission.getUser().getId());
+            }
+        }
+        return studentIds.size();
+    }
+
     @Transactional(readOnly = true)
     public LabPlagiarismReportDTO reportForLab(UUID labId) {
         List<SubmissionPlagiarismMatch> matches = matchRepository.findByLabIdAndFlaggedTrue(labId);

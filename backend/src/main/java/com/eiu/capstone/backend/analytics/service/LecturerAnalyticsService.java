@@ -112,6 +112,14 @@ public class LecturerAnalyticsService {
                     .divide(BigDecimal.valueOf(activeEnrolledCount), 2, RoundingMode.HALF_UP);
         }
 
+        BigDecimal plagiarismRate = null;
+        if (studentsSubmitted > 0) {
+            long flaggedStudents = plagiarismService.countFlaggedStudentsForLab(labId);
+            plagiarismRate = BigDecimal.valueOf(flaggedStudents)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(studentsSubmitted), 2, RoundingMode.HALF_UP);
+        }
+
         List<LabStatisticsResponse.GradeDistributionBucket> gradeDistribution = new ArrayList<>();
         for (Object[] row : lecturerAnalyticsRepository.findGradeDistribution(labId)) {
             if (row != null && row.length >= 2) {
@@ -140,6 +148,7 @@ public class LecturerAnalyticsService {
                 activeEnrolledCount,
                 studentsSubmitted,
                 completionRate,
+                plagiarismRate,
                 gradeDistribution
         );
     }
@@ -311,6 +320,7 @@ public class LecturerAnalyticsService {
                 0L,
                 0L,
                 0L,
+                null,
                 null,
                 List.of()
         );
