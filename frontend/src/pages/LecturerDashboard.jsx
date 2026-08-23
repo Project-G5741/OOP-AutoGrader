@@ -27,6 +27,7 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiErro
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
 const GRADE_OVERVIEW_PAGE_SIZE = 10;
+const HISTORY_PAGE_SIZE = 10;
 const GRADE_OVERVIEW_EXPORT_PAGE_SIZE = 100;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,
@@ -156,6 +157,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [gradeStudentHistoryError, setGradeStudentHistoryError] = useState(null);
   const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
   const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
+  const [historyPage, setHistoryPage] = useState(0);
   const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
   const [gradeOverviewSearchInput, setGradeOverviewSearchInput] = useState('');
   const [gradeOverviewSearch, setGradeOverviewSearch] = useState('');
@@ -540,6 +542,12 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleHistorySort = (field) => {
     setHistorySort((prev) => toggleSortState(prev, field));
+    setHistoryPage(0);
+  };
+
+  const handleHistoryLabFilterChange = (labName) => {
+    setHistoryLabFilter(labName);
+    setHistoryPage(0);
   };
 
   const fetchStudentSubmissionHistory = useCallback(async (studentId) => {
@@ -566,6 +574,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setSelectedGradeStudent(student);
     setHistoryLabFilter('All Labs');
     setHistorySort({ field: 'submittedAt', direction: 'desc' });
+    setHistoryPage(0);
     if (student?.studentId) {
       void fetchStudentSubmissionHistory(student.studentId);
     }
@@ -597,6 +606,23 @@ export default function LecturerDashboard({ user, onLogout }) {
       return row[historySort.field];
     });
   }, [gradeStudentHistory, historyLabFilter, historySort, selectedGradeStudent]);
+
+  const historyPagination = useMemo(() => {
+    const total = filteredGradeStudentHistoryRows.length;
+    const totalPages = Math.max(Math.ceil(total / HISTORY_PAGE_SIZE), 1);
+    const page = Math.min(Math.max(historyPage, 0), totalPages - 1);
+    return {
+      page,
+      size: HISTORY_PAGE_SIZE,
+      total,
+      totalPages,
+    };
+  }, [filteredGradeStudentHistoryRows, historyPage]);
+
+  const pagedGradeStudentHistoryRows = useMemo(() => {
+    const start = historyPagination.page * HISTORY_PAGE_SIZE;
+    return filteredGradeStudentHistoryRows.slice(start, start + HISTORY_PAGE_SIZE);
+  }, [filteredGradeStudentHistoryRows, historyPagination.page]);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => lab.id === selectedLabId),
@@ -967,14 +993,16 @@ export default function LecturerDashboard({ user, onLogout }) {
               {selectedGradeStudent && (
                 <GradeOverviewSubmissionHistory
                   student={selectedGradeStudent}
-                  rows={filteredGradeStudentHistoryRows}
+                  rows={pagedGradeStudentHistoryRows}
                   loading={loadingGradeStudentHistory}
                   error={gradeStudentHistoryError}
                   labFilter={historyLabFilter}
-                  onLabFilterChange={setHistoryLabFilter}
+                  onLabFilterChange={handleHistoryLabFilterChange}
                   sortState={historySort}
                   onSort={handleHistorySort}
                   labOptions={gradeStudentHistoryLabOptions}
+                  pagination={historyPagination}
+                  onPageChange={setHistoryPage}
                 />
               )}
             </DashboardSection>

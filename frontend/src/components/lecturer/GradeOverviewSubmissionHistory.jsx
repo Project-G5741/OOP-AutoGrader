@@ -21,9 +21,17 @@ export default function GradeOverviewSubmissionHistory({
   sortState,
   onSort,
   labOptions,
+  pagination,
+  onPageChange,
 }) {
   const options = Array.isArray(labOptions) && labOptions.length > 0 ? labOptions : ['All Labs'];
   const historyRows = Array.isArray(rows) ? rows : [];
+  const showPagination =
+    pagination &&
+    !loading &&
+    !error &&
+    historyRows.length > 0 &&
+    (pagination.totalPages > 1 || pagination.total > pagination.size);
 
   return (
     <div className="mt-6 rounded-xl border border-border bg-surface shadow-sm transition-colors border-border">
@@ -86,6 +94,32 @@ export default function GradeOverviewSubmissionHistory({
           </table>
         )}
       </div>
+
+      {showPagination && (
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <p className="text-sm text-foreground-secondary">
+            Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={pagination.page <= 0}
+              onClick={() => onPageChange?.(pagination.page - 1)}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={pagination.page >= pagination.totalPages - 1}
+              onClick={() => onPageChange?.(pagination.page + 1)}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
