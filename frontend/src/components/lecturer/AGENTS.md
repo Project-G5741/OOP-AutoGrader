@@ -63,6 +63,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
 
+- Student roster and Grading tables support server-side `search` (name or student ID/IRN; case-insensitive).
+
 - Roster pagination counts **unique enrolled students** for the lab's term (`term_enrollment`), page size **5**
 
 - `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; when `plagiarismFlagged` is true the Plagiarism column shows the warning triangle plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)

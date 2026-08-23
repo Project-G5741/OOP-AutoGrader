@@ -119,9 +119,10 @@ public class LabController {
                                                      @RequestParam(defaultValue = "5") int size,
                                                      @RequestParam(required = false) String sort,
                                                      @RequestParam(required = false) String afterName,
-                                                     @RequestParam(required = false) UUID afterId) {
+                                                     @RequestParam(required = false) UUID afterId,
+                                                     @RequestParam(required = false) String search) {
         jwtAuthHelper.requireLecturer(authHeader);
-        return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort, afterName, afterId);
+        return lecturerAnalyticsService.getLabSubmissions(labId, page, size, sort, afterName, afterId, search);
     }
 
     @GetMapping("/{labId}/submissions/export")

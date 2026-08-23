@@ -48,9 +48,10 @@ public class LecturerAnalyticsController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "studentName,asc") String sort) {
+            @RequestParam(defaultValue = "studentName,asc") String sort,
+            @RequestParam(required = false) String search) {
         jwtAuthHelper.requireLecturer(authHeader);
-        return ResponseEntity.ok(lecturerAnalyticsService.getGradeOverview(page, size, sort));
+        return ResponseEntity.ok(lecturerAnalyticsService.getGradeOverview(page, size, sort, search));
     }
 
     @GetMapping("/plagiarism/flags")

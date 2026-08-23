@@ -33,6 +33,23 @@ public class LecturerAnalyticsRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
+    
+
+    private static final String STUDENT_SEARCH_CLAUSE = """
+            AND (
+                LOWER(u.full_name) LIKE :search
+                OR LOWER(COALESCE(u.student_code, '')) LIKE :search
+                OR LOWER(COALESCE(u.teacher_code, '')) LIKE :search
+            )
+            """;
+
+    private static String normalizeSearch(String search) {
+        if (search == null || search.isBlank()) {
+            return null;
+        }
+        return "%" + search.trim().toLowerCase() + "%";
+    }
+
     private static final String GRADE_OVERVIEW_STUDENT_IDS = """
             SELECT p.user_id FROM student_lab_progress p
             UNION
@@ -152,8 +169,22 @@ public class LecturerAnalyticsRepository {
     }
 
     public long countEnrolledStudentsForLab(UUID labId) {
+        return countEnrolledStudentsForLab(labId, null);
+    }
+
+    public long countEnrolledStudentsForLab(UUID labId, String search) {
+        String normalized = normalizeSearch(search);
         String sql = "SELECT COUNT(DISTINCT u.id) " + ROSTER_STUDENT_BASE;
-        return singleLong(sql, Map.of("labId", labId));
+        if (normalized != null) {
+            sql += STUDENT_SEARCH_CLAUSE;
+        }
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("labId", labId);
+        if (normalized != null) {
+            query.setParameter("search", normalized);
+        }
+        Object result = query.getSingleResult();
+        return result == null ? 0L : ((Number) result).longValue();
     }
 
     public long countActiveEnrolledStudentsForLab(UUID labId) {
@@ -253,7 +284,11 @@ public class LecturerAnalyticsRepository {
     }
 
     public List<Object[]> findLabStudentRoster(UUID labId, String sortColumn, String sortDirection, int offset, int pageSize) {
-        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, offset, pageSize, null, null);
+        return findLabStudentRoster(labId, sortColumn, sortDirection, offset, pageSize, null);
+    }
+
+    public List<Object[]> findLabStudentRoster(UUID labId, String sortColumn, String sortDirection, int offset, int pageSize, String search) {
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, offset, pageSize, null, null, search);
     }
 
     public List<Object[]> findLabStudentRosterAfter(UUID labId,
@@ -262,11 +297,11 @@ public class LecturerAnalyticsRepository {
                                                   String afterName,
                                                   UUID afterId,
                                                   int pageSize) {
-        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, pageSize, afterName, afterId);
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, pageSize, afterName, afterId, null);
     }
 
     public List<Object[]> findLabStudentRosterExport(UUID labId, String sortColumn, String sortDirection) {
-        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, Integer.MAX_VALUE, null, null);
+        return findLabStudentRosterInternal(labId, sortColumn, sortDirection, 0, Integer.MAX_VALUE, null, null, null);
     }
 
     private static String formatRosterOrderBy(String sortColumn, String sortDirection) {
@@ -282,7 +317,10 @@ public class LecturerAnalyticsRepository {
                                                         int offset,
                                                         int pageSize,
                                                         String afterName,
-                                                        UUID afterId) {
+                                                        UUID afterId,
+                                                        String search) {
+        String normalizedSearch = normalizeSearch(search);
+        String searchClause = normalizedSearch == null ? "" : STUDENT_SEARCH_CLAUSE;
         String keysetClause = "";
         if (afterName != null && afterId != null) {
             keysetClause = """
@@ -327,7 +365,7 @@ public class LecturerAnalyticsRepository {
                 LEFT JOIN latest_sub ON latest_sub.user_id = u.id
                 LEFT JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
-                """ + keysetClause + """
+                """ + searchClause + keysetClause + """
                 ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
                 """.formatted(formatRosterOrderBy(sortColumn, sortDirection));
@@ -338,6 +376,9 @@ public class LecturerAnalyticsRepository {
         if (afterName != null && afterId != null) {
             query.setParameter("afterName", afterName);
             query.setParameter("afterId", afterId);
+        }
+        if (normalizedSearch != null) {
+            query.setParameter("search", normalizedSearch);
         }
         return query.getResultList();
     }
@@ -472,6 +513,11 @@ public class LecturerAnalyticsRepository {
     }
 
     public long countGradeOverviewStudents() {
+        return countGradeOverviewStudents(null);
+    }
+
+    public long countGradeOverviewStudents(String search) {
+        String normalized = normalizeSearch(search);
         String sql = """
                 SELECT COUNT(*)
                 FROM user_account u
@@ -479,10 +525,24 @@ public class LecturerAnalyticsRepository {
                 """ + GRADE_OVERVIEW_STUDENT_IDS + """
                 )
                 """;
-        return singleLong(sql, Map.of());
+        if (normalized != null) {
+            sql += STUDENT_SEARCH_CLAUSE;
+        }
+        Query query = entityManager.createNativeQuery(sql);
+        if (normalized != null) {
+            query.setParameter("search", normalized);
+        }
+        Object result = query.getSingleResult();
+        return result == null ? 0L : ((Number) result).longValue();
     }
 
     public List<Object[]> findGradeOverviewStudents(String sortColumn, String sortDirection, UUID sortLabId, int offset, int pageSize) {
+        return findGradeOverviewStudents(sortColumn, sortDirection, sortLabId, offset, pageSize, null);
+    }
+
+    public List<Object[]> findGradeOverviewStudents(String sortColumn, String sortDirection, UUID sortLabId, int offset, int pageSize, String search) {
+        String normalizedSearch = normalizeSearch(search);
+        String searchClause = normalizedSearch == null ? "" : STUDENT_SEARCH_CLAUSE;
         String sql = """
                 WITH grade_students AS (
                     SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code) AS irn
@@ -490,6 +550,7 @@ public class LecturerAnalyticsRepository {
                     WHERE u.id IN (
                 """ + GRADE_OVERVIEW_STUDENT_IDS + """
                     )
+                """ + searchClause + """
                 ),
                 lab_total AS (
                     SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab
@@ -517,6 +578,9 @@ public class LecturerAnalyticsRepository {
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("pageSize", pageSize);
         query.setParameter("offset", offset);
+        if (normalizedSearch != null) {
+            query.setParameter("search", normalizedSearch);
+        }
         if ("lab_score".equals(sortColumn) && sortLabId != null) {
             query.setParameter("sortLabId", sortLabId);
         }

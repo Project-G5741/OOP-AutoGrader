@@ -159,11 +159,21 @@ public class LecturerAnalyticsService {
                                                         String sort,
                                                         String afterName,
                                                         UUID afterId) {
+        return getLabSubmissions(labId, page, size, sort, afterName, afterId, null);
+    }
+
+    public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId,
+                                                        int page,
+                                                        int size,
+                                                        String sort,
+                                                        String afterName,
+                                                        UUID afterId,
+                                                        String search) {
         int safeSize = size <= 0 ? 5 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveLabSort(sort);
 
-        long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId);
+        long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId, search);
         List<SubmissionSummaryDTO> items = new ArrayList<>();
         if (total > 0) {
             List<Object[]> rows;
@@ -173,7 +183,7 @@ public class LecturerAnalyticsService {
             } else {
                 int offset = safePage * safeSize;
                 rows = lecturerAnalyticsRepository.findLabStudentRoster(
-                        labId, sortSpec.column(), sortSpec.direction(), offset, safeSize);
+                        labId, sortSpec.column(), sortSpec.direction(), offset, safeSize, search);
             }
             for (Object[] row : rows) {
                 SubmissionSummaryDTO item = toLabRosterRow(row);
@@ -227,6 +237,10 @@ public class LecturerAnalyticsService {
     }
 
     public GradeOverviewResponse getGradeOverview(int page, int size, String sort) {
+        return getGradeOverview(page, size, sort, null);
+    }
+
+    public GradeOverviewResponse getGradeOverview(int page, int size, String sort, String search) {
         int safeSize = size <= 0 ? 10 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveGradeOverviewSort(sort);
@@ -242,13 +256,13 @@ public class LecturerAnalyticsService {
             }
         }
 
-        long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudents();
+        long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudents(search);
         List<GradeOverviewStudentRowDTO> rows = new ArrayList<>();
         int labCount = labIds.size();
         if (totalStudents > 0) {
             int offset = safePage * safeSize;
             List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudents(
-                    sortSpec.column(), sortSpec.direction(), sortSpec.labId(), offset, safeSize);
+                    sortSpec.column(), sortSpec.direction(), sortSpec.labId(), offset, safeSize, search);
             List<UUID> studentIds = new ArrayList<>();
             for (Object[] row : students) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);

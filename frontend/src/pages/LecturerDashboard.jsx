@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight } from 'lucide-react';
+import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight, Search } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
@@ -125,6 +125,8 @@ export default function LecturerDashboard({ user, onLogout }) {
   });
   const [selectedRosterStudent, setSelectedRosterStudent] = useState(null);
   const [rosterSort, setRosterSort] = useState({ field: 'studentName', direction: 'asc' });
+  const [rosterSearchInput, setRosterSearchInput] = useState('');
+  const [rosterSearch, setRosterSearch] = useState('');
   const [selectedChallengeStudent, setSelectedChallengeStudent] = useState(null);
   const [showAttemptHistory, setShowAttemptHistory] = useState(false);
   const [showChallengeDrawer, setShowChallengeDrawer] = useState(false);
@@ -155,6 +157,8 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [historyLabFilter, setHistoryLabFilter] = useState('All Labs');
   const [historySort, setHistorySort] = useState({ field: 'submittedAt', direction: 'desc' });
   const [gradeOverviewSort, setGradeOverviewSort] = useState({ field: 'studentName', direction: 'asc' });
+  const [gradeOverviewSearchInput, setGradeOverviewSearchInput] = useState('');
+  const [gradeOverviewSearch, setGradeOverviewSearch] = useState('');
   const [flaggedLabIds, setFlaggedLabIds] = useState(() => new Set());
   const [flaggedLabsByStudentId, setFlaggedLabsByStudentId] = useState({});
   const [overlapByStudentAndLab, setOverlapByStudentAndLab] = useState({});
@@ -265,13 +269,14 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchSubmissions = useCallback(async (labId, page = 0, sort = 'studentName,asc') => {
+  const fetchSubmissions = useCallback(async (labId, page = 0, sort = 'studentName,asc', search = '') => {
     if (!labId) return;
     setLoadingSubmissions(true);
     setSubmissionsError(null);
     try {
+      const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
       const response = await fetch(
-        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
+        `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
         { headers: authHeaders() }
       );
 
@@ -357,12 +362,13 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchGradeOverview = useCallback(async (page = 0, sort = 'studentName,asc') => {
+  const fetchGradeOverview = useCallback(async (page = 0, sort = 'studentName,asc', search = '') => {
     setLoadingGradeOverview(true);
     setGradeOverviewError(null);
     try {
+      const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
       const response = await fetch(
-        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
+        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
         { headers: authHeaders() },
       );
       if (!response.ok) {
@@ -391,6 +397,17 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
+
+  useEffect(() => {
+    const timer = setTimeout(() => setRosterSearch(rosterSearchInput), 300);
+    return () => clearTimeout(timer);
+  }, [rosterSearchInput]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setGradeOverviewSearch(gradeOverviewSearchInput), 300);
+    return () => clearTimeout(timer);
+  }, [gradeOverviewSearchInput]);
+
   useEffect(() => {
     fetchLabs();
     fetchOverview();
@@ -399,9 +416,9 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (activeNav === 'grading') {
-      fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort));
+      fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch);
     }
-  }, [activeNav, fetchGradeOverview, gradeOverviewSort]);
+  }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
 
   useEffect(() => {
     if (selectedLabId) {
@@ -411,13 +428,21 @@ export default function LecturerDashboard({ user, onLogout }) {
       setChallengePagination((prev) => ({ ...prev, page: 0 }));
       setRosterSort({ field: 'studentName', direction: 'asc' });
       setChallengeSort({ field: 'studentName', direction: 'asc' });
+      setRosterSearchInput('');
+      setRosterSearch('');
       void Promise.all([
-        fetchSubmissions(selectedLabId, 0, 'studentName,asc'),
+        fetchSubmissions(selectedLabId, 0, 'studentName,asc', ''),
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
     }
   }, [selectedLabId, fetchSubmissions, fetchLabStatistics, fetchChallengesForLab]);
+
+  useEffect(() => {
+    if (!selectedLabId) return;
+    fetchSubmissions(selectedLabId, 0, `${rosterSort.field},${rosterSort.direction}`, rosterSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally refetch on search only
+  }, [rosterSearch]);
 
   const activeChallengeId = useMemo(() => {
     if (activeTab === 'overview' || !selectedLabId || challengesLabId !== selectedLabId) {
@@ -446,7 +471,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
   const handlePageChange = (newPage) => {
     if (selectedLabId) {
-      fetchSubmissions(selectedLabId, newPage, `${rosterSort.field},${rosterSort.direction}`);
+      fetchSubmissions(selectedLabId, newPage, `${rosterSort.field},${rosterSort.direction}`, rosterSearch);
     }
   };
 
@@ -455,7 +480,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setRosterSort(next);
     setPagination((prev) => ({ ...prev, page: 0 }));
     if (selectedLabId) {
-      fetchSubmissions(selectedLabId, 0, `${next.field},${next.direction}`);
+      fetchSubmissions(selectedLabId, 0, `${next.field},${next.direction}`, rosterSearch);
     }
   };
 
@@ -479,6 +504,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       fetchGradeOverview(
         gradeOverviewPagination.page,
         formatGradeOverviewSortParam(gradeOverviewSort),
+        gradeOverviewSearch,
       );
       fetchPlagiarismFlags();
       return;
@@ -488,7 +514,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     fetchPlagiarismFlags();
     if (selectedLabId) {
       void Promise.all([
-        fetchSubmissions(selectedLabId, pagination.page, `${rosterSort.field},${rosterSort.direction}`),
+        fetchSubmissions(selectedLabId, pagination.page, `${rosterSort.field},${rosterSort.direction}`, rosterSearch),
         fetchLabStatistics(selectedLabId),
         fetchChallengesForLab(selectedLabId),
       ]);
@@ -503,7 +529,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   };
   const handleGradeOverviewPageChange = (newPage) => {
-    fetchGradeOverview(newPage, formatGradeOverviewSortParam(gradeOverviewSort));
+    fetchGradeOverview(newPage, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch);
   };
 
   const handleGradeOverviewSort = (field) => {
@@ -810,8 +836,18 @@ export default function LecturerDashboard({ user, onLogout }) {
                           )}
 
                           <div>
-                            <div className="mb-3">
+                            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <h4 className="text-sm font-semibold text-foreground">Student roster</h4>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+                                <input
+                                  type="text"
+                                  value={rosterSearchInput}
+                                  onChange={(e) => setRosterSearchInput(e.target.value)}
+                                  placeholder="Search by name or ID..."
+                                  className="w-full sm:w-72 rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                              </div>
                             </div>
                             {submissionsError && (
                               <p className="mb-4 text-sm text-warning-text">{submissionsError}</p>
@@ -886,13 +922,23 @@ export default function LecturerDashboard({ user, onLogout }) {
             <DashboardSection
               title="Grading"
               actions={
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+                    <input
+                      type="text"
+                      value={gradeOverviewSearchInput}
+                      onChange={(e) => setGradeOverviewSearchInput(e.target.value)}
+                      placeholder="Search by name or IRN..."
+                      className="w-56 sm:w-72 rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
                   <ExportMenu
                     onExport={handleExportGradeOverview}
                     disabled={loadingGradeOverview || gradeOverviewPagination.total === 0}
                   />
                   <button
-                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort))}
+                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch)}
                     className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
                     title="Refresh"
                   >
