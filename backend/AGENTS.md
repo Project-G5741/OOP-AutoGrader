@@ -128,7 +128,7 @@ Grading tuning properties (`application.properties`):
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match. A matching shell with no fields/constructors/methods is card status `success`, not `info`.
 - `GET /api/labs` — student-facing lab list (`deadlineDate`, `urgencyState`); with a student JWT, only current-term labs if the student is enrolled; lecturers still see all labs. Upload loads the lab with `findByIdWithTerm` so submit access does not lazy-load `lab.term`.
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution, `plagiarismRate` = unique flagged students ÷ students submitted)
-- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** is best qualifying submission before lab deadline (null when none or only late submissions); sort by `studentName` or `score`
+- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** is best qualifying submission before lab deadline (null when none or only late submissions); sort by `studentName` or `score`; optional `search` filters by name or student/teacher code (case-insensitive)
 - `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
@@ -136,7 +136,7 @@ Grading tuning properties (`application.properties`):
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; **score** is highest qualifying challenge score before deadline; **attempts** / **submittedAt** from latest graded attempt; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of highest lab scores, missing labs as 0; threshold < 70)
-- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated, default page size 10; per-lab score from `student_lab_progress.highest_score`; total = sum ÷ lab count); sort by `studentName`, `irn`, `score`, or `labScore,<labUuid>,<asc|desc>`
+- `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated, default page size 10; per-lab score from `student_lab_progress.highest_score`; total = sum ÷ lab count); sort by `studentName`, `irn`, `score`, or `labScore,<labUuid>,<asc|desc>`; optional `search` filters by name or student/teacher code (case-insensitive)
 - `GET /api/analytics/dashboard` — reports page analytics (returns 200 with empty/null fields when no data)
 
 ## Work Guidance
