@@ -1,9 +1,11 @@
 package com.eiu.capstone.backend.DTO.plagiarism;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public record PlagiarismFlagsDTO(
         List<UUID> flaggedLabIds,
-        Map<UUID, List<UUID>> flaggedLabsByStudentId) {}
+        Map<UUID, List<UUID>> flaggedLabsByStudentId,
+        Map<UUID, Map<UUID, BigDecimal>> overlapByStudentAndLab) {}

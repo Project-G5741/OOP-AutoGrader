@@ -35,8 +35,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
-| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page (student, IRN, total + per-lab scores); clickable rows |
-| `PlagiarismDangerMark.jsx` | Lecturer-only warning triangle (`TriangleAlert`) inline after a flagged lab or score |
+| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
+| `PlagiarismDangerMark.jsx` | Lecturer-only warning triangle inline after a flagged lab or score; helpers for flags + overlap % |
 | `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, date sort) |
 
 | `exportRoster.js` | Shared export helpers for roster, challenge breakdown, and grade overview |
@@ -66,7 +66,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Roster pagination counts **unique enrolled students** for the lab's term (`term_enrollment`), page size **5**
 
 - `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; a warning triangle shows when `plagiarismFlagged` is true
-- Lecturer-only warning triangle (`PlagiarismDangerMark`) is a 16×16 SVG in the same `h-4` / `leading-4` row as the lab name or score so it shares the text midline. Students are not notified.
+- Lecturer-only warning triangle (`PlagiarismDangerMark`) is a 16×16 SVG sharing the text midline with lab name or score. On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab`) sit to the right on one line when flagged. Display-only (no click-to-details). Students are not notified.
+- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer.
 
 - Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)
 
