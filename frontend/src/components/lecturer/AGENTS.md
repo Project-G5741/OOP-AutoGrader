@@ -37,7 +37,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
 | `PlagiarismDangerMark.jsx` | Lecturer-only warning triangle inline after a flagged lab or score; helpers for flags + overlap % |
-| `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, date sort) |
+| `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, column sort, client-side pagination at 10) |
 
 | `exportRoster.js` | Shared export helpers for roster, challenge breakdown, and grade overview |
 
@@ -84,7 +84,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Grade overview per-lab scores and total use **highest lab score** (`student_lab_progress.highest_score`); submission history panel still lists every attempt with its attempt score
 - Grade overview supports server-side sort via `sort` query param (`studentName`, `irn`, `score`, `labScore,<labUuid>`); default `studentName,asc`; **clickable column headers** on `GradeOverviewTable` (no toolbar sort buttons)
 - Grading tab pagination is **10** students per page (`GET /api/lecturer/grade-overview?size=10`)
-- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort)
+- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **10** rows per page after filter/sort; filter/sort/student change resets to page 0)
 
 
 
