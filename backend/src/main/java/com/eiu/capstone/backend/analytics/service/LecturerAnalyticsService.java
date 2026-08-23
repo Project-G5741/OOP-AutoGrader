@@ -5,10 +5,8 @@ import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -173,7 +171,7 @@ public class LecturerAnalyticsService {
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveLabSort(sort);
 
-        long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId, search);
+        long total = lecturerAnalyticsRepository.countSubmittedStudentsForLab(labId, search);
         List<SubmissionSummaryDTO> items = new ArrayList<>();
         if (total > 0) {
             List<Object[]> rows;
@@ -219,7 +217,7 @@ public class LecturerAnalyticsService {
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveChallengeSort(sort);
 
-        long total = lecturerAnalyticsRepository.countEnrolledStudentsForLab(labId);
+        long total = lecturerAnalyticsRepository.countSubmittedStudentsForChallenge(labId, challengeId);
         List<ChallengeStudentRowDTO> items = new ArrayList<>();
         if (total > 0) {
             int offset = safePage * safeSize;
@@ -355,18 +353,13 @@ public class LecturerAnalyticsService {
     }
 
     private List<SubmissionSummaryDTO> withPlagiarismFlags(UUID labId, List<SubmissionSummaryDTO> items) {
-        Set<UUID> ids = new HashSet<>();
-        for (SubmissionSummaryDTO item : items) {
-            if (item.submissionId() != null) {
-                ids.add(item.submissionId());
-            }
-        }
-        Set<UUID> flagged = plagiarismService.flaggedSubmissionIds(labId, ids);
-        if (flagged.isEmpty()) {
+        Map<UUID, String> roles = plagiarismService.studentRolesForLab(labId);
+        if (roles.isEmpty()) {
             return items;
         }
         List<SubmissionSummaryDTO> marked = new ArrayList<>(items.size());
         for (SubmissionSummaryDTO item : items) {
+            String role = item.studentId() == null ? null : roles.get(item.studentId());
             marked.add(new SubmissionSummaryDTO(
                     item.studentId(),
                     item.studentName(),
@@ -377,24 +370,20 @@ public class LecturerAnalyticsService {
                     item.bestSubmission(),
                     item.submissionId(),
                     item.hasSubmission(),
-                    item.submissionId() != null && flagged.contains(item.submissionId())));
+                    role != null,
+                    role));
         }
         return marked;
     }
 
     private List<ChallengeStudentRowDTO> withChallengePlagiarismFlags(UUID labId, List<ChallengeStudentRowDTO> items) {
-        Set<UUID> ids = new HashSet<>();
-        for (ChallengeStudentRowDTO item : items) {
-            if (item.submissionId() != null) {
-                ids.add(item.submissionId());
-            }
-        }
-        Set<UUID> flagged = plagiarismService.flaggedSubmissionIds(labId, ids);
-        if (flagged.isEmpty()) {
+        Map<UUID, String> roles = plagiarismService.studentRolesForLab(labId);
+        if (roles.isEmpty()) {
             return items;
         }
         List<ChallengeStudentRowDTO> marked = new ArrayList<>(items.size());
         for (ChallengeStudentRowDTO item : items) {
+            String role = item.studentId() == null ? null : roles.get(item.studentId());
             marked.add(new ChallengeStudentRowDTO(
                     item.studentId(),
                     item.studentName(),
@@ -404,7 +393,8 @@ public class LecturerAnalyticsService {
                     item.submittedAt(),
                     item.hasSubmission(),
                     item.submissionId(),
-                    item.submissionId() != null && flagged.contains(item.submissionId())));
+                    role != null,
+                    role));
         }
         return marked;
     }

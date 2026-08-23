@@ -13,7 +13,8 @@ public record SubmissionSummaryDTO(
         boolean bestSubmission,
         UUID submissionId,
         boolean hasSubmission,
-        boolean plagiarismFlagged) {
+        boolean plagiarismFlagged,
+        String plagiarismRole) {
 
     public SubmissionSummaryDTO(UUID studentId,
                                 String studentName,
@@ -25,6 +26,20 @@ public record SubmissionSummaryDTO(
                                 UUID submissionId,
                                 boolean hasSubmission) {
         this(studentId, studentName, studentCode, score, attempt, submittedAt,
-                bestSubmission, submissionId, hasSubmission, false);
+                bestSubmission, submissionId, hasSubmission, false, null);
+    }
+
+    public SubmissionSummaryDTO(UUID studentId,
+                                String studentName,
+                                String studentCode,
+                                BigDecimal score,
+                                int attempt,
+                                String submittedAt,
+                                boolean bestSubmission,
+                                UUID submissionId,
+                                boolean hasSubmission,
+                                boolean plagiarismFlagged) {
+        this(studentId, studentName, studentCode, score, attempt, submittedAt,
+                bestSubmission, submissionId, hasSubmission, plagiarismFlagged, null);
     }
 }

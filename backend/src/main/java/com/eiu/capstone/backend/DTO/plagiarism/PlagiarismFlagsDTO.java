@@ -8,4 +8,5 @@ import java.util.UUID;
 public record PlagiarismFlagsDTO(
         List<UUID> flaggedLabIds,
         Map<UUID, List<UUID>> flaggedLabsByStudentId,
-        Map<UUID, Map<UUID, BigDecimal>> overlapByStudentAndLab) {}
+        Map<UUID, Map<UUID, BigDecimal>> overlapByStudentAndLab,
+        Map<UUID, Map<UUID, String>> rolesByStudentAndLab) {}

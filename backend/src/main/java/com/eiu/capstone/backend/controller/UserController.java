@@ -94,12 +94,11 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<UserAccount> deleteUser(
+    public ResponseEntity<UserDTO.UserResponse> deleteUser(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID id) {
         jwtAuthHelper.requireLecturer(authHeader);
-        UserAccount user = userService.deleteUser(id);
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(userService.deleteUser(id));
     }
 
     @PostMapping("/{id}/suspend")

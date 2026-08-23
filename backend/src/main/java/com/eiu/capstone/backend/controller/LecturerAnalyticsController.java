@@ -70,4 +70,14 @@ public class LecturerAnalyticsController {
         jwtAuthHelper.requireRole(claims, "LECTURER");
         return plagiarismService.reportForLab(labId);
     }
+
+    @GetMapping("/labs/{labId}/students/{studentId}/plagiarism")
+    public com.eiu.capstone.backend.DTO.plagiarism.PlagiarismInvestigationDTO getStudentPlagiarism(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable UUID labId,
+            @PathVariable UUID studentId) {
+        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
+        jwtAuthHelper.requireRole(claims, "LECTURER");
+        return plagiarismService.investigationForStudent(labId, studentId);
+    }
 }

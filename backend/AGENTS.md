@@ -51,12 +51,12 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
 | `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, `PATCH /{labId}/deadline`; challenge testcase CRUD + dry-run |
 | `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, enroll/remove students, Excel import by IRN + email, `GET /{termId}/roster` (enrolled + available in one call) |
-| `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism` |
+| `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | Master data lookup by category |
 | `TermController` | `/api/terms` | Academic term list for lab creation |
 | `StudentAccessController` | `/api/students` | `GET /term-access` — whether the student is in the current term |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
-| `UserController` | `/api/users` | CRUD + bulk create (soft-delete); `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
+| `UserController` | `/api/users` | CRUD + bulk create; `DELETE /{id}` hard-deletes user and related rows; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html`
@@ -79,10 +79,11 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - Schema managed externally — no Flyway/Liquibase migrations in repo
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
-- Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. Flag if any check fires. Missing `.git` skips git/metadata only.
+- Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. A content match is flagged only if the uploader's **prior** lab best (excluding current attempt) is strictly below the other student's **lab best** and the current attempt scores **> 0** (first-time copy to 100 still flags; already-proven ≥ peer best does not; zero-score uploads never flag). Only the uploader's **latest** attempt stays active — a later original submit clears older copy flags. After inspect, that lab's matches are re-evaluated in batch. Missing `.git` skips git/metadata only. Lecturer UI roles: earlier **first** submit in the lab → `ORIGINAL` (victim), later first submit → `PLAGIARIZER` (never both; re-uploads do not invert roles). Exposed on roster rows, `GET /api/lecturer/plagiarism/flags` → `rolesByStudentAndLab`, and `GET /api/lecturer/labs/{labId}/students/{studentId}/plagiarism` (lineage).
 - `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
 - `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely)
-- Soft-delete: users set `isActive=false`; inactive accounts cannot log in
+- Soft-delete (inactive login): users set `isActive=false` via suspend or restore; inactive accounts cannot log in
+- Lecturer **delete** (`DELETE /api/users/{id}`) permanently removes the user and cascades related submissions, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens
 - Lecturer **suspend** (`POST /api/users/{id}/suspend`) is student-only `isActive=false`; restore via `POST /api/users/{id}/unsuspend`. Lecturer and dual-role accounts cannot be suspended this way.
 - `term.is_current` — lecturer-selected current term; operator SQL `docs/sql/2026-08-19-term-current.sql`. Students in that term may submit; others only use history.
 
@@ -128,12 +129,12 @@ Grading tuning properties (`application.properties`):
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match. A matching shell with no fields/constructors/methods is card status `success`, not `info`.
 - `GET /api/labs` — student-facing lab list (`deadlineDate`, `urgencyState`); with a student JWT, only current-term labs if the student is enrolled; lecturers still see all labs. Upload loads the lab with `findByIdWithTerm` so submit access does not lazy-load `lab.term`.
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution, `plagiarismRate` = unique flagged students ÷ students submitted)
-- `GET /api/labs/{labId}/submissions` — paginated unique student roster (from `student_lab_progress` or `term_enrollment`; default page size 5); **score** is best qualifying submission before lab deadline (null when none or only late submissions); sort by `studentName` or `score`; optional `search` filters by name or student/teacher code (case-insensitive)
-- `GET /api/labs/{labId}/submissions/export` — full roster in one query (lecturer export); same score semantics and `sort` param
+- `GET /api/labs/{labId}/submissions` — paginated roster of students who submitted for the lab (default page size 5); **score** is best qualifying submission before lab deadline (null when only late submissions); sort by `studentName` or `score`; optional `search` filters by name or student/teacher code (case-insensitive)
+- `GET /api/labs/{labId}/submissions/export` — full submitter roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — student's per-lab performance summary for history sidebar
 - `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter; `page`, `size`, `sort` for pagination)
-- `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated student roster for challenge tab (same population as lab roster; **score** is highest qualifying challenge score before deadline; **attempts** / **submittedAt** from latest graded attempt; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
+- `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated roster of students with a graded submission for that challenge (submitters only; **score** is highest qualifying challenge score before deadline; **attempts** / **submittedAt** from latest graded attempt; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards; **at-risk count** uses the same total-score rule as grade overview (average of highest lab scores, missing labs as 0; threshold < 70)
 - `GET /api/lecturer/grade-overview` — cross-lab student grade matrix (paginated, default page size 10; per-lab score from `student_lab_progress.highest_score`; total = sum ÷ lab count); sort by `studentName`, `irn`, `score`, or `labScore,<labUuid>,<asc|desc>`; optional `search` filters by name or student/teacher code (case-insensitive)

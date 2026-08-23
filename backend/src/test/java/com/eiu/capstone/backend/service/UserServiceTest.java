@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -27,7 +28,20 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
+import com.eiu.capstone.backend.repository.LabSubmissionRepository;
+import com.eiu.capstone.backend.repository.PasswordResetTokenRepository;
 import com.eiu.capstone.backend.repository.RoleRepository;
+import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
+import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionPlagiarismFingerprintRepository;
+import com.eiu.capstone.backend.repository.SubmissionPlagiarismMatchRepository;
+import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
+import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +58,45 @@ class UserServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
+    private LabSubmissionRepository labSubmissionRepository;
+
+    @Mock
+    private SubmissionPlagiarismMatchRepository plagiarismMatchRepository;
+
+    @Mock
+    private SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository;
+
+    @Mock
+    private SubmissionFieldResultRepository submissionFieldResultRepository;
+
+    @Mock
+    private SubmissionMethodResultRepository submissionMethodResultRepository;
+
+    @Mock
+    private SubmissionConstructorResultRepository submissionConstructorResultRepository;
+
+    @Mock
+    private SubmissionChallengeResultRepository submissionChallengeResultRepository;
+
+    @Mock
+    private SubmissionRelationResultRepository submissionRelationResultRepository;
+
+    @Mock
+    private SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+
+    @Mock
+    private StudentLabProgressRepository studentLabProgressRepository;
+
+    @Mock
+    private TermEnrollmentRepository termEnrollmentRepository;
+
+    @Mock
+    private LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
+
+    @Mock
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Mock
     private UserAccount existingUser;
 
     private UserService userService;
@@ -52,7 +105,23 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, roleRepository, passwordEncoder);
+        userService = new UserService(
+                userRepository,
+                roleRepository,
+                passwordEncoder,
+                labSubmissionRepository,
+                plagiarismMatchRepository,
+                plagiarismFingerprintRepository,
+                submissionFieldResultRepository,
+                submissionMethodResultRepository,
+                submissionConstructorResultRepository,
+                submissionChallengeResultRepository,
+                submissionRelationResultRepository,
+                submissionTestcaseResultRepository,
+                studentLabProgressRepository,
+                termEnrollmentRepository,
+                labDeadlineEmailSentRepository,
+                passwordResetTokenRepository);
         userId = UUID.randomUUID();
         when(existingUser.getId()).thenReturn(userId);
         when(existingUser.getEmail()).thenReturn("student@eiu.edu.vn");
@@ -168,6 +237,33 @@ class UserServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> userService.updateUser(userId, request));
         assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void deleteUser_hardDeletesUserAndRelatedData() {
+        UserAccount student = studentAccount();
+        when(userRepository.findAllWithRolesByIdIn(List.of(userId))).thenReturn(List.of(student));
+        when(labSubmissionRepository.findByUser_Id(userId)).thenReturn(List.of());
+
+        UserDTO.UserResponse result = userService.deleteUser(userId);
+
+        assertEquals("student@eiu.edu.vn", result.getEmail());
+        verify(studentLabProgressRepository).deleteByUser_Id(userId);
+        verify(plagiarismFingerprintRepository, never()).deleteAllByUserId(any());
+        verify(termEnrollmentRepository).deleteByUser_Id(userId);
+        verify(labDeadlineEmailSentRepository).deleteByUser_Id(userId);
+        verify(passwordResetTokenRepository).deleteByUser_Id(userId);
+        verify(userRepository).delete(student);
+    }
+
+    @Test
+    void deleteUser_notFound_throws404() {
+        when(userRepository.findAllWithRolesByIdIn(List.of(userId))).thenReturn(List.of());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> userService.deleteUser(userId));
+        assertEquals(404, ex.getStatusCode().value());
+        verify(userRepository, never()).delete(any());
     }
 
     @Test
