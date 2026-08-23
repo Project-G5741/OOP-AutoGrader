@@ -65,7 +65,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster pagination counts **unique enrolled students** for the lab's term (`term_enrollment`), page size **5**
 
-- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; a warning triangle shows when `plagiarismFlagged` is true
+- `SubmissionTable` renders one row per enrolled student; non-submitters show placeholders (`—`, `0`); **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; a warning triangle shows when `plagiarismFlagged` is true; SUMMARY shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
 - Lecturer-only warning triangle (`PlagiarismDangerMark`) is a 16×16 SVG sharing the text midline with lab name or score. On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab`) sit to the right on one line when flagged. Display-only (no click-to-details). Students are not notified.
 - `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer.
 

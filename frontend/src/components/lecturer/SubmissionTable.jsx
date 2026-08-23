@@ -84,10 +84,13 @@ export default function SubmissionTable({
             })
           )}
 
-          {(summary?.studentsSubmitted != null || summary?.studentCount != null || summary?.completionRate != null) && (
+          {(summary?.studentsSubmitted != null
+            || summary?.studentCount != null
+            || summary?.completionRate != null
+            || summary?.plagiarismRate != null) && (
             <tr className="border-t border-primary bg-primary-light">
               <td colSpan={6} className="px-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4 text-sm font-semibold text-primary-text">
+                <div className="grid grid-cols-5 items-center gap-4 text-sm font-semibold text-primary-text">
                   <span className="font-bold text-primary-text">SUMMARY</span>
                   <span className="text-center">
                     Submitted: <span className="text-primary-text">{formatNumber(summary?.studentsSubmitted)}</span>
@@ -97,6 +100,9 @@ export default function SubmissionTable({
                   </span>
                   <span className="text-center">
                     Completion: <span className="text-primary-text">{formatPercent(summary?.completionRate)}</span>
+                  </span>
+                  <span className="text-center">
+                    Plagiarism: <span className="text-primary-text">{formatPercent(summary?.plagiarismRate)}</span>
                   </span>
                 </div>
               </td>

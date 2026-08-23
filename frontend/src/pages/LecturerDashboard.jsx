@@ -827,6 +827,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                                   studentsSubmitted: labStatistics?.studentsSubmitted ?? null,
                                   studentCount: labStatistics?.studentCount ?? null,
                                   completionRate: labStatistics?.completionRate ?? null,
+                                  plagiarismRate: labStatistics?.plagiarismRate ?? null,
                                 }}
                                 pagination={pagination}
                                 onPageChange={handlePageChange}
