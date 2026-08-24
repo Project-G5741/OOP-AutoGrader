@@ -5,6 +5,7 @@ import PlagiarismDangerMark, {
   labHasPlagiarism,
   studentLabHasPlagiarism,
   studentLabOverlapPercent,
+  studentLabPlagiarismRole,
 } from './PlagiarismDangerMark';
 
 const HEADER_CLASS =
@@ -13,7 +14,7 @@ const CELL_CLASS = 'px-3 py-0 h-10 text-sm text-foreground align-middle';
 const PANEL_CLASS =
   'flex h-[320px] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-colors';
 
-function LabScoreCell({ score, flagged, overlapPercent }) {
+function LabScoreCell({ score, flagged, overlapPercent, plagiarismRole }) {
   const showOverlap = flagged && overlapPercent != null && overlapPercent > 0;
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -21,7 +22,7 @@ function LabScoreCell({ score, flagged, overlapPercent }) {
         <span className="font-medium text-foreground">{formatNumber(score)}</span>
         {flagged ? (
           <span className="absolute left-full top-1/2 ml-1.5 flex -translate-y-1/2 items-center gap-0.5 whitespace-nowrap">
-            <PlagiarismDangerMark show className="ml-0" />
+            <PlagiarismDangerMark show role={plagiarismRole} className="ml-0" />
             {showOverlap ? (
               <span className="text-[10px] font-medium text-warning-text dark:text-warning">{Math.round(overlapPercent)}%</span>
             ) : null}
@@ -45,6 +46,7 @@ export default function GradeOverviewTable({
   flaggedLabIds,
   flaggedLabsByStudentId,
   overlapByStudentAndLab,
+  rolesByStudentAndLab,
 }) {
   const labColumns = Array.isArray(labs) ? labs : [];
   const rows = Array.isArray(students) ? students : [];
@@ -206,6 +208,11 @@ export default function GradeOverviewTable({
                             labId,
                             overlapByStudentAndLab,
                           );
+                          const plagiarismRole = studentLabPlagiarismRole(
+                            student.studentId,
+                            labId,
+                            rolesByStudentAndLab,
+                          );
                           return (
                             <td
                               key={`${student.studentId}-${labId ?? index}`}
@@ -215,6 +222,7 @@ export default function GradeOverviewTable({
                                 score={score}
                                 flagged={flagged}
                                 overlapPercent={overlapPercent}
+                                plagiarismRole={plagiarismRole}
                               />
                             </td>
                           );

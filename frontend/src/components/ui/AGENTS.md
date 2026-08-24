@@ -27,7 +27,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 ### DropZone upload contract
 
 - Accepts props: `labId`, `attemptNumber`, `authToken`, `onUploadComplete` (and styling props)
-- Shows a one-line **Folder format** hint above the drop zone: `IRN_YourName_lab_n` / (`challenge_1`, `challenge_2`, …)
+- Shows a one-line **Folder format** hint above the drop zone: `IRN_YourName` / (`challenge_1`, `challenge_2`, …); optional text after the name (e.g. `_lab_1`) is ignored
 - Client-side filter: `.mmd`, `.java`, and `.git/**`. Root may include `.git` beside `challenge_*` folders. Do not mention plagiarism to the student.
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload`

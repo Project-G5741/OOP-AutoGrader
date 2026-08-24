@@ -13,6 +13,7 @@ import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverview
 import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
 import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
+import PlagiarismInvestigationDrawer from '../components/lecturer/PlagiarismInvestigationDrawer';
 import GradeDistributionChart from '../components/lecturer/GradeDistributionChart';
 import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
 import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
@@ -131,6 +132,8 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [selectedChallengeStudent, setSelectedChallengeStudent] = useState(null);
   const [showAttemptHistory, setShowAttemptHistory] = useState(false);
   const [showChallengeDrawer, setShowChallengeDrawer] = useState(false);
+  const [showPlagiarismInvestigation, setShowPlagiarismInvestigation] = useState(false);
+  const [plagiarismStudent, setPlagiarismStudent] = useState(null);
 
   const [loadingLabs, setLoadingLabs] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
@@ -164,6 +167,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [flaggedLabIds, setFlaggedLabIds] = useState(() => new Set());
   const [flaggedLabsByStudentId, setFlaggedLabsByStudentId] = useState({});
   const [overlapByStudentAndLab, setOverlapByStudentAndLab] = useState({});
+  const [rolesByStudentAndLab, setRolesByStudentAndLab] = useState({});
   const [challengeSort, setChallengeSort] = useState({ field: 'studentName', direction: 'asc' });
   const [challenges, setChallenges] = useState([]);
   const [challengesLabId, setChallengesLabId] = useState(null);
@@ -200,6 +204,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         setFlaggedLabIds(new Set());
         setFlaggedLabsByStudentId({});
         setOverlapByStudentAndLab({});
+        setRolesByStudentAndLab({});
         return;
       }
       const data = await response.json();
@@ -218,10 +223,20 @@ export default function LecturerDashboard({ user, onLogout }) {
         overlap[studentId] = labs;
       });
       setOverlapByStudentAndLab(overlap);
+      const roles = {};
+      Object.entries(data.rolesByStudentAndLab ?? {}).forEach(([studentId, byLab]) => {
+        const labs = {};
+        Object.entries(byLab ?? {}).forEach(([labId, role]) => {
+          labs[labId] = role;
+        });
+        roles[studentId] = labs;
+      });
+      setRolesByStudentAndLab(roles);
     } catch {
       setFlaggedLabIds(new Set());
       setFlaggedLabsByStudentId({});
       setOverlapByStudentAndLab({});
+      setRolesByStudentAndLab({});
     }
   }, []);
 
@@ -676,6 +691,11 @@ export default function LecturerDashboard({ user, onLogout }) {
     setShowAttemptHistory(true);
   };
 
+  const handleViewPlagiarism = (student) => {
+    setPlagiarismStudent(student);
+    setShowPlagiarismInvestigation(true);
+  };
+
   const handleChallengeView = (student) => {
     setSelectedChallengeStudent(student);
     setShowChallengeDrawer(true);
@@ -894,6 +914,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                                 pagination={pagination}
                                 onPageChange={handlePageChange}
                                 onView={handleRosterView}
+                                onViewPlagiarism={handleViewPlagiarism}
                                 requireSubmissionForView={false}
                                 sortState={rosterSort}
                                 onSort={handleRosterSort}
@@ -927,8 +948,9 @@ export default function LecturerDashboard({ user, onLogout }) {
                               pagination={challengePagination}
                               onPageChange={handleChallengePageChange}
                               onView={handleChallengeView}
+                              onViewPlagiarism={handleViewPlagiarism}
                               attemptLabel="Attempts"
-                              viewLabel="View"
+                              viewLabel="View Submission"
                               sortState={challengeSort}
                               onSort={handleChallengeSort}
                               labId={selectedLabId}
@@ -989,6 +1011,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                 flaggedLabIds={flaggedLabIds}
                 flaggedLabsByStudentId={flaggedLabsByStudentId}
                 overlapByStudentAndLab={overlapByStudentAndLab}
+                rolesByStudentAndLab={rolesByStudentAndLab}
               />
               {selectedGradeStudent && (
                 <GradeOverviewSubmissionHistory
@@ -1034,6 +1057,17 @@ export default function LecturerDashboard({ user, onLogout }) {
         }}
         labId={selectedLabId}
         student={selectedRosterStudent}
+        labName={selectedLab?.name}
+      />
+
+      <PlagiarismInvestigationDrawer
+        open={showPlagiarismInvestigation}
+        onClose={() => {
+          setShowPlagiarismInvestigation(false);
+          setPlagiarismStudent(null);
+        }}
+        labId={selectedLabId}
+        student={plagiarismStudent}
         labName={selectedLab?.name}
       />
 

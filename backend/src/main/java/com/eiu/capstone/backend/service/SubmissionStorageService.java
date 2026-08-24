@@ -39,10 +39,10 @@ public class SubmissionStorageService {
     private static final Pattern CHALLENGE_PATTERN =
             Pattern.compile("challenge[_-]?(\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern SUBMISSION_ROOT_PATTERN =
-            Pattern.compile("^(\\d+)_([a-z0-9_\\s]+)_lab_(\\d+)$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("^(\\d+)_([a-z0-9_\\s]+)(_.*)?$", Pattern.CASE_INSENSITIVE);
 
     private static final String INVALID_STRUCTURE_MESSAGE =
-            "Invalid folder structure. Expected root folder like 'IRN_StudentName_lab_1' with challenge folders named 'challenge_1' and only .mmd/.java files inside.";
+            "Invalid folder structure. Expected root folder like 'IRN_StudentName' with challenge folders named 'challenge_1' and only .mmd/.java files inside.";
 
     @Value("${app.storage.submission-base-dir}")
     private String baseDir;

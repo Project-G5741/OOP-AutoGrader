@@ -62,8 +62,7 @@ Per upload request (unique `requestId` prevents collisions):
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
-- Soft delete sets `isActive=false`
-- Lecturer suspend/restore (`suspendStudent` / `restoreStudent`) toggles `isActive` for student-only accounts; lecturer and dual-role accounts are rejected
+- Hard delete (`deleteUser`) removes progress and enrollments first, then each submission's plagiarism rows, grading results, and testcase rows, then the `user_account` row
 - Google upsert creates or updates user on first login
 - Inactive users cannot log in (IRN or Google)
 - Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)

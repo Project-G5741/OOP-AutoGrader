@@ -28,6 +28,18 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     @Query("SELECT s FROM LabSubmission s JOIN FETCH s.user WHERE s.id IN :ids")
     List<LabSubmission> findAllWithUserByIdIn(@Param("ids") java.util.Collection<UUID> ids);
 
+    @Query("""
+            SELECT s FROM LabSubmission s
+            WHERE s.lab.id = :labId
+              AND s.user.id IN :userIds
+            """)
+    List<LabSubmission> findByLabIdAndUserIdIn(
+            @Param("labId") UUID labId,
+            @Param("userIds") java.util.Collection<UUID> userIds);
+
+
+    List<LabSubmission> findByUser_Id(UUID userId);
+
     /** All of a student's submissions across every lab, most recent first — handy for a history/dashboard view. */
     List<LabSubmission> findByUserOrderBySubmittedAtDesc(UserAccount user);
 
@@ -92,6 +104,31 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             """)
     BigDecimal bestScoreForUserAndLab(@Param("userId") UUID userId, @Param("labId") UUID labId);
 
+    /** Best score on this lab before/excluding the current attempt (plagiarism score gate). */
+    @Query("""
+            SELECT MAX(s.score) FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND s.lab.id = :labId
+              AND s.id <> :excludeSubmissionId
+              AND s.score IS NOT NULL
+            """)
+    BigDecimal bestScoreForUserAndLabExcludingSubmission(
+            @Param("userId") UUID userId,
+            @Param("labId") UUID labId,
+            @Param("excludeSubmissionId") UUID excludeSubmissionId);
+
     @Query("SELECT COUNT(DISTINCT s.lab.id) FROM LabSubmission s WHERE s.user.id = :userId")
     long countDistinctLabsByUserId(@Param("userId") UUID userId);
+
+    /** Earliest submission time per user in a lab — used for plagiarism role (victim vs plagiarizer). */
+    @Query("""
+            SELECT s.user.id, MIN(s.submittedAt)
+            FROM LabSubmission s
+            WHERE s.lab.id = :labId
+              AND s.user.id IN :userIds
+            GROUP BY s.user.id
+            """)
+    List<Object[]> findEarliestSubmittedAtByLabAndUserIds(
+            @Param("labId") UUID labId,
+            @Param("userIds") java.util.Collection<UUID> userIds);
 }

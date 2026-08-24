@@ -87,7 +87,7 @@ export default function DropZone({
       return false;
     }
 
-    const rootPattern = /^(\d+)_([a-z0-9_\s]+)_lab_(\d+)$/i;
+    const rootPattern = /^(\d+)_([a-z0-9_\s]+)(_.*)?$/i;
     if (!rootPattern.test(rootFolder)) {
       return false;
     }
@@ -115,7 +115,7 @@ export default function DropZone({
     }
 
     if (!isValidFolderStructure(relevant)) {
-      setUploadError("Invalid folder structure. Expected a root folder named like 'IRN_StudentName_lab_1' with challenge folders named 'challenge_1'.");
+      setUploadError("Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with challenge folders named 'challenge_1'.");
       return;
     }
 
@@ -184,7 +184,7 @@ export default function DropZone({
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p className="text-xs leading-relaxed">
             <span className="font-semibold">Folder format:</span>{' '}
-            <span className="font-mono">IRN_YourName_lab_n</span>
+            <span className="font-mono">IRN_YourName</span>
             {' / '}
             (<span className="font-mono">challenge_1</span>, <span className="font-mono">challenge_2</span>, …)
             {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each;

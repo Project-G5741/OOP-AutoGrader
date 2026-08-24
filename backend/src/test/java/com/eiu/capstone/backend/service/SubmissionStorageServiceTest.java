@@ -30,7 +30,11 @@ class SubmissionStorageServiceTest {
     @Test
     void acceptsMatchingSubmissionFolderAndChallengeNames() {
         assertTrue(SubmissionStorageService.isValidSubmissionPath(
+                "2331200082_Nguyen_Van_A/challenge_1/Student.java"));
+        assertTrue(SubmissionStorageService.isValidSubmissionPath(
                 "2331200082_Nguyen_Van_A_lab_1/challenge_1/Student.java"));
+        assertTrue(SubmissionStorageService.isValidSubmissionPath(
+                "2331200082_Nguyen_Van_A_any_suffix/challenge_1/Student.java"));
     }
 
     @Test

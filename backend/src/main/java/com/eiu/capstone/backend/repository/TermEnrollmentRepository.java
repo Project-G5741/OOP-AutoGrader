@@ -45,4 +45,6 @@ public interface TermEnrollmentRepository extends JpaRepository<TermEnrollment, 
             ORDER BY u.fullName
             """)
     List<TermEnrollment> findByTermIdWithUser(@Param("termId") UUID termId);
+
+    void deleteByUser_Id(UUID userId);
 }

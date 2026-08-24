@@ -1,4 +1,4 @@
-import { Eye } from 'lucide-react';
+import { Eye, GitCompare } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
@@ -19,8 +19,9 @@ export default function SubmissionTable({
   pagination,
   onPageChange,
   onView,
+  onViewPlagiarism,
   attemptLabel = 'Attempt',
-  viewLabel = 'View',
+  viewLabel = 'View Submission',
   requireSubmissionForView = true,
   sortState,
   onSort,
@@ -61,6 +62,7 @@ export default function SubmissionTable({
             rows.map((submission, index) => {
               const canView = requireSubmissionForView ? submission.hasSubmission !== false : true;
               const flagged = Boolean(submission.plagiarismFlagged);
+              const plagiarismRole = submission.plagiarismRole ?? null;
               const overlapPercent = flagged
                 ? studentLabOverlapPercent(submission.studentId, labId, overlapByStudentAndLab)
                 : null;
@@ -75,7 +77,7 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 align-middle">
                     {flagged ? (
                       <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
-                        <PlagiarismDangerMark show className="ml-0" />
+                        <PlagiarismDangerMark show role={plagiarismRole} className="ml-0" />
                         {showOverlap ? (
                           <span className="text-[10px] font-medium text-warning-text dark:text-warning">
                             {Math.round(overlapPercent)}%
@@ -85,15 +87,27 @@ export default function SubmissionTable({
                     ) : null}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      disabled={!canView}
-                      onClick={() => onView?.(submission)}
-                      className="flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled"
-                    >
-                      <Eye className="h-3 w-3" />
-                      {viewLabel}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!canView}
+                        onClick={() => onView?.(submission)}
+                        className="flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled"
+                      >
+                        <Eye className="h-3 w-3" />
+                        {viewLabel}
+                      </button>
+                      {flagged ? (
+                        <button
+                          type="button"
+                          onClick={() => onViewPlagiarism?.(submission)}
+                          className="flex items-center gap-1 rounded-lg bg-warning px-3 py-1.5 text-xs text-white transition-colors hover:bg-warning-hover"
+                        >
+                          <GitCompare className="h-3 w-3" />
+                          View Plagiarism
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

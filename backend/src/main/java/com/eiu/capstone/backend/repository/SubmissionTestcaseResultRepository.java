@@ -19,4 +19,6 @@ public interface SubmissionTestcaseResultRepository extends JpaRepository<Submis
             WHERE r.submission.id = :submissionId
             """)
     List<SubmissionTestcaseResult> findBySubmission_IdWithTestcase(@Param("submissionId") UUID submissionId);
+
+    void deleteBySubmission_Id(UUID submissionId);
 }

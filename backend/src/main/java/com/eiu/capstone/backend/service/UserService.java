@@ -23,9 +23,23 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
 import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
+import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
+import com.eiu.capstone.backend.repository.LabSubmissionRepository;
+import com.eiu.capstone.backend.repository.PasswordResetTokenRepository;
 import com.eiu.capstone.backend.repository.RoleRepository;
+import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
+import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionPlagiarismFingerprintRepository;
+import com.eiu.capstone.backend.repository.SubmissionPlagiarismMatchRepository;
+import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
+import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
 import jakarta.transaction.Transactional;
@@ -36,13 +50,52 @@ public class UserService {
     private final UserAccountRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LabSubmissionRepository labSubmissionRepository;
+    private final SubmissionPlagiarismMatchRepository plagiarismMatchRepository;
+    private final SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository;
+    private final SubmissionFieldResultRepository submissionFieldResultRepository;
+    private final SubmissionMethodResultRepository submissionMethodResultRepository;
+    private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
+    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
+    private final SubmissionRelationResultRepository submissionRelationResultRepository;
+    private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+    private final StudentLabProgressRepository studentLabProgressRepository;
+    private final TermEnrollmentRepository termEnrollmentRepository;
+    private final LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     public UserService(UserAccountRepository userRepository,
             RoleRepository roleRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            LabSubmissionRepository labSubmissionRepository,
+            SubmissionPlagiarismMatchRepository plagiarismMatchRepository,
+            SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository,
+            SubmissionFieldResultRepository submissionFieldResultRepository,
+            SubmissionMethodResultRepository submissionMethodResultRepository,
+            SubmissionConstructorResultRepository submissionConstructorResultRepository,
+            SubmissionChallengeResultRepository submissionChallengeResultRepository,
+            SubmissionRelationResultRepository submissionRelationResultRepository,
+            SubmissionTestcaseResultRepository submissionTestcaseResultRepository,
+            StudentLabProgressRepository studentLabProgressRepository,
+            TermEnrollmentRepository termEnrollmentRepository,
+            LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.labSubmissionRepository = labSubmissionRepository;
+        this.plagiarismMatchRepository = plagiarismMatchRepository;
+        this.plagiarismFingerprintRepository = plagiarismFingerprintRepository;
+        this.submissionFieldResultRepository = submissionFieldResultRepository;
+        this.submissionMethodResultRepository = submissionMethodResultRepository;
+        this.submissionConstructorResultRepository = submissionConstructorResultRepository;
+        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
+        this.submissionRelationResultRepository = submissionRelationResultRepository;
+        this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
+        this.studentLabProgressRepository = studentLabProgressRepository;
+        this.termEnrollmentRepository = termEnrollmentRepository;
+        this.labDeadlineEmailSentRepository = labDeadlineEmailSentRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
     }
 
     @Transactional
@@ -207,13 +260,39 @@ public class UserService {
     }
 
     @Transactional
-    public UserAccount deleteUser(UUID id) {
-        if (!userRepository.existsById(id)) {
-            throw new NoSuchElementException("User not found: " + id);
+    public UserDTO.UserResponse deleteUser(UUID id) {
+        UserAccount user = userRepository.findAllWithRolesByIdIn(List.of(id)).stream()
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        UserDTO.UserResponse response = UserDTO.UserResponse.fromEntity(user);
+        purgeUserData(id);
+        userRepository.delete(user);
+        return response;
+    }
+
+    private void purgeUserData(UUID userId) {
+        studentLabProgressRepository.deleteByUser_Id(userId);
+        termEnrollmentRepository.deleteByUser_Id(userId);
+        labDeadlineEmailSentRepository.deleteByUser_Id(userId);
+        passwordResetTokenRepository.deleteByUser_Id(userId);
+
+        List<LabSubmission> submissions = labSubmissionRepository.findByUser_Id(userId);
+        for (LabSubmission submission : submissions) {
+            deleteSubmissionData(submission);
         }
-        UserAccount user = userRepository.getReferenceById(id);
-        user.setIsActive(false);
-        return userRepository.save(user);
+    }
+
+    private void deleteSubmissionData(LabSubmission submission) {
+        UUID submissionId = submission.getId();
+        plagiarismMatchRepository.deleteInvolvingSubmission(submissionId);
+        plagiarismFingerprintRepository.deleteBySubmissionId(submissionId);
+        submissionFieldResultRepository.deleteBySubmission(submission);
+        submissionMethodResultRepository.deleteBySubmission(submission);
+        submissionConstructorResultRepository.deleteBySubmission(submission);
+        submissionChallengeResultRepository.deleteBySubmission(submission);
+        submissionRelationResultRepository.deleteBySubmission(submission);
+        submissionTestcaseResultRepository.deleteBySubmission_Id(submissionId);
+        labSubmissionRepository.delete(submission);
     }
 
     @Transactional

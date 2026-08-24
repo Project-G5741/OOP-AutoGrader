@@ -14,7 +14,12 @@ public interface SubmissionPlagiarismMatchRepository extends JpaRepository<Submi
 
     List<SubmissionPlagiarismMatch> findByLabIdAndFlaggedTrue(UUID labId);
 
+    List<SubmissionPlagiarismMatch> findByLabId(UUID labId);
+
     List<SubmissionPlagiarismMatch> findByFlaggedTrue();
+
+    @Query("SELECT DISTINCT m.labId FROM SubmissionPlagiarismMatch m")
+    List<UUID> findDistinctLabIds();
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

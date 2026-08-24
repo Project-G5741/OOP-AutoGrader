@@ -45,7 +45,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 | Value | Renders | API |
 |---|---|---|
-| `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` (includes `plagiarismFlagged`), `/api/labs/{id}/challenges/{id}/students`, `GET /api/lecturer/plagiarism/flags` |
+| `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers | Live `/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` (includes `plagiarismFlagged` + `plagiarismRole`), `/api/labs/{id}/challenges/{id}/students`, `GET /api/lecturer/plagiarism/flags`, `GET /api/lecturer/labs/{labId}/students/{studentId}/plagiarism` |
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/lecturer/plagiarism/flags`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `terms` | `TermManagement` | Live `/api/lecturer/terms` create/set current/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |

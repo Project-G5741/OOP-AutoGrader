@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.SubmissionRelationResult;
 
 public interface SubmissionRelationResultRepository extends JpaRepository<SubmissionRelationResult, UUID> {
@@ -18,4 +19,6 @@ public interface SubmissionRelationResultRepository extends JpaRepository<Submis
             + "JOIN FETCH cr.relationType "
             + "WHERE r.submission.id = :submissionId")
     List<SubmissionRelationResult> findBySubmission_IdWithRelation(@Param("submissionId") UUID submissionId);
+
+    void deleteBySubmission(LabSubmission submission);
 }

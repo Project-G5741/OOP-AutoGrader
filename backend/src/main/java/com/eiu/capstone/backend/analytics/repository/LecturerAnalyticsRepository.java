@@ -187,6 +187,27 @@ public class LecturerAnalyticsRepository {
         return result == null ? 0L : ((Number) result).longValue();
     }
 
+    /** Count roster students who have at least one lab submission (optional name/code search). */
+    public long countSubmittedStudentsForLab(UUID labId, String search) {
+        String normalized = normalizeSearch(search);
+        String sql = "SELECT COUNT(DISTINCT u.id) " + ROSTER_STUDENT_BASE + """
+                WHERE EXISTS (
+                    SELECT 1 FROM lab_submission s
+                    WHERE s.lab_id = :labId AND s.user_id = u.id
+                )
+                """;
+        if (normalized != null) {
+            sql += STUDENT_SEARCH_CLAUSE;
+        }
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("labId", labId);
+        if (normalized != null) {
+            query.setParameter("search", normalized);
+        }
+        Object result = query.getSingleResult();
+        return result == null ? 0L : ((Number) result).longValue();
+    }
+
     public long countActiveEnrolledStudentsForLab(UUID labId) {
         String sql = """
                 SELECT COUNT(DISTINCT u.id)
@@ -362,7 +383,7 @@ public class LecturerAnalyticsRepository {
                        latest_sub.id AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
-                LEFT JOIN latest_sub ON latest_sub.user_id = u.id
+                INNER JOIN latest_sub ON latest_sub.user_id = u.id
                 LEFT JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
                 """ + searchClause + keysetClause + """
@@ -425,6 +446,24 @@ public class LecturerAnalyticsRepository {
         return sortColumn + " " + sortDirection;
     }
 
+    /** Count roster students with at least one graded submission for the challenge (deadline-aware). */
+    public long countSubmittedStudentsForChallenge(UUID labId, UUID challengeId) {
+        String sql = "SELECT COUNT(DISTINCT u.id) " + ROSTER_STUDENT_BASE + """
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM lab_submission s
+                    WHERE s.user_id = u.id AND s.lab_id = l.id
+                      AND """ + LAB_DEADLINE_SUBMISSION_FILTER + """
+                      AND """ + challengeGradedSubmissionExists("s") + """
+                )
+                """;
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("labId", labId);
+        query.setParameter("challengeId", challengeId);
+        Object result = query.getSingleResult();
+        return result == null ? 0L : ((Number) result).longValue();
+    }
+
     public List<Object[]> findChallengeStudentRoster(UUID labId,
                                                      UUID challengeId,
                                                      String sortColumn,
@@ -438,7 +477,7 @@ public class LecturerAnalyticsRepository {
                        challenge_best.best_score,
                        COALESCE(challenge_attempts.attempt_count, 0),
                        challenge_latest.submitted_at,
-                       (challenge_latest.id IS NOT NULL) AS has_submission,
+                       true AS has_submission,
                        challenge_latest.id AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN LATERAL (
@@ -450,7 +489,7 @@ public class LecturerAnalyticsRepository {
                       AND """ + LAB_DEADLINE_SUBMISSION_FILTER + """
                       AND """ + challengeGradedSubmissionExists("s") + """
                 ) challenge_best ON true
-                LEFT JOIN LATERAL (
+                INNER JOIN LATERAL (
                     SELECT s.id, s.submitted_at
                     FROM lab_submission s
                     WHERE s.user_id = u.id AND s.lab_id = l.id
