@@ -9,7 +9,7 @@ This backend is a Spring Boot application that verifies Google ID tokens and acc
    cd backend
    ```
 2. Make sure you have Java 17+ and Maven installed.
-3. Copy `.env.example` to `.env` and set `GOOGLE_CLIENT_ID`, `JWT_SECRET`, and `FRONTEND_URL`.
+3. Copy `.env.backend.example` to `.env` and set `GOOGLE_CLIENT_ID`, `FRONTEND_URL`, and `JWT_SECRET` (at least 32 bytes; generate with `openssl rand -base64 32`). The app will not start if `JWT_SECRET` is missing or too short.
 
 ## Run backend
 

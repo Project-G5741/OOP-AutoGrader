@@ -22,7 +22,7 @@ google:
 allowed-domain: eiu.edu.vn
 
 jwt:
-  secret: ${JWT_SECRET:replace_me_change_this_to_a_secret_at_least_32_chars}
+  secret: ${JWT_SECRET}
   validity-seconds: 3600
 
 cors:

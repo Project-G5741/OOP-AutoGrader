@@ -29,7 +29,7 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 | `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM |
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials |
 | `GOOGLE_CLIENT_ID` | Google OAuth audience validation |
-| `JWT_SECRET` | JWT signing key (≥32 bytes); used by `JwtService` when set |
+| `JWT_SECRET` | HS256 JWT signing key (**required**, ≥32 bytes). Missing or too-short values fail startup. Generate locally with `openssl rand -base64 32`. Never commit a production value. |
 | `FRONTEND_URL` | CORS allowed origin; fallback reset-link base when `Origin` header absent |
 | `RESET_FRONTEND_URL` | Optional override for fallback reset-link base (defaults to `FRONTEND_URL`) |
 
@@ -67,7 +67,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 - **Lecturer JWT required:** `/api/users/*` (except self-service `POST /change-password`), `/api/lecturer/labs`, `/api/lecturer/terms`, `/api/lecturer` analytics, `/api/analytics`, `/api/master-data`, `/api/terms`, lecturer lab statistics/submissions/export/attempts on `/api/labs`
 - **Student or lecturer JWT:** challenge reads, lab stats (students scoped to self via `resolveStudentScope`), submission upload and student history
 - **Public:** `/api/auth/*` (Google upsert creates **STUDENT** only for new accounts; existing accounts rejected), health/liveness
-- `JwtService` uses `jwt.secret` from config when set (≥32 bytes); dev fallback when unset/placeholder
+- `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
 - Google auth enforces `@eiu.edu.vn` domain and configured `GOOGLE_CLIENT_ID` audience via `GoogleTokenVerifier`
 - Password-reset request does not reveal whether an email exists (anti-enumeration)
@@ -149,7 +149,7 @@ Grading tuning properties (`application.properties`):
 
 ## Verification
 
-- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `CorsPatchDeadlineTest`, `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
+- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `JwtServiceTest`, `CorsPatchDeadlineTest`, `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 
 ## Child DOX Index

@@ -39,7 +39,7 @@ Full-stack auto-grader: students upload Java + MMD; backend compiles and grades 
 ## Auth & security notes
 
 - Google OAuth restricted to `@eiu.edu.vn`; JWT session for uploads.
-- `JwtService` regenerates signing key on restart — tokens invalidate on restart.
+- `JwtService` signs with `JWT_SECRET` (required, ≥32 bytes); tokens remain valid across restarts while the secret is unchanged.
 - Most endpoints unauthenticated except upload/history and `/api/users/*` (lecturer JWT).
 
 ## Grading (summary)

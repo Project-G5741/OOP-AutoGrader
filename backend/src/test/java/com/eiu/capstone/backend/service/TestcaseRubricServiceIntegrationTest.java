@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
@@ -23,6 +25,11 @@ import com.eiu.capstone.backend.model.TestcaseType;
 
 @SpringBootTest
 class TestcaseRubricServiceIntegrationTest {
+
+    @DynamicPropertySource
+    static void jwtSecret(DynamicPropertyRegistry registry) {
+        registry.add("jwt.secret", () -> "a".repeat(32));
+    }
 
     @Autowired private TestcaseRubricService testcaseRubricService;
     @Autowired private JdbcTemplate jdbcTemplate;
