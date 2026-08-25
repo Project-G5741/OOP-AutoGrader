@@ -113,6 +113,11 @@ API posture where a request is refused unless an explicit path-and-method rule a
 ### No-access
 The SPA screen for a signed-in user whose API call was forbidden. The session stays valid so they can return to their default dashboard. It is not used for wrong-role page URLs (those use the default-dashboard redirect) and not used for missing or expired sessions (those return to login).
 
+## Backend tests
+
+### Aspect-root test home
+A first-level folder under the backend test source tree that names the kind of check (unit, integration, authorization, regression, or support). Tests in that home use a Java package that starts with the home name, so they are not in the same package as production code.
+
 ## Frontend theme
 
 ### Design token
