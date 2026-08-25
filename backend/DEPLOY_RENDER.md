@@ -7,8 +7,9 @@ Render deployment steps (Docker)
    - `DB_USERNAME` = <db user>
    - `DB_PASSWORD` = <db pass>
    - `FRONTEND_URL` = https://oop-autograder.vercel.app
-   - `JWT_SECRET` = <your-jwt-secret>
+   - `JWT_SECRET` = <your-jwt-secret, at least 32 bytes; generate with `openssl rand -base64 32`. Changing this invalidates all existing sessions.>
    - `GOOGLE_CLIENT_ID` = <google client id>
+   - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
@@ -29,5 +30,5 @@ Local build & test:
 ```
 cd backend
 docker build -t eiu-backend:latest .
-docker run -e DB_USERNAME=<user> -e DB_PASSWORD=<pass> -e SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/<db>?sslmode=require" -e PORT=8002 -p 8002:8002 eiu-backend:latest
+docker run -e DB_USERNAME=<user> -e DB_PASSWORD=<pass> -e SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/<db>?sslmode=require" -e JWT_SECRET="<at-least-32-byte-secret>" -e PORT=8002 -p 8002:8002 eiu-backend:latest
 ```

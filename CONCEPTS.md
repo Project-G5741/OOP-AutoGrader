@@ -105,6 +105,14 @@ The rule that only lab submissions with a timestamp on or before the lab's activ
 ### Dual-role user
 A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.
 
+Wrong-role *page* navigation still sends the user to that default dashboard (session kept). Wrong-role *API* calls keep the session and show **no-access** instead of logging the user out. Lecturer and student are independent roles: holding one does not grant the other.
+
+### Default-deny
+API posture where a request is refused unless an explicit path-and-method rule admits the caller's roles. Callers with no usable session receive unauthenticated denial; signed-in callers with the wrong role receive forbidden denial. Forgotten routes do not stay open by default.
+
+### No-access
+The SPA screen for a signed-in user whose API call was forbidden. The session stays valid so they can return to their default dashboard. It is not used for wrong-role page URLs (those use the default-dashboard redirect) and not used for missing or expired sessions (those return to login).
+
 ## Frontend theme
 
 ### Design token
