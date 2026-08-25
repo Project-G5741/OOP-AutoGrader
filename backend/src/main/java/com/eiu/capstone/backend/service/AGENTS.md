@@ -92,12 +92,12 @@ Per upload request (unique `requestId` prevents collisions):
 
 - Compile path: upload `.java` files via frontend `DropZone`, confirm `classes/` populated before cleanup
 - Auth: `POST /api/auth/google` and `POST /api/auth/login` via Swagger or frontend login
-- Term access: `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
-- Term import: `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
-- Term current membership: `TermServiceCurrentTermTest`
-- User suspend: `UserServiceTest` (student inactive; lecturer/dual-role rejected)
-- Password reset: `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
-- JWT signing key: `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
+- Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
+- Term import: `support` `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
+- Term current membership: `support` `TermServiceCurrentTermTest`
+- User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
+- Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
+- JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
 
 ## Child DOX Index
 

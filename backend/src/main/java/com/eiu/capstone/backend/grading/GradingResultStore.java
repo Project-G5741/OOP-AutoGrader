@@ -15,7 +15,7 @@ import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
 
 @Component
-class GradingResultStore {
+public class GradingResultStore {
 
     private final SubmissionFieldResultRepository submissionFieldResultRepository;
     private final SubmissionMethodResultRepository submissionMethodResultRepository;
@@ -24,7 +24,7 @@ class GradingResultStore {
     private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
     private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
 
-    GradingResultStore(SubmissionFieldResultRepository submissionFieldResultRepository,
+    public GradingResultStore(SubmissionFieldResultRepository submissionFieldResultRepository,
                        SubmissionMethodResultRepository submissionMethodResultRepository,
                        SubmissionConstructorResultRepository submissionConstructorResultRepository,
                        SubmissionRelationResultRepository submissionRelationResultRepository,
@@ -58,7 +58,7 @@ class GradingResultStore {
     }
 
     @Transactional
-    void save(GradingService.GradingComputationResult computed) {
+    public void save(GradingService.GradingComputationResult computed) {
         submissionFieldResultRepository.saveAll(computed.fieldResults);
         submissionMethodResultRepository.saveAll(computed.methodResults);
         submissionConstructorResultRepository.saveAll(computed.constructorResults);

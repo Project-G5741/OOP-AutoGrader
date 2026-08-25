@@ -92,7 +92,7 @@ public class StudentHistoryService {
                 submissionPage.getTotalPages());
     }
 
-    Sort resolveHistorySort(String sort) {
+    public Sort resolveHistorySort(String sort) {
         if (sort == null || sort.isBlank()) {
             return Sort.by(Sort.Direction.DESC, "submittedAt");
         }
@@ -203,7 +203,7 @@ public class StudentHistoryService {
                 .toList();
     }
 
-    String deriveStatus(BigDecimal overallScore, List<StudentChallengeResultDTO> challengeResults) {
+    public String deriveStatus(BigDecimal overallScore, List<StudentChallengeResultDTO> challengeResults) {
         if (overallScore == null) {
             return "unknown";
         }
@@ -226,7 +226,7 @@ public class StudentHistoryService {
                 score);
     }
 
-    StudentHistoryStatsDTO computeStats(List<LabSubmission> submissions, UUID filterLabId) {
+    public StudentHistoryStatsDTO computeStats(List<LabSubmission> submissions, UUID filterLabId) {
         if (submissions.isEmpty()) {
             return new StudentHistoryStatsDTO(0, 0, null, null);
         }

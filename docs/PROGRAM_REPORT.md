@@ -376,7 +376,7 @@ OOP-AutoGrader/
 3. **Upload-time result bundle** — `lab_result` JSON is returned on upload so the student UI renders immediately without extra API calls.
 4. **Latest attempt wins** — Student dashboard shows the most recent attempt, not necessarily the highest score.
 5. **Parallel grading** — Challenges compile and grade in parallel (configurable via `app.grading.parallelism` and `app.compile.parallelism`).
-6. **No full CI test suite yet** — Manual verification and selective unit tests in `backend/src/test/`.
+6. **Backend tests in five aspect homes** — `mvn test` from `backend/` and the Docker image build run `unit`, `integration`, `authorization`, `regression`, and `support` under `backend/src/test/java/`. Frontend has no automated tests yet.
 
 ---
 

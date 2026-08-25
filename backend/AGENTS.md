@@ -153,7 +153,9 @@ Grading tuning properties (`application.properties`):
 
 ## Verification
 
-- No automated test suite in Docker build (`-DskipTests`); local: `mvn test` from `backend/` includes `JwtServiceTest`, `CorsPatchDeadlineTest`, `SubmissionStorageServiceTest`, `JavaCompilerServiceTest`, `StudentTermAccessServiceTest`, `TermServiceImportTest`, and `PasswordResetServiceTest`
+- `mvn test` from `backend/` and the Docker image build (`mvn -B test package`) run tests in `unit/`, `integration/`, `authorization/`, `regression/`, and `support/` under `backend/src/test/java/`.
+- `@WebMvcTest` classes under `authorization/` declare a nested `@SpringBootApplication` on the test class so Boot can find configuration outside `com.eiu.capstone.backend`.
+- Surefire sets `net.bytebuddy.experimental=true` so Mockito can run on a local JDK newer than 22; image builds use JDK 17.
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 
 ## Child DOX Index

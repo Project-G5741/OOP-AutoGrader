@@ -27,7 +27,7 @@ public final class PlagiarismComparator {
         return new PlagiarismComparison(gitMatch, metadataMatch, hashSimilarity, gitMatch || metadataMatch || hashFlag);
     }
 
-    static boolean gitHistoriesMatch(List<String> left, List<String> right) {
+    public static boolean gitHistoriesMatch(List<String> left, List<String> right) {
         if (left == null || right == null || left.isEmpty() || right.isEmpty()) {
             return false;
         }
@@ -42,7 +42,7 @@ public final class PlagiarismComparator {
         return true;
     }
 
-    static boolean metadataMatches(String left, String right) {
+    public static boolean metadataMatches(String left, String right) {
         String a = canonicalize(left);
         String b = canonicalize(right);
         if (a.isEmpty() || b.isEmpty()) {
@@ -51,7 +51,7 @@ public final class PlagiarismComparator {
         return a.equals(b);
     }
 
-    static BigDecimal hashJaccard(List<String> left, List<String> right) {
+    public static BigDecimal hashJaccard(List<String> left, List<String> right) {
         Set<String> a = normalizeHashSet(left);
         Set<String> b = normalizeHashSet(right);
         if (a.isEmpty() || b.isEmpty()) {

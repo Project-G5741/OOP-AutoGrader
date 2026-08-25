@@ -26,7 +26,7 @@ Render deployment steps (Docker)
 6. **Health check:** In the Render service **Settings** → **Health Checks**, set **Health Check Path** to `/` (not `/api/health`). The backend answers `GET /` with `200 ok`. Unknown paths return `404` without ERROR logs.
 7. Deploy. Check logs for successful startup.
 
-Local build & test:
+Local build & test (image build runs `mvn test`; no database env vars are required for that step):
 ```
 cd backend
 docker build -t eiu-backend:latest .

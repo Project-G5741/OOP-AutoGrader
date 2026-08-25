@@ -29,9 +29,8 @@ alwaysApply: false
 
 ## Tests
 
-- No automated suite project-wide yet; add tests only when requested or they cover real behavior.
-- Backend: `mvn test` from `backend/` when touching compile/submission paths.
-- Frontend: `npm run build` must succeed.
+- Backend: `mvn test` from `backend/` (five aspect homes under `src/test/java/`). Add tests when they cover real behavior.
+- Frontend: `npm run build` must succeed. No frontend test runner yet.
 
 ## Review
 

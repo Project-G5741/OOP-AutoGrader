@@ -55,7 +55,7 @@ public final class GitHistoryReader {
         return new GitHistory(userName, userEmail, List.copyOf(commits));
     }
 
-    static List<GitCommitRecord> parseReflog(String text) {
+    public static List<GitCommitRecord> parseReflog(String text) {
         List<GitCommitRecord> commits = new ArrayList<>();
         if (text == null || text.isBlank()) {
             return commits;

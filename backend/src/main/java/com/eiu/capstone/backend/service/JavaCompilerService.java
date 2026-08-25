@@ -24,7 +24,7 @@ public class JavaCompilerService {
     private final ThreadLocal<StandardJavaFileManager> fileManagerHolder = new ThreadLocal<>();
 
     @PostConstruct
-    void initCompiler() {
+    public void initCompiler() {
         compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IllegalStateException(

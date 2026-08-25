@@ -34,7 +34,7 @@ public class MmdParser {
         return parseBytes(file.getBytes());
     }
 
-    ParsedMmdDiagram parse(String text) {
+    public ParsedMmdDiagram parse(String text) {
         MmdDiagramAst ast = astParser.parse(text);
         return astMapper.map(ast);
     }
