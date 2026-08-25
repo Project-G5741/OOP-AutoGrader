@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import ResetPasswordUI from "./pages/ResetPasswordUI";
 import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
+import NoAccessPage from "./pages/NoAccessPage";
 import RequireRole from "./components/auth/RequireRole";
 import { defaultDashboardPath, normalizeRoleList, readStoredUser, ROUTES } from "./utils/authRoutes";
 
@@ -162,6 +163,17 @@ export default function App() {
               <RequireRole anyOf={["STUDENT"]}>
                 <StudentDashboard user={user} onLogout={handleLogout} view="history" />
               </RequireRole>
+            }
+          />
+
+          <Route
+            path={ROUTES.noAccess}
+            element={
+              user ? (
+                <NoAccessPage user={user} />
+              ) : (
+                <Navigate to={ROUTES.login} replace />
+              )
             }
           />
 

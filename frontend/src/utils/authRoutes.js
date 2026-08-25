@@ -8,6 +8,7 @@ export const ROUTES = {
   lecturerTerms: '/lecturer-terms',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
+  noAccess: '/no-access',
 };
 
 function normalizeRoleName(role) {

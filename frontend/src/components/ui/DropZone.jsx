@@ -2,6 +2,7 @@ import { Upload, Info } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Button from './Button';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
+import { apiFetch } from '../../utils/apiFetch';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -152,7 +153,7 @@ export default function DropZone({
       // Backend upserts on (user, lab, attemptNumber) - this must be the
       // next unused attempt number for this student+lab.
       const attemptForUpload = attemptNumber;
-      const res = await fetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
+      const res = await apiFetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

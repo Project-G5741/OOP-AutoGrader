@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
 import { authHeaders } from '../utils/authHeaders';
+import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
 import DatePicker from '../components/ui/DatePicker';
@@ -55,7 +56,7 @@ export default function TermManagement() {
   }, [students, rosterSearch]);
 
   const loadTerms = useCallback(async () => {
-    const response = await fetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
+    const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
     if (!response.ok) {
       throw new Error(await readFriendlyApiError(response, 'read'));
     }
@@ -70,7 +71,7 @@ export default function TermManagement() {
       setAvailable([]);
       return;
     }
-    const response = await fetch(`${API_BASE}/api/lecturer/terms/${termId}/roster`, { headers: authHeaders() });
+    const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}/roster`, { headers: authHeaders() });
     if (!response.ok) {
       throw new Error(await readFriendlyApiError(response, 'read'));
     }
@@ -139,7 +140,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/terms`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
@@ -170,7 +171,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/terms/${termId}/current`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}/current`, {
         method: 'POST',
         headers: authHeaders(),
       });
@@ -191,7 +192,7 @@ export default function TermManagement() {
     setError('');
     setNotice('');
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ studentIds: selectedStudentIds }),
@@ -232,7 +233,7 @@ export default function TermManagement() {
     setNotice('');
     try {
       const rows = await parseStudentImportFile(file);
-      const response = await fetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students/import`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students/import`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ rows }),
@@ -288,7 +289,7 @@ export default function TermManagement() {
     setNotice('');
     try {
       const path = suspending ? 'suspend' : 'unsuspend';
-      const response = await fetch(`${API_BASE}/api/users/${student.id}/${path}`, {
+      const response = await apiFetch(`${API_BASE}/api/users/${student.id}/${path}`, {
         method: 'POST',
         headers: authHeaders(),
       });
@@ -311,7 +312,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students/${studentId}`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students/${studentId}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });

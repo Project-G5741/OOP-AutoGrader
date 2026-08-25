@@ -23,6 +23,8 @@ import TermManagement from './TermManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
+import { apiFetch } from '../utils/apiFetch';
+import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -50,12 +52,6 @@ function LoadingSpinner() {
   );
 }
 
-function authHeaders() {
-  return {
-    Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-  };
-}
-
 function tabClass(active) {
   return `px-3 py-2 text-sm rounded-t-md whitespace-nowrap ${
     active
@@ -66,7 +62,7 @@ function tabClass(active) {
 
 async function fetchAllLabSubmissions(labId, sort = 'studentName,asc') {
   const sortQuery = sort ? `?sort=${encodeURIComponent(sort)}` : '';
-  const response = await fetch(`${API_BASE}/api/labs/${labId}/submissions/export${sortQuery}`, {
+  const response = await apiFetch(`${API_BASE}/api/labs/${labId}/submissions/export${sortQuery}`, {
     headers: authHeaders(),
   });
   if (!response.ok) return [];
@@ -81,7 +77,7 @@ async function fetchAllGradeOverview(sort = 'studentName,asc') {
   const sortQuery = sort ? `&sort=${encodeURIComponent(sort)}` : '';
 
   while (page < totalPages) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_EXPORT_PAGE_SIZE}${sortQuery}`,
       { headers: authHeaders() },
     );
@@ -177,7 +173,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingLabs(true);
     setLabsError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
       if (!response.ok) {
         setLabs([]);
         setLabsError(await friendlyLoadErrorFromResponse(response));
@@ -199,7 +195,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const fetchPlagiarismFlags = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/plagiarism/flags`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/lecturer/plagiarism/flags`, { headers: authHeaders() });
       if (!response.ok) {
         setFlaggedLabIds(new Set());
         setFlaggedLabsByStudentId({});
@@ -244,7 +240,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingOverview(true);
     setOverviewError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/overview`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/lecturer/overview`, { headers: authHeaders() });
       if (!response.ok) {
         setOverview(EMPTY_OVERVIEW);
         setOverviewError(await friendlyLoadErrorFromResponse(response));
@@ -271,7 +267,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       return;
     }
     try {
-      const response = await fetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
       if (!response.ok) {
         setChallenges([]);
         setChallengesLabId(null);
@@ -292,7 +288,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setSubmissionsError(null);
     try {
       const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE}/api/labs/${labId}/submissions?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
         { headers: authHeaders() }
       );
@@ -326,7 +322,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingChallengeSubmissions(true);
     setChallengeSubmissionsError(null);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/students?page=${page}&size=${ROSTER_PAGE_SIZE}&sort=${encodeURIComponent(sort)}`,
         { headers: authHeaders() },
       );
@@ -360,7 +356,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingStatistics(true);
     setStatisticsError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/labs/${labId}/statistics`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/${labId}/statistics`, { headers: authHeaders() });
       if (!response.ok) {
         setLabStatistics(null);
         setStatisticsError(await friendlyLoadErrorFromResponse(response));
@@ -384,7 +380,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setGradeOverviewError(null);
     try {
       const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
-      const response = await fetch(
+      const response = await apiFetch(
         `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
         { headers: authHeaders() },
       );
@@ -569,7 +565,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingGradeStudentHistory(true);
     setGradeStudentHistoryError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/student/${studentId}`, {
+      const response = await apiFetch(`${API_BASE}/api/analytics/student/${studentId}`, {
         headers: authHeaders(),
       });
       if (!response.ok) {

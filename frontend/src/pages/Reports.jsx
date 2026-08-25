@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import ReportsPanel from '../components/lecturer/ReportsPanel';
+import { apiFetch } from '../utils/apiFetch';
+import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -28,10 +30,8 @@ export default function ReportsPage() {
     setLoadingReports(true);
     setReportError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-        },
+      const response = await apiFetch(`${API_BASE}/api/analytics/dashboard`, {
+        headers: authHeaders(),
       });
 
       if (!response.ok) {

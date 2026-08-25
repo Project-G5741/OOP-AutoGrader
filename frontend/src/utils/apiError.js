@@ -1,5 +1,3 @@
-import { clearSessionAndRedirectToLogin } from './authHeaders';
-
 export const FRIENDLY = {
   SERVER_BUSY: 'Server Busy',
   LOGIN_WRONG: 'IRN or password is wrong',
@@ -106,18 +104,6 @@ export async function readFriendlyApiError(response, context = 'read') {
     return FRIENDLY.SERVER_BUSY;
   }
 
-  if (
-    response.status === 401
-    && context !== 'login'
-    && context !== 'google'
-    && context !== 'setup'
-    && context !== 'forgot-password'
-    && context !== 'reset-password'
-  ) {
-    clearSessionAndRedirectToLogin();
-    return FRIENDLY.SESSION_EXPIRED;
-  }
-
   const authMessages = AUTH_ERROR_MESSAGES[context];
   if (authMessages) {
     const statusMessage = authMessages[response.status];
@@ -127,8 +113,12 @@ export async function readFriendlyApiError(response, context = 'read') {
     return authMessages.default || FRIENDLY.SOMETHING_WRONG;
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     return FRIENDLY.SESSION_EXPIRED;
+  }
+
+  if (response.status === 403) {
+    return FRIENDLY.LOAD_FAILED;
   }
 
   switch (context) {

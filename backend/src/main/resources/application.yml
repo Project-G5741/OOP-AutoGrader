@@ -22,7 +22,7 @@ google:
 allowed-domain: eiu.edu.vn
 
 jwt:
-  secret: ${JWT_SECRET:replace_me_change_this_to_a_secret_at_least_32_chars}
+  secret: ${JWT_SECRET}
   validity-seconds: 3600
 
 cors:
@@ -38,4 +38,10 @@ app:
   password-reset:
     expiry-minutes: 15
     frontend-url: ${RESET_FRONTEND_URL:${FRONTEND_URL:http://localhost:5173}}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
 

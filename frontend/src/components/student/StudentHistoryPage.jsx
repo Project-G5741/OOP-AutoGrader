@@ -8,6 +8,8 @@ import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber } from '../../utils/formatters';
 import { buildServerSortParam, toggleSortState } from '../../utils/sort';
 import { isInCurrentTerm } from '../../utils/authRoutes';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -124,15 +126,10 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       params.set('sort', sortParam);
     }
 
-    const response = await fetch(`${API_BASE}/api/submissions/my-history?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-      },
+    const response = await apiFetch(`${API_BASE}/api/submissions/my-history?${params.toString()}`, {
+      headers: authHeaders(),
     });
 
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Your session has expired. Please sign in again.');
-    }
     if (!response.ok) {
       throw new Error('Could not load submission history. Please try again.');
     }
@@ -149,15 +146,10 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
   }, []);
 
   const fetchLabsSummaryData = useCallback(async () => {
-    const response = await fetch(`${API_BASE}/api/submissions/my-labs`, {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-      },
+    const response = await apiFetch(`${API_BASE}/api/submissions/my-labs`, {
+      headers: authHeaders(),
     });
 
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Your session has expired. Please sign in again.');
-    }
     if (!response.ok) {
       throw new Error('Could not load lab summary. Please try again.');
     }

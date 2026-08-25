@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +19,7 @@ import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.analytics.dto.ChallengeStudentRowDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
+import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.ChallengeService;
 import com.eiu.capstone.backend.service.ClassStructureService;
 import com.eiu.capstone.backend.service.StatsService;
@@ -47,65 +48,63 @@ public class ChallengeController {
 
     @GetMapping
     public List<ChallengeDTO> getChallenges(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @RequestParam(required = false) UUID studentId) {
-        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
         return challengeService.getChallengesForLab(labId, scopedStudentId);
     }
 
     @GetMapping("/{challengeId}/mmd")
     public MmdResponseDTO getMmd(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestParam(required = false) UUID studentId,
             @RequestParam(required = false) UUID submissionId) {
-        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
         return classStructureService.getMmdData(labId, challengeId, scopedStudentId, submissionId);
     }
 
     @GetMapping("/{challengeId}/class")
     public ClassTabResponse getClassData(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestParam(required = false) UUID studentId,
             @RequestParam(required = false) UUID submissionId) {
-        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
         return classStructureService.getClassData(labId, challengeId, scopedStudentId, submissionId);
     }
 
     @GetMapping("/{challengeId}/testcases")
     public List<TestcaseResultDTO> getTestcases(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestParam(required = false) UUID studentId,
             @RequestParam(required = false) UUID submissionId) {
-        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
         return classStructureService.getTestcaseData(labId, challengeId, scopedStudentId, submissionId);
     }
 
     @GetMapping("/{challengeId}/stats")
     public StatsDTO getStats(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestParam(required = false) UUID studentId) {
-        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(authHeader, studentId);
+        UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
         return statsService.getStats(labId, scopedStudentId);
     }
 
     @GetMapping("/{challengeId}/students")
     public Page<ChallengeStudentRowDTO> getChallengeStudents(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
             @RequestParam(required = false) String sort) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return lecturerAnalyticsService.getChallengeStudentRoster(labId, challengeId, page, size, sort);
     }
 }
