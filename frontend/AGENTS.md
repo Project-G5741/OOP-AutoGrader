@@ -42,13 +42,14 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Keys: `accessToken`, `user` (JSON with `roles` array) — both in `sessionStorage`; `readStoredUser` requires a token
 - Legacy `localStorage.token` cleared on logout only (not written)
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
-- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL
+- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login.
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration
 
-- Every caller repeats: `const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002'`
-- Native `fetch` only — no shared client, no interceptors
+- Shared `apiFetch` in `src/utils/apiFetch.js` for signed-in calls (401 → login, 403 → `/no-access`)
+- Login / Google / first-time setup / forgot / reset keep native `fetch` plus `readFriendlyApiError`
+- Change password uses `apiFetch` with `authHandling: 'self'` so 401 stays on the form
 - No Vite proxy — backend must allow CORS for frontend origin
 - Upload endpoint requires `Authorization: Bearer <token>` header
 

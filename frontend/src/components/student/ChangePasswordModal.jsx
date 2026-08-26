@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getChangePasswordErrors, isFormValid, validatePassword } from '../../utils/validation';
-import { authHeaders } from '../../utils/authHeaders';
+import { apiFetch } from '../../utils/apiFetch';
+import { readFriendlyAuthError, toFriendlyError } from '../../utils/apiError';
 
 export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -37,8 +38,9 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
         return;
       }
 
-      const response = await fetch(`${API_BASE}/api/users/change-password`, {
+      const response = await apiFetch(`${API_BASE}/api/users/change-password`, {
         method: 'POST',
+        authHandling: 'self',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,

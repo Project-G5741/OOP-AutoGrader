@@ -8,6 +8,7 @@ import StudentUI from '../components/student/StudentUI';
 import Toast from '../components/ui/Toast';
 import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
+import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 
@@ -187,7 +188,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
     setChallengesError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
+      const res = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
       if (!res.ok) {
         throw new Error(await friendlyLoadErrorFromResponse(res));
       }
@@ -226,7 +227,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
     const generation = statsFetchGenRef.current;
     try {
-      const statsRes = await fetch(
+      const statsRes = await apiFetch(
         `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`,
         { headers: authHeaders() },
       );
@@ -322,13 +323,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
                 normalizationNotice: classNoticeCacheRef.current[challengeId] ?? null,
               }),
             })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
+          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
         cachedMmd
           ? Promise.resolve({ ok: true, json: async () => cachedMmd })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
+          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
         cachedTestcases
           ? Promise.resolve({ ok: true, json: async () => cachedTestcases })
-          : fetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
+          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
       ]);
 
       const classJson = classRes.ok ? await classRes.json() : [];
@@ -369,7 +370,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/submissions/my-labs`, {
+      const res = await apiFetch(`${API_BASE}/api/submissions/my-labs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
@@ -395,7 +396,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
       setIsLoadingLabs(true);
       try {
-        const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+        const res = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
@@ -421,12 +422,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     let cancelled = false;
     async function refreshAccess() {
       try {
-        const res = await fetch(`${API_BASE}/api/students/term-access`, { headers: authHeaders() });
+        const res = await apiFetch(`${API_BASE}/api/students/term-access`, { headers: authHeaders() });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
           const next = Boolean(data.inCurrentTerm);
-          setInCurrentTerm(next);
+          setInCurrentTerm((prev) => (prev === next ? prev : next));
           patchStoredUser({ inCurrentTerm: next });
         }
       } catch {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, FlaskConical, Loader2, Play, Plus, Save, Trash2, XCircle } from 'lucide-react';
 import { authHeaders } from '../../../utils/authHeaders';
+import { apiFetch } from '../../../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
 
@@ -613,7 +614,7 @@ export default function TestcasesPanel({
     if (!labId || !challenge?.id) return;
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases`,
         { headers: authHeaders() },
       );
@@ -700,7 +701,7 @@ export default function TestcasesPanel({
     setSaving(true);
     try {
       const payload = testcases.map(normalizeTestcaseForApi);
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases`,
         {
           method: 'PUT',
@@ -722,7 +723,7 @@ export default function TestcasesPanel({
   };
 
   const runDryRunForTestcase = async (tc) => {
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/api/lecturer/labs/${labId}/challenges/${challenge.id}/testcases/dry-run`,
       {
         method: 'POST',

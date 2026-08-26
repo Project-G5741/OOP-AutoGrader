@@ -5,6 +5,7 @@ import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
 import { authHeaders } from '../utils/authHeaders';
+import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import {
   getUserFormErrors,
@@ -203,12 +204,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setLoading(true);
       try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-        const resp = await fetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`, {
+        const resp = await apiFetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`, {
           headers: authHeaders(),
         });
-        if (resp.status === 401 || resp.status === 403) {
-          throw new Error('You are not authorized to manage users.');
-        }
         if (!resp.ok) {
           throw new Error(await readFriendlyApiError(resp, 'read'));
         }
@@ -239,14 +237,11 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setFormError('');
 
       if (modal === 'edit' && selected) {
-        const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
+        const resp = await apiFetch(`${API_BASE}/api/users/${selected.id}`, {
           method: 'PUT',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(requestBody),
         });
-        if (resp.status === 401 || resp.status === 403) {
-          throw new Error('You are not authorized to update users.');
-        }
         if (!resp.ok) {
           throw new Error(await readFriendlyApiError(resp, 'save'));
         }
@@ -257,14 +252,11 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           ...requestBody,
           password: form.password?.trim(),
         };
-        const resp = await fetch(`${API_BASE}/api/users/addUser`, {
+        const resp = await apiFetch(`${API_BASE}/api/users/addUser`, {
           method: 'POST',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(createPayload),
         });
-        if (resp.status === 401 || resp.status === 403) {
-          throw new Error('You are not authorized to create users.');
-        }
         if (!resp.ok) {
           throw new Error(await readFriendlyApiError(resp, 'save'));
         }
@@ -285,13 +277,10 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
       const path = suspending ? 'suspend' : 'unsuspend';
-      const resp = await fetch(`${API_BASE}/api/users/${selected.id}/${path}`, {
+      const resp = await apiFetch(`${API_BASE}/api/users/${selected.id}/${path}`, {
         method: 'POST',
         headers: authHeaders(),
       });
-      if (resp.status === 401 || resp.status === 403) {
-        throw new Error('You are not authorized to suspend students.');
-      }
       if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'save'));
       const updated = await resp.json();
       setUsers((prev) => prev.map((item) => (
@@ -311,13 +300,10 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     if (!selected) return;
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-      const resp = await fetch(`${API_BASE}/api/users/${selected.id}`, {
+      const resp = await apiFetch(`${API_BASE}/api/users/${selected.id}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
-      if (resp.status === 401 || resp.status === 403) {
-        throw new Error('You are not authorized to delete users.');
-      }
       if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'delete'));
       setUsers((prev) => prev.filter((item) => item.id !== selected.id));
     } catch (error) {

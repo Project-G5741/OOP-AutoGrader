@@ -19,7 +19,7 @@ public class MemorySourceJavaFileObject extends SimpleJavaFileObject {
         this.source = new String(content, StandardCharsets.UTF_8);
     }
 
-    static URI toSourceUri(String logicalPath) {
+    public static URI toSourceUri(String logicalPath) {
         String normalized = logicalPath.replace('\\', '/').trim();
         if (normalized.startsWith("/")) {
             normalized = normalized.substring(1);

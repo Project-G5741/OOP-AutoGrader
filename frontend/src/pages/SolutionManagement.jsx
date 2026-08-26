@@ -7,6 +7,7 @@ import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDeta
 import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
 import DatePicker from '../components/ui/DatePicker';
 import { authHeaders } from '../utils/authHeaders';
+import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
 
@@ -96,10 +97,10 @@ export default function SolutionManagement() {
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
-      fetch(`${API_BASE}/api/master-data?category=SCOPE`, { headers: authHeaders() }),
-      fetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`, { headers: authHeaders() }),
-      fetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`, { headers: authHeaders() }),
-      fetch(`${API_BASE}/api/terms`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data?category=SCOPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/terms`, { headers: authHeaders() }),
     ]);
     if (scopeRes.ok) setScopeOptions(await scopeRes.json());
     if (declaringRes.ok) setDeclaringTypeOptions(await declaringRes.json());
@@ -108,13 +109,13 @@ export default function SolutionManagement() {
   }, []);
 
   const loadLabs = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
     if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   }, []);
 
   const loadStructure = useCallback(async (labId) => {
-    const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}/structure`, { headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${labId}/structure`, { headers: authHeaders() });
     if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   }, []);
@@ -237,7 +238,7 @@ export default function SolutionManagement() {
     setSaving(true);
     setToast(null);
     try {
-      const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(draft),
@@ -273,7 +274,7 @@ export default function SolutionManagement() {
     if (!newLabName.trim() || !newLabTermId) return;
     const body = { name: newLabName.trim(), termId: newLabTermId };
     if (newLabDeadline) body.deadlineDate = newLabDeadline;
-    const res = await fetch(`${API_BASE}/api/lecturer/labs`, {
+    const res = await apiFetch(`${API_BASE}/api/lecturer/labs`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
@@ -324,7 +325,7 @@ export default function SolutionManagement() {
     applyDeadlineToSelectedLab(selectedLabId, nextDeadline);
     setDeadlineInput(nextDeadline ?? '');
     try {
-      const res = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/deadline`, {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/deadline`, {
         method: 'PATCH',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ deadlineDate: nextDeadline }),
@@ -353,7 +354,7 @@ export default function SolutionManagement() {
     if (!confirmDelete) return;
     const { type, labId, challengeId, classId } = confirmDelete;
     if (type === 'lab') {
-      const res = await fetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
       if (!res.ok) throw new Error(await readFriendlyApiError(res, 'delete'));
       const remaining = labs.filter((l) => l.id !== labId);
       setLabs(remaining);

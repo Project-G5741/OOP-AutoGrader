@@ -4,16 +4,12 @@ import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import { parseDisplayTimestamp, sortRows, toggleSortState } from '../../utils/sort';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 const HEADER_CLASS = 'px-4 py-3 text-left font-medium text-foreground-secondary';
-
-function authHeaders() {
-  return {
-    Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-  };
-}
 
 export default function LabAttemptHistoryDrawer({ open, onClose, labId, student, labName }) {
   const [attempts, setAttempts] = useState([]);
@@ -33,7 +29,7 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `${API_BASE}/api/labs/${labId}/students/${student.studentId}/attempts`,
           { headers: authHeaders() },
         );

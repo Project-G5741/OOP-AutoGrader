@@ -319,7 +319,7 @@ public class SubmissionStorageService {
         deleteRecursively(folder);
     }
 
-    static boolean isValidSubmissionPath(String relativePath) {
+    public static boolean isValidSubmissionPath(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             return false;
         }

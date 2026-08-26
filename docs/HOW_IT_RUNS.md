@@ -55,7 +55,7 @@ You can also run them separately:
 **Backend** (`backend/.env`, loaded by `application.yml`):
 
 - Database: `SPRING_DATASOURCE_URL`, `DB_USERNAME`, `DB_PASSWORD`
-- Auth: `GOOGLE_CLIENT_ID`, `JWT_SECRET` (defined but signing key is generated in-memory on restart)
+- Auth: `GOOGLE_CLIENT_ID`, `JWT_SECRET` (required, ≥32 bytes; `JwtService` derives the HS256 signing key at startup so tokens survive restarts)
 - CORS: `FRONTEND_URL` (default includes `http://localhost:5173`)
 - Storage: `SUBMISSION_BASE_DIR` (default `submissions/`)
 - Mail: SMTP settings for password reset emails

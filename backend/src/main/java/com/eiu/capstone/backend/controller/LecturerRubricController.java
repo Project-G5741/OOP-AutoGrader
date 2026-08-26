@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,7 +22,6 @@ import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseDryRunRequest;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
-import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseDryRunService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
@@ -35,88 +33,66 @@ public class LecturerRubricController {
     private final LabStructureService labStructureService;
     private final TestcaseRubricService testcaseRubricService;
     private final TestcaseDryRunService testcaseDryRunService;
-    private final JwtAuthHelper jwtAuthHelper;
 
     public LecturerRubricController(LabStructureService labStructureService,
                                     TestcaseRubricService testcaseRubricService,
-                                    TestcaseDryRunService testcaseDryRunService,
-                                    JwtAuthHelper jwtAuthHelper) {
+                                    TestcaseDryRunService testcaseDryRunService) {
         this.labStructureService = labStructureService;
         this.testcaseRubricService = testcaseRubricService;
         this.testcaseDryRunService = testcaseDryRunService;
-        this.jwtAuthHelper = jwtAuthHelper;
     }
 
     @GetMapping("/{labId}/structure")
-    public LabStructureResponse getStructure(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @PathVariable UUID labId) {
-        jwtAuthHelper.requireLecturer(authHeader);
+    public LabStructureResponse getStructure(@PathVariable UUID labId) {
         return labStructureService.loadForEditor(labId);
     }
 
     @PutMapping("/{labId}/structure")
     public LabStructureResponse saveStructure(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @RequestBody LabStructureResponse payload) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return labStructureService.saveLabStructure(labId, payload);
     }
 
     @PostMapping
-    public ResponseEntity<LabStructureResponse> createLab(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestBody CreateLabRequest request) {
-        jwtAuthHelper.requireLecturer(authHeader);
+    public ResponseEntity<LabStructureResponse> createLab(@RequestBody CreateLabRequest request) {
         LabStructureResponse created = labStructureService.createLab(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PatchMapping("/{labId}/deadline")
     public LabStructureResponse updateDeadline(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @RequestBody UpdateLabDeadlineRequest request) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return labStructureService.updateLabDeadline(labId, request);
     }
 
     @DeleteMapping("/{labId}")
-    public ResponseEntity<Void> deleteLab(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @PathVariable UUID labId) {
-        jwtAuthHelper.requireLecturer(authHeader);
+    public ResponseEntity<Void> deleteLab(@PathVariable UUID labId) {
         labStructureService.deleteLabCascade(labId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{labId}/challenges/{challengeId}/testcases")
     public ChallengeTestcasesResponse getTestcases(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseRubricService.loadForChallenge(labId, challengeId);
     }
 
     @PutMapping("/{labId}/challenges/{challengeId}/testcases")
     public ChallengeTestcasesResponse saveTestcases(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestBody List<TestcaseStructureDTO> testcases) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseRubricService.saveForChallenge(labId, challengeId, testcases);
     }
 
     @PostMapping("/{labId}/challenges/{challengeId}/testcases/dry-run")
     public TestcaseResultDTO dryRunTestcase(
-            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable UUID labId,
             @PathVariable UUID challengeId,
             @RequestBody TestcaseDryRunRequest request) {
-        jwtAuthHelper.requireLecturer(authHeader);
         return testcaseDryRunService.dryRun(labId, challengeId, request);
     }
 }

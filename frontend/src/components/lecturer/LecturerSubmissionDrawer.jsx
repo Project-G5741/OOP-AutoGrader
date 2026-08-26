@@ -6,15 +6,11 @@ import ExportMenu from './ExportMenu';
 import { exportChallengeBreakdown } from './exportRoster';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
 import { parseMmdResponse } from '../../utils/mmdResponse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-
-function authHeaders() {
-  return {
-    Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-  };
-}
 
 function tabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -79,7 +75,7 @@ export default function LecturerSubmissionDrawer({
       const mmdUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd?${query}`;
 
       try {
-        const classResponse = await fetch(classUrl, { headers: authHeaders() });
+        const classResponse = await apiFetch(classUrl, { headers: authHeaders() });
         if (!classResponse.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(classResponse));
         }
@@ -96,7 +92,7 @@ export default function LecturerSubmissionDrawer({
 
       if (mmdApplicable) {
         try {
-          const mmdResponse = await fetch(mmdUrl, { headers: authHeaders() });
+          const mmdResponse = await apiFetch(mmdUrl, { headers: authHeaders() });
           if (!mmdResponse.ok) {
             throw new Error(await friendlyLoadErrorFromResponse(mmdResponse));
           }

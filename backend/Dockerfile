@@ -7,7 +7,7 @@ COPY pom.xml .
 COPY src ./src
 
 # Chạy Maven build (không cần mvnw)
-RUN mvn -B -DskipTests package
+RUN mvn -B test package
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jdk

@@ -497,13 +497,13 @@ public class GradingService {
         Map<UUID, SubmissionTestcaseResult> testcaseResults;
     }
 
-    static class GradingComputationResult {
-        List<SubmissionFieldResult> fieldResults;
-        List<SubmissionMethodResult> methodResults;
-        List<SubmissionConstructorResult> constructorResults;
-        List<SubmissionRelationResult> relationResults;
-        List<SubmissionChallengeResult> challengeResults;
-        List<SubmissionTestcaseResult> testcaseResults;
+    public static class GradingComputationResult {
+        public List<SubmissionFieldResult> fieldResults;
+        public List<SubmissionMethodResult> methodResults;
+        public List<SubmissionConstructorResult> constructorResults;
+        public List<SubmissionRelationResult> relationResults;
+        public List<SubmissionChallengeResult> challengeResults;
+        public List<SubmissionTestcaseResult> testcaseResults;
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;

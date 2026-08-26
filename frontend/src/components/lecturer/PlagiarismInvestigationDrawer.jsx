@@ -3,14 +3,10 @@ import { X } from 'lucide-react';
 import PlagiarismDangerMark from './PlagiarismDangerMark';
 import { formatPercent, formatText } from '../../utils/formatters';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-
-function authHeaders() {
-  return {
-    Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
-  };
-}
 
 export default function PlagiarismInvestigationDrawer({ open, onClose, labId, student, labName }) {
   const [data, setData] = useState(null);
@@ -29,7 +25,7 @@ export default function PlagiarismInvestigationDrawer({ open, onClose, labId, st
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `${API_BASE}/api/lecturer/labs/${labId}/students/${student.studentId}/plagiarism`,
           { headers: authHeaders() },
         );

@@ -17,6 +17,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
 | `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
+| `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, current-term flag, student enrollment, Excel import |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`) |
@@ -38,6 +39,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-report` | LECTURER | Reports |
 | `/student-dashboard` | STUDENT | Student main |
 | `/student-history` | STUDENT | Student history |
+| `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 
 Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
 

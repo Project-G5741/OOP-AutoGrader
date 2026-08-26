@@ -13,10 +13,10 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +41,7 @@ import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
+import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
@@ -51,8 +52,6 @@ import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 import com.eiu.capstone.backend.utility.TimingLog;
-
-import io.jsonwebtoken.Claims;
 
 @RestController
 @RequestMapping("/api/submissions")
@@ -119,19 +118,19 @@ public class SubmissionController {
     }
 
     @GetMapping("/my-labs")
-    public List<StudentLabSummaryDTO> getMyLabs(@RequestHeader("Authorization") String authHeader) {
-        UserAccount user = resolveStudentUser(authHeader);
+    public List<StudentLabSummaryDTO> getMyLabs(@AuthenticationPrincipal JwtUserPrincipal principal) {
+        UserAccount user = requireStudentSubmitter(principal).user();
         return studentHistoryService.getLabSummaries(user.getId());
     }
 
     @GetMapping("/my-history")
     public StudentHistoryResponse getMyHistory(
-            @RequestHeader("Authorization") String authHeader,
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @RequestParam(required = false) UUID labId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String sort) {
-        UserAccount user = resolveStudentUser(authHeader);
+        UserAccount user = requireStudentSubmitter(principal).user();
         if (labId != null && !labRepository.existsById(labId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
         }
@@ -140,15 +139,16 @@ public class SubmissionController {
 
     @PostMapping("/{labId}/{attemptNumber}/upload")
     public ResponseEntity<SubmissionUploadResponse> upload(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,
             @PathVariable Integer attemptNumber,
-            @RequestHeader("Authorization") String authHeader,
             @RequestParam("files") List<MultipartFile> files) {
 
         long totalStart = System.currentTimeMillis();
 
-        UserAccount userAccount = resolveStudentUser(authHeader);
-        String irn = jwtAuthHelper.parseBearerToken(authHeader).get("irn", String.class);
+        StudentSubmitter submitter = requireStudentSubmitter(principal);
+        UserAccount userAccount = submitter.user();
+        String irn = submitter.irn();
 
         Lab lab = labRepository.findByIdWithTerm(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
@@ -310,15 +310,18 @@ public class SubmissionController {
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : null;
     }
 
-    private UserAccount resolveStudentUser(String authHeader) {
-        Claims claims = jwtAuthHelper.parseBearerToken(authHeader);
-        UserAccount user = jwtAuthHelper.requireActiveUser(claims);
-        jwtAuthHelper.requireRole(claims, "STUDENT");
-        String irn = claims.get("irn", String.class);
+    private record StudentSubmitter(UserAccount user, String irn) {}
+
+    private StudentSubmitter requireStudentSubmitter(JwtUserPrincipal principal) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        String irn = principal != null ? principal.irn() : null;
+        if (irn == null || irn.isBlank()) {
+            irn = user.getIrn();
+        }
         if (irn == null || irn.isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "This account has no IRN on file (teacher accounts cannot submit labs)");
         }
-        return user;
+        return new StudentSubmitter(user, irn);
     }
 }

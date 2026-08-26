@@ -218,7 +218,7 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/oop_autograder
 DB_USERNAME=postgres
 DB_PASSWORD=<your-password>
 GOOGLE_CLIENT_ID=<your-google-client-id>
-JWT_SECRET=<long-random-secret>
+JWT_SECRET=<at-least-32-byte-secret>
 FRONTEND_URL=http://localhost:5173
 MAIL_PROVIDER=smtp
 MAIL_HOST=smtp.gmail.com
@@ -376,7 +376,7 @@ OOP-AutoGrader/
 3. **Upload-time result bundle** — `lab_result` JSON is returned on upload so the student UI renders immediately without extra API calls.
 4. **Latest attempt wins** — Student dashboard shows the most recent attempt, not necessarily the highest score.
 5. **Parallel grading** — Challenges compile and grade in parallel (configurable via `app.grading.parallelism` and `app.compile.parallelism`).
-6. **No full CI test suite yet** — Manual verification and selective unit tests in `backend/src/test/`.
+6. **Backend tests in five aspect homes** — `mvn test` from `backend/` and the Docker image build run `unit`, `integration`, `authorization`, `regression`, and `support` under `backend/src/test/java/`. Frontend has no automated tests yet.
 
 ---
 

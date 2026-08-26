@@ -55,7 +55,7 @@ Per upload request (unique `requestId` prevents collisions):
 ### Authentication
 
 - `GoogleTokenVerifier`: calls `https://oauth2.googleapis.com/tokeninfo`, checks audience, expiry, `email_verified`, domain `eiu.edu.vn`
-- `JwtService`: signing key generated in-memory on startup — **not** loaded from `jwt.secret` in config
+- `JwtService`: HS256 signing key derived once at construction from `jwt.secret` / `JWT_SECRET` (≥32 bytes); missing or too-short secrets fail startup
 - `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` strings; inactive accounts are rejected
 - `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body; inactive users rejected at complete as well as request); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
 
@@ -92,11 +92,12 @@ Per upload request (unique `requestId` prevents collisions):
 
 - Compile path: upload `.java` files via frontend `DropZone`, confirm `classes/` populated before cleanup
 - Auth: `POST /api/auth/google` and `POST /api/auth/login` via Swagger or frontend login
-- Term access: `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
-- Term import: `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
-- Term current membership: `TermServiceCurrentTermTest`
-- User suspend: `UserServiceTest` (student inactive; lecturer/dual-role rejected)
-- Password reset: `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
+- Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
+- Term import: `support` `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
+- Term current membership: `support` `TermServiceCurrentTermTest`
+- User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
+- Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
+- JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
 
 ## Child DOX Index
 

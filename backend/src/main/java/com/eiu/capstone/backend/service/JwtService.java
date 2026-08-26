@@ -13,34 +13,40 @@ import org.springframework.stereotype.Service;
 import com.eiu.capstone.backend.model.GoogleTokenInfo;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import jakarta.annotation.PostConstruct;
 
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    private static final int MIN_HS256_KEY_BYTES = 32;
 
-    @Value("${jwt.validity-seconds}")
-    private long validitySeconds;
+    private final SecretKey signingKey;
+    private final JwtParser jwtParser;
+    private final long validitySeconds;
 
-    private SecretKey signingKey;
+    public JwtService(
+            @Value("${jwt.secret}") String jwtSecret,
+            @Value("${jwt.validity-seconds}") long validitySeconds) {
+        this.signingKey = deriveSigningKey(jwtSecret);
+        this.jwtParser = Jwts.parserBuilder().setSigningKey(signingKey).build();
+        this.validitySeconds = validitySeconds;
+    }
 
-    @PostConstruct
-    public void init() {
-        if (jwtSecret == null || jwtSecret.isBlank()
-                || "replace_me_change_this_to_a_secret_at_least_32_chars".equals(jwtSecret.trim())) {
-            signingKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-        } else {
-            byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-            if (keyBytes.length < 32) {
-                throw new IllegalStateException("jwt.secret must be at least 32 bytes");
-            }
-            signingKey = Keys.hmacShaKeyFor(keyBytes);
+    private static SecretKey deriveSigningKey(String jwtSecret) {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.secret / JWT_SECRET is missing or blank. Set a value of at least 32 bytes (HS256).");
         }
+        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < MIN_HS256_KEY_BYTES) {
+            throw new IllegalStateException(
+                    "jwt.secret / JWT_SECRET must be at least 32 bytes (256 bits) for HS256; got "
+                            + keyBytes.length + " bytes.");
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String createToken(GoogleTokenInfo tokenInfo, List<String> roles, String irn) {
@@ -67,11 +73,7 @@ public class JwtService {
     }
 
     public Claims parseToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        return jwtParser.parseClaimsJws(token).getBody();
     }
 
     public SecretKey getSigningKey() {
