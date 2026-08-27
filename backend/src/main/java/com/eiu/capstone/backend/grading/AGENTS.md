@@ -51,7 +51,9 @@ SubmissionController
       → GradingPipeline.gradeChallenge() per folder
           → ClassReflectionGrader (sync)
           → MmdPillarGrader + TestcaseGrader (parallel on `pillarExecutor`, not `gradingExecutor`)
-      → GradingResultStore.save()
+      → GradingResultStore.saveChallengeScores() (JDBC UPSERT)
+      → ParsedSubmissionSnapshotStore
+      → persistExecutor: GradingResultJdbcWriter detail UPSERT
       → LabResultAssembler.assemble() → upload response lab_result
   → MmdPersistenceHook.onUploadComplete()
   → SubmissionStorageService.deleteFolder() (finally)
@@ -76,6 +78,8 @@ SubmissionController
 - Value types v1: primitives, `String`, null, arrays of primitives
 
 ### Result persistence
+
+Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
 
 | Entity | Stores |
 |---|---|

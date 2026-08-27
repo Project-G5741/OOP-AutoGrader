@@ -25,6 +25,12 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
      */
     Optional<LabSubmission> findByUserAndLabAndAttemptNumber(UserAccount user, Lab lab, Integer attemptNumber);
 
+    @Query("""
+            SELECT MAX(s.attemptNumber) FROM LabSubmission s
+            WHERE s.user.id = :userId AND s.lab.id = :labId
+            """)
+    Integer findMaxAttemptNumber(@Param("userId") UUID userId, @Param("labId") UUID labId);
+
     @Query("SELECT s FROM LabSubmission s JOIN FETCH s.user WHERE s.id IN :ids")
     List<LabSubmission> findAllWithUserByIdIn(@Param("ids") java.util.Collection<UUID> ids);
 

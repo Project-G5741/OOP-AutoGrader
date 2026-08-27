@@ -45,6 +45,7 @@ import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
+import com.eiu.capstone.backend.service.SubmissionAttemptNumbers;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
@@ -167,19 +168,24 @@ public class SubmissionController {
             submissionFolderToDelete = uploadResult.submissionFolder;
             long processMs = System.currentTimeMillis() - processStart;
 
-            var existingSubmission = labSubmissionRepository
-                    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber);
-            boolean isNewSubmission = existingSubmission.isEmpty();
-            LabSubmission submission = existingSubmission.orElseGet(LabSubmission::new);
+            if (attemptNumber == null || attemptNumber < 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "attemptNumber must be a positive integer");
+            }
+
+            // Path attemptNumber is not used to locate a row. A stale client value
+            // (common after a large lab_result parse) would upsert and freeze counts.
+            int assignedAttempt = SubmissionAttemptNumbers.next(
+                    labSubmissionRepository.findMaxAttemptNumber(userAccount.getId(), labId));
+            LabSubmission submission = new LabSubmission();
             submission.setUser(userAccount);
             submission.setLab(lab);
-            submission.setAttemptNumber(attemptNumber);
+            submission.setAttemptNumber(assignedAttempt);
             submission.setScore(BigDecimal.ZERO);
             submission = labSubmissionRepository.save(submission);
 
             long gradeStart = System.currentTimeMillis();
             GradingOutcome gradingOutcome = gradingService.gradeSubmission(
-                    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge, isNewSubmission);
+                    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
             submission.setScore(gradingOutcome.overallScore());
@@ -229,7 +235,7 @@ public class SubmissionController {
                     requestId,
                     challengeResult,
                     submission.getScore(),
-                    attemptNumber,
+                    assignedAttempt,
                     totalSubmissions,
                     progress.getLastSubmittedAt() == null
                             ? null

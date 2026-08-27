@@ -24,6 +24,8 @@ tags:
 
 # Duplicate key on submission result re-upload
 
+**Current persist path (2026-08-27):** JDBC `ON CONFLICT` in `GradingResultJdbcWriter` — see [grading-result-jdbc-upsert-deferred-details.md](../architecture-patterns/grading-result-jdbc-upsert-deferred-details.md). The `loadExisting` + `saveAll` merge described below is historical.
+
 ## Problem
 
 When a student re-uploads the same lab attempt (same `LabSubmission` row), grading completes but persistence fails. PostgreSQL enforces one row per `(submission_id, field_id)` via `submission_field_result_key`. A second upload that inserts new rows instead of updating existing ones triggers SQL state `23505` and HTTP 500.

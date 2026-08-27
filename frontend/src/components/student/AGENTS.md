@@ -37,7 +37,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 - Out-of-term students skip `GET /api/labs` and stay on History. The History route also skips dashboard `GET /api/labs` and `GET /api/submissions/my-labs` — `StudentHistoryPage` loads history APIs itself.
 - `labSummariesById` — from `GET /api/submissions/my-labs` in `StudentDashboard.jsx`; powers “no submission yet” notifications
-- `attemptNumber` — `totalSubmissions + 1` from backend stats / upload response
+- `attemptNumber` — next unused attempt from backend `totalSubmissions + 1` after each upload (server still assigns `MAX+1` if the client number is stale)
 - `authToken` — from `user.accessToken`
 
 Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
@@ -77,7 +77,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 - Student history uses live APIs in `StudentHistoryPage.jsx`
 - Profile modal changes affect both roles — test both dashboards
-- `attemptNumber` is derived from backend `totalSubmissions` after each upload
+- `attemptNumber` is derived from backend `totalSubmissions` after each upload; the server also assigns `MAX(attempt)+1` so a stale client number cannot freeze the count
 
 ## Verification
 

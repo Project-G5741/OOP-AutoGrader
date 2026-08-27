@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.*;
+import com.eiu.capstone.backend.grading.SubmissionDetailPersistGate;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
@@ -47,6 +48,7 @@ public class ClassStructureService {
     private final LabRubricCache labRubricCache;
     private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
     private final TestcaseResultMapper testcaseResultMapper;
+    private final SubmissionDetailPersistGate detailPersistGate;
     private final boolean timingLog;
 
     public ClassStructureService(ChallengeRepository challengeRepository,
@@ -66,6 +68,7 @@ public class ClassStructureService {
                                   LabRubricCache labRubricCache,
                                   SubmissionTestcaseResultRepository submissionTestcaseResultRepository,
                                   TestcaseResultMapper testcaseResultMapper,
+                                  SubmissionDetailPersistGate detailPersistGate,
                                   @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
@@ -84,6 +87,7 @@ public class ClassStructureService {
         this.labRubricCache = labRubricCache;
         this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
         this.testcaseResultMapper = testcaseResultMapper;
+        this.detailPersistGate = detailPersistGate;
         this.timingLog = timingLog;
     }
 
@@ -168,6 +172,7 @@ public class ClassStructureService {
         if (resolvedSubmissionId == null) {
             return new MmdResponseDTO(List.of(), null);
         }
+        detailPersistGate.await(resolvedSubmissionId);
         MmdResponseDTO result = buildMmdResponseForSubmission(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
@@ -437,6 +442,7 @@ public class ClassStructureService {
         if (resolvedSubmissionId == null) {
             return new ClassTabResponse(List.of(), null);
         }
+        detailPersistGate.await(resolvedSubmissionId);
         List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
         String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
@@ -453,6 +459,7 @@ public class ClassStructureService {
         if (resolvedSubmissionId == null) {
             return List.of();
         }
+        detailPersistGate.await(resolvedSubmissionId);
         List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
         return result;

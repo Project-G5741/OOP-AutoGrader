@@ -20,7 +20,7 @@ Optional rubric relationship from a nested class entry to its enclosing class wi
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
 ### Lab submission
-A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`; re-uploading the same attempt updates scores in place rather than creating a new attempt row.
+A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
 
 ### Submission result
 A persisted per-element grading outcome (field, method, constructor, or challenge) tied to one lab submission. Natural key is submission plus rubric element id; re-grades update the same row.
@@ -75,7 +75,7 @@ Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD dis
 
 ## Relationships
 
-- A **lab submission** owns many **submission results** (one per rubric element graded).
+- A **lab submission** owns many **submission results** (one per rubric element graded). Each student upload for a lab inserts a new attempt row (`MAX(attempt_number)+1`).
 - **Submission upload compile** produces on-disk `classes/` trees that reflection grading reads; it runs on `compileExecutor`, not the grading pool.
 - Grading compares compiled student classes against a **rubric snapshot**, then writes **submission results**.
 

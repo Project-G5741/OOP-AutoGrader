@@ -2,7 +2,13 @@ package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.ChallengeBreakdownDTO;
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
-import com.eiu.capstone.backend.model.*;
+import com.eiu.capstone.backend.model.Challenge;
+import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.ClassRelation;
+import com.eiu.capstone.backend.model.Constructor;
+import com.eiu.capstone.backend.model.Field;
+import com.eiu.capstone.backend.model.Method;
+import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import com.eiu.capstone.backend.repository.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -56,40 +62,56 @@ public class ChallengeService {
         }
 
         UUID referenceSubmissionId = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
-        SubmissionCorrectIds correctIds = referenceSubmissionId == null
-                ? new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of())
-                : submissionResultLoader.loadCorrectIds(referenceSubmissionId);
+        Map<UUID, Integer> storedScores = new HashMap<>();
+        if (referenceSubmissionId != null) {
+            for (SubmissionChallengeResult stored
+                    : submissionChallengeResultRepository.findBySubmission_IdWithChallenge(referenceSubmissionId)) {
+                storedScores.put(stored.getChallenge().getId(), toRoundedPercent(stored.getScore()));
+            }
+        }
 
-        List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);
-        List<Field> allFields = allClasses.isEmpty()
-                ? List.of()
-                : fieldRepository.findByClassEntityInWithDeclaration(allClasses);
-        List<Method> allMethods = allClasses.isEmpty()
-                ? List.of()
-                : methodRepository.findByClassEntityInWithDeclaration(allClasses);
-        List<Constructor> allConstructors = allClasses.isEmpty()
-                ? List.of()
-                : constructorRepository.findByClassEntityInWithDeclaration(allClasses);
-
-        Map<UUID, List<Field>> fieldsByClass = allFields.stream()
-                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
-        Map<UUID, List<Method>> methodsByClass = allMethods.stream()
-                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
-        Map<UUID, List<Constructor>> constructorsByClass = allConstructors.stream()
-                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
-        Map<UUID, List<ClassEntity>> classesByChallenge = allClasses.stream()
-                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        SubmissionCorrectIds correctIds = new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of());
+        Map<UUID, List<Field>> fieldsByClass = Map.of();
+        Map<UUID, List<Method>> methodsByClass = Map.of();
+        Map<UUID, List<Constructor>> constructorsByClass = Map.of();
+        Map<UUID, List<ClassEntity>> classesByChallenge = Map.of();
+        if (referenceSubmissionId != null && storedScores.isEmpty()) {
+            correctIds = submissionResultLoader.loadCorrectIds(referenceSubmissionId);
+            List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);
+            List<Field> allFields = allClasses.isEmpty()
+                    ? List.of()
+                    : fieldRepository.findByClassEntityInWithDeclaration(allClasses);
+            List<Method> allMethods = allClasses.isEmpty()
+                    ? List.of()
+                    : methodRepository.findByClassEntityInWithDeclaration(allClasses);
+            List<Constructor> allConstructors = allClasses.isEmpty()
+                    ? List.of()
+                    : constructorRepository.findByClassEntityInWithDeclaration(allClasses);
+            fieldsByClass = allFields.stream()
+                    .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+            methodsByClass = allMethods.stream()
+                    .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+            constructorsByClass = allConstructors.stream()
+                    .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+            classesByChallenge = allClasses.stream()
+                    .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        }
 
         List<ChallengeDTO> result = new ArrayList<>();
         for (Challenge challenge : challenges) {
-            Integer score = referenceSubmissionId == null
-                    ? null
-                    : computeChallengeScore(
-                            classesByChallenge.getOrDefault(challenge.getId(), List.of()),
-                            fieldsByClass,
-                            methodsByClass,
-                            constructorsByClass,
-                            correctIds);
+            Integer score;
+            if (!storedScores.isEmpty()) {
+                score = storedScores.get(challenge.getId());
+            } else if (referenceSubmissionId == null) {
+                score = null;
+            } else {
+                score = computeChallengeScore(
+                        classesByChallenge.getOrDefault(challenge.getId(), List.of()),
+                        fieldsByClass,
+                        methodsByClass,
+                        constructorsByClass,
+                        correctIds);
+            }
             result.add(new ChallengeDTO(
                     challenge.getId(),
                     challenge.getChallengeNumber(),

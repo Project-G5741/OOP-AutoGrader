@@ -581,6 +581,27 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const handleUploadComplete = async (uploadResponse) => {
     if (!selectedLabId) return;
 
+    statsFetchGenRef.current += 1;
+    const reportedTotal = uploadResponse?.totalSubmissions;
+    if (reportedTotal != null) {
+      setStats({
+        currentGrade: null,
+        totalSubmissions: reportedTotal,
+        latestSubmission: uploadResponse?.latestSubmission ?? null,
+      });
+      setNextAttemptNumber(Number(reportedTotal) + 1);
+    } else {
+      setStats((prev) => {
+        const nextTotal = (Number(prev.totalSubmissions) || 0) + 1;
+        return {
+          currentGrade: null,
+          totalSubmissions: nextTotal,
+          latestSubmission: uploadResponse?.latestSubmission ?? prev.latestSubmission,
+        };
+      });
+      setNextAttemptNumber((n) => n + 1);
+    }
+
     const score = uploadResponse?.score != null
       ? Math.round(Number(uploadResponse.score))
       : null;
@@ -601,8 +622,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       ...challengeScoresFromBundles(indexedLabResult),
     };
 
-    statsFetchGenRef.current += 1;
-
     classDataCacheRef.current = {};
     mmdDataCacheRef.current = {};
     testcaseDataCacheRef.current = {};
@@ -619,16 +638,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         challengeBundles: indexedLabResult,
       },
     }));
-
-    setStats({
-      currentGrade: null,
-      totalSubmissions: uploadResponse?.totalSubmissions ?? null,
-      latestSubmission: uploadResponse?.latestSubmission ?? null,
-    });
-
-    if (uploadResponse?.totalSubmissions != null) {
-      setNextAttemptNumber(Number(uploadResponse.totalSubmissions) + 1);
-    }
 
     fetchLabSummaries();
 

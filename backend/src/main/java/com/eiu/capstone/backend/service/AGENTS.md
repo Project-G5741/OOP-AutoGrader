@@ -20,6 +20,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TermService` | Create terms by year, set current term, enroll/remove students |
 | `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
+| `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 
