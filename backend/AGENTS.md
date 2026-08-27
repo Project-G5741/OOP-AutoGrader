@@ -97,7 +97,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → MMD hook (no-op by default) → cleanup temp folder.
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -127,7 +127,7 @@ Grading tuning properties (`application.properties`):
 ### Read-path performance
 
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
-- `MasterDataCache` — cached scope/type labels; `ClassStructureService` uses batched rubric queries (same pattern as `LabRubricService`)
+- `MasterDataCache` — cached scope/type labels; Class/MMD **GET** tabs still use batched JPA rubric queries; upload `lab_result` assemble uses `LabRubricSnapshot` (`buildClassDataFromRubric` / `buildMmdDataFromRubric`)
 - `ChallengeService` — sidebar scores from stored `submission_challenge_result` when present; otherwise recompute from element results
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`

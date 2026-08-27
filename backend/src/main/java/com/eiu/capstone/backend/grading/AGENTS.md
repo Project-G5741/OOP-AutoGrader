@@ -54,7 +54,8 @@ SubmissionController
       → GradingResultStore.saveChallengeScores() (JDBC UPSERT)
       → ParsedSubmissionSnapshotStore
       → persistExecutor: GradingResultJdbcWriter detail UPSERT
-      → LabResultAssembler.assemble() → upload response lab_result
+      → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
+          → skip MMD/testcase trees when pillar not applicable
   → MmdPersistenceHook.onUploadComplete()
   → SubmissionStorageService.deleteFolder() (finally)
 ```
@@ -90,11 +91,12 @@ Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`)
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), and `scores: { class, mmd, testcase, total }`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` still load structure from the database after `SubmissionDetailPersistGate.await`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
 
 ## Work Guidance
 
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
+- Upload `lab_result` assemble must not call `loadChallengeStructures`; GET tabs keep the JPA load after the detail persist gate
 - Do not grade source `.java` files directly; compilation must succeed first
 - Relations are MMD-only; Java reflection does not grade relations
 - **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; missing space before return type (`method()type`) is a parse error; `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
@@ -112,7 +114,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Verification
 
-- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
+- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index

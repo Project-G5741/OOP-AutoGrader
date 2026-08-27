@@ -505,10 +505,10 @@ public class GradingService {
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
-        Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
-        Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
-        Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;
-        Map<UUID, ChallengeSnapshot> snapshotsByChallengeId;
+        public Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
+        public Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
+        public Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;
+        public Map<UUID, ChallengeSnapshot> snapshotsByChallengeId;
     }
 
     private static class ChallengeComputation {

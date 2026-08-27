@@ -1,7 +1,6 @@
 package com.eiu.capstone.backend.grading;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -22,7 +21,6 @@ import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapsh
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
-import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.model.SubmissionConstructorResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
@@ -31,7 +29,6 @@ import com.eiu.capstone.backend.model.SubmissionRelationResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.service.ClassStructureService;
-import com.eiu.capstone.backend.service.LabChallengeStructureBundle;
 import com.eiu.capstone.backend.service.SubmissionCorrectIds;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 
@@ -57,12 +54,8 @@ public class LabResultAssembler {
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
                 .toList();
-        List<UUID> challengeIds = challengeRubrics.stream()
-                .map(ChallengeRubric::challengeId)
-                .toList();
 
         SubmissionCorrectIds correctIds = correctIdsFrom(computed);
-        LabChallengeStructureBundle structure = classStructureService.loadChallengeStructures(challengeIds);
         Map<UUID, String> compileErrors = compileErrorsByChallengeId != null
                 ? compileErrorsByChallengeId
                 : Map.of();
@@ -86,31 +79,11 @@ public class LabResultAssembler {
                     ? computed.snapshotsByChallengeId.get(challengeId)
                     : null;
 
-            List<ClassDetailDTO> classData = classStructureService.buildClassData(
-                    structure,
-                    challengeId,
+            List<ClassDetailDTO> classData = classStructureService.buildClassDataFromRubric(
+                    challengeRubric,
                     correctIds,
                     compileErrors.get(challengeId),
                     snapshot);
-
-            MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
-            ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
-            List<MmdClassDTO> mmdClasses = classStructureService.buildMmdData(
-                    structure,
-                    challengeId,
-                    correctIds,
-                    mmdResult != null ? mmdResult.outcome() : null,
-                    mmdResult != null ? mmdResult.mmdSubmitted() : null,
-                    mmdMeta,
-                    submissionId,
-                    snapshot);
-            String parseError = mmdMeta != null ? mmdMeta.parseError : null;
-            if (parseError == null && mmdResult != null) {
-                parseError = mmdResult.parseError();
-            }
-            MmdResponseDTO mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
-
-            List<TestcaseResultDTO> testcases = buildTestcaseResults(challengeRubric, testcaseResultsById);
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
@@ -121,6 +94,34 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             true,
                             true));
+
+            MmdResponseDTO mmdResponse;
+            if (pillarScores.mmdApplicable()) {
+                MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
+                ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
+                Boolean mmdSubmittedOverride = mmdResult != null
+                        ? mmdResult.mmdSubmitted()
+                        : (mmdMeta != null ? mmdMeta.mmdSubmitted : Boolean.FALSE);
+                List<MmdClassDTO> mmdClasses = classStructureService.buildMmdDataFromRubric(
+                        challengeRubric,
+                        correctIds,
+                        mmdResult != null ? mmdResult.outcome() : null,
+                        mmdSubmittedOverride,
+                        mmdMeta,
+                        submissionId,
+                        snapshot);
+                String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+                if (parseError == null && mmdResult != null) {
+                    parseError = mmdResult.parseError();
+                }
+                mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
+            } else {
+                mmdResponse = new MmdResponseDTO(List.of(), null);
+            }
+
+            List<TestcaseResultDTO> testcases = pillarScores.testcaseApplicable()
+                    ? buildTestcaseResults(challengeRubric, testcaseResultsById)
+                    : List.of();
 
             Map<String, BigDecimal> scores = Map.of(
                     "class", pillarScores.classPillar(),
