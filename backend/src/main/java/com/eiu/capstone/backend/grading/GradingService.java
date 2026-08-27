@@ -110,15 +110,12 @@ public class GradingService {
     public GradingOutcome gradeSubmission(LabSubmission submission,
                                       LabRubricSnapshot rubric,
                                       List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
-                                      Map<String, List<MultipartFile>> mmdByChallenge,
-                                      boolean skipExistingLoad) {
+                                      Map<String, List<MultipartFile>> mmdByChallenge) {
 
         long totalStart = System.currentTimeMillis();
 
         long loadStart = System.currentTimeMillis();
-        GradingService.ExistingResults existing = skipExistingLoad
-                ? emptyExistingResults()
-                : gradingResultStore.loadExisting(submission);
+        GradingService.ExistingResults existing = emptyExistingResults();
         long loadMs = System.currentTimeMillis() - loadStart;
 
         long computeStart = System.currentTimeMillis();
@@ -127,8 +124,9 @@ public class GradingService {
         long computeMs = System.currentTimeMillis() - computeStart;
 
         long saveStart = System.currentTimeMillis();
-        gradingResultStore.save(computed);
+        gradingResultStore.saveChallengeScores(computed);
         parsedSubmissionSnapshotStore.save(submission.getId(), computed.snapshotsByChallengeId);
+        gradingResultStore.scheduleDetailPersist(submission.getId(), computed);
         long saveMs = System.currentTimeMillis() - saveStart;
 
         long assembleStart = System.currentTimeMillis();
@@ -507,10 +505,10 @@ public class GradingService {
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
-        Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
-        Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
-        Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;
-        Map<UUID, ChallengeSnapshot> snapshotsByChallengeId;
+        public Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
+        public Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
+        public Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;
+        public Map<UUID, ChallengeSnapshot> snapshotsByChallengeId;
     }
 
     private static class ChallengeComputation {

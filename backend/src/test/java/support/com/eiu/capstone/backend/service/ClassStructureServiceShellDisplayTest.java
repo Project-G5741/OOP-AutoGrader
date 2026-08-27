@@ -13,6 +13,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
@@ -30,7 +33,7 @@ class ClassStructureServiceShellDisplayTest {
   @BeforeEach
   void setUp() {
     service = new ClassStructureService(
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
   }
 
   @Test
@@ -100,6 +103,60 @@ class ClassStructureServiceShellDisplayTest {
     List<ClassDetailDTO> result = service.buildClassData(
         structure,
         challengeId,
+        new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+        null,
+        snapshot);
+
+    assertEquals(1, result.size());
+    ClassDetailDTO cakeFactory = result.get(0);
+    assertEquals("INTERFACE", cakeFactory.type());
+    assertEquals("error", cakeFactory.status());
+    assertEquals(1, cakeFactory.methods().size());
+    assertEquals(false, cakeFactory.methods().get(0).ok());
+    assertEquals(false, cakeFactory.methods().get(0).partial());
+  }
+
+  @Test
+  void buildClassDataFromRubric_usesStudentShellTypeAndWarningWhenShellPartiallyMatches() {
+    UUID challengeId = UUID.randomUUID();
+    UUID classId = UUID.randomUUID();
+    UUID methodId = UUID.randomUUID();
+
+    ClassRubric classRubric = new ClassRubric(
+        classId,
+        "CakeFactory",
+        "PUBLIC",
+        "CLASS",
+        true,
+        List.of(),
+        List.of(new MethodRubric(methodId, "createCake", "PUBLIC", "Cake", false, true, false, List.of())),
+        List.of());
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId, 1, "Challenge 1", List.of(classRubric), List.of());
+
+    ClassShellEntry shell = new ClassShellEntry();
+    shell.scope = "public";
+    shell.declaringType = "interface";
+    shell.isAbstract = false;
+    shell.isStatic = false;
+
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.shells.put(classId.toString(), shell);
+
+    ClassMethodEntry methodEntry = new ClassMethodEntry();
+    methodEntry.name = "createCake";
+    methodEntry.scope = "public";
+    methodEntry.returnType = "Cake";
+    methodEntry.isStatic = false;
+    methodEntry.isAbstract = true;
+    methodEntry.isFinal = false;
+    classSnapshot.methods.put(methodId.toString(), methodEntry);
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
         new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
         null,
         snapshot);

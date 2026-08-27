@@ -20,8 +20,10 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TermService` | Create terms by year, set current term, enroll/remove students |
 | `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
+| `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric` |
 
 ## Local Contracts
 
@@ -98,6 +100,7 @@ Per upload request (unique `requestId` prevents collisions):
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 - JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
+- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells)
 
 ## Child DOX Index
 

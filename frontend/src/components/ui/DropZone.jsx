@@ -150,8 +150,7 @@ export default function DropZone({
         formData.append('files', file, relativePath);
       });
 
-      // Backend upserts on (user, lab, attemptNumber) - this must be the
-      // next unused attempt number for this student+lab.
+      // Server assigns MAX(attempt)+1. The path value is only a placeholder.
       const attemptForUpload = attemptNumber;
       const res = await apiFetch(`${API_BASE}/api/submissions/${labId}/${attemptForUpload}/upload`, {
         method: 'POST',
@@ -165,9 +164,19 @@ export default function DropZone({
         throw new Error(await readFriendlyApiError(res, 'upload'));
       }
 
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error('Upload response JSON parse failed:', parseErr);
+      }
       if (onUploadComplete) {
-        onUploadComplete(data);
+        await onUploadComplete({
+          ...data,
+          attemptNumber: data.attemptNumber ?? attemptForUpload,
+          totalSubmissions: data.totalSubmissions
+            ?? (Number.isFinite(Number(data.attemptNumber)) ? Number(data.attemptNumber) : attemptForUpload),
+        });
       }
     } catch (err) {
       console.error('Upload error:', err);

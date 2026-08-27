@@ -97,7 +97,9 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → MMD hook (no-op by default) → cleanup temp folder.
+
+Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
 Grading tuning properties (`application.properties`):
 
@@ -108,6 +110,7 @@ Grading tuning properties (`application.properties`):
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases |
 | `testcaseInvokeExecutor` bean | single thread | Serializes student code invocation and stdout capture |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
+| `persistExecutor` bean | 2 threads | Off-request UPSERT of field/method/constructor/relation/testcase rows after challenge scores are stored |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload, compile, each challenge, grade submission, structure save, and read paths |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
@@ -117,16 +120,18 @@ Grading tuning properties (`application.properties`):
 
 **Analytics caches:** In-process only. Multi-instance Render deploys see independent TTL staleness per instance. Lecturer overview and analytics dashboard may be stale up to configured TTL; lab statistics invalidate on the instance that handled the upload.
 
+**Detail persist gate:** In-process `CompletableFuture` per submission. A Class-tab GET that hits a different instance than the upload may not wait; details should already be in Postgres if the UPSERT finished.
+
 **Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`).
 
 ### Read-path performance
 
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
-- `MasterDataCache` — cached scope/type labels; `ClassStructureService` uses batched rubric queries (same pattern as `LabRubricService`)
-- `ChallengeService` — one submission-result load + batched classes/members for all challenges in a lab
+- `MasterDataCache` — cached scope/type labels; Class/MMD **GET** tabs still use batched JPA rubric queries; upload `lab_result` assemble uses `LabRubricSnapshot` (`buildClassDataFromRubric` / `buildMmdDataFromRubric`)
+- `ChallengeService` — sidebar scores from stored `submission_challenge_result` when present; otherwise recompute from element results
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
-- `attemptsCount` on progress is maintained incrementally on upload (new attempt increments; re-upload of same attempt does not recount)
+- `attemptsCount` on progress is set from `COUNT(lab_submission)` after each upload. Each upload inserts a **new** attempt (`MAX(attempt_number)+1`); the path `{attemptNumber}` is not used to upsert.
 - Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
 - Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
