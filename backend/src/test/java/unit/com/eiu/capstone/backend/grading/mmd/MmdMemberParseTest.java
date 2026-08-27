@@ -43,13 +43,13 @@ class MmdMemberParseTest {
         ParsedMmdClass blockClass = classNamed(parse(diagram("""
                 class BankAccount {
                   +double balance
-                  +deposit(amount) void
+                  +deposit(amount): void
                 }
                 """)), "BankAccount");
         ParsedMmdClass colonClass = classNamed(parse(diagram("""
                 class BankAccount
                 BankAccount : +double balance
-                BankAccount : +deposit(amount) void
+                BankAccount : +deposit(amount): void
                 """)), "BankAccount");
 
         assertMembersEqual(blockClass, colonClass);
@@ -87,7 +87,20 @@ class MmdMemberParseTest {
     }
 
     @Test
-    void rejectsMissingSpaceBeforeReturnType() {
+    void parsesSpaceSeparatedReturnTypeWithoutColon() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Account {
+                  +getFahrenheit() double
+                }
+                """)), "Account");
+
+        ParsedMethod method = parsed.methods.get(0);
+        assertEquals("getFahrenheit", method.name);
+        assertEquals("double", method.returnType);
+    }
+
+    @Test
+    void rejectsGluedReturnTypeWithoutColon() {
         MmdParseException ex = assertThrows(
                 MmdParseException.class,
                 () -> parse(diagram("""
@@ -97,6 +110,39 @@ class MmdMemberParseTest {
                         """)));
 
         assertEquals("Missing space before return type: +getBalance()double", ex.getMessage());
+    }
+
+    @Test
+    void parsesUmlColonAndSpaceReturnTypesAsEquivalent() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Temperature {
+                  -ftemp: double
+                  +Temperature(ftemp: double)
+                  +setFahrenheit(ftemp: double)
+                  +getFahrenheit() double
+                  +getCelsius(): double
+                }
+                """)), "Temperature");
+
+        assertEquals(1, parsed.fields.size());
+        assertEquals("ftemp", parsed.fields.get(0).name);
+        assertEquals(1, parsed.constructors.size());
+        assertEquals(List.of("double"), parsed.constructors.get(0).parameterTypes);
+        ParsedMethod setFahrenheit = parsed.methods.stream()
+                .filter(method -> "setFahrenheit".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("void", setFahrenheit.returnType);
+        ParsedMethod getFahrenheit = parsed.methods.stream()
+                .filter(method -> "getFahrenheit".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("double", getFahrenheit.returnType);
+        ParsedMethod getCelsius = parsed.methods.stream()
+                .filter(method -> "getCelsius".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("double", getCelsius.returnType);
     }
 
     @Test
@@ -122,7 +168,7 @@ class MmdMemberParseTest {
     void standaloneStereotypeSetsClassType() {
         ParsedMmdClass coffee = classNamed(parse(diagram("""
                 <<Interface>> Coffee
-                Coffee : +getCost() double
+                Coffee : +getCost(): double
                 """)), "Coffee");
 
         assertEquals("Interface", coffee.stereotypeType);
@@ -147,7 +193,7 @@ class MmdMemberParseTest {
         ParsedMmdClass shape = classNamed(parse(diagram("""
                 class Shape {
                   <<abstract>>
-                  +draw()* void
+                  +draw()*: void
                 }
                 """)), "Shape");
 
@@ -163,7 +209,7 @@ class MmdMemberParseTest {
         ParsedMmdClass parsed = classNamed(parse(diagram("""
                 class Example {
                   +instance$
-                  +run()* void
+                  +run()*: void
                 }
                 """)), "Example");
 

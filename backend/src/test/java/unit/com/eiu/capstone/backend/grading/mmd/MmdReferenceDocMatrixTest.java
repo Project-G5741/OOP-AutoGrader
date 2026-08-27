@@ -104,7 +104,7 @@ class MmdReferenceDocMatrixTest {
         ParsedMmdDiagram diagram = parse(diagram("""
                 class Example {
                   +instance$
-                  +run()* void
+                  +run()*: void
                 }
                 """));
         assertEquals("instance", diagram.classes.get(0).fields.get(0).name);

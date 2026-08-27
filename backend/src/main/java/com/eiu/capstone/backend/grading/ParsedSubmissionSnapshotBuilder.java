@@ -195,7 +195,7 @@ public class ParsedSubmissionSnapshotBuilder {
                             : "";
                     mmdSnapshot.attributes.put(
                             expectedMethod.id().toString(),
-                            match.name + "(" + paramList + ") " + match.returnType);
+                            match.name + "(" + paramList + "): " + match.returnType);
                 }
             }
         }

@@ -209,7 +209,10 @@ public final class MmdAstToParsedMapper {
             }
             if (parenClose + 1 < rest.length()) {
                 char afterClose = rest.charAt(parenClose + 1);
-                if (!Character.isWhitespace(afterClose) && afterClose != '*' && afterClose != '$') {
+                if (!Character.isWhitespace(afterClose)
+                        && afterClose != '*'
+                        && afterClose != '$'
+                        && afterClose != ':') {
                     throw new MmdParseException("Missing space before return type: " + line);
                 }
             }
@@ -218,20 +221,23 @@ public final class MmdAstToParsedMapper {
             List<String> paramTypes = parseParameterTypes(paramsPart);
 
             if (beforeParen.equals(current.name)) {
+                if (!afterParen.isEmpty()) {
+                    throw new MmdParseException("Constructor must not declare a return type: " + line);
+                }
                 ParsedConstructor ctor = new ParsedConstructor();
                 ctor.scope = scope;
                 ctor.parameterTypes = paramTypes;
                 current.constructors.add(ctor);
             } else {
                 MermaidMemberSuffix nameSuffix = parseMermaidSuffixes(beforeParen);
-                MermaidMemberSuffix returnSuffix = parseMermaidSuffixes(afterParen);
+                MethodReturnClause returnClause = parseMethodReturnClause(afterParen, line);
                 ParsedMethod method = new ParsedMethod();
                 method.name = nameSuffix.value();
                 method.scope = scope;
                 method.parameterTypes = paramTypes;
-                method.isStatic = nameSuffix.isStatic() || returnSuffix.isStatic();
-                method.isAbstract = nameSuffix.isAbstract() || returnSuffix.isAbstract();
-                method.returnType = returnSuffix.value().isEmpty() ? "void" : returnSuffix.value();
+                method.isStatic = nameSuffix.isStatic() || returnClause.isStatic();
+                method.isAbstract = nameSuffix.isAbstract() || returnClause.isAbstract();
+                method.returnType = returnClause.returnType();
                 current.methods.add(method);
             }
             return;
@@ -343,6 +349,39 @@ public final class MmdAstToParsedMapper {
         return value;
     }
 
+    private MethodReturnClause parseMethodReturnClause(String afterParen, String line) {
+        String remaining = afterParen == null ? "" : afterParen.trim();
+        boolean isStatic = false;
+        boolean isAbstract = false;
+        while (!remaining.isEmpty()) {
+            char first = remaining.charAt(0);
+            if (first == '$') {
+                isStatic = true;
+                remaining = remaining.substring(1).trim();
+            } else if (first == '*') {
+                isAbstract = true;
+                remaining = remaining.substring(1).trim();
+            } else {
+                break;
+            }
+        }
+        if (remaining.isEmpty()) {
+            return new MethodReturnClause("void", isStatic, isAbstract);
+        }
+        if (remaining.startsWith(":")) {
+            remaining = remaining.substring(1).trim();
+        }
+        if (remaining.isEmpty()) {
+            return new MethodReturnClause("void", isStatic, isAbstract);
+        }
+        MermaidMemberSuffix returnSuffix = parseMermaidSuffixes(remaining);
+        String returnType = returnSuffix.value().isEmpty() ? "void" : returnSuffix.value();
+        return new MethodReturnClause(
+                returnType,
+                isStatic || returnSuffix.isStatic(),
+                isAbstract || returnSuffix.isAbstract());
+    }
+
     private MermaidMemberSuffix parseMermaidSuffixes(String token) {
         boolean isStatic = false;
         boolean isAbstract = false;
@@ -388,6 +427,8 @@ public final class MmdAstToParsedMapper {
     }
 
     private record MermaidMemberSuffix(String value, boolean isStatic, boolean isAbstract) {}
+
+    private record MethodReturnClause(String returnType, boolean isStatic, boolean isAbstract) {}
 
     private List<String> splitParams(String paramsPart) {
         List<String> parts = new ArrayList<>();

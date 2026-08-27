@@ -424,7 +424,7 @@ public class ClassStructureService {
     }
 
     private String formatMethodName(MethodRubric method) {
-        return method.name() + "(" + String.join(", ", method.parameterTypes()) + ") " + method.returnType();
+        return method.name() + "(" + String.join(", ", method.parameterTypes()) + "): " + method.returnType();
     }
 
     private static boolean classHasMergedCorrectMember(ClassRubric classRubric, SubmissionCorrectIds correctIds) {
@@ -447,7 +447,7 @@ public class ClassStructureService {
                 .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
                 .map(Parameter::getName)
                 .collect(Collectors.joining(", "));
-        return method.getName() + "(" + paramList + ") " + method.getMethodDeclaration().getReturnType();
+        return method.getName() + "(" + paramList + "): " + method.getMethodDeclaration().getReturnType();
     }
 
     private String snapshotAttributeName(ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot,
