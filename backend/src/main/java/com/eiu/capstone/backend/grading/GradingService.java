@@ -246,7 +246,7 @@ public class GradingService {
             if (cc.challengeId != null && cc.percentage != null) {
                 result.gradedChallenges.add(new GradedChallengeSummary(
                         cc.challengeId,
-                        cc.percentage.setScale(0, RoundingMode.HALF_UP).intValue()));
+                        cc.percentage.setScale(0, RoundingMode.DOWN).intValue()));
             }
         }
 

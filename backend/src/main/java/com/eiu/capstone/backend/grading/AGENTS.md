@@ -18,7 +18,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
-| `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of 3 pillars), and lab percentages |
+| `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
 | `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for class-reflection DECLARATION checks |
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
@@ -65,6 +65,7 @@ SubmissionController
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
 - **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
+- **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar
 - Compile errors short-circuit testcase grading: all testcases for that challenge → `ERROR` before invoke

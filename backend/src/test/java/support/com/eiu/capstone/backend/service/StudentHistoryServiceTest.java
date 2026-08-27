@@ -94,6 +94,18 @@ class StudentHistoryServiceTest {
     }
 
     @Test
+    void computeStats_averageScoreRoundsDown() {
+        List<LabSubmission> submissions = List.of(
+                submissionWithScore(new BigDecimal("100.00")),
+                submissionWithScore(new BigDecimal("100.00")),
+                submissionWithScore(new BigDecimal("0.00")));
+
+        StudentHistoryStatsDTO stats = studentHistoryService.computeStats(submissions, UUID.randomUUID());
+
+        assertEquals(0, stats.averageScore().compareTo(new BigDecimal("66.66")));
+    }
+
+    @Test
     void resolveHistorySort_defaultsToSubmittedAtDesc() {
         Sort sort = studentHistoryService.resolveHistorySort(null);
         assertEquals("submittedAt", sort.iterator().next().getProperty());

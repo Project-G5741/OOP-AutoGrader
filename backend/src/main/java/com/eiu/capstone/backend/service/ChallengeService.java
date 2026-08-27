@@ -256,10 +256,10 @@ public class ChallengeService {
                 + constructors.stream().filter(c -> correctIds.constructorIds().contains(c.getId())).count()
                 + relations.stream().filter(r -> correctIds.relationIds().contains(r.getId())).count();
 
-        return Math.round((float) (correct * 100.0 / total));
+        return (int) (correct * 100 / total);
     }
 
     private Integer toRoundedPercent(java.math.BigDecimal score) {
-        return score == null ? null : score.setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+        return score == null ? null : score.setScale(0, java.math.RoundingMode.DOWN).intValue();
     }
 }

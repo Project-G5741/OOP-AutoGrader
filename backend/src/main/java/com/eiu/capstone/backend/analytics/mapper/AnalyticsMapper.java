@@ -77,7 +77,7 @@ public class AnalyticsMapper {
         BigDecimal total = toBigDecimal(row[2]);
         if (correct != null && total != null && total.compareTo(BigDecimal.ZERO) > 0) {
             scorePercent = correct.multiply(BigDecimal.valueOf(100))
-                    .divide(total, 0, RoundingMode.HALF_UP)
+                    .divide(total, 0, RoundingMode.DOWN)
                     .intValue();
         }
         return new StudentReportResponse.ChallengeBreakdownItem(toString(row[0]), scorePercent);

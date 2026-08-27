@@ -63,7 +63,7 @@ function classGradeCounts(cls) {
   }
   const passCount = allItems.filter((item) => item.ok).length;
   const total = allItems.length;
-  const pct = Math.round((passCount / total) * 100);
+  const pct = Math.floor((passCount / total) * 100);
   return { passCount, total, pct };
 }
 
@@ -126,7 +126,7 @@ function sessionChallengeScore(challengeScores, challengeId) {
 function bundleScore(bundle, key, fallback) {
   const raw = bundle?.scores?.[key];
   if (raw == null) return fallback;
-  const pct = Math.round(Number(raw));
+  const pct = Math.floor(Number(raw));
   return { ok: pct, total: 100, pct };
 }
 
@@ -246,7 +246,7 @@ export default function StudentUI({
   const relationScore = {
     ok: relations.filter((r) => r.ok).length,
     total: relations.length,
-    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
+    pct: relations.length ? Math.floor((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
   };
 
   const mmdScore = bundleScore(currentBundle, 'mmd', {
@@ -255,7 +255,7 @@ export default function StudentUI({
     pct: (() => {
       const total = mmdData.reduce((sum, cls) => sum + (cls.attributes?.length || 0), 0);
       const ok = mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0);
-      return total ? Math.round((ok / total) * 100) : 0;
+      return total ? Math.floor((ok / total) * 100) : 0;
     })(),
   });
 
@@ -265,7 +265,7 @@ export default function StudentUI({
     pct: (() => {
       const total = classData.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0);
       const ok = classData.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0);
-      return total ? Math.round((ok / total) * 100) : 0;
+      return total ? Math.floor((ok / total) * 100) : 0;
     })(),
   });
 
@@ -386,7 +386,7 @@ export default function StudentUI({
                   const bundleTotal = bundle?.scores?.total;
                   const chScore = chHasScore
                     ? (bundleTotal != null
-                      ? Math.round(Number(bundleTotal))
+                      ? Math.floor(Number(bundleTotal))
                       : sessionChallengeScore(sessionChallengeScores, ch.id))
                     : null;
                   return (

@@ -158,4 +158,13 @@ class PillarScoreAggregatorTest {
         assertEquals(new BigDecimal("70.00"), equal);
         assertEquals(new BigDecimal("70.00"), uneven);
     }
+
+    @Test
+    void weightedLabPercentage_repeatingThirdsRoundDown() {
+        BigDecimal result = PillarScoreAggregator.labPercentage(List.of(
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(100),
+                BigDecimal.ZERO));
+        assertEquals(new BigDecimal("66.66"), result);
+    }
 }

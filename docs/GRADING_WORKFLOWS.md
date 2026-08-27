@@ -669,7 +669,7 @@ pillarPercentage = (Σ weightᵢ × accuracyᵢ) / (Σ weightᵢ) × 100
 - `accuracy` clamped to [0, 1]
 - `weight` minimum 1
 - Empty member list → 0%
-- Scale: 2 decimal places, `HALF_UP`
+- Scale: 2 decimal places, `DOWN` (never round up)
 
 ### 10.2 Challenge percentage
 

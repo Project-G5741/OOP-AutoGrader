@@ -3,7 +3,7 @@ export function formatNumber(value, { suffix = '', round = true } = {}) {
     return '--';
   }
   const numeric = Number(value);
-  const display = round ? Math.round(numeric) : numeric;
+  const display = round ? Math.floor(numeric) : numeric;
   return suffix ? `${display}${suffix}` : `${display}`;
 }
 

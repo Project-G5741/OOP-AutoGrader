@@ -124,7 +124,7 @@ function challengeScoresFromBundles(indexedLabResult) {
   for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
     const total = bundle?.scores?.total;
     if (total != null) {
-      scores[challengeId] = Math.round(Number(total));
+      scores[challengeId] = Math.floor(Number(total));
     }
   }
   return scores;
@@ -603,7 +603,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
 
     const score = uploadResponse?.score != null
-      ? Math.round(Number(uploadResponse.score))
+      ? Math.floor(Number(uploadResponse.score))
       : null;
     setToast({
       message: score != null
@@ -632,7 +632,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       [selectedLabId]: {
         submissionId,
         overallScore: uploadResponse?.score != null
-          ? Math.round(Number(uploadResponse.score))
+          ? Math.floor(Number(uploadResponse.score))
           : null,
         challengeScores,
         challengeBundles: indexedLabResult,

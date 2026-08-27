@@ -128,7 +128,7 @@ public class StudentHistoryService {
                 ? labSubmissionRepository.averageScoreForUser(userId)
                 : labSubmissionRepository.averageScoreForUserAndLab(userId, labId);
         if (averageScore != null) {
-            averageScore = averageScore.setScale(2, RoundingMode.HALF_UP);
+            averageScore = averageScore.setScale(2, RoundingMode.DOWN);
         }
         BigDecimal bestScore = labId == null
                 ? labSubmissionRepository.bestScoreForUser(userId)
@@ -194,7 +194,7 @@ public class StudentHistoryService {
                 submission.getId(), submission.getLab().getId());
 
         if (breakdown.isEmpty() && submission.getScore() != null) {
-            int overall = submission.getScore().setScale(0, RoundingMode.HALF_UP).intValue();
+            int overall = submission.getScore().setScale(0, RoundingMode.DOWN).intValue();
             breakdown = List.of(new ChallengeBreakdownDTO("Lab total", overall >= 100, overall));
         }
 
@@ -219,7 +219,7 @@ public class StudentHistoryService {
     private StudentChallengeResultDTO toChallengeResult(SubmissionChallengeResult result) {
         Integer score = result.getScore() == null
                 ? null
-                : result.getScore().setScale(0, RoundingMode.HALF_UP).intValue();
+                : result.getScore().setScale(0, RoundingMode.DOWN).intValue();
         return new StudentChallengeResultDTO(
                 result.getChallenge().getName(),
                 result.isCorrect(),
@@ -247,7 +247,7 @@ public class StudentHistoryService {
         BigDecimal averageScore = null;
         if (!scores.isEmpty()) {
             BigDecimal sum = scores.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-            averageScore = sum.divide(BigDecimal.valueOf(scores.size()), 2, RoundingMode.HALF_UP);
+            averageScore = sum.divide(BigDecimal.valueOf(scores.size()), 2, RoundingMode.DOWN);
         }
 
         BigDecimal bestScore = scores.stream().max(BigDecimal::compareTo).orElse(null);

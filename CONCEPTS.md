@@ -99,6 +99,9 @@ Optional calendar date on a lab, defaulting to the parent term's end date when s
 ### Plagiarism check
 Three independent comparisons of one lab submission against other students in the same lab: (1) ordered git commit hashes from the uploaded `.git` must match 100% in the same order; (2) git metadata (config user plus ordered author name/email/timestamp) must match 100%; (3) SHA-256 hashes of `.java` and `.mmd` bytes use Jaccard similarity and flag above 90%. Any firing check marks the pair flagged.
 
+### Score rounding
+Grade percentages persist at two decimal places and display as integers by always rounding **down** (never half-up). A repeating third such as 66.666… is stored as `66.66` and shown as `66`. Plagiarism overlap and completion rates are not scores and do not use this rule.
+
 ### Lecturer score cutoff
 The rule that only lab submissions with a timestamp on or before the lab's active deadline end count toward lecturer-facing scores and aggregates (roster, grade overview, analytics, exports, challenge tabs). Submissions after cutoff still grade and persist for the student; extending the deadline widens the cutoff so lecturer views recalculate from full submission history.
 

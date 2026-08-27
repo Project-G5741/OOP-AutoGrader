@@ -22,8 +22,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - Filter by lab via Performance by Lab rows (click to filter, click again to show all); server-side table sort via clickable column headers; prev/next pagination (10 rows per page)
 - Two-column body from `xl`: Performance by Lab ~3/10 width, All Submissions ~7/10
 - Expanded rows show challenge-level results only
-- Scores display via shared `formatNumber` (`Math.round`) — same rounding as the student dashboard and lecturer views
-- Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score); thresholds use the rounded display score
+- Scores display via shared `formatNumber` (`Math.floor`) — same round-down as the student dashboard and lecturer views
+- Row status from overall score: `failed` (&lt; 50), `partial` (50–80), `passed` (&gt; 80), `unknown` (no score); thresholds use the floored display score
 
 ### ChangePasswordModal
 

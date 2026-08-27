@@ -37,7 +37,7 @@ function classGradeCounts(cls) {
   }
   const passCount = allItems.filter((item) => item.ok).length;
   const total = allItems.length;
-  const pct = Math.round((passCount / total) * 100);
+  const pct = Math.floor((passCount / total) * 100);
   return { passCount, total, pct };
 }
 
@@ -76,7 +76,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
   const allItems = classes.flatMap((cls) => [...cls.fields, ...cls.constructors, ...cls.methods]);
   const passCount = classes.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0);
   const totalCount = classes.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0);
-  const overallPct = totalCount ? Math.round((passCount / totalCount) * 100) : 0;
+  const overallPct = totalCount ? Math.floor((passCount / totalCount) * 100) : 0;
 
   return (
     <div>
