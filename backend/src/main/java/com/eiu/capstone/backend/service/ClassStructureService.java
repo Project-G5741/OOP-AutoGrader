@@ -533,14 +533,6 @@ public class ClassStructureService {
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
                                                UUID challengeId,
                                                SubmissionCorrectIds correctIds,
-                                               String compileError) {
-        return buildClassData(structure, challengeId, correctIds,
-                ChallengeCompileErrors.catastrophic(compileError), null);
-    }
-
-    public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
-                                               UUID challengeId,
-                                               SubmissionCorrectIds correctIds,
                                                ChallengeCompileErrors compileErrors,
                                                ChallengeSnapshot snapshot) {
         List<ClassEntity> classes = structure.classesForChallenge(challengeId);

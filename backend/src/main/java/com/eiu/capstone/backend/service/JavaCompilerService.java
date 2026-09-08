@@ -7,8 +7,12 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import jakarta.annotation.PostConstruct;
 import javax.tools.Diagnostic;
@@ -57,8 +61,7 @@ public class JavaCompilerService {
         }
 
         resetFileManager();
-        int classFileCount = countClassFiles(outputDir);
-        if (classFileCount == 0) {
+        if (!hasAnyClassFile(outputDir)) {
             List<JavaFileObject> remainder = sourcesWithoutErrorDiagnostics(sources, firstPass);
             if (!remainder.isEmpty()) {
                 DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
@@ -71,11 +74,10 @@ public class JavaCompilerService {
                     resetFileManager();
                     throw e;
                 }
-                classFileCount = countClassFiles(outputDir);
             }
         }
 
-        return new CompileOutcome(false, firstPass, classFileCount);
+        return new CompileOutcome(false, firstPass, countClassFiles(outputDir));
     }
 
     private boolean runTask(List<JavaFileObject> sources,
@@ -97,19 +99,8 @@ public class JavaCompilerService {
     private static List<JavaFileObject> sourcesWithoutErrorDiagnostics(
             List<JavaFileObject> sources,
             List<Diagnostic<? extends JavaFileObject>> diagnostics) {
-        List<JavaFileObject> remainder = new ArrayList<>();
-        for (JavaFileObject source : sources) {
-            if (!sourceHasError(source, diagnostics)) {
-                remainder.add(source);
-            }
-        }
-        return remainder;
-    }
-
-    private static boolean sourceHasError(
-            JavaFileObject source,
-            List<Diagnostic<? extends JavaFileObject>> diagnostics) {
-        URI uri = source.toUri();
+        Set<JavaFileObject> errorSources = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<URI> errorUris = new HashSet<>();
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics) {
             if (diagnostic.getKind() != Diagnostic.Kind.ERROR) {
                 continue;
@@ -118,11 +109,28 @@ public class JavaCompilerService {
             if (reported == null) {
                 continue;
             }
-            if (reported == source || uri.equals(reported.toUri())) {
-                return true;
+            errorSources.add(reported);
+            errorUris.add(reported.toUri());
+        }
+        List<JavaFileObject> remainder = new ArrayList<>();
+        for (JavaFileObject source : sources) {
+            if (!errorSources.contains(source) && !errorUris.contains(source.toUri())) {
+                remainder.add(source);
             }
         }
-        return false;
+        return remainder;
+    }
+
+    private static boolean hasAnyClassFile(Path outputDir) {
+        if (!Files.isDirectory(outputDir)) {
+            return false;
+        }
+        try (var stream = Files.walk(outputDir)) {
+            return stream.anyMatch(path -> Files.isRegularFile(path)
+                    && path.getFileName().toString().endsWith(".class"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static int countClassFiles(Path outputDir) {

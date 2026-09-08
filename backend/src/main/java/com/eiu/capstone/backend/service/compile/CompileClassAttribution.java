@@ -4,13 +4,12 @@ import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.tools.Diagnostic;
@@ -78,7 +77,7 @@ public final class CompileClassAttribution {
                 continue;
             }
             errorFiles.add(file);
-            messagesByFile.computeIfAbsent(file, key -> new ArrayList<>()).add(formatDiagnostic(diagnostic));
+            messagesByFile.computeIfAbsent(file, key -> new ArrayList<>()).add(CompileOutcome.format(diagnostic));
         }
 
         Set<String> roots = new LinkedHashSet<>();
@@ -95,11 +94,15 @@ public final class CompileClassAttribution {
             }
         }
 
+        Map<String, Pattern> wordPatterns = new HashMap<>();
         Map<String, Set<String>> referencedTypes = new LinkedHashMap<>();
+        Map<SourceEntry, Set<String>> referencedByFile = new LinkedHashMap<>();
         Map<String, SourceEntry> fileByType = new LinkedHashMap<>();
         for (SourceEntry entry : sourceList) {
             Set<String> declared = declaredByFile.getOrDefault(entry, Set.of());
-            Set<String> referenced = referencedTypeNames(entry.source(), declaredOrder);
+            String stripped = stripCommentsAndStrings(entry.source());
+            Set<String> referenced = referencedTypeNames(stripped, declared, declaredOrder, wordPatterns);
+            referencedByFile.put(entry, referenced);
             for (String typeName : declared) {
                 fileByType.put(typeName, entry);
                 referencedTypes.put(typeName, referenced);
@@ -118,7 +121,7 @@ public final class CompileClassAttribution {
                 if (declared.isEmpty() || failed.containsAll(declared)) {
                     continue;
                 }
-                if (referencesAny(entry.source(), failed, declared)) {
+                if (referencesFailed(referencedByFile.getOrDefault(entry, Set.of()), failed)) {
                     if (failed.addAll(declared)) {
                         changed = true;
                     }
@@ -157,67 +160,61 @@ public final class CompileClassAttribution {
         if (name == null || name.isBlank()) {
             return null;
         }
-        String normalized = name.replace('\\', '/');
-        if (normalized.startsWith("/")) {
-            normalized = normalized.substring(1);
-        }
         try {
-            return sourcesByUri.get(MemorySourceJavaFileObject.toSourceUri(normalized));
+            return sourcesByUri.get(MemorySourceJavaFileObject.toSourceUri(name));
         } catch (IllegalArgumentException ignored) {
             return null;
         }
     }
 
-    private static String formatDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
-        return String.format("%s: line %d: %s",
-                diagnostic.getKind(),
-                diagnostic.getLineNumber(),
-                diagnostic.getMessage(Locale.getDefault()));
-    }
-
-    private static boolean referencesAny(String source, Set<String> failedNames, Set<String> declaredInFile) {
-        String stripped = stripCommentsAndStrings(source);
+    private static boolean referencesFailed(Set<String> referenced, Set<String> failedNames) {
+        for (String ref : referenced) {
+            if (failedNames.contains(ref) || failedNames.contains(simpleName(ref))) {
+                return true;
+            }
+        }
         for (String failed : failedNames) {
             String simple = simpleName(failed);
-            if (declaredInFile.contains(failed) || declaredInFile.contains(simple)) {
-                continue;
-            }
-            if (containsTypeUse(stripped, failed)) {
+            if (!simple.equals(failed) && referenced.contains(simple)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static Set<String> referencedTypeNames(String source, List<String> declaredOrder) {
-        String stripped = stripCommentsAndStrings(source);
+    private static Set<String> referencedTypeNames(String stripped,
+                                                   Set<String> declaredInFile,
+                                                   List<String> declaredOrder,
+                                                   Map<String, Pattern> wordPatterns) {
         Set<String> referenced = new LinkedHashSet<>();
-        Set<String> self = StudentSourceNormalizer.extractDeclaredSimpleNames(source);
         for (String name : declaredOrder) {
-            if (self.contains(name) || self.contains(simpleName(name))) {
+            if (declaredInFile.contains(name) || declaredInFile.contains(simpleName(name))) {
                 continue;
             }
-            if (containsTypeUse(stripped, name)) {
+            if (containsTypeUse(stripped, name, wordPatterns)) {
                 referenced.add(name);
             }
         }
         return referenced;
     }
 
-    private static boolean containsTypeUse(String strippedSource, String typeName) {
+    private static boolean containsTypeUse(String strippedSource,
+                                           String typeName,
+                                           Map<String, Pattern> wordPatterns) {
         if (typeName == null || typeName.isBlank()) {
             return false;
         }
-        if (matchesWord(strippedSource, typeName)) {
+        if (matchesWord(strippedSource, typeName, wordPatterns)) {
             return true;
         }
         String simple = simpleName(typeName);
-        return !simple.equals(typeName) && matchesWord(strippedSource, simple);
+        return !simple.equals(typeName) && matchesWord(strippedSource, simple, wordPatterns);
     }
 
-    private static boolean matchesWord(String source, String name) {
-        Matcher matcher = Pattern.compile("\\b" + Pattern.quote(name) + "\\b").matcher(source);
-        return matcher.find();
+    private static boolean matchesWord(String source, String name, Map<String, Pattern> wordPatterns) {
+        Pattern pattern = wordPatterns.computeIfAbsent(
+                name, key -> Pattern.compile("\\b" + Pattern.quote(key) + "\\b"));
+        return pattern.matcher(source).find();
     }
 
     private static String simpleName(String typeName) {
@@ -259,7 +256,7 @@ public final class CompileClassAttribution {
         return reachableRoots.iterator().hasNext() ? reachableRoots.iterator().next() : dependent;
     }
 
-    static String stripCommentsAndStrings(String source) {
+    private static String stripCommentsAndStrings(String source) {
         String withoutBlocks = BLOCK_COMMENT.matcher(source == null ? "" : source).replaceAll(" ");
         String withoutLines = LINE_COMMENT.matcher(withoutBlocks).replaceAll(" ");
         String withoutStrings = STRING_LITERAL.matcher(withoutLines).replaceAll("\"\"");

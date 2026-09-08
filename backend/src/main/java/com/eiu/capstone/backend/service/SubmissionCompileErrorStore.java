@@ -70,9 +70,6 @@ public class SubmissionCompileErrorStore {
             return Map.of();
         }
         Path file = storeDir.resolve(submissionId + ".json");
-        if (!Files.exists(file)) {
-            return Map.of();
-        }
         try {
             JsonNode root = objectMapper.readTree(file.toFile());
             if (root == null || !root.isObject()) {

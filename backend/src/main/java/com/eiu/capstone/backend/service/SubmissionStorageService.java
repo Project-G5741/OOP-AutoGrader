@@ -284,31 +284,21 @@ public class SubmissionStorageService {
                     buildSourcesMs, javacMs, 0, runtimeErrorMessage(e));
         }
         long javacMs = System.currentTimeMillis() - javacStart;
-
-        long countStart = System.currentTimeMillis();
-        try {
-            int classCount = countClassFiles(classesFolder);
-            long countMs = System.currentTimeMillis() - countStart;
-            logCompileTiming(challengeName, start, buildSourcesMs, javacMs, countMs);
-            if (!outcome.succeeded()) {
-                CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
-                        outcome, normalization.sources());
-                return new ChallengeResult(
-                        challengeName,
-                        challengeFolder,
-                        classCount,
-                        null,
-                        packageNormalizationNotice,
-                        attributed.failedClassNames(),
-                        attributed.compileErrorsByClassName());
-            }
-            return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
-        } catch (IOException e) {
-            long countMs = System.currentTimeMillis() - countStart;
-            return failedChallenge(challengeName, challengeFolder, start, classesFolder,
-                    buildSourcesMs, javacMs, countMs,
-                    "Failed to count class files: " + e.getMessage());
+        logCompileTiming(challengeName, start, buildSourcesMs, javacMs, 0);
+        int classCount = outcome.classFileCount();
+        if (!outcome.succeeded()) {
+            CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                    outcome, normalization.sources());
+            return new ChallengeResult(
+                    challengeName,
+                    challengeFolder,
+                    classCount,
+                    null,
+                    packageNormalizationNotice,
+                    attributed.failedClassNames(),
+                    attributed.compileErrorsByClassName());
         }
+        return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
     }
 
     private ChallengeResult failedChallenge(String challengeName,
@@ -448,18 +438,6 @@ public class SubmissionStorageService {
                 .trim()
                 .replaceAll("\\s+", "_")
                 .replaceAll("[^a-z0-9_]", "");
-    }
-
-    private int countClassFiles(Path classesFolder) throws IOException {
-        if (!Files.isDirectory(classesFolder)) {
-            return 0;
-        }
-        try (var stream = Files.list(classesFolder)) {
-            return (int) stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".class"))
-                    .count();
-        }
     }
 
     private void deleteRecursively(Path path) {

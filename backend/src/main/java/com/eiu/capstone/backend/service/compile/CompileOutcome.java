@@ -26,9 +26,13 @@ public record CompileOutcome(
     }
 
     public List<String> messages() {
-        return diagnostics.stream()
-                .map(d -> String.format("%s: line %d: %s",
-                        d.getKind(), d.getLineNumber(), d.getMessage(Locale.getDefault())))
-                .toList();
+        return diagnostics.stream().map(CompileOutcome::format).toList();
+    }
+
+    public static String format(Diagnostic<? extends JavaFileObject> diagnostic) {
+        return String.format("%s: line %d: %s",
+                diagnostic.getKind(),
+                diagnostic.getLineNumber(),
+                diagnostic.getMessage(Locale.getDefault()));
     }
 }

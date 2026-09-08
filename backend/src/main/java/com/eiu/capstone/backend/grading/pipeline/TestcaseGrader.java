@@ -240,8 +240,26 @@ public class TestcaseGrader {
         String simple = simpleTypeName(failedName);
         return type.equals(failedName)
                 || type.equals(simple)
-                || type.matches(".*\\b" + java.util.regex.Pattern.quote(failedName) + "\\b.*")
-                || type.matches(".*\\b" + java.util.regex.Pattern.quote(simple) + "\\b.*");
+                || containsJavaIdentifier(type, failedName)
+                || (!simple.equals(failedName) && containsJavaIdentifier(type, simple));
+    }
+
+    private static boolean containsJavaIdentifier(String haystack, String needle) {
+        int from = 0;
+        while (from <= haystack.length() - needle.length()) {
+            int index = haystack.indexOf(needle, from);
+            if (index < 0) {
+                return false;
+            }
+            boolean startOk = index == 0 || !Character.isJavaIdentifierPart(haystack.charAt(index - 1));
+            int end = index + needle.length();
+            boolean endOk = end == haystack.length() || !Character.isJavaIdentifierPart(haystack.charAt(end));
+            if (startOk && endOk) {
+                return true;
+            }
+            from = index + 1;
+        }
+        return false;
     }
 
     private Evaluation compileErrorEvaluation(TestcaseRubric testcase, String compileError) {
