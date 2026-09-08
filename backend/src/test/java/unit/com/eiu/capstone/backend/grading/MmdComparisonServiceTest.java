@@ -194,7 +194,7 @@ class MmdComparisonServiceTest {
         String mmd = diagram("""
                 class Shape {
                   <<abstract>>
-                  +draw()* void
+                  +draw()*: void
                 }
                 """);
 

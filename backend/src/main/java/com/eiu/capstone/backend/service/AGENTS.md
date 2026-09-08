@@ -23,7 +23,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric` |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
 
 ## Local Contracts
 
@@ -47,11 +47,13 @@ Per upload request (unique `requestId` prevents collisions):
 
 ### Java compilation
 
-- `JavaCompilerService.compileSources(sources, outputDir)` compiles in-memory `JavaFileObject` sources to `classes/` via `javax.tools.JavaCompiler` (JDK required)
+- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources that have no ERROR diagnostic and are not attributed dependents into the same `classes/`
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
-- Compile failures for a challenge folder are captured per challenge (upload continues); diagnostics appear on Class tab cards via `ClassDetailDTO.error`
+- Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
+- Compile diagnostics appear on Class tab cards via `ClassDetailDTO.error`
 - Empty source list returns without invoking the compiler
+- Lecturer dry-run uses the same `CompileOutcome` + `CompileClassAttribution`; mixed reference compile is a preview DTO (`ERROR` if the testcase touches a failed type), not HTTP 422
 - With `app.grading.timing-log=true`, `SubmissionStorageService` prints a `[timing] Compile <challenge>` block (`build sources`, `javac`, `count`, `total`)
 
 ### Authentication
@@ -84,7 +86,7 @@ Per upload request (unique `requestId` prevents collisions):
 ## Work Guidance
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
-- Compile errors should surface via `SubmissionProcessingException` — `GlobalExceptionHandler` returns HTTP 422 with the message
+- Invalid upload structure / I/O setup failures may still use `SubmissionProcessingException` (`GlobalExceptionHandler` HTTP 422). Mixed javac keeps survivors and records `ChallengeCompileErrors`; lecturer dry-run mixed compile returns preview ERROR DTOs — do not throw HTTP 422 for javac diagnostics
 - MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0` so grading records 0% for that challenge
 - `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle
@@ -100,7 +102,8 @@ Per upload request (unique `requestId` prevents collisions):
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 - JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
-- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells)
+- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
 
 ## Child DOX Index
 

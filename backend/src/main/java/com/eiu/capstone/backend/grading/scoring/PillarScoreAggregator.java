@@ -40,7 +40,7 @@ public final class PillarScoreAggregator {
             return BigDecimal.ZERO;
         }
         return BigDecimal.valueOf(earned / weightSum * 100.0)
-                .setScale(SCALE, RoundingMode.HALF_UP);
+                .setScale(SCALE, RoundingMode.DOWN);
     }
 
     /**
@@ -76,7 +76,7 @@ public final class PillarScoreAggregator {
             weightSum += w;
             earned += safe(testcasePct).doubleValue() * w;
         }
-        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.DOWN);
     }
 
     /**
@@ -108,7 +108,7 @@ public final class PillarScoreAggregator {
         if (weightSum <= 0) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.DOWN);
     }
 
     private static BigDecimal safe(BigDecimal value) {

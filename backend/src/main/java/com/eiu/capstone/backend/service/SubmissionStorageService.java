@@ -26,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
@@ -65,6 +67,8 @@ public class SubmissionStorageService {
         public final int classFileCount;
         public final String compileError;
         public final String packageNormalizationNotice;
+        public final Set<String> failedClassNames;
+        public final Map<String, String> compileErrorsByClassName;
 
         public ChallengeResult(String challengeName, Path folder, int classFileCount) {
             this(challengeName, folder, classFileCount, null, null);
@@ -79,11 +83,25 @@ public class SubmissionStorageService {
                                int classFileCount,
                                String compileError,
                                String packageNormalizationNotice) {
+            this(challengeName, folder, classFileCount, compileError, packageNormalizationNotice, Set.of(), Map.of());
+        }
+
+        public ChallengeResult(String challengeName,
+                               Path folder,
+                               int classFileCount,
+                               String compileError,
+                               String packageNormalizationNotice,
+                               Set<String> failedClassNames,
+                               Map<String, String> compileErrorsByClassName) {
             this.challengeName = challengeName;
             this.folder = folder;
             this.classFileCount = classFileCount;
             this.compileError = compileError;
             this.packageNormalizationNotice = packageNormalizationNotice;
+            this.failedClassNames = failedClassNames == null ? Set.of() : Set.copyOf(failedClassNames);
+            this.compileErrorsByClassName = compileErrorsByClassName == null
+                    ? Map.of()
+                    : Map.copyOf(compileErrorsByClassName);
         }
     }
 
@@ -257,27 +275,30 @@ public class SubmissionStorageService {
         }
 
         long javacStart = System.currentTimeMillis();
+        CompileOutcome outcome;
         try {
-            javaCompilerService.compileSources(sources, classesFolder);
+            outcome = javaCompilerService.compileSources(sources, classesFolder);
         } catch (RuntimeException e) {
             long javacMs = System.currentTimeMillis() - javacStart;
             return failedChallenge(challengeName, challengeFolder, start, classesFolder,
                     buildSourcesMs, javacMs, 0, runtimeErrorMessage(e));
         }
         long javacMs = System.currentTimeMillis() - javacStart;
-
-        long countStart = System.currentTimeMillis();
-        try {
-            int classCount = countClassFiles(classesFolder);
-            long countMs = System.currentTimeMillis() - countStart;
-            logCompileTiming(challengeName, start, buildSourcesMs, javacMs, countMs);
-            return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
-        } catch (IOException e) {
-            long countMs = System.currentTimeMillis() - countStart;
-            return failedChallenge(challengeName, challengeFolder, start, classesFolder,
-                    buildSourcesMs, javacMs, countMs,
-                    "Failed to count class files: " + e.getMessage());
+        logCompileTiming(challengeName, start, buildSourcesMs, javacMs, 0);
+        int classCount = outcome.classFileCount();
+        if (!outcome.succeeded()) {
+            CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                    outcome, normalization.sources());
+            return new ChallengeResult(
+                    challengeName,
+                    challengeFolder,
+                    classCount,
+                    null,
+                    packageNormalizationNotice,
+                    attributed.failedClassNames(),
+                    attributed.compileErrorsByClassName());
         }
+        return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
     }
 
     private ChallengeResult failedChallenge(String challengeName,
@@ -417,18 +438,6 @@ public class SubmissionStorageService {
                 .trim()
                 .replaceAll("\\s+", "_")
                 .replaceAll("[^a-z0-9_]", "");
-    }
-
-    private int countClassFiles(Path classesFolder) throws IOException {
-        if (!Files.isDirectory(classesFolder)) {
-            return 0;
-        }
-        try (var stream = Files.list(classesFolder)) {
-            return (int) stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".class"))
-                    .count();
-        }
     }
 
     private void deleteRecursively(Path path) {

@@ -22,7 +22,7 @@ class GradingServiceTest {
                 BigDecimal.ZERO,
                 true);
 
-        assertEquals(new BigDecimal("66.67"), result);
+        assertEquals(new BigDecimal("66.66"), result);
     }
 
     @Test

@@ -31,6 +31,7 @@ import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.rubric.MethodStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ParameterStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.RelationStructureDTO;
+import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
@@ -636,6 +637,8 @@ public class LabStructureService {
             relationsToSave.add(relation);
         }
 
+        rejectExtraHeritagePairs(relationsToSave);
+
         if (!relationsToSave.isEmpty()) {
             List<ClassRelation> savedRelations = classRelationRepository.saveAll(relationsToSave);
             for (ClassRelation relation : savedRelations) {
@@ -650,6 +653,29 @@ public class LabStructureService {
                 ctx.removeRelation(row.getId(), challenge.getId());
             }
         }
+    }
+
+    private void rejectExtraHeritagePairs(List<ClassRelation> relationsToSave) {
+        Map<UUID, Integer> heritageCountBySource = new HashMap<>();
+        for (ClassRelation relation : relationsToSave) {
+            if (!isHeritageRelation(relation.getRelationType())) {
+                continue;
+            }
+            UUID sourceId = relation.getClassEntity().getId();
+            int count = heritageCountBySource.merge(sourceId, 1, Integer::sum);
+            if (count > 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A class can have at most one inheritance or implementation relationship");
+            }
+        }
+    }
+
+    private static boolean isHeritageRelation(MasterData relationType) {
+        if (relationType == null || relationType.getName() == null) {
+            return false;
+        }
+        String canonical = MmdComparisonService.normalizeRelationTypeName(relationType.getName());
+        return "inheritance".equals(canonical) || "realization".equals(canonical);
     }
 
     private void deleteRelationsForClass(SaveContext ctx, UUID classId) {

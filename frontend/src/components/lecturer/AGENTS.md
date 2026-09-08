@@ -44,6 +44,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
+| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase weights |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list, editor, dry-run, separate Save Testcases |
@@ -79,6 +80,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`)
 - Challenge tab lists **submitters only**; **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
+- `ClassScoreBreakdown` keeps `cls.error` from GET `/class` and shows one truncated compile line under the class name (`firstCompileErrorLine`); do not repeat it as an expanded banner
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
 - Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)

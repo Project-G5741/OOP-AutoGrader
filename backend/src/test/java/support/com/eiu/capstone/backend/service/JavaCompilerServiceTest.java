@@ -16,12 +16,12 @@ import javax.tools.JavaFileObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JavaCompilerServiceTest {
@@ -52,8 +52,103 @@ class JavaCompilerServiceTest {
         JavaCompilerService service = new JavaCompilerService();
         service.initCompiler();
 
-        List<String> messages = service.compileSources(List.of(), tempDir);
-        assertTrue(messages.isEmpty());
+        CompileOutcome outcome = service.compileSources(List.of(), tempDir);
+        assertTrue(outcome.succeeded());
+        assertTrue(outcome.messages().isEmpty());
+        assertEquals(0, outcome.classFileCount());
+    }
+
+    @Test
+    void compileSources_mixedGoodAndBad_emitsOnlyGoodClass() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("mixed");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Good.java", "public class Good {}".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "Bad.java", "public class Bad {".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("Good.class")));
+        assertFalse(Files.exists(outputDir.resolve("Bad.class")));
+        assertEquals(1, outcome.classFileCount());
+    }
+
+    @Test
+    void compileSources_mutualRefsSurviveBrokenSibling() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("mutual");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "A.java", "public class A { B peer; }".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "B.java", "public class B { A peer; }".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "Bad.java", "public class Bad {".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("A.class")));
+        assertTrue(Files.exists(outputDir.resolve("B.class")));
+        assertFalse(Files.exists(outputDir.resolve("Bad.class")));
+        assertEquals(2, outcome.classFileCount());
+    }
+
+    @Test
+    void compileSources_independentSurvivesBrokenTypeAndItsDependent() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("cascade");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Good.java", "public class Good {}".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "Student.java", "public class Student {".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "BankAccount.java",
+                        "public class BankAccount { Student owner; }".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("Good.class")));
+        assertFalse(Files.exists(outputDir.resolve("Student.class")));
+        assertFalse(Files.exists(outputDir.resolve("BankAccount.class")));
+        assertEquals(1, outcome.classFileCount());
+    }
+
+    @Test
+    void compileSources_onlyBrokenSources_doesNotThrow() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("broken");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Broken.java", "public class Broken {".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertFalse(Files.exists(outputDir.resolve("Broken.class")));
+        assertEquals(0, outcome.classFileCount());
+        assertTrue(outcome.messages().stream().anyMatch(message -> message.contains("line")));
     }
 
     @Test
@@ -67,12 +162,10 @@ class JavaCompilerServiceTest {
         List<JavaFileObject> sources = List.of(
                 new MemorySourceJavaFileObject("Broken.java", "public class Broken {".getBytes(StandardCharsets.UTF_8)));
 
-        SubmissionProcessingException ex = assertThrows(
-                SubmissionProcessingException.class,
-                () -> service.compileSources(sources, outputDir));
+        CompileOutcome outcome = service.compileSources(sources, outputDir);
 
-        assertTrue(ex.getMessage().contains("Compilation failed"));
-        assertTrue(ex.getMessage().contains("line"));
+        assertFalse(outcome.succeeded());
+        assertTrue(outcome.messages().stream().anyMatch(message -> message.contains("line")));
     }
 
     @Test
@@ -86,7 +179,8 @@ class JavaCompilerServiceTest {
         List<JavaFileObject> broken = List.of(
                 new MemorySourceJavaFileObject("Broken.java", "public class Broken {".getBytes(StandardCharsets.UTF_8)));
 
-        assertThrows(SubmissionProcessingException.class, () -> service.compileSources(broken, outputDir));
+        CompileOutcome brokenOutcome = service.compileSources(broken, outputDir);
+        assertFalse(brokenOutcome.succeeded());
 
         List<JavaFileObject> valid = List.of(
                 new MemorySourceJavaFileObject("Fixed.java", "public class Fixed {}".getBytes(StandardCharsets.UTF_8)));

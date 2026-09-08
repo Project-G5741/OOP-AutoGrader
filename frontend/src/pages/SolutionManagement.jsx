@@ -207,6 +207,11 @@ export default function SolutionManagement() {
     return challenge?.classes || [];
   }, [draft, selectedClassRef]);
 
+  const selectedClassChallenge = useMemo(() => {
+    if (!draft || !selectedClassRef) return null;
+    return draft.challenges.find((c) => c.id === selectedClassRef.challengeId) || null;
+  }, [draft, selectedClassRef]);
+
   const selectedChallenge = useMemo(() => {
     if (!draft || !selectedChallengeId || selectedClassRef) return null;
     return draft.challenges.find((c) => c.id === selectedChallengeId) || null;
@@ -220,6 +225,15 @@ export default function SolutionManagement() {
         ...challenge,
         classes: challenge.classes.map((cls) => (cls.id === updatedClass.id ? updatedClass : cls)),
       };
+    });
+    setDraft({ ...draft, challenges });
+  };
+
+  const updateSelectedClassRelations = (relations) => {
+    if (!draft || !selectedClassRef) return;
+    const challenges = draft.challenges.map((challenge) => {
+      if (challenge.id !== selectedClassRef.challengeId) return challenge;
+      return { ...challenge, relations };
     });
     setDraft({ ...draft, challenges });
   };
@@ -546,7 +560,10 @@ export default function SolutionManagement() {
               challengeClasses={selectedChallengeClasses}
               scopeOptions={scopeOptions}
               declaringTypeOptions={declaringTypeOptions}
+              relationTypeOptions={relationTypeOptions}
+              relations={selectedClassChallenge?.relations || []}
               onChange={updateSelectedClass}
+              onRelationsChange={updateSelectedClassRelations}
             />
           ) : (
             <ChallengeDetailPanel

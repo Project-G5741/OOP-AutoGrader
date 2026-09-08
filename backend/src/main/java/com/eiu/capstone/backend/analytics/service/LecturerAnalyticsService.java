@@ -294,7 +294,7 @@ public class LecturerAnalyticsService {
                     sum = sum.add(score != null ? score : BigDecimal.ZERO);
                 }
                 BigDecimal totalScore = labCount > 0
-                        ? sum.divide(BigDecimal.valueOf(labCount), 2, RoundingMode.HALF_UP)
+                        ? sum.divide(BigDecimal.valueOf(labCount), 2, RoundingMode.DOWN)
                         : null;
                 rows.add(new GradeOverviewStudentRowDTO(
                         studentId,

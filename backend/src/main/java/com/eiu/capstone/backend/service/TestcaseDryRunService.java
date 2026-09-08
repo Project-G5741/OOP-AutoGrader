@@ -25,6 +25,8 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
@@ -92,11 +94,9 @@ public class TestcaseDryRunService {
                         entry.source().getBytes(StandardCharsets.UTF_8)));
             }
 
-            List<String> errors = javaCompilerService.compileSources(sources, classesDir);
-            if (!errors.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Compilation failed: " + String.join("; ", errors));
-            }
+            CompileOutcome outcome = javaCompilerService.compileSources(sources, classesDir);
+            CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                    outcome, normalization.sources());
 
             ChallengeRubric stubRubric = new ChallengeRubric(
                     challengeId,
@@ -107,7 +107,12 @@ public class TestcaseDryRunService {
                     List.of(rubric),
                     true);
             ChallengeGradingContext context = ChallengeGradingContext.of(
-                    stubRubric, classesDir, null, List.of());
+                    stubRubric,
+                    classesDir,
+                    null,
+                    List.of(),
+                    attributed.failedClassNames(),
+                    attributed.compileErrorsByClassName());
 
             PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
             return testcaseResultMapper.mapDryRunResult(rubric, pending);

@@ -10,7 +10,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, persistence, `lab_result` assembly |
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
-| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%); when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
@@ -18,7 +19,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
-| `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of 3 pillars), and lab percentages |
+| `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
 | `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for class-reflection DECLARATION checks |
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
@@ -65,9 +66,10 @@ SubmissionController
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
 - **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
+- **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar
-- Compile errors short-circuit testcase grading: all testcases for that challenge → `ERROR` before invoke
+- Compile errors short-circuit testcase grading only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
 ### Operational testcase grading
 
@@ -98,8 +100,8 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
 - Upload `lab_result` assemble must not call `loadChallengeStructures`; GET tabs keep the JPA load after the detail persist gate
 - Do not grade source `.java` files directly; compilation must succeed first
-- Relations are MMD-only; Java reflection does not grade relations
-- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; missing space before return type (`method()type`) is a parse error; `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
+- Inheritance and realization (`class_relation`) also feed the Java class shell via declared superclass/interfaces; other relation kinds stay MMD-only. Java grades a set Extends/Implements pair even when `has_mmd=false`
+- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; method return types accept UML colon (`method(): Type`) and Mermaid space (`method() Type`) as equivalent; glued returns (`method()Type`) are a parse error; omitted return after `()` is `void`; classifiers may sit between `)` and the return type (`method()*: Type`, `method()$ Type`); `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
 - **MMD parser pipeline:** `MmdParser` delegates to `grading/mmd/` tokenizer + AST + mapper; substantive diagrams require a `classDiagram` header line; `namespace { ... }` blocks flatten contained classes under simple names; `ParsedMmdDiagram.classByName` includes qualified aliases (`Company.Employee`)
 - **MMD cosmetic directives:** `note`, `note for`, `direction`, `style`, `classDef`, and `cssClass` lines parse as ignored directives (no grading impact)
 - **MMD relations:** optional Mermaid labels after ` : ` (e.g. `A o--> B : wraps`); optional quoted cardinality on each endpoint (parsed, not graded); aggregation arrows include `o-->` / `--o>` (diamond-side class is relation source); realization/implementation arrows `..|>`, `<|..`, and lollipop `()--` / `--()` are equivalent (implementor → interface); dashed link `..` canonicalizes to `dashed_link`; two-way `<|--|>` canonicalizes to `bidirectional_inheritance`; UI displays canonical realization as **implementation**
@@ -108,7 +110,8 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
-- Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; does not write `submission_*` rows
+- Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
+- Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
 - With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `save`, `assemble`, `total`); upload (`rubric`, `compile`, `grade`, `total`)
 

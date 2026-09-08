@@ -143,8 +143,8 @@ class MmdParserTest {
     String mmd = withHeader("""
         class Logger {
           -static Logger instance$
-          +getInstance() Logger$
-          +log(message String) void
+          +getInstance(): Logger$
+          +log(message String): void
         }
         """);
 
@@ -172,7 +172,7 @@ class MmdParserTest {
   void parsesMethodParametersWithNameColonType() {
     String mmd = withHeader("""
         class Logger {
-          +log(message: String) void
+          +log(message: String): void
         }
         """);
 
@@ -189,8 +189,8 @@ class MmdParserTest {
             class Logger {
                 -static Logger instance
                 -Logger()
-                +getInstance() Logger$
-                +log(message: String) void
+                +getInstance(): Logger$
+                +log(message: String): void
             }
         """);
 
@@ -232,7 +232,7 @@ class MmdParserTest {
   void gradesStaticMarkerWhenRubricDoesNotRequireStatic() {
     String mmd = withHeader("""
         class Logger {
-          +getInstance() Logger$
+          +getInstance(): Logger$
         }
         """);
 
@@ -264,7 +264,7 @@ class MmdParserTest {
   void parsesCanonicalMermaidStaticMarkerAfterParentheses() {
     String mmd = withHeader("""
         class Logger {
-          +getInstance()$ Logger
+          +getInstance()$: Logger
         }
         """);
 
@@ -280,8 +280,8 @@ class MmdParserTest {
     String mmd = withHeader("""
         class Coffee {
           <<interface>>
-          +getCost() double
-          +getDescription() String
+          +getCost(): double
+          +getDescription(): String
         }
         """);
 

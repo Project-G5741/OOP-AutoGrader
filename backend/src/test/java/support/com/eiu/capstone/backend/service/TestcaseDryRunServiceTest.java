@@ -3,6 +3,7 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,7 @@ import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.InvocationKind;
@@ -77,24 +79,51 @@ class TestcaseDryRunServiceTest {
     }
 
     @Test
-    void dryRun_compileError_throws422() {
-        TestcaseDryRunService service = newService(mock(TestcaseGrader.class));
+    void dryRun_mixedCompile_returnsPreview() {
         TestcaseStructureDTO testcase = mock(TestcaseStructureDTO.class);
         TestcaseDryRunRequest request = new TestcaseDryRunRequest(
-                List.of(new ReferenceSourceDTO("Car", "public class Car {")),
+                List.of(
+                        new ReferenceSourceDTO("Car", "public class Car {}"),
+                        new ReferenceSourceDTO("Broken", "public class Broken {")),
                 testcase);
+        TestcaseRubric rubric = minimalRubric();
 
         when(testcaseRubricService.loadForChallenge(labId, challengeId))
                 .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
-        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(minimalRubric());
-        when(javaCompilerService.compileSources(any(), any()))
-                .thenReturn(List.of("';' expected"));
+        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
 
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> service.dryRun(labId, challengeId, request));
-        assertEquals(422, ex.getStatusCode().value());
-        assertTrue(ex.getReason().contains("Compilation failed"));
+        JavaCompilerService realCompiler = new JavaCompilerService();
+        realCompiler.initCompiler();
+        TestcaseGrader graderSpy = mock(TestcaseGrader.class);
+        PendingTestcaseResult pending = new PendingTestcaseResult(
+                rubric.id(),
+                TestcaseResultStatus.PASSED,
+                "ok",
+                "input",
+                "expected",
+                "actual",
+                List.of(new PendingAssertionResult(
+                        rubric.assertions().get(0).id(),
+                        TestcaseResultStatus.PASSED,
+                        null,
+                        "matched")));
+        when(graderSpy.gradeSingle(any(TestcaseRubric.class), any(ChallengeGradingContext.class)))
+                .thenReturn(pending);
+
+        TestcaseDryRunService wired = new TestcaseDryRunService(
+                testcaseRubricService,
+                testcaseRubricAssembler,
+                realCompiler,
+                graderSpy,
+                new TestcaseResultMapper(displayFormatter, primaryAssertionSelector));
+
+        TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
+        assertEquals("PASS", result.getResult());
+        org.mockito.ArgumentCaptor<ChallengeGradingContext> contextCaptor =
+                org.mockito.ArgumentCaptor.forClass(ChallengeGradingContext.class);
+        verify(graderSpy).gradeSingle(any(TestcaseRubric.class), contextCaptor.capture());
+        assertTrue(contextCaptor.getValue().failedClassNames().contains("Broken"));
+        assertFalse(contextCaptor.getValue().failedClassNames().contains("Car"));
     }
 
     @Test
@@ -108,7 +137,7 @@ class TestcaseDryRunServiceTest {
         when(testcaseRubricService.loadForChallenge(labId, challengeId))
                 .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
         when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
-        when(javaCompilerService.compileSources(any(), any())).thenReturn(List.of());
+        when(javaCompilerService.compileSources(any(), any())).thenReturn(CompileOutcome.skipped());
 
         TestcaseGrader graderSpy = mock(TestcaseGrader.class);
         TestcaseDryRunService wired = newService(graderSpy);

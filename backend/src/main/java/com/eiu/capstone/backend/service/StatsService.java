@@ -45,7 +45,7 @@ public class StatsService {
 
         Integer currentGrade = row.latestScore() == null
                 ? null
-                : Math.round(row.latestScore().floatValue());
+                : row.latestScore().setScale(0, java.math.RoundingMode.DOWN).intValue();
 
         int submissionCount = row.submissionCount();
         Integer totalSubmissions = submissionCount == 0 ? null : submissionCount;

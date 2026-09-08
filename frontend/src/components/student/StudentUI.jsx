@@ -15,7 +15,7 @@ import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
-import { formatMmdRelationType } from '../../utils/formatters';
+import { formatMmdRelationType, firstCompileErrorLine } from '../../utils/formatters';
 import { formatLabDeadlineMeta } from '../../theme/statusClasses';
 import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
@@ -30,13 +30,26 @@ function formatIoDisplay(value) {
 }
 
 // Component con dùng chung
-function Tick({ ok, partial }) {
+function Tick({ ok, partial, error }) {
+  if (error) {
+    return <AlertCircle className="w-4 h-4 shrink-0 text-error" />;
+  }
   if (partial) {
     return <MinusCircle className="w-4 h-4 shrink-0 text-warning" />;
   }
   return ok
     ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
     : <XCircle className="w-4 h-4 text-error flex-shrink-0" />;
+}
+
+function testcaseStatusLabel(tc) {
+  if (tc.result === 'ERROR') return 'ERROR';
+  return tc.passed ? 'PASS' : 'FAIL';
+}
+
+function testcaseStatusClass(tc) {
+  if (tc.result === 'ERROR') return 'text-error';
+  return tc.passed ? 'text-success' : 'text-error';
 }
 
 function ClassStatusIcon({ status }) {
@@ -63,7 +76,7 @@ function classGradeCounts(cls) {
   }
   const passCount = allItems.filter((item) => item.ok).length;
   const total = allItems.length;
-  const pct = Math.round((passCount / total) * 100);
+  const pct = Math.floor((passCount / total) * 100);
   return { passCount, total, pct };
 }
 
@@ -126,7 +139,7 @@ function sessionChallengeScore(challengeScores, challengeId) {
 function bundleScore(bundle, key, fallback) {
   const raw = bundle?.scores?.[key];
   if (raw == null) return fallback;
-  const pct = Math.round(Number(raw));
+  const pct = Math.floor(Number(raw));
   return { ok: pct, total: 100, pct };
 }
 
@@ -246,7 +259,7 @@ export default function StudentUI({
   const relationScore = {
     ok: relations.filter((r) => r.ok).length,
     total: relations.length,
-    pct: relations.length ? Math.round((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
+    pct: relations.length ? Math.floor((relations.filter((r) => r.ok).length / relations.length) * 100) : 100,
   };
 
   const mmdScore = bundleScore(currentBundle, 'mmd', {
@@ -255,7 +268,7 @@ export default function StudentUI({
     pct: (() => {
       const total = mmdData.reduce((sum, cls) => sum + (cls.attributes?.length || 0), 0);
       const ok = mmdData.reduce((sum, cls) => sum + (cls.attributes?.filter((a) => a.ok).length || 0), 0);
-      return total ? Math.round((ok / total) * 100) : 0;
+      return total ? Math.floor((ok / total) * 100) : 0;
     })(),
   });
 
@@ -265,7 +278,7 @@ export default function StudentUI({
     pct: (() => {
       const total = classData.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0);
       const ok = classData.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0);
-      return total ? Math.round((ok / total) * 100) : 0;
+      return total ? Math.floor((ok / total) * 100) : 0;
     })(),
   });
 
@@ -386,7 +399,7 @@ export default function StudentUI({
                   const bundleTotal = bundle?.scores?.total;
                   const chScore = chHasScore
                     ? (bundleTotal != null
-                      ? Math.round(Number(bundleTotal))
+                      ? Math.floor(Number(bundleTotal))
                       : sessionChallengeScore(sessionChallengeScores, ch.id))
                     : null;
                   return (
@@ -567,6 +580,7 @@ export default function StudentUI({
                         const methods = cls.methods ?? [];
                         const isOpen = expandedClassName === cls.name;
                         const { passCount, total: gradeTotal, pct: clsPct } = classGradeCounts(cls);
+                        const compileErrorLine = firstCompileErrorLine(cls.error);
 
                         return (
                           <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
@@ -580,6 +594,9 @@ export default function StudentUI({
                                 <div className="min-w-0">
                                   <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
                                   <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
+                                  {compileErrorLine && (
+                                    <p className="mt-1 truncate font-mono text-[11px] text-error-text">{compileErrorLine}</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
@@ -678,12 +695,12 @@ export default function StudentUI({
                                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-secondary hover:bg-surface-secondary transition-colors text-left"
                                 >
                                   <div className="flex items-center gap-3">
-                                    <Tick ok={tc.passed} />
+                                    <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                     <span className="text-sm font-medium text-foreground-secondary">{tc.name}</span>
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                    <span className={`text-xs font-semibold ${tc.passed ? 'text-success' : 'text-error'}`}>
-                                      {tc.passed ? 'PASS' : 'FAIL'}
+                                    <span className={`text-xs font-semibold ${testcaseStatusClass(tc)}`}>
+                                      {testcaseStatusLabel(tc)}
                                     </span>
                                     <span className="text-xs text-foreground-disabled">Click to view details</span>
                                     {expandedTC === tc.id ? (
@@ -708,13 +725,15 @@ export default function StudentUI({
                                       <div className="p-4">
                                         <div className="flex items-center justify-between mb-2">
                                           <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider">Your Output</p>
-                                          <Tick ok={tc.passed} />
+                                          <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                         </div>
                                         <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap ${
-                                            tc.passed
-                                            ? 'bg-success-bg text-success-text'
-                                            : 'bg-error-bg text-error-text'
-                                        }`}>{formatIoDisplay(tc.actualOutput)}</pre>
+                                            tc.result === 'ERROR' || !tc.passed
+                                            ? 'bg-error-bg text-error-text'
+                                            : 'bg-success-bg text-success-text'
+                                        }`}>{tc.result === 'ERROR'
+                                          ? (tc.feedback || formatIoDisplay(tc.actualOutput))
+                                          : formatIoDisplay(tc.actualOutput)}</pre>
                                       </div>
                                     </div>
                                     {tc.assertions?.length > 1 && (
@@ -769,12 +788,12 @@ export default function StudentUI({
                                     : 'bg-error-bg'
                                 }`}
                               >
-                                <Tick ok={tc.passed} />
+                                <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                 <span className="text-sm text-foreground-secondary font-medium">{tc.name}</span>
                                 <div className="ml-auto flex items-center gap-2">
                                   <Lock className="w-3.5 h-3.5 text-foreground-disabled" />
                                   <span className={`text-xs font-bold ${tc.passed ? 'text-success-text' : 'text-error-text'}`}>
-                                    {tc.passed ? 'PASS' : 'FAIL'}
+                                    {testcaseStatusLabel(tc)}
                                   </span>
                                 </div>
                               </div>

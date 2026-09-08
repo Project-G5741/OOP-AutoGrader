@@ -1,5 +1,6 @@
 package integration.com.eiu.capstone.backend.pipeline;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,8 +90,10 @@ class SubmissionPipelineIntegrationTest {
                     List.of(classpathFile("integration/compile-fail/" + UPLOAD_BROKEN, UPLOAD_BROKEN)));
 
             SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
-            assertNotNull(folder.compileError);
-            assertTrue(folder.compileError.contains("Compilation failed"));
+            assertNull(folder.compileError);
+            assertFalse(folder.failedClassNames.isEmpty());
+            assertTrue(folder.compileErrorsByClassName.values().stream()
+                    .anyMatch(message -> message.contains("line")));
 
             GradingPipeline.ChallengePipelineResult graded = pipeline()
                     .gradeChallenge(snapshot(false), folder, List.of());
@@ -119,6 +122,29 @@ class SubmissionPipelineIntegrationTest {
         }
     }
 
+    @Test
+    void mixedCompileGradesIndependentClass() throws IOException {
+        try (UploadHarness harness = newHarness(tempDir)) {
+            SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
+                    "irn1",
+                    "req-mixed-intra",
+                    List.of(
+                            javaFile("2331200082_Nguyen_Van_A_lab_1/challenge_1/Good.java", "public class Good {}"),
+                            javaFile("2331200082_Nguyen_Van_A_lab_1/challenge_1/Bad.java", "public class Bad {")));
+
+            SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
+            assertNull(folder.compileError);
+            assertTrue(folder.failedClassNames.contains("Bad"));
+            assertFalse(folder.failedClassNames.contains("Good"));
+            assertTrue(Files.exists(upload.submissionFolder.resolve("challenge_1/classes/Good.class")));
+
+            GradingPipeline.ChallengePipelineResult graded = pipeline()
+                    .gradeChallenge(mixedSnapshot(), folder, List.of());
+            assertNotNull(graded);
+            assertTrue(graded.classResult().pillarPercentage().compareTo(java.math.BigDecimal.ZERO) > 0);
+        }
+    }
+
     private static LabRubricSnapshot snapshot(boolean hasMmd) {
         UUID classId = UUID.randomUUID();
         ChallengeRubric challenge = new ChallengeRubric(
@@ -131,6 +157,26 @@ class SubmissionPipelineIntegrationTest {
                 List.of(),
                 hasMmd);
         return new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge));
+    }
+
+    private static LabRubricSnapshot mixedSnapshot() {
+        ChallengeRubric challenge = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Mixed",
+                List.of(
+                        new ClassRubric(
+                                UUID.randomUUID(), "Good", "public", "CLASS", false, List.of(), List.of(), List.of()),
+                        new ClassRubric(
+                                UUID.randomUUID(), "Bad", "public", "CLASS", false, List.of(), List.of(), List.of())),
+                List.of(),
+                List.of(),
+                false);
+        return new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge));
+    }
+
+    private static MockMultipartFile javaFile(String path, String source) {
+        return new MockMultipartFile("files", path, "text/plain", source.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private GradingPipeline pipeline() {

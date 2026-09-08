@@ -19,7 +19,7 @@ function roundedScore(value) {
   if (value === null || value === undefined) return null;
   const num = Number(value);
   if (Number.isNaN(num)) return null;
-  return Math.round(num);
+  return Math.floor(num);
 }
 
 function deriveSubmissionStatus(score) {

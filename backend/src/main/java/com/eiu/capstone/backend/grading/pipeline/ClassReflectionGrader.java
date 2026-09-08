@@ -34,7 +34,7 @@ public class ClassReflectionGrader {
         List<PendingConstructorResult> constructors = new ArrayList<>();
 
         for (ClassRubric expectedClass : context.challengeRubric().classes()) {
-            ParsedClass parsed = context.resolve(expectedClass);
+            ParsedClass parsed = classCompileFailed(context, expectedClass) ? null : context.resolve(expectedClass);
             int classWeight = MemberWeightCalculator.configuredWeight(expectedClass.weight());
 
             if (parsed == null) {
@@ -61,6 +61,8 @@ public class ClassReflectionGrader {
             if (expectedClass.isNested()) {
                 classChecks.add(expectedClass.isStatic() == parsed.isStatic);
             }
+            classChecks.add(HeritageShellMatcher.heritageMatchesOrSkipped(
+                    expectedClass, parsed, context.challengeRubric()));
             double classAccuracy = classChecks.stream().allMatch(Boolean::booleanValue) ? 1.0 : 0.0;
             weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
             boolean shellPassed = classAccuracy >= 1.0;
@@ -174,6 +176,11 @@ public class ClassReflectionGrader {
             }
         }
         return null;
+    }
+
+    private static boolean classCompileFailed(ChallengeGradingContext context, ClassRubric expectedClass) {
+        return context.failedClassNames().contains(expectedClass.name())
+                || context.failedClassNames().contains(expectedClass.qualifiedName());
     }
 
     private boolean sameTypes(List<String> a, List<String> b) {

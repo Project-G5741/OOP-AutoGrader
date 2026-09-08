@@ -46,6 +46,7 @@ import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
+import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.service.ParsedSubmissionSnapshotStore;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
@@ -246,7 +247,7 @@ public class GradingService {
             if (cc.challengeId != null && cc.percentage != null) {
                 result.gradedChallenges.add(new GradedChallengeSummary(
                         cc.challengeId,
-                        cc.percentage.setScale(0, RoundingMode.HALF_UP).intValue()));
+                        cc.percentage.setScale(0, RoundingMode.DOWN).intValue()));
             }
         }
 
@@ -351,15 +352,16 @@ public class GradingService {
         return meta;
     }
 
-    private Map<UUID, String> compileErrorsByChallengeId(
+    private Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId(
             LabRubricSnapshot rubric,
             List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
-        Map<UUID, String> errors = new LinkedHashMap<>();
+        Map<UUID, ChallengeCompileErrors> errors = new LinkedHashMap<>();
         if (challengeFolderResults == null) {
             return errors;
         }
         for (SubmissionStorageService.ChallengeResult folder : challengeFolderResults) {
-            if (folder.compileError == null || folder.compileError.isBlank()) {
+            ChallengeCompileErrors challengeErrors = ChallengeCompileErrors.fromChallengeResult(folder);
+            if (challengeErrors.isEmpty()) {
                 continue;
             }
             Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(folder.challengeName);
@@ -368,7 +370,7 @@ public class GradingService {
             }
             int challengeNumber = Integer.parseInt(matcher.group(1));
             rubric.challenge(challengeNumber).ifPresent(challengeRubric ->
-                    errors.put(challengeRubric.challengeId(), folder.compileError));
+                    errors.put(challengeRubric.challengeId(), challengeErrors));
         }
         return errors;
     }

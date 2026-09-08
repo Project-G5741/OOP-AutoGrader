@@ -126,8 +126,8 @@ class SubmissionStorageServiceTest {
             SubmissionStorageService.ChallengeResult challenge1 = findChallenge(result, "challenge_1");
             SubmissionStorageService.ChallengeResult challenge2 = findChallenge(result, "challenge_2");
 
-            assertNotNull(challenge1.compileError);
-            assertTrue(challenge1.compileError.contains("Compilation failed"));
+            assertNull(challenge1.compileError);
+            assertTrue(challenge1.failedClassNames.contains("Broken"));
             assertEquals(0, challenge1.classFileCount);
             assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Broken.class")));
             assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/_sources_tmp")));
@@ -137,6 +137,64 @@ class SubmissionStorageServiceTest {
 
             Path goodClass = result.submissionFolder.resolve("challenge_2/classes/Good.class");
             assertTrue(Files.exists(goodClass));
+        } finally {
+            compileExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void mixedCompileInOneChallengeKeepsIndependentClass() throws IOException {
+        SubmissionStorageService storage = newStorage(tempDir);
+        ExecutorService compileExecutor = (ExecutorService) ReflectionTestUtils.getField(storage, "compileExecutor");
+        try {
+            SubmissionStorageService.ProcessResult result = storage.processUpload(
+                    "irn1",
+                    "req-intra",
+                    List.of(
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Good.java",
+                                    "public class Good {}"),
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Bad.java",
+                                    "public class Bad {")));
+
+            SubmissionStorageService.ChallengeResult challenge1 = findChallenge(result, "challenge_1");
+            assertNull(challenge1.compileError);
+            assertTrue(challenge1.failedClassNames.contains("Bad"));
+            assertFalse(challenge1.failedClassNames.contains("Good"));
+            assertEquals(1, challenge1.classFileCount);
+            assertTrue(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Good.class")));
+            assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Bad.class")));
+            assertTrue(challenge1.compileErrorsByClassName.get("Bad").contains("line"));
+        } finally {
+            compileExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void dependentClassGetsPointerAndDoesNotEmitClassFile() throws IOException {
+        SubmissionStorageService storage = newStorage(tempDir);
+        ExecutorService compileExecutor = (ExecutorService) ReflectionTestUtils.getField(storage, "compileExecutor");
+        try {
+            SubmissionStorageService.ProcessResult result = storage.processUpload(
+                    "irn1",
+                    "req-dep",
+                    List.of(
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Student.java",
+                                    "public class Student {"),
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/BankAccount.java",
+                                    "public class BankAccount { Student owner; }")));
+
+            SubmissionStorageService.ChallengeResult challenge1 = findChallenge(result, "challenge_1");
+            assertNull(challenge1.compileError);
+            assertTrue(challenge1.failedClassNames.contains("Student"));
+            assertTrue(challenge1.failedClassNames.contains("BankAccount"));
+            assertEquals("Compilation Error on Student",
+                    challenge1.compileErrorsByClassName.get("BankAccount"));
+            assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Student.class")));
+            assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/BankAccount.class")));
         } finally {
             compileExecutor.shutdownNow();
         }

@@ -77,6 +77,8 @@ public class ReflectionClassParser {
         parsed.declaringType = declaringTypeOf(clazz);
         parsed.isAbstract = Modifier.isAbstract(modifiers) && !clazz.isInterface();
         parsed.isStatic = Modifier.isStatic(modifiers);
+        parsed.superclassSimpleName = declaredSuperclassSimpleName(clazz);
+        parsed.interfaceSimpleNames = declaredInterfaceSimpleNames(clazz);
 
         parsed.fields = new ArrayList<>();
         for (Field f : clazz.getDeclaredFields()) {
@@ -148,6 +150,26 @@ public class ReflectionClassParser {
             return "record";
         }
         return "class";
+    }
+
+    private String declaredSuperclassSimpleName(Class<?> clazz) {
+        Class<?> superclass = clazz.getSuperclass();
+        if (superclass == null || superclass == Object.class) {
+            return null;
+        }
+        return superclass.getSimpleName();
+    }
+
+    private List<String> declaredInterfaceSimpleNames(Class<?> clazz) {
+        Class<?>[] interfaces = clazz.getInterfaces();
+        if (interfaces.length == 0) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>(interfaces.length);
+        for (Class<?> iface : interfaces) {
+            names.add(iface.getSimpleName());
+        }
+        return names;
     }
 
     private String simpleGenericName(java.lang.reflect.Type type) {

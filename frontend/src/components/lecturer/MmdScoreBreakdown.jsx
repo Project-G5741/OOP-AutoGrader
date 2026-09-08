@@ -59,12 +59,12 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
 
   const relations = classes.flatMap((cls) => cls.relations ?? []);
   const relationPass = relations.filter((r) => r.ok).length;
-  const relationPct = relations.length ? Math.round((relationPass / relations.length) * 100) : 100;
+  const relationPct = relations.length ? Math.floor((relationPass / relations.length) * 100) : 100;
 
   const allAttributes = classes.flatMap((cls) => cls.attributes);
   const attrPass = allAttributes.filter((a) => a.ok).length;
   const attrTotal = allAttributes.length;
-  const attrPct = attrTotal ? Math.round((attrPass / attrTotal) * 100) : 0;
+  const attrPct = attrTotal ? Math.floor((attrPass / attrTotal) * 100) : 0;
 
   if (mmdError) {
     return (
@@ -89,7 +89,7 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
           {classes.map((cls) => {
             const items = cls.attributes;
             const clsPass = items.filter((item) => item.ok).length;
-            const clsPct = items.length ? Math.round((clsPass / items.length) * 100) : 100;
+            const clsPct = items.length ? Math.floor((clsPass / items.length) * 100) : 100;
             const isOpen = expandedClassName === cls.name;
             return (
               <div key={cls.name} className="overflow-hidden rounded-xl bg-surface shadow-sm">

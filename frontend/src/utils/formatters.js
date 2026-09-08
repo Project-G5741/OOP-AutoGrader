@@ -3,7 +3,7 @@ export function formatNumber(value, { suffix = '', round = true } = {}) {
     return '--';
   }
   const numeric = Number(value);
-  const display = round ? Math.round(numeric) : numeric;
+  const display = round ? Math.floor(numeric) : numeric;
   return suffix ? `${display}${suffix}` : `${display}`;
 }
 
@@ -51,4 +51,13 @@ export function formatMmdRelationType(type) {
     return 'implementation';
   }
   return String(type ?? '').trim();
+}
+
+/** First non-empty line of a class compile diagnostic for Class-card display. */
+export function firstCompileErrorLine(error) {
+  if (error == null) {
+    return null;
+  }
+  const line = String(error).split(/\r?\n/).find((part) => part.trim().length > 0);
+  return line ?? null;
 }
