@@ -158,4 +158,64 @@ class TestcaseGraderTest {
         assertTrue(result.feedback().contains("Compilation Error on Student")
                 || result.feedback().contains("ERROR: line 1"));
     }
+
+    @Test
+    void mixedCompile_independentTargetStillInvokes() {
+        UUID invocationId = UUID.randomUUID();
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "new good",
+                TestcaseType.SINGLE_INVOCATION,
+                null,
+                1,
+                0,
+                false,
+                new InvocationRubric(
+                        invocationId,
+                        InvocationKind.CONSTRUCTOR,
+                        UUID.randomUUID(),
+                        null,
+                        "Good",
+                        null,
+                        List.of(),
+                        "[]",
+                        null,
+                        null,
+                        List.of(),
+                        null),
+                List.of(),
+                List.of());
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Challenge 1",
+                List.of(),
+                List.of(),
+                List.of(testcase));
+        ChallengeGradingContext context = ChallengeGradingContext.of(
+                rubric,
+                null,
+                null,
+                List.of(),
+                Set.of("Bad"),
+                Map.of("Bad", "ERROR: line 1: ';' expected"));
+
+        com.eiu.capstone.backend.grading.testcase.InvocationRunner runner =
+                org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.InvocationRunner.class);
+        org.mockito.Mockito.when(runner.invokeSingle(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(com.eiu.capstone.backend.grading.testcase.InvocationOutcome.normal(null, null, ""));
+        com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter formatter =
+                org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter.class);
+        org.mockito.Mockito.when(formatter.formatInput(org.mockito.ArgumentMatchers.any())).thenReturn("in");
+        com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector selector =
+                org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector.class);
+        org.mockito.Mockito.when(selector.select(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+
+        TestcaseGrader.PendingTestcaseResult result =
+                new TestcaseGrader(runner, null, selector, formatter).gradeSingle(testcase, context);
+
+        org.mockito.Mockito.verify(runner).invokeSingle(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        assertTrue(result.feedback() == null || !result.feedback().startsWith("Compilation error:"));
+    }
 }

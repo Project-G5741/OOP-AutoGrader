@@ -47,7 +47,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 ### Java compilation
 
-- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources with no ERROR diagnostic into the same `classes/`
+- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources that have no ERROR diagnostic and are not attributed dependents into the same `classes/`
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
 - Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
@@ -86,7 +86,7 @@ Per upload request (unique `requestId` prevents collisions):
 ## Work Guidance
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
-- Compile errors should surface via `SubmissionProcessingException` — `GlobalExceptionHandler` returns HTTP 422 with the message
+- Invalid upload structure / I/O setup failures may still use `SubmissionProcessingException` (`GlobalExceptionHandler` HTTP 422). Mixed javac keeps survivors and records `ChallengeCompileErrors`; lecturer dry-run mixed compile returns preview ERROR DTOs — do not throw HTTP 422 for javac diagnostics
 - MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0` so grading records 0% for that challenge
 - `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle

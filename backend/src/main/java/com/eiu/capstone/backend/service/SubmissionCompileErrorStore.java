@@ -53,7 +53,8 @@ public class SubmissionCompileErrorStore {
             }
             objectMapper.writeValue(file.toFile(), payload);
         } catch (IOException e) {
-            System.out.printf("compile_error_store write failed submission=%s%n", submissionId);
+            System.out.printf("compile_error_store write failed submission=%s: %s%n",
+                    submissionId, e.toString());
         }
     }
 
@@ -79,10 +80,14 @@ public class SubmissionCompileErrorStore {
             var fields = root.fields();
             while (fields.hasNext()) {
                 var entry = fields.next();
-                parsed.put(UUID.fromString(entry.getKey()), parseValue(entry.getValue()));
+                try {
+                    parsed.put(UUID.fromString(entry.getKey()), parseValue(entry.getValue()));
+                } catch (IllegalArgumentException skipped) {
+                    // Skip one bad challenge key; keep the rest of the file.
+                }
             }
             return parsed;
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IOException e) {
             return Map.of();
         }
     }

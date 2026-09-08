@@ -3,6 +3,7 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -118,7 +119,11 @@ class TestcaseDryRunServiceTest {
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
         assertEquals("PASS", result.getResult());
-        verify(graderSpy).gradeSingle(any(TestcaseRubric.class), any(ChallengeGradingContext.class));
+        org.mockito.ArgumentCaptor<ChallengeGradingContext> contextCaptor =
+                org.mockito.ArgumentCaptor.forClass(ChallengeGradingContext.class);
+        verify(graderSpy).gradeSingle(any(TestcaseRubric.class), contextCaptor.capture());
+        assertTrue(contextCaptor.getValue().failedClassNames().contains("Broken"));
+        assertFalse(contextCaptor.getValue().failedClassNames().contains("Car"));
     }
 
     @Test

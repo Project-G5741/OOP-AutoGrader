@@ -206,7 +206,7 @@ Per challenge folder:
 | `options = ["-d", outputDir, "-encoding", "UTF-8"]` | Output compiled classes to challenge's `classes/` |
 | `compiler.getTask(..., sources)` | Compiles in-memory `JavaFileObject` list |
 | `task.call()` | Returns `false` on compile failure |
-| On failure | Returns `CompileOutcome(succeeded=false)` with first-pass diagnostics; remainder-compiles sources that had no ERROR diagnostic when the first task wrote no `.class` files |
+| On failure | Returns `CompileOutcome(succeeded=false)` with first-pass diagnostics; remainder-compiles sources that had no ERROR diagnostic and are not attributed dependents when the first task wrote no `.class` files |
 
 **Important:** Grading never reads `.java` source files. All Java grading uses compiled `.class` output from this step.
 

@@ -106,6 +106,32 @@ class JavaCompilerServiceTest {
     }
 
     @Test
+    void compileSources_independentSurvivesBrokenTypeAndItsDependent() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("cascade");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Good.java", "public class Good {}".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "Student.java", "public class Student {".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "BankAccount.java",
+                        "public class BankAccount { Student owner; }".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("Good.class")));
+        assertFalse(Files.exists(outputDir.resolve("Student.class")));
+        assertFalse(Files.exists(outputDir.resolve("BankAccount.class")));
+        assertEquals(1, outcome.classFileCount());
+    }
+
+    @Test
     void compileSources_onlyBrokenSources_doesNotThrow() throws Exception {
         JavaCompilerService service = new JavaCompilerService();
         service.initCompiler();

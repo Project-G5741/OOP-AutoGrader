@@ -48,4 +48,19 @@ class SubmissionCompileErrorStoreTest {
         assertTrue(loaded.byClassName().isEmpty());
         assertEquals("Compilation failed:\nERROR: line 1", loaded.messageForClass("Anything"));
     }
+
+    @Test
+    void skipsBadChallengeKeyAndKeepsSibling() throws Exception {
+        SubmissionCompileErrorStore store = new SubmissionCompileErrorStore(tempDir.toString());
+        UUID submissionId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        Path file = tempDir.resolve("_compile_errors").resolve(submissionId + ".json");
+        java.nio.file.Files.createDirectories(file.getParent());
+        java.nio.file.Files.writeString(file,
+                "{\"not-a-uuid\":\"ignored\",\"" + challengeId
+                        + "\":{\"catastrophic\":null,\"byClassName\":{\"Student\":\"err\"}}}");
+
+        ChallengeCompileErrors loaded = store.get(submissionId, challengeId);
+        assertEquals("err", loaded.byClassName().get("Student"));
+    }
 }

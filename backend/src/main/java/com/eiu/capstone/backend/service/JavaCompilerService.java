@@ -24,7 +24,10 @@ import javax.tools.ToolProvider;
 
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
+import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
 
 @Service
 public class JavaCompilerService {
@@ -62,7 +65,7 @@ public class JavaCompilerService {
 
         resetFileManager();
         if (!hasAnyClassFile(outputDir)) {
-            List<JavaFileObject> remainder = sourcesWithoutErrorDiagnostics(sources, firstPass);
+            List<JavaFileObject> remainder = remainderSources(sources, firstPass);
             if (!remainder.isEmpty()) {
                 DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
                 try {
@@ -94,6 +97,57 @@ public class JavaCompilerService {
         JavaCompiler.CompilationTask task = compiler.getTask(
                 errorOutput, fileManager, diagnostics, options, null, sources);
         return Boolean.TRUE.equals(task.call());
+    }
+
+    private static List<JavaFileObject> remainderSources(
+            List<JavaFileObject> sources,
+            List<Diagnostic<? extends JavaFileObject>> firstPass) {
+        List<JavaFileObject> withoutErrors = sourcesWithoutErrorDiagnostics(sources, firstPass);
+        CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                new CompileOutcome(false, firstPass, 0), toSourceEntries(sources));
+        Set<String> failed = attributed.failedClassNames();
+        if (failed.isEmpty()) {
+            return withoutErrors;
+        }
+        List<JavaFileObject> remainder = new ArrayList<>();
+        for (JavaFileObject source : withoutErrors) {
+            if (!declaresFailedType(source, failed)) {
+                remainder.add(source);
+            }
+        }
+        return remainder;
+    }
+
+    private static List<SourceEntry> toSourceEntries(List<JavaFileObject> sources) {
+        List<SourceEntry> entries = new ArrayList<>();
+        for (JavaFileObject source : sources) {
+            String name = source.getName();
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            String path = name.startsWith("/") ? name.substring(1) : name;
+            try {
+                entries.add(new SourceEntry(path, source.getCharContent(true).toString()));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return entries;
+    }
+
+    private static boolean declaresFailedType(JavaFileObject source, Set<String> failed) {
+        try {
+            Set<String> declared = StudentSourceNormalizer.extractDeclaredSimpleNames(
+                    source.getCharContent(true).toString());
+            for (String name : declared) {
+                if (failed.contains(name)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static List<JavaFileObject> sourcesWithoutErrorDiagnostics(
@@ -129,7 +183,7 @@ public class JavaCompilerService {
             return stream.anyMatch(path -> Files.isRegularFile(path)
                     && path.getFileName().toString().endsWith(".class"));
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            return false;
         }
     }
 
@@ -143,7 +197,7 @@ public class JavaCompilerService {
                     .filter(path -> path.getFileName().toString().endsWith(".class"))
                     .count();
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            return 0;
         }
     }
 
