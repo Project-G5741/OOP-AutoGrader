@@ -10,7 +10,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, persistence, `lab_result` assembly |
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
-| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%); when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
@@ -99,7 +100,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
 - Upload `lab_result` assemble must not call `loadChallengeStructures`; GET tabs keep the JPA load after the detail persist gate
 - Do not grade source `.java` files directly; compilation must succeed first
-- Relations are MMD-only; Java reflection does not grade relations
+- Inheritance and realization (`class_relation`) also feed the Java class shell via declared superclass/interfaces; other relation kinds stay MMD-only. Java grades a set Extends/Implements pair even when `has_mmd=false`
 - **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; method return types accept UML colon (`method(): Type`) and Mermaid space (`method() Type`) as equivalent; glued returns (`method()Type`) are a parse error; omitted return after `()` is `void`; classifiers may sit between `)` and the return type (`method()*: Type`, `method()$ Type`); `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
 - **MMD parser pipeline:** `MmdParser` delegates to `grading/mmd/` tokenizer + AST + mapper; substantive diagrams require a `classDiagram` header line; `namespace { ... }` blocks flatten contained classes under simple names; `ParsedMmdDiagram.classByName` includes qualified aliases (`Company.Employee`)
 - **MMD cosmetic directives:** `note`, `note for`, `direction`, `style`, `classDef`, and `cssClass` lines parse as ignored directives (no grading impact)

@@ -7,6 +7,9 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 ### Submission upload compile
 The pre-grading slice that receives a multipart folder, validates path structure, compiles each challenge's `.java` files in parallel, and writes `.class` output under `challenge_N/classes/`. Sources are compiled from memory; MMD files stay in the multipart map for grading without disk staging on the hot path.
 
+### Intra-challenge compile isolation
+Compile-failure rule inside one challenge: a class that does not compile, and any class that references it, fail as a whole; classes that still compile keep Class-tab scores, their operational testcases, and their share of the challenge score. Sibling challenges already isolate independently; this rule is the same-challenge counterpart. Dependent Class-tab errors point at the upstream class rather than repeating the root syntax error.
+
 ### Package normalization
 Pre-compile transformation of student Java sources that removes `package ...;` declarations and same-challenge cross-imports so all classes compile into the default package. Grading rubrics and reflection use simple class names against flat `classes/` output; when normalization runs, students see a non-blocking warning that package declarations were ignored.
 
@@ -15,6 +18,9 @@ A rubric class entry's grading identity: the simple `name` when no outer class i
 
 ### Outer-class link
 Optional rubric relationship from a nested class entry to its enclosing class within the same challenge. Flat rubric rows (not a nested editor tree); enables qualified-name matching and disambiguates simple-name collisions between nested classes under different outers.
+
+### Declared heritage pair
+A class's optional Extends or Implements target, authored on the class editor as the same inheritance or implementation relationship the MMD diagram uses. Java class-shell grading compares the compiled type's declared superclass (Extends) or declared interfaces (Implements) to that target. Independent of the outer-class link used for nested types.
 
 ### Static nested flag
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.

@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.*;
 import com.eiu.capstone.backend.grading.SubmissionDetailPersistGate;
+import com.eiu.capstone.backend.grading.pipeline.HeritageShellMatcher;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
@@ -554,7 +555,7 @@ public class ClassStructureService {
                     ? classSnapshot.shells.get(ce.getId().toString())
                     : null;
             String shellStatus = shellEntry != null
-                    ? resolveShellStatus(ce, shellEntry, masterData)
+                    ? resolveShellStatus(ce, shellEntry, masterData, structure, challengeId)
                     : null;
             boolean membersGated = compileError != null || "error".equals(shellStatus);
 
@@ -677,7 +678,7 @@ public class ClassStructureService {
                     ? classSnapshot.shells.get(classRubric.id().toString())
                     : null;
             String shellStatus = shellEntry != null
-                    ? resolveShellStatus(classRubric, shellEntry)
+                    ? resolveShellStatus(classRubric, shellEntry, challengeRubric)
                     : null;
             boolean membersGated = compileError != null || "error".equals(shellStatus);
 
@@ -924,21 +925,29 @@ public class ClassStructureService {
         return label;
     }
 
-    private String resolveShellStatus(ClassEntity ce, ClassShellEntry entry, Map<Integer, String> masterData) {
+    private String resolveShellStatus(ClassEntity ce,
+                                      ClassShellEntry entry,
+                                      Map<Integer, String> masterData,
+                                      LabChallengeStructureBundle structure,
+                                      UUID challengeId) {
         if (entry == null) {
             return "error";
         }
-        return buildShellChecks(ce, entry, masterData).stream().allMatch(Boolean::booleanValue) ? "success" : "error";
+        return buildShellChecks(ce, entry, masterData, structure, challengeId).stream().allMatch(Boolean::booleanValue)
+                ? "success"
+                : "error";
     }
 
-    private String resolveShellStatus(ClassRubric classRubric, ClassShellEntry entry) {
+    private String resolveShellStatus(ClassRubric classRubric, ClassShellEntry entry, ChallengeRubric challengeRubric) {
         if (entry == null) {
             return "error";
         }
-        return buildShellChecks(classRubric, entry).stream().allMatch(Boolean::booleanValue) ? "success" : "error";
+        return buildShellChecks(classRubric, entry, challengeRubric).stream().allMatch(Boolean::booleanValue)
+                ? "success"
+                : "error";
     }
 
-    private List<Boolean> buildShellChecks(ClassRubric classRubric, ClassShellEntry entry) {
+    private List<Boolean> buildShellChecks(ClassRubric classRubric, ClassShellEntry entry, ChallengeRubric challengeRubric) {
         List<Boolean> checks = new ArrayList<>();
         checks.add(PartialCreditEvaluator.matches(classRubric.scope(), entry.scope).get(0));
         checks.add(PartialCreditEvaluator.matches(
@@ -947,10 +956,20 @@ public class ClassStructureService {
         if (classRubric.isNested()) {
             checks.add(classRubric.isStatic() == entry.isStatic);
         }
+        addHeritageShellCheck(
+                checks,
+                classRubric.id(),
+                entry,
+                challengeRubric.relations(),
+                challengeRubric.classes());
         return checks;
     }
 
-    private List<Boolean> buildShellChecks(ClassEntity ce, ClassShellEntry entry, Map<Integer, String> masterData) {
+    private List<Boolean> buildShellChecks(ClassEntity ce,
+                                           ClassShellEntry entry,
+                                           Map<Integer, String> masterData,
+                                           LabChallengeStructureBundle structure,
+                                           UUID challengeId) {
         List<Boolean> checks = new ArrayList<>();
         checks.add(PartialCreditEvaluator.matches(
                 resolveMasterDataLabel(ce.getScope(), masterData), entry.scope).get(0));
@@ -960,7 +979,72 @@ public class ClassStructureService {
         if (ce.getOuterClass() != null) {
             checks.add(ce.isStatic() == entry.isStatic);
         }
+        addHeritageShellCheck(
+                checks,
+                ce.getId(),
+                entry,
+                toRelationRubrics(structure.relationsBySourceClassId().getOrDefault(ce.getId(), List.of())),
+                toClassRubrics(structure.classesForChallenge(challengeId)));
         return checks;
+    }
+
+    private void addHeritageShellCheck(List<Boolean> checks,
+                                       UUID sourceClassId,
+                                       ClassShellEntry entry,
+                                       List<RelationRubric> relations,
+                                       List<ClassRubric> classes) {
+        if (entry.superclassSimpleName == null && entry.interfaceSimpleNames == null) {
+            return;
+        }
+        List<String> interfaces = entry.interfaceSimpleNames != null ? entry.interfaceSimpleNames : List.of();
+        checks.add(HeritageShellMatcher.heritageMatchesOrSkipped(
+                sourceClassId,
+                entry.superclassSimpleName,
+                interfaces,
+                relations,
+                classes));
+    }
+
+    private List<RelationRubric> toRelationRubrics(List<ClassRelation> relations) {
+        if (relations == null || relations.isEmpty()) {
+            return List.of();
+        }
+        List<RelationRubric> rubrics = new ArrayList<>(relations.size());
+        for (ClassRelation relation : relations) {
+            ClassEntity source = relation.getClassEntity();
+            ClassEntity target = relation.getTargetClassEntity();
+            rubrics.add(new RelationRubric(
+                    relation.getId(),
+                    source != null ? source.getId() : null,
+                    source != null ? source.getName() : null,
+                    target != null ? target.getId() : null,
+                    target != null ? target.getName() : null,
+                    relation.getRelationType() != null ? relation.getRelationType().getName() : ""));
+        }
+        return rubrics;
+    }
+
+    private List<ClassRubric> toClassRubrics(List<ClassEntity> classes) {
+        if (classes == null || classes.isEmpty()) {
+            return List.of();
+        }
+        List<ClassRubric> rubrics = new ArrayList<>(classes.size());
+        for (ClassEntity classEntity : classes) {
+            String outerName = classEntity.getOuterClass() != null ? classEntity.getOuterClass().getName() : null;
+            rubrics.add(new ClassRubric(
+                    classEntity.getId(),
+                    classEntity.getName(),
+                    outerName,
+                    "public",
+                    "CLASS",
+                    false,
+                    false,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    1));
+        }
+        return rubrics;
     }
 
     private String resolveClassCardStatus(String shellStatus,

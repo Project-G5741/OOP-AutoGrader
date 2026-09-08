@@ -16,6 +16,7 @@ import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
@@ -187,6 +188,157 @@ class ClassStructureServiceShellDisplayTest {
     assertEquals("error", flowerType.status());
   }
 
+  @Test
+  void buildClassDataFromRubric_heritageMismatch_errorsShellAndGatesMembersWithoutHeritageCopy() {
+    UUID challengeId = UUID.randomUUID();
+    UUID subscriberId = UUID.randomUUID();
+    UUID observerId = UUID.randomUUID();
+    UUID methodId = UUID.randomUUID();
+
+    ClassRubric subscriber = new ClassRubric(
+        subscriberId,
+        "EmailSubscriber",
+        "PUBLIC",
+        "CLASS",
+        false,
+        List.of(),
+        List.of(new MethodRubric(methodId, "update", "PUBLIC", "void", false, false, false, List.of("String"))),
+        List.of());
+    ClassRubric observer = new ClassRubric(
+        observerId, "Observer", "PUBLIC", "INTERFACE", false, List.of(), List.of(), List.of());
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId,
+        1,
+        "Observer",
+        List.of(subscriber, observer),
+        List.of(new RelationRubric(
+            UUID.randomUUID(), subscriberId, "EmailSubscriber", observerId, "Observer", "realization")));
+
+    ClassShellEntry shell = matchingPublicClassShell();
+    shell.interfaceSimpleNames = List.of();
+
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.shells.put(subscriberId.toString(), shell);
+    ClassMethodEntry methodEntry = new ClassMethodEntry();
+    methodEntry.name = "update";
+    methodEntry.scope = "public";
+    methodEntry.returnType = "void";
+    classSnapshot.methods.put(methodId.toString(), methodEntry);
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+        null,
+        snapshot);
+
+    ClassDetailDTO card = result.stream()
+        .filter(item -> "EmailSubscriber".equals(item.name()))
+        .findFirst()
+        .orElseThrow();
+    assertEquals("error", card.status());
+    assertEquals(null, card.error());
+    assertEquals(false, card.methods().get(0).ok());
+  }
+
+  @Test
+  void buildClassDataFromRubric_heritageMatch_keepsShellSuccess() {
+    UUID challengeId = UUID.randomUUID();
+    UUID subscriberId = UUID.randomUUID();
+    UUID observerId = UUID.randomUUID();
+    UUID methodId = UUID.randomUUID();
+
+    ClassRubric subscriber = new ClassRubric(
+        subscriberId,
+        "EmailSubscriber",
+        "PUBLIC",
+        "CLASS",
+        false,
+        List.of(),
+        List.of(new MethodRubric(methodId, "update", "PUBLIC", "void", false, false, false, List.of("String"))),
+        List.of());
+    ClassRubric observer = new ClassRubric(
+        observerId, "Observer", "PUBLIC", "INTERFACE", false, List.of(), List.of(), List.of());
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId,
+        1,
+        "Observer",
+        List.of(subscriber, observer),
+        List.of(new RelationRubric(
+            UUID.randomUUID(), subscriberId, "EmailSubscriber", observerId, "Observer", "realization")));
+
+    ClassShellEntry shell = matchingPublicClassShell();
+    shell.interfaceSimpleNames = List.of("Observer");
+
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.shells.put(subscriberId.toString(), shell);
+    ClassMethodEntry methodEntry = new ClassMethodEntry();
+    methodEntry.name = "update";
+    methodEntry.scope = "public";
+    methodEntry.returnType = "void";
+    classSnapshot.methods.put(methodId.toString(), methodEntry);
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(Set.of(), Set.of(methodId), Set.of(), Set.of()),
+        null,
+        snapshot);
+
+    ClassDetailDTO card = result.stream()
+        .filter(item -> "EmailSubscriber".equals(item.name()))
+        .findFirst()
+        .orElseThrow();
+    assertEquals("success", card.status());
+    assertEquals(true, card.methods().get(0).ok());
+  }
+
+  @Test
+  void buildClassDataFromRubric_noHeritagePair_doesNotFailShell() {
+    UUID challengeId = UUID.randomUUID();
+    UUID subscriberId = UUID.randomUUID();
+    UUID methodId = UUID.randomUUID();
+
+    ClassRubric subscriber = new ClassRubric(
+        subscriberId,
+        "EmailSubscriber",
+        "PUBLIC",
+        "CLASS",
+        false,
+        List.of(),
+        List.of(new MethodRubric(methodId, "update", "PUBLIC", "void", false, false, false, List.of("String"))),
+        List.of());
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId, 1, "Observer", List.of(subscriber), List.of());
+
+    ClassShellEntry shell = matchingPublicClassShell();
+    shell.interfaceSimpleNames = List.of();
+
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.shells.put(subscriberId.toString(), shell);
+    ClassMethodEntry methodEntry = new ClassMethodEntry();
+    methodEntry.name = "update";
+    methodEntry.scope = "public";
+    methodEntry.returnType = "void";
+    classSnapshot.methods.put(methodId.toString(), methodEntry);
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(Set.of(), Set.of(methodId), Set.of(), Set.of()),
+        null,
+        snapshot);
+
+    assertEquals("success", result.get(0).status());
+    assertEquals(true, result.get(0).methods().get(0).ok());
+  }
+
   private ClassDetailDTO buildMemberlessEnum(String studentDeclaringType) {
     UUID challengeId = UUID.randomUUID();
     UUID classId = UUID.randomUUID();
@@ -237,6 +389,15 @@ class ClassStructureServiceShellDisplayTest {
 
     assertEquals(1, result.size());
     return result.get(0);
+  }
+
+  private static ClassShellEntry matchingPublicClassShell() {
+    ClassShellEntry shell = new ClassShellEntry();
+    shell.scope = "public";
+    shell.declaringType = "class";
+    shell.isAbstract = false;
+    shell.isStatic = false;
+    return shell;
   }
 
   private static MasterData masterData(int id, String name) {

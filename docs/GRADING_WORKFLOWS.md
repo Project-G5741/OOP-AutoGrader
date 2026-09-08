@@ -370,17 +370,15 @@ If `parsedByName.get(expectedClass.name())` is null:
 - Every expected field, method, constructor → accuracy 0, `correct = false`
 - `continue` to next rubric class
 
-#### 7.3.2 Class shell partial credit (lines 57–61)
+#### 7.3.2 Class shell (binary)
+
+The shell is all-or-nothing: scope, declaring type, abstract, nested static when nested, and an optional Extends/Implements declared-clause check when the class has exactly one inheritance or realization row. Mismatch zeros the class weight and all members. Extra student interfaces do not fail when the required pair matches. `has_mmd=false` does not skip this check.
 
 ```java
-double classAccuracy = PartialCreditEvaluator.accuracy(List.of(
-    PartialCreditEvaluator.matches(expectedClass.scope(), parsed.scope).get(0),
-    PartialCreditEvaluator.matches(expectedClass.declaringType(), parsed.declaringType).get(0),
-    expectedClass.isAbstract() == parsed.isAbstract));
-weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
+classChecks.add(HeritageShellMatcher.heritageMatchesOrSkipped(
+        expectedClass, parsed, context.challengeRubric()));
+double classAccuracy = classChecks.stream().allMatch(Boolean::booleanValue) ? 1.0 : 0.0;
 ```
-
-3 attributes checked; accuracy = matching / 3 (e.g. 2/3 correct → 66.7% for class shell).
 
 #### 7.3.3 Fields (lines 63–78)
 

@@ -23,7 +23,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric` |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
 
 ## Local Contracts
 
@@ -100,7 +100,8 @@ Per upload request (unique `requestId` prevents collisions):
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 - JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
-- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells)
+- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
 
 ## Child DOX Index
 

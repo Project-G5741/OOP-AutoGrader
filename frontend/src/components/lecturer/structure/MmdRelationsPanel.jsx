@@ -78,7 +78,8 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
         {!hasMmd && (
           <div className="mx-4 mt-4 rounded-lg border border-warning bg-warning-bg px-3 py-2 text-sm text-warning-text">
             This problem doesn't require an MMD diagram. The MMD pillar won't be graded — the total score
-            is redistributed across the remaining pillars. Any relations defined below are saved but not scored.
+            is redistributed across the remaining pillars. Inheritance and implementation rows are still
+            graded on the Java class shell when set. Other relation kinds are saved but not scored.
           </div>
         )}
 

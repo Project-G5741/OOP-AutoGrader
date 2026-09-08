@@ -61,6 +61,10 @@ public class ParsedSubmissionSnapshotBuilder {
             shell.declaringType = parsed.declaringType;
             shell.isAbstract = parsed.isAbstract;
             shell.isStatic = parsed.isStatic;
+            shell.superclassSimpleName = parsed.superclassSimpleName;
+            shell.interfaceSimpleNames = parsed.interfaceSimpleNames != null
+                    ? parsed.interfaceSimpleNames
+                    : List.of();
             classSnapshot.shells.put(expectedClass.id().toString(), shell);
 
             Map<String, ParsedField> parsedFields = parsed.fields.stream()

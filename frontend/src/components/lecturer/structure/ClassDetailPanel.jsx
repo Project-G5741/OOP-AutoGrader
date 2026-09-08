@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
-import { formatQualifiedClassName } from '../../../utils/classNaming';
 import ParameterRows from './ParameterRows';
 import WeightInput from './WeightInput';
 
@@ -41,8 +40,17 @@ export default function ClassDetailPanel({
   challengeClasses,
   scopeOptions,
   declaringTypeOptions,
+  relationTypeOptions = [],
+  relations = [],
   onChange,
+  onRelationsChange,
 }) {
+  const [draftKind, setDraftKind] = React.useState(null);
+
+  React.useEffect(() => {
+    setDraftKind(null);
+  }, [classData?.id]);
+
   if (!classData) {
     return (
       <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
@@ -56,11 +64,55 @@ export default function ClassDetailPanel({
   const outerClassOptions = (challengeClasses || []).filter(
     (cls) => cls.id !== classData.id && !cls.outerClassId,
   );
-  const qualifiedPreview = formatQualifiedClassName(classData, challengeClasses);
+  const heritageTargets = (challengeClasses || []).filter((cls) => cls.id !== classData.id);
+  const canSetHeritage = heritageTargets.length >= 1;
+  const derivedPair = deriveHeritagePair(classData.id, relations, relationTypeOptions);
+  const pair = derivedPair.kind !== 'none'
+    ? derivedPair
+    : { kind: draftKind || 'none', targetClassId: null, relationId: derivedPair.relationId };
 
   const updateFields = (fields) => patch({ fields });
   const updateMethods = (methods) => patch({ methods });
   const updateConstructors = (constructors) => patch({ constructors });
+
+  const applyHeritage = (kind, targetClassId) => {
+    if (!onRelationsChange) return;
+    if (!kind || kind === 'none') {
+      setDraftKind(null);
+      onRelationsChange(upsertHeritageRelation({
+        relations,
+        sourceClassId: classData.id,
+        kind: 'none',
+        targetClassId: null,
+        relationTypeOptions,
+        existingId: derivedPair.relationId,
+      }));
+      return;
+    }
+    if (!targetClassId) {
+      setDraftKind(kind);
+      if (derivedPair.kind !== 'none') {
+        onRelationsChange(upsertHeritageRelation({
+          relations,
+          sourceClassId: classData.id,
+          kind: 'none',
+          targetClassId: null,
+          relationTypeOptions,
+          existingId: derivedPair.relationId,
+        }));
+      }
+      return;
+    }
+    setDraftKind(null);
+    onRelationsChange(upsertHeritageRelation({
+      relations,
+      sourceClassId: classData.id,
+      kind,
+      targetClassId,
+      relationTypeOptions,
+      existingId: derivedPair.relationId,
+    }));
+  };
 
   return (
     <div className="space-y-4 pb-4">
@@ -108,11 +160,39 @@ export default function ClassDetailPanel({
               ))}
             </select>
           </div>
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs text-foreground-muted">Qualified identity</label>
-            <p className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground-secondary">
-              {qualifiedPreview || '—'}
-            </p>
+          <div>
+            <label className="mb-1 block text-xs text-foreground-muted">Extends / Implements</label>
+            <select
+              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white disabled:opacity-60"
+              value={pair.kind}
+              disabled={!canSetHeritage}
+              onChange={(e) => {
+                const kind = e.target.value;
+                if (kind === 'none') {
+                  applyHeritage('none', null);
+                  return;
+                }
+                applyHeritage(kind, pair.targetClassId);
+              }}
+            >
+              <option value="none">None</option>
+              <option value="extends">Extends</option>
+              <option value="implements">Implements</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-foreground-muted">Target class</label>
+            <select
+              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white disabled:opacity-60"
+              value={pair.targetClassId ?? ''}
+              disabled={!canSetHeritage || pair.kind === 'none'}
+              onChange={(e) => applyHeritage(pair.kind, e.target.value || null)}
+            >
+              <option value="">Select class</option>
+              {heritageTargets.map((cls) => (
+                <option key={cls.id} value={cls.id}>{cls.name || 'Untitled class'}</option>
+              ))}
+            </select>
           </div>
           <WeightInput
             id={`class-weight-${classData.id}`}
@@ -371,4 +451,70 @@ export default function ClassDetailPanel({
       </Section>
     </div>
   );
+}
+
+function relationTypeKind(option) {
+  const name = (option?.name || '').toLowerCase();
+  if (name.includes('bidirectional') && name.includes('inherit')) return null;
+  if (name.includes('realiz') || name.includes('implement')) return 'implements';
+  if (name.includes('inherit') || name.includes('extend') || name.includes('general')) return 'extends';
+  return null;
+}
+
+function isHeritageRelation(option) {
+  return relationTypeKind(option) != null;
+}
+
+function typeIdForKind(relationTypeOptions, kind) {
+  const match = (relationTypeOptions || []).find((option) => relationTypeKind(option) === kind);
+  return match?.id ?? null;
+}
+
+function deriveHeritagePair(sourceClassId, relations, relationTypeOptions) {
+  const heritage = (relations || []).filter((relation) => {
+    if (relation.sourceClassId !== sourceClassId) return false;
+    const option = (relationTypeOptions || []).find((item) => item.id === relation.relationTypeId);
+    return isHeritageRelation(option);
+  });
+  if (heritage.length !== 1) {
+    return { kind: 'none', targetClassId: null, relationId: null };
+  }
+  const row = heritage[0];
+  const option = (relationTypeOptions || []).find((item) => item.id === row.relationTypeId);
+  return {
+    kind: relationTypeKind(option) || 'none',
+    targetClassId: row.targetClassId || null,
+    relationId: row.id,
+  };
+}
+
+function upsertHeritageRelation({
+  relations,
+  sourceClassId,
+  kind,
+  targetClassId,
+  relationTypeOptions,
+  existingId,
+}) {
+  const withoutSourceHeritage = (relations || []).filter((relation) => {
+    if (relation.sourceClassId !== sourceClassId) return true;
+    const option = (relationTypeOptions || []).find((item) => item.id === relation.relationTypeId);
+    return !isHeritageRelation(option);
+  });
+  if (!kind || kind === 'none' || !targetClassId) {
+    return withoutSourceHeritage;
+  }
+  const relationTypeId = typeIdForKind(relationTypeOptions, kind);
+  if (relationTypeId == null) {
+    return withoutSourceHeritage;
+  }
+  return [
+    ...withoutSourceHeritage,
+    {
+      id: existingId || crypto.randomUUID(),
+      sourceClassId,
+      targetClassId,
+      relationTypeId,
+    },
+  ];
 }

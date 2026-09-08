@@ -61,6 +61,8 @@ public class ClassReflectionGrader {
             if (expectedClass.isNested()) {
                 classChecks.add(expectedClass.isStatic() == parsed.isStatic);
             }
+            classChecks.add(HeritageShellMatcher.heritageMatchesOrSkipped(
+                    expectedClass, parsed, context.challengeRubric()));
             double classAccuracy = classChecks.stream().allMatch(Boolean::booleanValue) ? 1.0 : 0.0;
             weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
             boolean shellPassed = classAccuracy >= 1.0;

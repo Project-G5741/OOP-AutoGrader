@@ -26,10 +26,12 @@ import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
+import com.eiu.capstone.backend.DTO.rubric.RelationStructureDTO;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.ClassRelation;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.FieldDeclaration;
 import com.eiu.capstone.backend.model.Lab;
@@ -246,5 +248,151 @@ class LabStructureServiceSaveTest {
                 ResponseStatusException.class,
                 () -> labStructureService.saveLabStructure(labId, payload));
         assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void saveLabStructure_twoRealizationRowsFromSameSource_throwsBadRequest() {
+        TwoClassSaveFixture fx = twoClassFixture();
+        MasterData realization = relationType(10, "REALIZATION");
+        stubMasterData(realization);
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                fx.challengeId,
+                "Observer",
+                1,
+                List.of(
+                        classDto(fx.sourceId, "EmailSubscriber"),
+                        classDto(fx.targetId, "Observer"),
+                        classDto(fx.otherTargetId, "Logger")),
+                List.of(
+                        new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
+                        new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 10)));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
+        stubTwoClassSave(fx, List.of(
+                classDto(fx.sourceId, "EmailSubscriber"),
+                classDto(fx.targetId, "Observer"),
+                classDto(fx.otherTargetId, "Logger")));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> labStructureService.saveLabStructure(labId, payload));
+        assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void saveLabStructure_realizationPlusCompositionFromSameSource_persistsBoth() {
+        TwoClassSaveFixture fx = twoClassFixture();
+        MasterData realization = relationType(10, "REALIZATION");
+        MasterData composition = relationType(11, "COMPOSITION");
+        stubMasterData(realization, composition);
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                fx.challengeId,
+                "Observer",
+                1,
+                List.of(
+                        classDto(fx.sourceId, "EmailSubscriber"),
+                        classDto(fx.targetId, "Observer"),
+                        classDto(fx.otherTargetId, "Mailbox")),
+                List.of(
+                        new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
+                        new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 11)));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
+        stubTwoClassSave(fx, List.of(
+                classDto(fx.sourceId, "EmailSubscriber"),
+                classDto(fx.targetId, "Observer"),
+                classDto(fx.otherTargetId, "Mailbox")));
+
+        labStructureService.saveLabStructure(labId, payload);
+
+        ArgumentCaptor<List<ClassRelation>> relationCaptor = ArgumentCaptor.forClass(List.class);
+        verify(classRelationRepository).saveAll(relationCaptor.capture());
+        assertEquals(2, relationCaptor.getValue().size());
+    }
+
+    @Test
+    void saveLabStructure_heritageSourceEqualsTarget_throwsBadRequest() {
+        TwoClassSaveFixture fx = twoClassFixture();
+        MasterData realization = relationType(10, "IMPLEMENTATION");
+        stubMasterData(realization);
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                fx.challengeId,
+                "Observer",
+                1,
+                List.of(classDto(fx.sourceId, "EmailSubscriber")),
+                List.of(new RelationStructureDTO(null, fx.sourceId, fx.sourceId, 10)));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, List.of(challengeDto));
+        stubTwoClassSave(fx, List.of(classDto(fx.sourceId, "EmailSubscriber")));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> labStructureService.saveLabStructure(labId, payload));
+        assertEquals(400, ex.getStatusCode().value());
+    }
+
+    private record TwoClassSaveFixture(UUID challengeId, UUID sourceId, UUID targetId, UUID otherTargetId, Challenge challenge) {}
+
+    private TwoClassSaveFixture twoClassFixture() {
+        UUID challengeId = UUID.randomUUID();
+        Challenge challenge = new Challenge();
+        challenge.setId(challengeId);
+        challenge.setLab(lab);
+        challenge.setName("Observer");
+        challenge.setChallengeNumber(1);
+        return new TwoClassSaveFixture(
+                challengeId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                challenge);
+    }
+
+    private ClassStructureDTO classDto(UUID id, String name) {
+        return new ClassStructureDTO(id, name, 1, 2, false, List.of(), List.of(), List.of());
+    }
+
+    private MasterData relationType(int id, String name) {
+        MasterData type = new MasterData();
+        type.setId(id);
+        type.setName(name);
+        type.setCategory("RELATION_TYPE");
+        return type;
+    }
+
+    private void stubMasterData(MasterData... extraTypes) {
+        List<MasterData> all = new java.util.ArrayList<>(List.of(scope, declaringType));
+        all.addAll(List.of(extraTypes));
+        when(masterDataRepository.findAll()).thenReturn(all);
+        when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
+        when(masterDataRepository.findById(2)).thenReturn(Optional.of(declaringType));
+        for (MasterData extra : extraTypes) {
+            when(masterDataRepository.findById(extra.getId())).thenReturn(Optional.of(extra));
+        }
+    }
+
+    private void stubTwoClassSave(TwoClassSaveFixture fx, List<ClassStructureDTO> classes) {
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of());
+        when(challengeRepository.findById(fx.challengeId)).thenReturn(Optional.empty());
+        when(challengeRepository.save(any(Challenge.class))).thenAnswer(invocation -> {
+            Challenge saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(fx.challengeId);
+            }
+            return saved;
+        });
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of());
+        when(classEntityRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(classRelationRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<ClassRelation> relations = invocation.getArgument(0);
+            for (ClassRelation relation : relations) {
+                if (relation.getId() == null) {
+                    relation.setId(UUID.randomUUID());
+                }
+            }
+            return relations;
+        });
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(fx.challenge()));
     }
 }

@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.grading;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -37,6 +38,8 @@ public class ParsedSubmissionSnapshot {
         public String declaringType;
         public boolean isAbstract;
         public boolean isStatic;
+        public String superclassSimpleName;
+        public List<String> interfaceSimpleNames;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

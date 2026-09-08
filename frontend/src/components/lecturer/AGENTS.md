@@ -44,6 +44,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
+| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase weights |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list, editor, dry-run, separate Save Testcases |
