@@ -15,7 +15,7 @@ import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
-import { formatMmdRelationType } from '../../utils/formatters';
+import { formatMmdRelationType, firstCompileErrorLine } from '../../utils/formatters';
 import { formatLabDeadlineMeta } from '../../theme/statusClasses';
 import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
@@ -580,6 +580,7 @@ export default function StudentUI({
                         const methods = cls.methods ?? [];
                         const isOpen = expandedClassName === cls.name;
                         const { passCount, total: gradeTotal, pct: clsPct } = classGradeCounts(cls);
+                        const compileErrorLine = firstCompileErrorLine(cls.error);
 
                         return (
                           <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
@@ -593,8 +594,8 @@ export default function StudentUI({
                                 <div className="min-w-0">
                                   <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
                                   <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
-                                  {cls.error && (
-                                    <p className="mt-1 truncate font-mono text-[11px] text-error-text">{cls.error}</p>
+                                  {compileErrorLine && (
+                                    <p className="mt-1 truncate font-mono text-[11px] text-error-text">{compileErrorLine}</p>
                                   )}
                                 </div>
                               </div>
@@ -606,13 +607,6 @@ export default function StudentUI({
 
                             {isOpen && (
                               <div className="divide-y divide-border border-t border-border">
-                                {cls.error && (
-                                  <div className="px-5 pt-3">
-                                    <div className="rounded-lg bg-error-bg px-3 py-2 font-mono text-xs text-error-text whitespace-pre-wrap">
-                                      {cls.error}
-                                    </div>
-                                  </div>
-                                )}
                                 {fields.length > 0 && (
                                   <div className="px-5 py-3">
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>

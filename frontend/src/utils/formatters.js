@@ -52,3 +52,12 @@ export function formatMmdRelationType(type) {
   }
   return String(type ?? '').trim();
 }
+
+/** First non-empty line of a class compile diagnostic for Class-card display. */
+export function firstCompileErrorLine(error) {
+  if (error == null) {
+    return null;
+  }
+  const line = String(error).split(/\r?\n/).find((part) => part.trim().length > 0);
+  return line ?? null;
+}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatPercent } from '../../utils/formatters';
+import { formatPercent, firstCompileErrorLine } from '../../utils/formatters';
 import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 
@@ -102,6 +102,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
             const items = [...cls.fields, ...cls.constructors, ...cls.methods];
             const { passCount: clsPass, total: clsTotal, pct: clsPct } = classGradeCounts(cls);
             const isOpen = expandedClassName === cls.name;
+            const compileErrorLine = firstCompileErrorLine(cls.error);
             return (
               <div key={cls.name} className="overflow-hidden rounded-xl bg-surface shadow-sm">
                 <button
@@ -114,8 +115,8 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type}</span>
                       <p className="mt-1 font-mono text-sm font-bold text-foreground">{cls.name}</p>
-                      {cls.error && (
-                        <p className="mt-1 truncate font-mono text-[11px] text-error-text">{cls.error}</p>
+                      {compileErrorLine && (
+                        <p className="mt-1 truncate font-mono text-[11px] text-error-text">{compileErrorLine}</p>
                       )}
                     </div>
                   </div>
@@ -127,13 +128,6 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
 
                 {isOpen && (
                   <div className="divide-y divide-border border-t border-border divide-border">
-                    {cls.error && (
-                      <div className="px-4 pt-3">
-                        <div className="rounded-lg bg-error-bg px-3 py-2 font-mono text-xs text-error-text whitespace-pre-wrap">
-                          {cls.error}
-                        </div>
-                      </div>
-                    )}
                     {cls.fields.length > 0 && (
                       <div className="px-4 py-3">
                         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-blue">Fields</p>
