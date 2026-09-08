@@ -525,22 +525,23 @@ public class ClassStructureService {
         }
         LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
-        String compileError = compileErrorStore.get(submissionId, challengeId);
+        ChallengeCompileErrors compileErrors = compileErrorStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        return buildClassData(structure, challengeId, correctIds, compileError, snapshot);
+        return buildClassData(structure, challengeId, correctIds, compileErrors, snapshot);
     }
 
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
                                                UUID challengeId,
                                                SubmissionCorrectIds correctIds,
                                                String compileError) {
-        return buildClassData(structure, challengeId, correctIds, compileError, null);
+        return buildClassData(structure, challengeId, correctIds,
+                ChallengeCompileErrors.catastrophic(compileError), null);
     }
 
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
                                                UUID challengeId,
                                                SubmissionCorrectIds correctIds,
-                                               String compileError,
+                                               ChallengeCompileErrors compileErrors,
                                                ChallengeSnapshot snapshot) {
         List<ClassEntity> classes = structure.classesForChallenge(challengeId);
         if (classes.isEmpty()) {
@@ -557,7 +558,9 @@ public class ClassStructureService {
             String shellStatus = shellEntry != null
                     ? resolveShellStatus(ce, shellEntry, masterData, structure, challengeId)
                     : null;
-            boolean membersGated = compileError != null || "error".equals(shellStatus);
+            String displayName = formatClassDisplayName(ce);
+            String cardError = classCardError(compileErrors, ce.getName(), displayName);
+            boolean membersGated = cardError != null || "error".equals(shellStatus);
 
             List<ClassFieldDetailDTO> fields = structure.fieldsByClassId().getOrDefault(ce.getId(), List.of()).stream()
                     .map(f -> {
@@ -642,7 +645,7 @@ public class ClassStructureService {
                     ? formatStudentClassType(shellEntry)
                     : resolveClassType(ce, masterData);
             String cardStatus;
-            if (compileError != null) {
+            if (cardError != null) {
                 cardStatus = "error";
             } else if (shellEntry != null) {
                 cardStatus = resolveClassCardStatus(shellStatus, fields, constructors, methods);
@@ -651,10 +654,10 @@ public class ClassStructureService {
             }
 
             result.add(new ClassDetailDTO(
-                    formatClassDisplayName(ce),
+                    displayName,
                     displayType,
                     cardStatus,
-                    compileError,
+                    cardError,
                     fields, constructors, methods));
         }
         return result;
@@ -665,7 +668,7 @@ public class ClassStructureService {
      */
     public List<ClassDetailDTO> buildClassDataFromRubric(ChallengeRubric challengeRubric,
                                                          SubmissionCorrectIds correctIds,
-                                                         String compileError,
+                                                         ChallengeCompileErrors compileErrors,
                                                          ChallengeSnapshot snapshot) {
         if (challengeRubric == null || challengeRubric.classes().isEmpty()) {
             return List.of();
@@ -680,7 +683,9 @@ public class ClassStructureService {
             String shellStatus = shellEntry != null
                     ? resolveShellStatus(classRubric, shellEntry, challengeRubric)
                     : null;
-            boolean membersGated = compileError != null || "error".equals(shellStatus);
+            String cardError = classCardError(
+                    compileErrors, classRubric.name(), classRubric.qualifiedName());
+            boolean membersGated = cardError != null || "error".equals(shellStatus);
 
             List<ClassFieldDetailDTO> fields = classRubric.fields().stream()
                     .map(field -> {
@@ -757,7 +762,7 @@ public class ClassStructureService {
                     ? formatStudentClassType(shellEntry)
                     : resolveClassType(classRubric);
             String cardStatus;
-            if (compileError != null) {
+            if (cardError != null) {
                 cardStatus = "error";
             } else if (shellEntry != null) {
                 cardStatus = resolveClassCardStatus(shellStatus, fields, constructors, methods);
@@ -769,7 +774,7 @@ public class ClassStructureService {
                     classRubric.qualifiedName(),
                     displayType,
                     cardStatus,
-                    compileError,
+                    cardError,
                     fields, constructors, methods));
         }
         return result;
@@ -889,6 +894,13 @@ public class ClassStructureService {
             result.add(new MmdClassDTO(classRubric.name(), attributes, relations));
         }
         return result;
+    }
+
+    private static String classCardError(ChallengeCompileErrors compileErrors, String... names) {
+        if (compileErrors == null || compileErrors.isEmpty()) {
+            return null;
+        }
+        return compileErrors.messageForClass(names);
     }
 
     private String formatClassDisplayName(ClassEntity classEntity) {

@@ -10,7 +10,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -27,7 +27,7 @@ public class SubmissionCompileErrorStore {
         this.storeDir = Path.of(baseDir, "_compile_errors");
     }
 
-    public void save(UUID submissionId, Map<UUID, String> errorsByChallengeId) {
+    public void save(UUID submissionId, Map<UUID, ChallengeCompileErrors> errorsByChallengeId) {
         if (submissionId == null) {
             return;
         }
@@ -38,20 +38,34 @@ public class SubmissionCompileErrorStore {
                 Files.deleteIfExists(file);
                 return;
             }
-            objectMapper.writeValue(file.toFile(), errorsByChallengeId);
+            Map<String, ChallengeCompileErrors> payload = new HashMap<>();
+            boolean any = false;
+            for (Map.Entry<UUID, ChallengeCompileErrors> entry : errorsByChallengeId.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null || entry.getValue().isEmpty()) {
+                    continue;
+                }
+                payload.put(entry.getKey().toString(), entry.getValue());
+                any = true;
+            }
+            if (!any) {
+                Files.deleteIfExists(file);
+                return;
+            }
+            objectMapper.writeValue(file.toFile(), payload);
         } catch (IOException e) {
             System.out.printf("compile_error_store write failed submission=%s%n", submissionId);
         }
     }
 
-    public String get(UUID submissionId, UUID challengeId) {
+    public ChallengeCompileErrors get(UUID submissionId, UUID challengeId) {
         if (submissionId == null || challengeId == null) {
-            return null;
+            return ChallengeCompileErrors.none();
         }
-        return readAll(submissionId).get(challengeId);
+        ChallengeCompileErrors stored = readAll(submissionId).get(challengeId);
+        return stored == null ? ChallengeCompileErrors.none() : stored;
     }
 
-    public Map<UUID, String> readAll(UUID submissionId) {
+    public Map<UUID, ChallengeCompileErrors> readAll(UUID submissionId) {
         if (submissionId == null) {
             return Map.of();
         }
@@ -60,16 +74,32 @@ public class SubmissionCompileErrorStore {
             return Map.of();
         }
         try {
-            Map<String, String> raw = objectMapper.readValue(
-                    file.toFile(),
-                    new TypeReference<Map<String, String>>() {});
-            Map<UUID, String> parsed = new HashMap<>();
-            for (Map.Entry<String, String> entry : raw.entrySet()) {
-                parsed.put(UUID.fromString(entry.getKey()), entry.getValue());
+            JsonNode root = objectMapper.readTree(file.toFile());
+            if (root == null || !root.isObject()) {
+                return Map.of();
+            }
+            Map<UUID, ChallengeCompileErrors> parsed = new HashMap<>();
+            var fields = root.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                parsed.put(UUID.fromString(entry.getKey()), parseValue(entry.getValue()));
             }
             return parsed;
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             return Map.of();
         }
+    }
+
+    private ChallengeCompileErrors parseValue(JsonNode value) {
+        if (value == null || value.isNull()) {
+            return ChallengeCompileErrors.none();
+        }
+        if (value.isTextual()) {
+            return ChallengeCompileErrors.catastrophic(value.asText());
+        }
+        if (value.isObject()) {
+            return objectMapper.convertValue(value, ChallengeCompileErrors.class);
+        }
+        return ChallengeCompileErrors.none();
     }
 }

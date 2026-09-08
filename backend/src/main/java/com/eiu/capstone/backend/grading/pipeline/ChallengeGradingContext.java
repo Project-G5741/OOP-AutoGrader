@@ -17,12 +17,22 @@ public record ChallengeGradingContext(
         List<ParsedClass> parsedClasses,
         Map<String, ParsedClass> parsedByName,
         Map<String, ParsedClass> parsedByQualifiedName,
-        Set<String> failedClassNames) {
+        Set<String> failedClassNames,
+        Map<String, String> compileErrorsByClassName) {
 
     public static ChallengeGradingContext of(ChallengeRubric rubric,
                                              Path classesDir,
                                              String compileError,
                                              List<ParsedClass> parsedClasses) {
+        return of(rubric, classesDir, compileError, parsedClasses, Set.of(), Map.of());
+    }
+
+    public static ChallengeGradingContext of(ChallengeRubric rubric,
+                                             Path classesDir,
+                                             String compileError,
+                                             List<ParsedClass> parsedClasses,
+                                             Set<String> failedClassNames,
+                                             Map<String, String> compileErrorsByClassName) {
         ParsedClassIndex index = ParsedClassIndex.of(parsedClasses);
         return new ChallengeGradingContext(
                 rubric,
@@ -31,7 +41,8 @@ public record ChallengeGradingContext(
                 parsedClasses,
                 index.byName(),
                 index.byQualifiedName(),
-                Set.of());
+                failedClassNames == null ? Set.of() : Set.copyOf(failedClassNames),
+                compileErrorsByClassName == null ? Map.of() : Map.copyOf(compileErrorsByClassName));
     }
 
     public ParsedClass resolve(ClassRubric expectedClass) {

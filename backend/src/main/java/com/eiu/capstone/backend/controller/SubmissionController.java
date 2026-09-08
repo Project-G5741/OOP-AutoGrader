@@ -46,6 +46,7 @@ import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.SubmissionAttemptNumbers;
+import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
@@ -274,12 +275,13 @@ public class SubmissionController {
         return studentLabProgressRepository.save(progress);
     }
 
-    private Map<UUID, String> compileErrorsByChallengeId(
+    private Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId(
             LabRubricSnapshot rubric,
             List<SubmissionStorageService.ChallengeResult> challenges) {
-        Map<UUID, String> errors = new LinkedHashMap<>();
+        Map<UUID, ChallengeCompileErrors> errors = new LinkedHashMap<>();
         for (SubmissionStorageService.ChallengeResult challengeResult : challenges) {
-            if (challengeResult.compileError == null || challengeResult.compileError.isBlank()) {
+            ChallengeCompileErrors challengeErrors = ChallengeCompileErrors.fromChallengeResult(challengeResult);
+            if (challengeErrors.isEmpty()) {
                 continue;
             }
             Integer challengeNumber = extractChallengeNumber(challengeResult.challengeName);
@@ -287,7 +289,7 @@ public class SubmissionController {
                 continue;
             }
             rubric.challenge(challengeNumber).ifPresent(challengeRubric ->
-                    errors.put(challengeRubric.challengeId(), challengeResult.compileError));
+                    errors.put(challengeRubric.challengeId(), challengeErrors));
         }
         return errors;
     }

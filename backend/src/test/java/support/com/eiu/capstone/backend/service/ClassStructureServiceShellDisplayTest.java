@@ -105,7 +105,7 @@ class ClassStructureServiceShellDisplayTest {
         structure,
         challengeId,
         new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     assertEquals(1, result.size());
@@ -159,7 +159,7 @@ class ClassStructureServiceShellDisplayTest {
     List<ClassDetailDTO> result = service.buildClassDataFromRubric(
         challengeRubric,
         new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     assertEquals(1, result.size());
@@ -231,7 +231,7 @@ class ClassStructureServiceShellDisplayTest {
     List<ClassDetailDTO> result = service.buildClassDataFromRubric(
         challengeRubric,
         new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     ClassDetailDTO card = result.stream()
@@ -286,7 +286,7 @@ class ClassStructureServiceShellDisplayTest {
     List<ClassDetailDTO> result = service.buildClassDataFromRubric(
         challengeRubric,
         new SubmissionCorrectIds(Set.of(), Set.of(methodId), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     ClassDetailDTO card = result.stream()
@@ -332,11 +332,38 @@ class ClassStructureServiceShellDisplayTest {
     List<ClassDetailDTO> result = service.buildClassDataFromRubric(
         challengeRubric,
         new SubmissionCorrectIds(Set.of(), Set.of(methodId), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     assertEquals("success", result.get(0).status());
     assertEquals(true, result.get(0).methods().get(0).ok());
+  }
+
+  @Test
+  void buildClassDataFromRubric_perClassCompileError_gatesOnlyFailedCard() {
+    UUID goodId = UUID.randomUUID();
+    UUID badId = UUID.randomUUID();
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        UUID.randomUUID(),
+        1,
+        "Challenge 1",
+        List.of(
+            new ClassRubric(goodId, "Good", "PUBLIC", "CLASS", false, List.of(), List.of(), List.of()),
+            new ClassRubric(badId, "Bad", "PUBLIC", "CLASS", false, List.of(), List.of(), List.of())),
+        List.of(),
+        List.of());
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+        ChallengeCompileErrors.perClass(Map.of("Bad", "ERROR: line 1: ';' expected")),
+        null);
+
+    ClassDetailDTO good = result.stream().filter(card -> "Good".equals(card.name())).findFirst().orElseThrow();
+    ClassDetailDTO bad = result.stream().filter(card -> "Bad".equals(card.name())).findFirst().orElseThrow();
+    assertEquals(null, good.error());
+    assertEquals("ERROR: line 1: ';' expected", bad.error());
+    assertEquals("error", bad.status());
   }
 
   private ClassDetailDTO buildMemberlessEnum(String studentDeclaringType) {
@@ -384,7 +411,7 @@ class ClassStructureServiceShellDisplayTest {
         structure,
         challengeId,
         new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
-        null,
+        ChallengeCompileErrors.none(),
         snapshot);
 
     assertEquals(1, result.size());

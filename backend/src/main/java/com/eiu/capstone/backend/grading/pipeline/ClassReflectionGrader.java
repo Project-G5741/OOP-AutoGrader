@@ -34,7 +34,7 @@ public class ClassReflectionGrader {
         List<PendingConstructorResult> constructors = new ArrayList<>();
 
         for (ClassRubric expectedClass : context.challengeRubric().classes()) {
-            ParsedClass parsed = context.resolve(expectedClass);
+            ParsedClass parsed = classCompileFailed(context, expectedClass) ? null : context.resolve(expectedClass);
             int classWeight = MemberWeightCalculator.configuredWeight(expectedClass.weight());
 
             if (parsed == null) {
@@ -176,6 +176,11 @@ public class ClassReflectionGrader {
             }
         }
         return null;
+    }
+
+    private static boolean classCompileFailed(ChallengeGradingContext context, ClassRubric expectedClass) {
+        return context.failedClassNames().contains(expectedClass.name())
+                || context.failedClassNames().contains(expectedClass.qualifiedName());
     }
 
     private boolean sameTypes(List<String> a, List<String> b) {

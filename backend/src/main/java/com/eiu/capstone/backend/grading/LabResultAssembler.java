@@ -28,6 +28,7 @@ import com.eiu.capstone.backend.model.SubmissionMethodResult;
 import com.eiu.capstone.backend.model.SubmissionRelationResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
+import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.ClassStructureService;
 import com.eiu.capstone.backend.service.SubmissionCorrectIds;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
@@ -48,7 +49,7 @@ public class LabResultAssembler {
             UUID submissionId,
             LabRubricSnapshot rubric,
             GradingService.GradingComputationResult computed,
-            Map<UUID, String> compileErrorsByChallengeId,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId) {
 
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
@@ -56,7 +57,7 @@ public class LabResultAssembler {
                 .toList();
 
         SubmissionCorrectIds correctIds = correctIdsFrom(computed);
-        Map<UUID, String> compileErrors = compileErrorsByChallengeId != null
+        Map<UUID, ChallengeCompileErrors> compileErrors = compileErrorsByChallengeId != null
                 ? compileErrorsByChallengeId
                 : Map.of();
         Map<UUID, String> normalizationNotices = normalizationNoticesByChallengeId != null
@@ -82,7 +83,7 @@ public class LabResultAssembler {
             List<ClassDetailDTO> classData = classStructureService.buildClassDataFromRubric(
                     challengeRubric,
                     correctIds,
-                    compileErrors.get(challengeId),
+                    compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
                     snapshot);
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(

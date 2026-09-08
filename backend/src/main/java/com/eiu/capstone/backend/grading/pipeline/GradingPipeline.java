@@ -72,7 +72,12 @@ public class GradingPipeline {
         long parseMs = System.currentTimeMillis() - parseStart;
 
         ChallengeGradingContext context = ChallengeGradingContext.of(
-                challengeRubric, classesDir, folderResult.compileError, parsedClasses);
+                challengeRubric,
+                classesDir,
+                folderResult.compileError,
+                parsedClasses,
+                folderResult.failedClassNames,
+                folderResult.compileErrorsByClassName);
 
         long classStart = System.currentTimeMillis();
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);

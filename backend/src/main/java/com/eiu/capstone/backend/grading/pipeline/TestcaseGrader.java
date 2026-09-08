@@ -5,12 +5,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
+import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.scoring.MemberWeightCalculator;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
@@ -69,6 +72,12 @@ public class TestcaseGrader {
     private Evaluation evaluate(TestcaseRubric testcase, ChallengeGradingContext context) {
         if (context.compileError() != null && !context.compileError().isBlank()) {
             return compileErrorEvaluation(testcase, context.compileError());
+        }
+        String failedType = firstFailedInvokedType(testcase, context.failedClassNames());
+        if (failedType != null) {
+            String message = context.compileErrorsByClassName().getOrDefault(
+                    failedType, "Compilation Error on " + failedType);
+            return compileErrorEvaluation(testcase, message);
         }
 
         InvocationOutcome invocationOutcome = null;
@@ -142,6 +151,97 @@ public class TestcaseGrader {
                 displays.expected(),
                 displays.actual(),
                 assertionResults));
+    }
+
+    private static String firstFailedInvokedType(TestcaseRubric testcase, Set<String> failedClassNames) {
+        if (failedClassNames == null || failedClassNames.isEmpty()) {
+            return null;
+        }
+        InvocationRubric invocation = testcase.invocation();
+        if (invocation != null) {
+            String hit = firstFailedName(failedClassNames,
+                    invocation.className(), invocation.receiverClassName());
+            if (hit != null) {
+                return hit;
+            }
+            hit = firstFailedTypeUse(failedClassNames, invocation.parameterTypes());
+            if (hit != null) {
+                return hit;
+            }
+            hit = firstFailedTypeUse(failedClassNames, invocation.receiverParameterTypes());
+            if (hit != null) {
+                return hit;
+            }
+        }
+        if (testcase.instances() != null) {
+            for (InstanceRubric instance : testcase.instances()) {
+                String hit = firstFailedName(failedClassNames, instance.className());
+                if (hit != null) {
+                    return hit;
+                }
+                hit = firstFailedTypeUse(failedClassNames, instance.parameterTypes());
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String firstFailedTypeUse(Set<String> failedClassNames, List<String> types) {
+        if (types == null) {
+            return null;
+        }
+        for (String type : types) {
+            String hit = firstFailedName(failedClassNames, type);
+            if (hit != null) {
+                return hit;
+            }
+            if (type == null) {
+                continue;
+            }
+            for (String failed : failedClassNames) {
+                if (containsTypeToken(type, failed)) {
+                    return failed;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String firstFailedName(Set<String> failedClassNames, String... names) {
+        for (String name : names) {
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            if (failedClassNames.contains(name)) {
+                return name;
+            }
+            String simple = simpleTypeName(name);
+            if (failedClassNames.contains(simple)) {
+                return simple;
+            }
+        }
+        return null;
+    }
+
+    private static String simpleTypeName(String type) {
+        String trimmed = type.trim();
+        int generic = trimmed.indexOf('<');
+        if (generic >= 0) {
+            trimmed = trimmed.substring(0, generic);
+        }
+        trimmed = trimmed.replace("[]", "").trim();
+        int dot = trimmed.lastIndexOf('.');
+        return dot >= 0 ? trimmed.substring(dot + 1) : trimmed;
+    }
+
+    private static boolean containsTypeToken(String type, String failedName) {
+        String simple = simpleTypeName(failedName);
+        return type.equals(failedName)
+                || type.equals(simple)
+                || type.matches(".*\\b" + java.util.regex.Pattern.quote(failedName) + "\\b.*")
+                || type.matches(".*\\b" + java.util.regex.Pattern.quote(simple) + "\\b.*");
     }
 
     private Evaluation compileErrorEvaluation(TestcaseRubric testcase, String compileError) {
