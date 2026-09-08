@@ -78,24 +78,47 @@ class TestcaseDryRunServiceTest {
     }
 
     @Test
-    void dryRun_compileError_throws422() {
-        TestcaseDryRunService service = newService(mock(TestcaseGrader.class));
+    void dryRun_mixedCompile_returnsPreview() {
         TestcaseStructureDTO testcase = mock(TestcaseStructureDTO.class);
         TestcaseDryRunRequest request = new TestcaseDryRunRequest(
-                List.of(new ReferenceSourceDTO("Car", "public class Car {")),
+                List.of(
+                        new ReferenceSourceDTO("Car", "public class Car {}"),
+                        new ReferenceSourceDTO("Broken", "public class Broken {")),
                 testcase);
+        TestcaseRubric rubric = minimalRubric();
 
         when(testcaseRubricService.loadForChallenge(labId, challengeId))
                 .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
-        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(minimalRubric());
-        when(javaCompilerService.compileSources(any(), any()))
-                .thenReturn(new CompileOutcome(false, List.of(), 0));
+        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
 
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> service.dryRun(labId, challengeId, request));
-        assertEquals(422, ex.getStatusCode().value());
-        assertTrue(ex.getReason().contains("Compilation failed"));
+        JavaCompilerService realCompiler = new JavaCompilerService();
+        realCompiler.initCompiler();
+        TestcaseGrader graderSpy = mock(TestcaseGrader.class);
+        PendingTestcaseResult pending = new PendingTestcaseResult(
+                rubric.id(),
+                TestcaseResultStatus.PASSED,
+                "ok",
+                "input",
+                "expected",
+                "actual",
+                List.of(new PendingAssertionResult(
+                        rubric.assertions().get(0).id(),
+                        TestcaseResultStatus.PASSED,
+                        null,
+                        "matched")));
+        when(graderSpy.gradeSingle(any(TestcaseRubric.class), any(ChallengeGradingContext.class)))
+                .thenReturn(pending);
+
+        TestcaseDryRunService wired = new TestcaseDryRunService(
+                testcaseRubricService,
+                testcaseRubricAssembler,
+                realCompiler,
+                graderSpy,
+                new TestcaseResultMapper(displayFormatter, primaryAssertionSelector));
+
+        TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
+        assertEquals("PASS", result.getResult());
+        verify(graderSpy).gradeSingle(any(TestcaseRubric.class), any(ChallengeGradingContext.class));
     }
 
     @Test

@@ -25,6 +25,7 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
@@ -94,10 +95,8 @@ public class TestcaseDryRunService {
             }
 
             CompileOutcome outcome = javaCompilerService.compileSources(sources, classesDir);
-            if (!outcome.succeeded()) {
-                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Compilation failed: " + String.join("; ", outcome.messages()));
-            }
+            CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                    outcome, normalization.sources());
 
             ChallengeRubric stubRubric = new ChallengeRubric(
                     challengeId,
@@ -108,7 +107,12 @@ public class TestcaseDryRunService {
                     List.of(rubric),
                     true);
             ChallengeGradingContext context = ChallengeGradingContext.of(
-                    stubRubric, classesDir, null, List.of());
+                    stubRubric,
+                    classesDir,
+                    null,
+                    List.of(),
+                    attributed.failedClassNames(),
+                    attributed.compileErrorsByClassName());
 
             PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
             return testcaseResultMapper.mapDryRunResult(rubric, pending);

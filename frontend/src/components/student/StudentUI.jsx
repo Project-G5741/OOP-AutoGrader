@@ -30,13 +30,26 @@ function formatIoDisplay(value) {
 }
 
 // Component con dùng chung
-function Tick({ ok, partial }) {
+function Tick({ ok, partial, error }) {
+  if (error) {
+    return <AlertCircle className="w-4 h-4 shrink-0 text-error" />;
+  }
   if (partial) {
     return <MinusCircle className="w-4 h-4 shrink-0 text-warning" />;
   }
   return ok
     ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
     : <XCircle className="w-4 h-4 text-error flex-shrink-0" />;
+}
+
+function testcaseStatusLabel(tc) {
+  if (tc.result === 'ERROR') return 'ERROR';
+  return tc.passed ? 'PASS' : 'FAIL';
+}
+
+function testcaseStatusClass(tc) {
+  if (tc.result === 'ERROR') return 'text-error';
+  return tc.passed ? 'text-success' : 'text-error';
 }
 
 function ClassStatusIcon({ status }) {
@@ -580,6 +593,9 @@ export default function StudentUI({
                                 <div className="min-w-0">
                                   <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
                                   <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
+                                  {cls.error && (
+                                    <p className="mt-1 truncate font-mono text-[11px] text-error-text">{cls.error}</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
@@ -590,6 +606,13 @@ export default function StudentUI({
 
                             {isOpen && (
                               <div className="divide-y divide-border border-t border-border">
+                                {cls.error && (
+                                  <div className="px-5 pt-3">
+                                    <div className="rounded-lg bg-error-bg px-3 py-2 font-mono text-xs text-error-text whitespace-pre-wrap">
+                                      {cls.error}
+                                    </div>
+                                  </div>
+                                )}
                                 {fields.length > 0 && (
                                   <div className="px-5 py-3">
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>
@@ -678,12 +701,12 @@ export default function StudentUI({
                                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-secondary hover:bg-surface-secondary transition-colors text-left"
                                 >
                                   <div className="flex items-center gap-3">
-                                    <Tick ok={tc.passed} />
+                                    <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                     <span className="text-sm font-medium text-foreground-secondary">{tc.name}</span>
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                    <span className={`text-xs font-semibold ${tc.passed ? 'text-success' : 'text-error'}`}>
-                                      {tc.passed ? 'PASS' : 'FAIL'}
+                                    <span className={`text-xs font-semibold ${testcaseStatusClass(tc)}`}>
+                                      {testcaseStatusLabel(tc)}
                                     </span>
                                     <span className="text-xs text-foreground-disabled">Click to view details</span>
                                     {expandedTC === tc.id ? (
@@ -708,13 +731,15 @@ export default function StudentUI({
                                       <div className="p-4">
                                         <div className="flex items-center justify-between mb-2">
                                           <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider">Your Output</p>
-                                          <Tick ok={tc.passed} />
+                                          <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                         </div>
                                         <pre className={`rounded-lg p-3 text-xs font-mono whitespace-pre-wrap ${
-                                            tc.passed
-                                            ? 'bg-success-bg text-success-text'
-                                            : 'bg-error-bg text-error-text'
-                                        }`}>{formatIoDisplay(tc.actualOutput)}</pre>
+                                            tc.result === 'ERROR' || !tc.passed
+                                            ? 'bg-error-bg text-error-text'
+                                            : 'bg-success-bg text-success-text'
+                                        }`}>{tc.result === 'ERROR'
+                                          ? (tc.feedback || formatIoDisplay(tc.actualOutput))
+                                          : formatIoDisplay(tc.actualOutput)}</pre>
                                       </div>
                                     </div>
                                     {tc.assertions?.length > 1 && (
@@ -769,12 +794,12 @@ export default function StudentUI({
                                     : 'bg-error-bg'
                                 }`}
                               >
-                                <Tick ok={tc.passed} />
+                                <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                 <span className="text-sm text-foreground-secondary font-medium">{tc.name}</span>
                                 <div className="ml-auto flex items-center gap-2">
                                   <Lock className="w-3.5 h-3.5 text-foreground-disabled" />
                                   <span className={`text-xs font-bold ${tc.passed ? 'text-success-text' : 'text-error-text'}`}>
-                                    {tc.passed ? 'PASS' : 'FAIL'}
+                                    {testcaseStatusLabel(tc)}
                                   </span>
                                 </div>
                               </div>

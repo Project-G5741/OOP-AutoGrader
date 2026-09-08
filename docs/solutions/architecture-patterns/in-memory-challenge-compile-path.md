@@ -45,7 +45,7 @@ Two `ExecutorService` beans exist for upload compile and per-challenge grading: 
 
 ### Isolate failures per challenge
 
-`processChallenge` must **never throw** to `CompletableFutures.joinAll`. Catch `RuntimeException` at the challenge boundary and return `ChallengeResult` with `compileError` set. Use `failedChallenge(..., cleanupTarget, ...)` to delete only the failed subtree (the classes directory for javac errors, whole challenge folder for I/O/setup failures).
+`processChallenge` must **never throw** to `CompletableFutures.joinAll`. Catch `RuntimeException` at the challenge boundary and return `ChallengeResult`. Use `failedChallenge(..., cleanupTarget, ...)` only for I/O/setup (delete the classes directory or whole challenge folder). Mixed javac keeps `classes/` so independent survivors can grade; `compileError` stays null and per-class messages live on `failedClassNames` / `compileErrorsByClassName`.
 
 Do **not** delete the entire submission folder when one worker throws — sibling challenges with successful compiles must keep their compiled class trees for grading.
 

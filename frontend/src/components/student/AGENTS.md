@@ -59,12 +59,14 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 - After upload, tabs appear and are filtered by `lab_result.scoreApplicability`: the MMD tab is hidden when the challenge has `has_mmd=false`, and the Operation Test tab is hidden when the challenge has no operational testcases. Declaration Test is always shown when results are revealed.
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
 - Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (green check when correct, red X when wrong). A type with no rubric fields/constructors/methods (e.g. an enum) counts as `1/1 · 100%` from the shell, not `0/1`. When the shell fails, member rows are all fail (no green ticks); orange minus applies only to fields/methods/constructors with partial attribute credit when the shell passes
+- A class compile error is shown on the collapsed card as truncated `cls.error` text and as a full `font-mono` `whitespace-pre-wrap` banner in the expanded panel; independent sibling cards stay a normal grade
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
 - **I/O Score** header uses backend pillar score from `lab_result.scores.testcase`.
-- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass and fail.
-- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL only — no I/O detail.
+- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass, fail, and compile `ERROR`.
+- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL/ERROR — no I/O detail.
+- Operational compile failures use `result === 'ERROR'` (not FAIL) and show `feedback` in Your Output.
 - Multi-assertion visible rows stack additional Expected/Your pairs under the primary three-column panel.
 
 ### Dashboard stats row (`StudentUI.jsx`)

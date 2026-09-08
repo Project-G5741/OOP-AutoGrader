@@ -47,11 +47,13 @@ Per upload request (unique `requestId` prevents collisions):
 
 ### Java compilation
 
-- `JavaCompilerService.compileSources(sources, outputDir)` compiles in-memory `JavaFileObject` sources to `classes/` via `javax.tools.JavaCompiler` (JDK required)
+- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources with no ERROR diagnostic into the same `classes/`
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
-- Compile failures for a challenge folder are captured per challenge (upload continues); diagnostics appear on Class tab cards via `ClassDetailDTO.error`
+- Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
+- Compile diagnostics appear on Class tab cards via `ClassDetailDTO.error`
 - Empty source list returns without invoking the compiler
+- Lecturer dry-run uses the same `CompileOutcome` + `CompileClassAttribution`; mixed reference compile is a preview DTO (`ERROR` if the testcase touches a failed type), not HTTP 422
 - With `app.grading.timing-log=true`, `SubmissionStorageService` prints a `[timing] Compile <challenge>` block (`build sources`, `javac`, `count`, `total`)
 
 ### Authentication

@@ -119,7 +119,7 @@ Main grading entry. See [Phase C](#5-phase-c-grading-orchestration).
 
 - **`submission.setScore(gradingOutcome.overallScore())`** — Lab-level percentage saved to `lab_submission.score`.
 - **`updateStudentProgress(...)`** — Updates `student_lab_progress` (attempts count, highest score, timestamps).
-- **`compileErrorStore.save(...)`** — Writes per-challenge compile errors to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
+- **`compileErrorStore.save(...)`** — Writes per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`. Legacy files that are still a plain string are read as `catastrophic`.
 - **`submissionMmdMetaStore.save(...)`** — Writes MMD metadata to `_mmd_meta/{submissionId}.json`.
 - **`labStatisticsCache.invalidate(labId)`** — Clears lecturer analytics cache for this lab.
 - **`mmdPersistenceHook.onUploadComplete(...)`** — Extension point for archiving `.mmd` files (default no-op).
@@ -191,9 +191,9 @@ Per challenge folder:
    - `new MemorySourceJavaFileObject(sourcePath, file.getBytes())` — sources never written to disk.
 4. **Compile** (lines 228–235):
    ```java
-   javaCompilerService.compileSources(sources, classesFolder);
+   CompileOutcome outcome = javaCompilerService.compileSources(sources, classesFolder);
    ```
-   On failure → `failedChallenge(...)` returns `ChallengeResult` with `compileError` message; cleans up `classes/` folder.
+   Happy path is one group javac. Mixed javac keeps `classes/` and fills `failedClassNames` / `compileErrorsByClassName` (`compileError` stays null). I/O and setup failures still call `failedChallenge(...)` and delete the cleanup target.
 5. **Count `.class` files** in `classes/` → `classFileCount`.
 
 ### 4.4 `JavaCompilerService.compileSources()` (lines 35–72)
@@ -206,7 +206,7 @@ Per challenge folder:
 | `options = ["-d", outputDir, "-encoding", "UTF-8"]` | Output compiled classes to challenge's `classes/` |
 | `compiler.getTask(..., sources)` | Compiles in-memory `JavaFileObject` list |
 | `task.call()` | Returns `false` on compile failure |
-| On failure | Throws `SubmissionProcessingException("Compilation failed:\n" + diagnostics)` |
+| On failure | Returns `CompileOutcome(succeeded=false)` with first-pass diagnostics; remainder-compiles sources that had no ERROR diagnostic when the first task wrote no `.class` files |
 
 **Important:** Grading never reads `.java` source files. All Java grading uses compiled `.class` output from this step.
 
@@ -300,7 +300,7 @@ Step 1: extractChallengeNumber("challenge_N") → N
 Step 2: rubric.challenge(N) → ChallengeRubric (null → return null)
 Step 3: classesDir = folderResult.folder.resolve("classes")
 Step 4: reflectionClassParser.parseClasses(classesDir) → List<ParsedClass>
-Step 5: ChallengeGradingContext.of(rubric, classesDir, compileError, parsedClasses)
+Step 5: ChallengeGradingContext.of(rubric, classesDir, compileError, parsedClasses, failedClassNames, compileErrorsByClassName)
 Step 6: classReflectionGrader.grade(context)          ← SYNCHRONOUS
 Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← ASYNC on pillarExecutor
 Step 8: testcaseGrader.grade(context)                 ← ASYNC on pillarExecutor
@@ -320,10 +320,11 @@ Step 12: return ChallengePipelineResult(...)
 |-------|--------|---------|
 | `challengeRubric` | Rubric snapshot | All graders |
 | `classesDir` | `{submission}/challenge_N/classes/` | Reflection parser |
-| `compileError` | From `ChallengeResult.compileError` | TestcaseGrader (early exit) |
+| `compileError` | Catastrophic I/O/setup only | TestcaseGrader and Class tab (gates every card) |
 | `parsedClasses` | Reflection output | Class + Testcase graders |
 | `parsedByName` | Map `simpleName → ParsedClass` | Lookup by rubric class name |
-| `failedClassNames` | Currently always empty set | Reserved |
+| `failedClassNames` | Mixed javac roots + dependents | ClassReflectionGrader zeros those classes; TestcaseGrader ERROR if an invoked type failed |
+| `compileErrorsByClassName` | Root javac text or `Compilation Error on {Upstream}` | Class tab `cls.error` and testcase ERROR feedback |
 
 ---
 
@@ -599,9 +600,12 @@ For each `TestcaseRubric` in challenge:
 if (context.compileError() != null && !context.compileError().isBlank()) {
     return new Evaluation(0, TestcaseResultStatus.ERROR, "Compilation error: " + context.compileError());
 }
+if (an invoked type is in context.failedClassNames()) {
+    return ERROR using that class's compile message;
+}
 ```
 
-Any compile failure → all testcases for that challenge get `ERROR` status with 0% accuracy.
+Catastrophic compile still gates every testcase. Mixed javac only errors testcases whose target, receiver, comparison instance, or parameter type failed. Independent targets still invoke.
 
 Then dispatches by `testcase.targetType()`:
 - `CLASS` → `evaluateClass()`

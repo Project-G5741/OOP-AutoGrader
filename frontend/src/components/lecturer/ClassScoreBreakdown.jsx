@@ -62,6 +62,7 @@ function mapClassData(classData) {
       name: cls.name,
       type: cls.type || 'CLASS',
       status: cls.status,
+      error: cls.error ?? null,
       fields,
       constructors,
       methods,
@@ -113,6 +114,9 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type}</span>
                       <p className="mt-1 font-mono text-sm font-bold text-foreground">{cls.name}</p>
+                      {cls.error && (
+                        <p className="mt-1 truncate font-mono text-[11px] text-error-text">{cls.error}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -123,6 +127,13 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
 
                 {isOpen && (
                   <div className="divide-y divide-border border-t border-border divide-border">
+                    {cls.error && (
+                      <div className="px-4 pt-3">
+                        <div className="rounded-lg bg-error-bg px-3 py-2 font-mono text-xs text-error-text whitespace-pre-wrap">
+                          {cls.error}
+                        </div>
+                      </div>
+                    )}
                     {cls.fields.length > 0 && (
                       <div className="px-4 py-3">
                         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-blue">Fields</p>
