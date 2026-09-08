@@ -366,6 +366,33 @@ class ClassStructureServiceShellDisplayTest {
     assertEquals("error", bad.status());
   }
 
+  @Test
+  void buildClassDataFromRubric_catastrophicCompileError_gatesAllCards() {
+    UUID goodId = UUID.randomUUID();
+    UUID badId = UUID.randomUUID();
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        UUID.randomUUID(),
+        1,
+        "Challenge 1",
+        List.of(
+            new ClassRubric(goodId, "Good", "PUBLIC", "CLASS", false, List.of(), List.of(), List.of()),
+            new ClassRubric(badId, "Bad", "PUBLIC", "CLASS", false, List.of(), List.of(), List.of())),
+        List.of(),
+        List.of());
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+        ChallengeCompileErrors.catastrophic("Failed to count class files"),
+        null);
+
+    assertEquals(2, result.size());
+    for (ClassDetailDTO card : result) {
+      assertEquals("Failed to count class files", card.error());
+      assertEquals("error", card.status());
+    }
+  }
+
   private ClassDetailDTO buildMemberlessEnum(String studentDeclaringType) {
     UUID challengeId = UUID.randomUUID();
     UUID classId = UUID.randomUUID();
