@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
@@ -66,6 +67,8 @@ public class SubmissionStorageService {
         public final int classFileCount;
         public final String compileError;
         public final String packageNormalizationNotice;
+        public final Set<String> failedClassNames;
+        public final Map<String, String> compileErrorsByClassName;
 
         public ChallengeResult(String challengeName, Path folder, int classFileCount) {
             this(challengeName, folder, classFileCount, null, null);
@@ -80,11 +83,25 @@ public class SubmissionStorageService {
                                int classFileCount,
                                String compileError,
                                String packageNormalizationNotice) {
+            this(challengeName, folder, classFileCount, compileError, packageNormalizationNotice, Set.of(), Map.of());
+        }
+
+        public ChallengeResult(String challengeName,
+                               Path folder,
+                               int classFileCount,
+                               String compileError,
+                               String packageNormalizationNotice,
+                               Set<String> failedClassNames,
+                               Map<String, String> compileErrorsByClassName) {
             this.challengeName = challengeName;
             this.folder = folder;
             this.classFileCount = classFileCount;
             this.compileError = compileError;
             this.packageNormalizationNotice = packageNormalizationNotice;
+            this.failedClassNames = failedClassNames == null ? Set.of() : Set.copyOf(failedClassNames);
+            this.compileErrorsByClassName = compileErrorsByClassName == null
+                    ? Map.of()
+                    : Map.copyOf(compileErrorsByClassName);
         }
     }
 
@@ -258,12 +275,9 @@ public class SubmissionStorageService {
         }
 
         long javacStart = System.currentTimeMillis();
+        CompileOutcome outcome;
         try {
-            CompileOutcome outcome = javaCompilerService.compileSources(sources, classesFolder);
-            if (!outcome.succeeded()) {
-                throw new SubmissionProcessingException(
-                        "Compilation failed:\n" + String.join("\n", outcome.messages()));
-            }
+            outcome = javaCompilerService.compileSources(sources, classesFolder);
         } catch (RuntimeException e) {
             long javacMs = System.currentTimeMillis() - javacStart;
             return failedChallenge(challengeName, challengeFolder, start, classesFolder,
@@ -276,6 +290,18 @@ public class SubmissionStorageService {
             int classCount = countClassFiles(classesFolder);
             long countMs = System.currentTimeMillis() - countStart;
             logCompileTiming(challengeName, start, buildSourcesMs, javacMs, countMs);
+            if (!outcome.succeeded()) {
+                CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
+                        outcome, normalization.sources());
+                return new ChallengeResult(
+                        challengeName,
+                        challengeFolder,
+                        classCount,
+                        null,
+                        packageNormalizationNotice,
+                        attributed.failedClassNames(),
+                        attributed.compileErrorsByClassName());
+            }
             return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
         } catch (IOException e) {
             long countMs = System.currentTimeMillis() - countStart;

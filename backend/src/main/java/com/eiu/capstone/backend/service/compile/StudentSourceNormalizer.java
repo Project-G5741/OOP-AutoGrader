@@ -94,7 +94,7 @@ public final class StudentSourceNormalizer {
         return dot >= 0 ? imported.substring(dot + 1) : imported;
     }
 
-    private static Set<String> extractDeclaredSimpleNames(String source) {
+    static Set<String> extractDeclaredSimpleNames(String source) {
         Set<String> names = new LinkedHashSet<>();
         Matcher matcher = TOP_LEVEL_TYPE.matcher(source);
         while (matcher.find()) {

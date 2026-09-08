@@ -1,5 +1,6 @@
 package integration.com.eiu.capstone.backend.pipeline;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,8 +90,10 @@ class SubmissionPipelineIntegrationTest {
                     List.of(classpathFile("integration/compile-fail/" + UPLOAD_BROKEN, UPLOAD_BROKEN)));
 
             SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
-            assertNotNull(folder.compileError);
-            assertTrue(folder.compileError.contains("Compilation failed"));
+            assertNull(folder.compileError);
+            assertFalse(folder.failedClassNames.isEmpty());
+            assertTrue(folder.compileErrorsByClassName.values().stream()
+                    .anyMatch(message -> message.contains("line")));
 
             GradingPipeline.ChallengePipelineResult graded = pipeline()
                     .gradeChallenge(snapshot(false), folder, List.of());
