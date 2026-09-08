@@ -37,6 +37,7 @@ import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.InvocationKind;
@@ -88,7 +89,7 @@ class TestcaseDryRunServiceTest {
                 .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
         when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(minimalRubric());
         when(javaCompilerService.compileSources(any(), any()))
-                .thenReturn(List.of("';' expected"));
+                .thenReturn(new CompileOutcome(false, List.of(), 0));
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
@@ -108,7 +109,7 @@ class TestcaseDryRunServiceTest {
         when(testcaseRubricService.loadForChallenge(labId, challengeId))
                 .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
         when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
-        when(javaCompilerService.compileSources(any(), any())).thenReturn(List.of());
+        when(javaCompilerService.compileSources(any(), any())).thenReturn(CompileOutcome.skipped());
 
         TestcaseGrader graderSpy = mock(TestcaseGrader.class);
         TestcaseDryRunService wired = newService(graderSpy);

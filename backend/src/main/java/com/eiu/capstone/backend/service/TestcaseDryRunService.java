@@ -25,6 +25,7 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
@@ -92,10 +93,10 @@ public class TestcaseDryRunService {
                         entry.source().getBytes(StandardCharsets.UTF_8)));
             }
 
-            List<String> errors = javaCompilerService.compileSources(sources, classesDir);
-            if (!errors.isEmpty()) {
+            CompileOutcome outcome = javaCompilerService.compileSources(sources, classesDir);
+            if (!outcome.succeeded()) {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "Compilation failed: " + String.join("; ", errors));
+                        "Compilation failed: " + String.join("; ", outcome.messages()));
             }
 
             ChallengeRubric stubRubric = new ChallengeRubric(

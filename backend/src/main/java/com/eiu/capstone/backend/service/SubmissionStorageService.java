@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
@@ -258,7 +259,11 @@ public class SubmissionStorageService {
 
         long javacStart = System.currentTimeMillis();
         try {
-            javaCompilerService.compileSources(sources, classesFolder);
+            CompileOutcome outcome = javaCompilerService.compileSources(sources, classesFolder);
+            if (!outcome.succeeded()) {
+                throw new SubmissionProcessingException(
+                        "Compilation failed:\n" + String.join("\n", outcome.messages()));
+            }
         } catch (RuntimeException e) {
             long javacMs = System.currentTimeMillis() - javacStart;
             return failedChallenge(challengeName, challengeFolder, start, classesFolder,

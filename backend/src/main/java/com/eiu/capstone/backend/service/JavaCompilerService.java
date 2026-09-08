@@ -2,11 +2,16 @@ package com.eiu.capstone.backend.service;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import jakarta.annotation.PostConstruct;
+import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -15,7 +20,7 @@ import javax.tools.ToolProvider;
 
 import org.springframework.stereotype.Service;
 
-import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.service.compile.CompileOutcome;
 
 @Service
 public class JavaCompilerService {
@@ -32,12 +37,50 @@ public class JavaCompilerService {
         }
     }
 
-    public List<String> compileSources(List<JavaFileObject> sources, Path outputDir) {
+    public CompileOutcome compileSources(List<JavaFileObject> sources, Path outputDir) {
         if (sources.isEmpty()) {
-            return List.of();
+            return CompileOutcome.skipped();
         }
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        boolean success;
+        try {
+            success = runTask(sources, outputDir, diagnostics);
+        } catch (RuntimeException e) {
+            resetFileManager();
+            throw e;
+        }
+
+        List<Diagnostic<? extends JavaFileObject>> firstPass = List.copyOf(diagnostics.getDiagnostics());
+        if (success) {
+            return new CompileOutcome(true, firstPass, countClassFiles(outputDir));
+        }
+
+        resetFileManager();
+        int classFileCount = countClassFiles(outputDir);
+        if (classFileCount == 0) {
+            List<JavaFileObject> remainder = sourcesWithoutErrorDiagnostics(sources, firstPass);
+            if (!remainder.isEmpty()) {
+                DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
+                try {
+                    boolean remainderOk = runTask(remainder, outputDir, remainderDiagnostics);
+                    if (!remainderOk) {
+                        resetFileManager();
+                    }
+                } catch (RuntimeException e) {
+                    resetFileManager();
+                    throw e;
+                }
+                classFileCount = countClassFiles(outputDir);
+            }
+        }
+
+        return new CompileOutcome(false, firstPass, classFileCount);
+    }
+
+    private boolean runTask(List<JavaFileObject> sources,
+                            Path outputDir,
+                            DiagnosticCollector<JavaFileObject> diagnostics) {
         StandardJavaFileManager fileManager = fileManagerHolder.get();
         if (fileManager == null) {
             fileManager = compiler.getStandardFileManager(null, Locale.getDefault(), null);
@@ -45,30 +88,55 @@ public class JavaCompilerService {
         }
 
         List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8");
-
         StringWriter errorOutput = new StringWriter();
         JavaCompiler.CompilationTask task = compiler.getTask(
                 errorOutput, fileManager, diagnostics, options, null, sources);
+        return Boolean.TRUE.equals(task.call());
+    }
 
-        boolean success;
-        try {
-            success = task.call();
-        } catch (RuntimeException e) {
-            resetFileManager();
-            throw e;
+    private static List<JavaFileObject> sourcesWithoutErrorDiagnostics(
+            List<JavaFileObject> sources,
+            List<Diagnostic<? extends JavaFileObject>> diagnostics) {
+        List<JavaFileObject> remainder = new ArrayList<>();
+        for (JavaFileObject source : sources) {
+            if (!sourceHasError(source, diagnostics)) {
+                remainder.add(source);
+            }
         }
+        return remainder;
+    }
 
-        List<String> messages = diagnostics.getDiagnostics().stream()
-                .map(d -> String.format("%s: line %d: %s",
-                        d.getKind(), d.getLineNumber(), d.getMessage(Locale.getDefault())))
-                .toList();
-
-        if (!success) {
-            resetFileManager();
-            throw new SubmissionProcessingException("Compilation failed:\n" + String.join("\n", messages));
+    private static boolean sourceHasError(
+            JavaFileObject source,
+            List<Diagnostic<? extends JavaFileObject>> diagnostics) {
+        URI uri = source.toUri();
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics) {
+            if (diagnostic.getKind() != Diagnostic.Kind.ERROR) {
+                continue;
+            }
+            JavaFileObject reported = diagnostic.getSource();
+            if (reported == null) {
+                continue;
+            }
+            if (reported == source || uri.equals(reported.toUri())) {
+                return true;
+            }
         }
+        return false;
+    }
 
-        return messages;
+    private static int countClassFiles(Path outputDir) {
+        if (!Files.isDirectory(outputDir)) {
+            return 0;
+        }
+        try (var stream = Files.walk(outputDir)) {
+            return (int) stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".class"))
+                    .count();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void resetFileManager() {
