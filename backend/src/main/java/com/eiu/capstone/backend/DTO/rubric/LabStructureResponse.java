@@ -9,4 +9,6 @@ public record LabStructureResponse(
         String name,
         UUID termId,
         LocalDate deadlineDate,
+        boolean studentVisible,
+        LocalDate releaseDate,
         List<ChallengeStructureDTO> challenges) {}

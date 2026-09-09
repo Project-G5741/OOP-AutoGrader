@@ -76,7 +76,7 @@ public class TermService {
                 });
         if (termRepository.findByAcademicYear_IdAndTermNumber(year.getId(), termNumber).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "That term already exists for " + yearLabel);
+                    "That quarter already exists for " + yearLabel);
         }
         Term term = new Term();
         term.setAcademicYear(year);
@@ -94,7 +94,7 @@ public class TermService {
     @Transactional
     public TermSummaryDTO setCurrentTerm(UUID termId) {
         Term target = termRepository.findById(termId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Term not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found"));
         termRepository.clearOtherCurrent(termId);
         target.setCurrent(true);
         return toSummary(termRepository.save(target));
@@ -293,13 +293,20 @@ public class TermService {
 
     private void requireTermExists(UUID termId) {
         if (!termRepository.existsById(termId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Term not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found");
         }
     }
 
     private Term requireTerm(UUID termId) {
         return termRepository.findById(termId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Term not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found"));
+    }
+
+    static String formatQuarterLabel(int termNumber) {
+        if (termNumber == 4) {
+            return "Quarter 4 (Summer Quarter)";
+        }
+        return "Quarter " + termNumber;
     }
 
     private TermSummaryDTO toSummary(Term term) {
@@ -310,7 +317,7 @@ public class TermService {
         String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
         return new TermSummaryDTO(
                 term.getId(),
-                yearLabel + " — Term " + term.getTermNumber(),
+                yearLabel + " — " + formatQuarterLabel(term.getTermNumber()),
                 term.getEndDate(),
                 yearLabel,
                 term.getTermNumber(),

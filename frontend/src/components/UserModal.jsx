@@ -25,13 +25,14 @@ export default function UserModal({
   onDelete,
   onSuspendToggle,
   onFieldChange,
+  onFieldBlur,
   onRoleToggle,
 }) {
   if (!modal) return null;
 
   const roles = form.roles || [];
-  const hasStudent = roles.includes('STUDENT');
   const hasLecturer = roles.includes('LECTURER');
+  const hasStudentOnly = roles.includes('STUDENT') && !hasLecturer;
 
   return (
     <div className={isDark ? 'dark' : ''}>
@@ -111,18 +112,19 @@ export default function UserModal({
                   <p className="mt-1.5 text-xs text-error">{fieldErrors.roles}</p>
                 ) : (
                   <p className="mt-1.5 text-xs text-foreground-muted">
-                    Select roles first — IRN fields appear based on your selection.
+                    Student-only accounts need a Student IRN. Lecturer accounts (including dual-role) use Lecturer ID only.
                   </p>
                 )}
               </div>
 
-              {hasStudent && (
+              {hasStudentOnly && (
                 <div>
                   <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Student IRN</label>
                   <input
                     type="text"
                     value={form.studentIrn || ''}
                     onChange={(e) => onFieldChange('studentIrn', e.target.value)}
+                    onBlur={() => onFieldBlur?.('studentIrn')}
                     placeholder="e.g. 2052123456"
                     className={inputClass(fieldErrors.studentIrn)}
                   />
@@ -139,6 +141,7 @@ export default function UserModal({
                     type="text"
                     value={form.lecturerIrn || ''}
                     onChange={(e) => onFieldChange('lecturerIrn', e.target.value)}
+                    onBlur={() => onFieldBlur?.('lecturerIrn')}
                     placeholder="e.g. lan.cao"
                     className={inputClass(fieldErrors.lecturerIrn)}
                   />
@@ -159,6 +162,7 @@ export default function UserModal({
                     type={type}
                     value={form[key] || ''}
                     onChange={(e) => onFieldChange(key, e.target.value)}
+                    onBlur={() => onFieldBlur?.(key)}
                     placeholder={placeholder}
                     className={inputClass(fieldErrors[key])}
                   />

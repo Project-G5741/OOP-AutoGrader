@@ -142,10 +142,13 @@ export function getUserFormErrors(form, mode) {
     password: validatePassword(form.password, { required: mode === 'create' }),
   };
 
-  if (roleNames.includes('STUDENT')) {
+  const hasLecturer = roleNames.includes('LECTURER');
+  const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer;
+
+  if (needsStudentIrn) {
     errors.studentIrn = validateStudentIrn(form.studentIrn);
   }
-  if (roleNames.includes('LECTURER')) {
+  if (hasLecturer) {
     errors.lecturerIrn = validateLecturerCode(form.lecturerIrn);
   }
 

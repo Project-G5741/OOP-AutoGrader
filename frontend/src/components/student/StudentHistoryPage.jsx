@@ -322,7 +322,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
           <p>
-            You do not belong to any class in this term. If you do, please contact your lecturer for submission permissions.
+            You do not belong to any class in this quarter. If you do, please contact your lecturer for submission permissions.
           </p>
         </div>
       )}

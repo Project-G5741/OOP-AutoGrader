@@ -28,9 +28,12 @@ class StudentTermAccessServiceTest {
 
     private StudentTermAccessService accessService;
 
+    @Mock
+    private LabDeadlineHelper labDeadlineHelper;
+
     @BeforeEach
     void setUp() {
-        accessService = new StudentTermAccessService(termService);
+        accessService = new StudentTermAccessService(termService, labDeadlineHelper);
     }
 
     @Test

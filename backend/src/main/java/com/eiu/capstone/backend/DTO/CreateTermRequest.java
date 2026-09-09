@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotNull;
 
 public record CreateTermRequest(
         @NotBlank String yearLabel,
-        @NotNull @Min(1) @Max(3) Integer termNumber,
+        @NotNull @Min(1) @Max(4) Integer termNumber,
         LocalDate startDate,
         LocalDate endDate,
         boolean setCurrent) {

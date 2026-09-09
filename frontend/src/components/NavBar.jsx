@@ -4,7 +4,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'grading', label: 'Grading', icon: ClipboardList },
   { id: 'users', label: 'Users', icon: Users },
-  { id: 'terms', label: 'Terms', icon: CalendarDays },
+  { id: 'terms', label: 'Quarters', icon: CalendarDays },
   { id: 'projects', label: 'Solution', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];

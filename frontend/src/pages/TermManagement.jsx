@@ -211,7 +211,7 @@ export default function TermManagement() {
   const formatImportNotice = (result) => {
     const parts = [`Added ${result.enrolled ?? 0} student${result.enrolled === 1 ? '' : 's'}`];
     if (result.alreadyInTerm) {
-      parts.push(`${result.alreadyInTerm} already in this term`);
+      parts.push(`${result.alreadyInTerm} already in this quarter`);
     }
     if (result.notFound) {
       parts.push(`${result.notFound} not found`);
@@ -331,9 +331,9 @@ export default function TermManagement() {
     <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Terms</h2>
+          <h2 className="text-xl font-semibold text-foreground">Quarters</h2>
           <p className="mt-1 text-sm text-foreground-secondary">
-            Create a term for a year, mark which term is current, and add active students. Only students in the current term can submit labs.
+            Create a quarter for a year, mark which quarter is current, and add active students. Only students in the current quarter can submit labs.
           </p>
         </div>
         <button
@@ -342,7 +342,7 @@ export default function TermManagement() {
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
         >
           <Plus className="h-4 w-4" />
-          Add term
+          Add quarter
         </button>
       </div>
 
@@ -355,7 +355,7 @@ export default function TermManagement() {
 
       {showCreate && (
         <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold text-foreground">New term</h3>
+          <h3 className="mb-4 text-base font-semibold text-foreground">New quarter</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="mb-1 block text-xs text-foreground-muted">Year</span>
@@ -367,15 +367,16 @@ export default function TermManagement() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-xs text-foreground-muted">Term number</span>
+              <span className="mb-1 block text-xs text-foreground-muted">Quarter</span>
               <select
                 className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
                 value={form.termNumber}
                 onChange={(e) => setForm((prev) => ({ ...prev, termNumber: e.target.value }))}
               >
-                <option value="1">Term 1</option>
-                <option value="2">Term 2</option>
-                <option value="3">Term 3</option>
+                <option value="1">Quarter 1</option>
+                <option value="2">Quarter 2</option>
+                <option value="3">Quarter 3</option>
+                <option value="4">Quarter 4 (Summer Quarter)</option>
               </select>
             </label>
             <label className="block text-sm">
@@ -403,7 +404,7 @@ export default function TermManagement() {
               checked={form.setCurrent}
               onChange={(e) => setForm((prev) => ({ ...prev, setCurrent: e.target.checked }))}
             />
-            Set as current term
+            Set as current quarter
           </label>
           <div className="mt-4 flex gap-2">
             <button
@@ -428,12 +429,12 @@ export default function TermManagement() {
       <div className="grid gap-6 lg:grid-cols-[0.34fr_1fr]">
         <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
-            Academic terms
+            Academic quarters
           </h3>
           {loading ? (
-            <p className="py-6 text-center text-sm text-foreground-muted">Loading terms...</p>
+            <p className="py-6 text-center text-sm text-foreground-muted">Loading quarters...</p>
           ) : terms.length === 0 ? (
-            <p className="py-6 text-center text-sm text-foreground-muted">No terms yet</p>
+            <p className="py-6 text-center text-sm text-foreground-muted">No quarters yet</p>
           ) : (
             <div className="space-y-2">
               {terms.map((term) => (
@@ -526,7 +527,7 @@ export default function TermManagement() {
                   <div className="flex min-h-[160px] flex-col gap-2">
                     {available.length === 0 ? (
                       <p className="flex flex-1 items-center text-sm text-foreground-muted">
-                        All active students are already in this term.
+                        All active students are already in this quarter.
                       </p>
                     ) : (
                       <>
@@ -615,7 +616,7 @@ export default function TermManagement() {
                     {students.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-sm text-foreground-muted">
-                          No students in this term yet
+                          No students in this quarter yet
                         </td>
                       </tr>
                     ) : filteredStudents.length === 0 ? (
@@ -669,7 +670,7 @@ export default function TermManagement() {
               </div>
             </>
           ) : (
-            <p className="py-10 text-center text-sm text-foreground-muted">Select a term to manage students.</p>
+            <p className="py-10 text-center text-sm text-foreground-muted">Select a quarter to manage students.</p>
           )}
         </div>
       </div>

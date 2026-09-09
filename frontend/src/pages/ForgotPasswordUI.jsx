@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, ArrowLeft } from 'lucide-react';
 import AppLogo from '../components/ui/AppLogo';
+import LoginBackground from '../components/ui/LoginBackground';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { validateEmail } from '../utils/validation';
@@ -17,7 +18,6 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
   const rawEmailError = validateEmail(email);
   const emailError = hasAttemptedSubmit || emailTouched ? rawEmailError : '';
-  const canSubmit = !rawEmailError;
 
   const handleEmailChange = (value) => {
     setEmail(value);
@@ -58,6 +58,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
   return (
     <div className="login-root">
       <div className="login-bg">
+        <LoginBackground />
         <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">
@@ -109,7 +110,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
                   </p>
                 )}
 
-                <button type="submit" className="primary-btn" disabled={isLoading || !canSubmit}>
+                <button type="submit" className="primary-btn" disabled={isLoading}>
                   {isLoading ? 'Sending...' : 'Send reset link'}
                 </button>
 

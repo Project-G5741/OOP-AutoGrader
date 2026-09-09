@@ -26,6 +26,7 @@ import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.rubric.MethodStructureDTO;
@@ -134,6 +135,7 @@ public class LabStructureService {
         if (challenges.isEmpty()) {
             return new LabStructureResponse(
                     lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
+                    lab.isStudentVisible(), lab.getReleaseDate(),
                     List.of());
         }
 
@@ -179,6 +181,7 @@ public class LabStructureService {
 
         return new LabStructureResponse(
                 lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
+                lab.isStudentVisible(), lab.getReleaseDate(),
                 challengeDtos);
     }
 
@@ -256,6 +259,7 @@ public class LabStructureService {
                 "total", System.currentTimeMillis() - startedAt);
         return new LabStructureResponse(
                 labId, labName, lab.getTerm().getId(), lab.getDeadlineDate(),
+                lab.isStudentVisible(), lab.getReleaseDate(),
                 savedChallenges);
     }
 
@@ -266,6 +270,18 @@ public class LabStructureService {
         lab.setDeadlineDate(request.deadlineDate());
         labRepository.save(lab);
         labStatisticsCache.invalidate(labId);
+        return buildLabStructureResponse(lab);
+    }
+
+    @Transactional
+    public LabStructureResponse updateLabStudentAccess(UUID labId, UpdateLabStudentAccessRequest request) {
+        Lab lab = labRepository.findById(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        if (request.studentVisible() != null) {
+            lab.setStudentVisible(request.studentVisible());
+        }
+        lab.setReleaseDate(request.releaseDate());
+        labRepository.save(lab);
         return buildLabStructureResponse(lab);
     }
 
@@ -486,6 +502,7 @@ public class LabStructureService {
         lab = labRepository.save(lab);
         return new LabStructureResponse(
                 lab.getId(), lab.getName(), term.getId(), lab.getDeadlineDate(),
+                lab.isStudentVisible(), lab.getReleaseDate(),
                 List.of());
     }
 

@@ -51,7 +51,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/lecturer/plagiarism/flags`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
 | `terms` | `TermManagement` | Live `/api/lecturer/terms` create/set current/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |
-| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `PATCH /api/lecturer/labs/{labId}/deadline` for the selected lab, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight |
+| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `PATCH /api/lecturer/labs/{labId}/deadline` and `PATCH /api/lecturer/labs/{labId}/student-access` for the selected lab, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections
@@ -98,6 +98,7 @@ Shared: `home`, `history`, `editProfile` (opens `ChangePasswordModal`).
 | `GET /api/labs/{labId}/challenges/{challengeId}/mmd?studentId=` | `LecturerDashboard.jsx` (drawer) |
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
+| `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle, optional **Release date**, **Save student access** / **Clear release date** |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 
@@ -106,7 +107,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Pages compose `AppShell` (layout), child components, and local state
 - `LoginUI.jsx` shows field validation after a Sign In attempt or after a field loses focus (`touchedFields`); auth API failures use `readFriendlyAuthError` from `frontend/src/utils/apiError.js` (never raw backend `detail` text). Google 403 opens first-time setup; Google 423 is inactive and stays on the login form.
 - `ForgotPasswordUI.jsx` and `ResetPasswordUI.jsx` use the same touched/submit gating as `LoginUI.jsx` for inline field errors
-- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`)
+- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt; Lecturer or dual-role users collect Lecturer ID only (no Student IRN field)
 - When replacing mock data, update the relevant page and its child component docs
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
 - Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD and Email columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util
