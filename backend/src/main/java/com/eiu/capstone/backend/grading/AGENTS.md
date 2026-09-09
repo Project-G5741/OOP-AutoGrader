@@ -57,6 +57,7 @@ SubmissionController
       → persistExecutor: GradingResultJdbcWriter detail UPSERT
       → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
           → skip MMD/testcase trees when pillar not applicable
+  → PlagiarismService.inspectUpload()   (request thread; after grade; failures swallowed)
   → MmdPersistenceHook.onUploadComplete()
   → SubmissionStorageService.deleteFolder() (finally)
 ```
@@ -113,7 +114,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
 - Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
-- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `save`, `assemble`, `total`); upload (`rubric`, `compile`, `grade`, `total`)
+- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `save`, `assemble`, `total`); upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`)
 
 ## Verification
 

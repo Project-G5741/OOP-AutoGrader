@@ -25,6 +25,9 @@ A class's optional Extends or Implements target, authored on the class editor as
 ### Static nested flag
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
+### Upload hot path
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: rubric cache → parallel compile → parallel grade (but testcase invokes globally serial) → challenge-score save → `lab_result` assemble → plagiarism inspect → temp-folder delete. Detail UPSERT is off-thread. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
 

@@ -96,14 +96,14 @@ flowchart LR
     F --> G[Class / MMD / Testcase Tabs]
 ```
 
-1. Student selects a lab and attempt number
-2. Student drags a folder containing `challenge_N/` subfolders with `.java` and optionally `.mmd` files
-3. Backend compiles Java in parallel, grades against the rubric, persists results
+1. Student selects a lab
+2. Student drags a folder containing `challenge_N/` subfolders with `.java` and optionally `.mmd` files (optional `root/.git/` for plagiarism)
+3. Backend compiles Java in parallel, grades against the rubric, inspects plagiarism, persists results
 4. Student sees scores, detailed breakdowns, and testcase input/output cards immediately
 
 ### 4.2 The Three-Pillar Grading Model
 
-Each **challenge** within a lab is scored across up to **three equal pillars**:
+Each **challenge** within a lab is scored across up to **three independent pillars**:
 
 | Pillar | What it checks | How |
 |--------|----------------|-----|
@@ -111,8 +111,8 @@ Each **challenge** within a lab is scored across up to **three equal pillars**:
 | **MMD (Diagram)** | Classes and relations in UML | Parse Mermaid `.mmd`, compare to rubric |
 | **Operational Testcase** | Runtime behavior | Invoke student code via reflection; assert return values, stdout, field state, exceptions |
 
-- **Challenge score** = arithmetic mean of applicable pillar percentages (1, 2, or 3 pillars)
-- **Lab score** = mean across all challenges (missing challenges count as 0%)
+- **Challenge score** = weighted mean of applicable pillar percentages (`class_weight` / `mmd_weight` / `testcase_weight`, default 1)
+- **Lab score** = weighted mean across all challenges using `challenge.weight` (missing challenges count as 0%)
 - Partial credit applies on declaration checks (e.g., correct name but wrong type)
 
 ### 4.3 Submission Pipeline (Backend)
@@ -121,11 +121,13 @@ Each **challenge** within a lab is scored across up to **three equal pillars**:
 Upload (multipart folder)
   → Load rubric snapshot (cached, TTL 30 min)
   → SubmissionStorageService: parallel in-memory compile per challenge
+  → Insert new lab_submission attempt (MAX+1)
   → GradingService: parallel per-challenge grading
       → ClassReflectionGrader (sync)
-      → MmdPillarGrader + TestcaseGrader (parallel)
-  → Persist results to PostgreSQL
+      → MmdPillarGrader + TestcaseGrader (parallel; invokes serialize on one thread)
+  → Challenge-score UPSERT + async detail UPSERT
   → Assemble lab_result bundle for immediate UI rendering
+  → Plagiarism inspect (on the upload thread)
   → Delete temp upload folder
 ```
 
@@ -375,7 +377,7 @@ OOP-AutoGrader/
 2. **Ephemeral upload storage** — Temp folders are deleted after grading; durable state lives in PostgreSQL.
 3. **Upload-time result bundle** — `lab_result` JSON is returned on upload so the student UI renders immediately without extra API calls.
 4. **Latest attempt wins** — Student dashboard shows the most recent attempt, not necessarily the highest score.
-5. **Parallel grading** — Challenges compile and grade in parallel (configurable via `app.grading.parallelism` and `app.compile.parallelism`).
+5. **Parallel compile and grade** — Challenges compile on `compileExecutor` and grade on `gradingExecutor` (both CPU-capped). Operational testcase invokes stay serial on `testcaseInvokeExecutor`. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity).
 6. **Backend tests in five aspect homes** — `mvn test` from `backend/` and the Docker image build run `unit`, `integration`, `authorization`, `regression`, and `support` under `backend/src/test/java/`. Frontend has no automated tests yet.
 
 ---

@@ -1,6 +1,6 @@
 # Grading Workflows — Line-by-Line Reference
 
-This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the three grading pillars (**Java / class reflection**, **MMD diagram**, and **structural testcases**). Each section traces the actual Java source files and explains what each significant line or block does.
+This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the three grading pillars (**Java / class reflection**, **MMD diagram**, and **operational testcases**). Each section traces the actual Java source files and explains what each significant line or block does.
 
 **Package root:** `backend/src/main/java/com/eiu/capstone/backend/grading/`
 
@@ -16,45 +16,49 @@ This document describes every step of the OOP AutoGrader grading pipeline: how s
 6. [Phase D: Per-Challenge Pipeline](#6-phase-d-per-challenge-pipeline)
 7. [Pillar 1 — Java (Class Reflection) Grading](#7-pillar-1--java-class-reflection-grading)
 8. [Pillar 2 — MMD Diagram Grading](#8-pillar-2--mmd-diagram-grading)
-9. [Pillar 3 — Structural Testcase Grading](#9-pillar-3--structural-testcase-grading)
+9. [Pillar 3 — Operational Testcase Grading](#9-pillar-3--operational-testcase-grading)
 10. [Scoring Model](#10-scoring-model)
 11. [Persistence & Side Effects](#11-persistence--side-effects)
 12. [Configuration & Thread Pools](#12-configuration--thread-pools)
 13. [File Map](#13-file-map)
+14. [Wall-clock cost and time complexity](#14-wall-clock-cost-and-time-complexity)
 
 ---
 
 ## 1. High-Level Architecture
 
-Each **challenge** in a lab is graded on **three equal pillars**:
+Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true; testcase applies when the challenge has at least one operational testcase.
 
 | Pillar | Input | Grader class | What is compared |
 |--------|-------|--------------|------------------|
 | **Class (Java)** | Compiled `.class` files | `ClassReflectionGrader` | Rubric classes, fields, methods, constructors via reflection |
 | **MMD** | Uploaded `.mmd` bytes | `MmdPillarGrader` → `MmdParser` + `MmdComparisonService` | Same rubric elements plus UML relations |
-| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` | Targeted EXISTENCE or DECLARATION checks |
+| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` → `InvocationRunner` | Runtime invoke + assertions (return, stdout, field state, exception, comparison) |
 
-**Challenge score** = arithmetic mean of the three pillar percentages.
+**Challenge score** = weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`, default 1).
 
-**Lab score** = arithmetic mean across all rubric challenges (missing challenges count as 0%).
+**Lab score** = weighted mean across all rubric challenges using `challenge.weight` (missing challenges count as 0%).
 
 ```
 POST /api/submissions/{labId}/{attemptNumber}/upload
   │
-  ├─ LabRubricCache.get(lab)                    ← load rubric from DB (cached)
-  ├─ SubmissionStorageService.processUpload()     ← validate paths, compile .java per challenge
+  ├─ LabRubricCache.get(lab)                      ← load rubric from DB (cached)
+  ├─ SubmissionStorageService.processUpload()     ← validate paths, in-memory compile .java per challenge
+  ├─ insert new LabSubmission (MAX(attempt_number)+1; path attempt is unused)
   ├─ GradingService.gradeSubmission()
   │    ├─ [parallel per challenge on gradingExecutor]
   │    │    └─ GradingPipeline.gradeChallenge()
   │    │         ├─ ReflectionClassParser.parseClasses()   ← load .class via URLClassLoader
   │    │         ├─ ClassReflectionGrader.grade()            ← sync
   │    │         ├─ MmdPillarGrader.grade()                  ← async on pillarExecutor
-  │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor
-  │    ├─ GradingResultStore.save()             ← PostgreSQL
-  │    └─ LabResultAssembler.assemble()         ← upload response bundle
-  ├─ compileErrorStore.save() / mmdMetaStore.save()
-  ├─ MmdPersistenceHook.onUploadComplete()      ← no-op by default
-  └─ SubmissionStorageService.deleteFolder()    ← finally: wipe temp files
+  │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor; invokes serialize on testcaseInvokeExecutor
+  │    ├─ GradingResultStore.saveChallengeScores()  ← challenge scores on the request thread
+  │    ├─ persistExecutor: detail UPSERT            ← members/testcases off-request
+  │    └─ LabResultAssembler.assemble()             ← in-memory lab_result bundle
+  ├─ compileErrorStore / packageNormalizationStore / mmdMetaStore
+  ├─ PlagiarismService.inspectUpload()            ← on the request thread; must not fail the upload
+  ├─ MmdPersistenceHook.onUploadComplete()        ← no-op by default
+  └─ SubmissionStorageService.deleteFolder()      ← finally: wipe temp files
 ```
 
 ---
@@ -63,27 +67,27 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
 
 **File:** `controller/SubmissionController.java`
 
-### 2.1 Authentication & setup (lines 126–142)
+### 2.1 Authentication & setup
 
 ```java
 @PostMapping("/{labId}/{attemptNumber}/upload")
 public ResponseEntity<SubmissionUploadResponse> upload(...)
 ```
 
-1. **`resolveStudentUser(authHeader)`** — Parses JWT Bearer token via `JwtService.parseToken()`. Requires a non-blank `irn` claim (students only; lecturers cannot submit).
-2. **`labRepository.findById(labId)`** — Loads the lab; 404 if missing.
+1. **`@AuthenticationPrincipal JwtUserPrincipal`** — Spring Security JWT; `requireStudentSubmitter` requires an active student with a usable IRN. Lecturers cannot submit.
+2. **`labRepository.findByIdWithTerm(labId)`** — Loads the lab with its term; 404 if missing. `studentTermAccessService.requireCanSubmit` blocks inactive or out-of-term students.
 3. **`requestId = UUID.randomUUID()`** — Unique folder name to prevent upload collisions under the same IRN.
 4. **`submissionFolderToDelete = null`** — Tracked so the `finally` block can always clean up temp storage.
 
-### 2.2 Rubric load (lines 144–146)
+### 2.2 Rubric load
 
 ```java
 LabRubricSnapshot rubric = labRubricCache.get(lab);
 ```
 
-Loads the full immutable rubric graph (challenges → classes → fields/methods/constructors → relations → testcases) from PostgreSQL, with in-process TTL caching (`app.grading.rubric-cache-ttl-minutes`, default 30).
+Loads the full immutable rubric graph (challenges → classes → fields/methods/constructors → relations → testcases with invocations/assertions) from PostgreSQL, with in-process TTL caching (`app.grading.rubric-cache-ttl-minutes`, default 30).
 
-### 2.3 Upload processing (lines 148–152)
+### 2.3 Upload processing
 
 ```java
 SubmissionStorageService.ProcessResult uploadResult =
@@ -93,40 +97,33 @@ submissionFolderToDelete = uploadResult.submissionFolder;
 
 Validates folder structure, groups files by challenge, compiles Java in parallel. Returns challenge folders, MMD file lists, and compile metadata. See [Phase B](#4-phase-b-upload-processing--java-compilation).
 
-### 2.4 Submission record (lines 154–162)
+### 2.4 Submission record
 
-```java
-var existingSubmission = labSubmissionRepository
-    .findByUserAndLabAndAttemptNumber(userAccount, lab, attemptNumber);
-boolean isNewSubmission = existingSubmission.isEmpty();
-LabSubmission submission = existingSubmission.orElseGet(LabSubmission::new);
-submission.setScore(BigDecimal.ZERO);
-submission = labSubmissionRepository.save(submission);
-```
+Each upload **inserts a new attempt**. `SubmissionAttemptNumbers.next(MAX+1)` assigns the number. The `{attemptNumber}` path segment is not used to locate or overwrite a prior row (a stale client value after a large `lab_result` parse would otherwise freeze counts).
 
-Creates or reuses a `lab_submission` row for this user/lab/attempt. `isNewSubmission` controls whether prior element results are loaded for upsert (re-upload of same attempt reuses existing result rows).
-
-### 2.5 Grading (lines 164–167)
+### 2.5 Grading
 
 ```java
 GradingOutcome gradingOutcome = gradingService.gradeSubmission(
-    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge, isNewSubmission);
+    submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge);
 ```
 
-Main grading entry. See [Phase C](#5-phase-c-grading-orchestration).
+Main grading entry. See [Phase C](#5-phase-c-grading-orchestration). Detail rows UPSERT by natural key; there is no `loadExisting` / `isNewSubmission` flag.
 
-### 2.6 Post-grade persistence (lines 169–183)
+### 2.6 Post-grade persistence
 
 - **`submission.setScore(gradingOutcome.overallScore())`** — Lab-level percentage saved to `lab_submission.score`.
-- **`updateStudentProgress(...)`** — Updates `student_lab_progress` (attempts count, highest score, timestamps).
-- **`compileErrorStore.save(...)`** — Writes per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`. Legacy files that are still a plain string are read as `catastrophic`.
+- **`updateStudentProgress(...)`** — Updates `student_lab_progress` (attempts count from `COUNT(lab_submission)`, highest score, timestamps).
+- **`compileErrorStore.save(...)`** — Writes per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
+- **`packageNormalizationStore.save(...)`** — Non-blocking package-stripped warning when student sources included `package` declarations.
 - **`submissionMmdMetaStore.save(...)`** — Writes MMD metadata to `_mmd_meta/{submissionId}.json`.
-- **`labStatisticsCache.invalidate(labId)`** — Clears lecturer analytics cache for this lab.
+- **`plagiarismService.inspectUpload(submission, files)`** — Fingerprint + pairwise compare against other students in the lab. Runs on the upload thread; exceptions are swallowed so the student still gets results.
+- **`labStatisticsCache.invalidate(labId)`** / **`lecturerOverviewCache.invalidate()`** — Clears lecturer analytics caches.
 - **`mmdPersistenceHook.onUploadComplete(...)`** — Extension point for archiving `.mmd` files (default no-op).
 
-### 2.7 Response & cleanup (lines 185–213)
+### 2.7 Response & cleanup
 
-Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bundle. The `finally` block calls `submissionStorageService.deleteFolder(submissionFolderToDelete)` — all compiled classes and temp folders are deleted after grading.
+Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bundle. The `finally` block calls `submissionStorageService.deleteFolder(submissionFolderToDelete)` — compiled classes and temp folders are deleted after grading. Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` (60s) for the off-thread detail UPSERT.
 
 ---
 
@@ -142,8 +139,8 @@ Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bun
 4. `methodRepository.findByClassEntityInWithDeclaration(...)` — methods with declarations.
 5. `constructorRepository.findByClassEntityInWithDeclaration(...)` — constructors.
 6. `parameterRepository.findByMethodIn(...)` / `findByConstructorEntityIn(...)` — parameter type lists.
-7. `classRelationRepository.findByChallengeIn(...)` — UML relations.
-8. `testcaseRepository.findByChallengeInOrderByOrderIndexAsc(...)` — structural testcase rows.
+7. `classRelationRepository.findByClassEntityInWithEndpoints(...)` — UML relations (inheritance/realization also feed the Java class shell).
+8. `testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(...)` plus invocation / instance / assertion batches — operational testcase graph.
 
 The result is an immutable `LabRubricSnapshot` keyed by challenge number, used read-only throughout grading. Rubric mutations must call `RubricCacheInvalidationSupport.invalidateLab(labId)`.
 
@@ -170,9 +167,9 @@ This phase runs **before** grading. It does not score anything; it validates upl
 For each `MultipartFile`:
 
 1. **`isValidSubmissionPath(originalName)`** — Path must match:
-   - Root: `IRN_StudentName_lab_N` (regex `^(\d+)_([a-z0-9_\s]+)_lab_(\d+)$`)
-   - Intermediate segments: `challenge_1`, `challenge-2`, etc.
-   - Leaf: `.java` or `.mmd` only
+   - Root: `IRN_StudentName` plus optional suffix (regex `^(\d+)_([a-z0-9_\s]+)(_.*)?$`)
+   - Intermediate segments: `challenge_1`, `challenge-2`, etc. (`challenge[_-]?(\d+)`)
+   - Leaf: `.java` or `.mmd` only, **or** `root/.git/**` (accepted for plagiarism, skipped by compile grouping)
 2. All files must share the same root folder name.
 3. **`extractChallengeKey(path)`** — Finds `challenge[_-]?(\d+)` in path → normalized key `challenge_N`.
 4. Routes `.mmd` → `mmdByChallenge`, everything else → `javaByChallenge`.
@@ -185,10 +182,11 @@ Per challenge folder:
 
 1. **Create `challengeFolder/classes/`** directories.
 2. **If no Java files** → return `ChallengeResult(challengeName, folder, 0)` (zero class files; grading will score 0% on class pillar).
-3. **Build in-memory sources** (lines 197–220):
+3. **Build in-memory sources**:
    - For each `.java` file: `challengeRelativeJavaPath()` strips path up to challenge folder.
    - Duplicate source paths within a challenge → compile error.
-   - `new MemorySourceJavaFileObject(sourcePath, file.getBytes())` — sources never written to disk.
+   - `StudentSourceNormalizer.normalizeChallengeSources` strips `package` declarations and same-challenge cross-imports; JDK imports stay.
+   - `new MemorySourceJavaFileObject(logicalPath, bytes)` — sources never written to disk.
 4. **Compile** (lines 228–235):
    ```java
    CompileOutcome outcome = javaCompilerService.compileSources(sources, classesFolder);
@@ -220,24 +218,24 @@ Per challenge folder:
 
 **File:** `grading/GradingService.java`
 
-### 5.1 `gradeSubmission()` (lines 99–123)
+### 5.1 `gradeSubmission()`
 
 ```java
 public GradingOutcome gradeSubmission(LabSubmission submission,
                                       LabRubricSnapshot rubric,
                                       List<ChallengeResult> challengeFolderResults,
-                                      Map<String, List<MultipartFile>> mmdByChallenge,
-                                      boolean skipExistingLoad)
+                                      Map<String, List<MultipartFile>> mmdByChallenge)
 ```
 
 | Step | Method | Purpose |
 |------|--------|---------|
-| 1 | `loadExisting(submission)` or `emptyExistingResults()` | Re-upload reuses existing DB result entity IDs |
+| 1 | `emptyExistingResults()` | Always empty maps; UPSERT by natural key, no `loadExisting` |
 | 2 | `computeAgainstSnapshot(...)` | Parallel per-challenge grading |
-| 3 | `gradingResultStore.save(computed)` | Persist all element results |
+| 3 | `gradingResultStore.saveChallengeScores(computed)` | Challenge scores on the request thread |
 | 4 | `parsedSubmissionSnapshotStore.save(...)` | Save display snapshots for Class/MMD tabs |
-| 5 | `labResultAssembler.assemble(...)` | Build `lab_result` response map |
-| 6 | `return new GradingOutcome(...)` | Overall score + challenge summaries + MMD meta + lab_result |
+| 5 | `gradingResultStore.scheduleDetailPersist(...)` | Member/testcase UPSERT on `persistExecutor` |
+| 6 | `labResultAssembler.assemble(...)` | In-memory `lab_result` from `LabRubricSnapshot` (no Neon structure reload) |
+| 7 | `return new GradingOutcome(...)` | Overall score + challenge summaries + MMD meta + lab_result |
 
 ### 5.2 `computeAgainstSnapshot()` (lines 136–235)
 
@@ -270,9 +268,9 @@ for (ChallengeRubric challengeRubric : rubric.byChallengeNumber().values().strea
         .toList()) {
     BigDecimal challengeScore = percentagesByChallengeNumber.getOrDefault(
         challengeRubric.challengeNumber(), BigDecimal.ZERO);
-    overallChallengeScores.add(challengeScore);
+    overallChallengeScores.add(new WeightedPercentage(challengeRubric.weight(), challengeScore));
 }
-result.overallScore = PillarScoreAggregator.labPercentage(overallChallengeScores);
+result.overallScore = PillarScoreAggregator.weightedLabPercentage(overallChallengeScores);
 ```
 
 Challenges with no uploaded folder score **0%** (not skipped).
@@ -305,8 +303,8 @@ Step 6: classReflectionGrader.grade(context)          ← SYNCHRONOUS
 Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← ASYNC on pillarExecutor
 Step 8: testcaseGrader.grade(context)                 ← ASYNC on pillarExecutor
 Step 9: CompletableFuture.allOf(mmdFuture, testcaseFuture).join()
-Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase)
-Step 11: fullyCorrect = all three pillars == 100%
+Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase) with pillar weights
+Step 11: fullyCorrect = all **applicable** pillars == 100%
 Step 12: return ChallengePipelineResult(...)
 ```
 
@@ -569,92 +567,44 @@ boolean correct = diagram.relations.stream().anyMatch(parsed ->
 
 ---
 
-## 9. Pillar 3 — Structural Testcase Grading
+## 9. Pillar 3 — Operational Testcase Grading
 
-**File:** `grading/pipeline/TestcaseGrader.java`
+**Files:** `grading/pipeline/TestcaseGrader.java`, `grading/testcase/InvocationRunner.java`
 
-Testcases are **structural checks** defined in the `testcase` DB table per challenge. They are NOT JUnit tests — no code execution, no assertions on runtime behavior.
+Testcases **execute student bytecode**. They are not JUnit tests and not structural EXISTENCE/DECLARATION checks. Each rubric row names an invocation (or a two-instance comparison) plus assertions.
 
-### 9.1 Testcase rubric fields
+### 9.1 Testcase rubric graph
 
-| DB column | Enum | Values |
-|-----------|------|--------|
-| `check_type` | `TestcaseCheckType` | `EXISTENCE`, `DECLARATION` |
-| `target_type` | `TestcaseTargetType` | `CLASS`, `FIELD`, `METHOD`, `CONSTRUCTOR` |
-| `target_id` | UUID | Points to rubric class/field/method/constructor row |
-| `weight` | int | Pillar weight (default 1, min 1) |
+| Table | Role |
+|-------|------|
+| `testcase` | Type `SINGLE_INVOCATION` or `COMPARISON`, weight, `is_hidden` |
+| `testcase_invocation` | Class, constructor or method, JSON params; optional receiver constructor for instance methods |
+| `testcase_instance` | Two instances for COMPARISON (`EQUALS` / `COMPARE_TO`) |
+| `testcase_assertion` | Kind: RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT |
 
-### 9.2 `TestcaseGrader.grade(context)` (lines 33–52)
+### 9.2 `TestcaseGrader.grade(context)`
 
-For each `TestcaseRubric` in challenge:
-1. `weight = MemberWeightCalculator.testcaseWeight(testcase.weight())`
-2. `evaluation = evaluate(testcase, rubric, context)`
-3. Add `WeightedAccuracy(weight, evaluation.accuracy())` to pillar list
-4. Add `PendingTestcaseResult(id, status, feedback)`
+Loops **sequentially** over `challengeRubric.testcases()`. Empty list → pillar 0% (the pipeline skips this grader when the list is empty).
 
-**Empty testcase list** → pillar percentage = `BigDecimal.ZERO` (not 100%).
+For each testcase:
 
-### 9.3 `evaluate()` — common pre-check (lines 54–67)
+1. Catastrophic `compileError` → every testcase `ERROR`.
+2. Mixed javac: `ERROR` only when an invoked type is in `failedClassNames`; independent targets still invoke.
+3. `COMPARISON` → `invocationRunner.invokeComparison(...)`; `SINGLE_INVOCATION` → `invokeSingle(...)`.
+4. Every assertion is evaluated; the testcase **passes only when all assertions pass** (binary 0/1 × weight).
+5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT) fills collapsed I/O card display strings.
 
-```java
-if (context.compileError() != null && !context.compileError().isBlank()) {
-    return new Evaluation(0, TestcaseResultStatus.ERROR, "Compilation error: " + context.compileError());
-}
-if (an invoked type is in context.failedClassNames()) {
-    return ERROR using that class's compile message;
-}
-```
+### 9.3 `InvocationRunner` (the wall-clock cost)
 
-Catastrophic compile still gates every testcase. Mixed javac only errors testcases whose target, receiver, comparison instance, or parameter type failed. Independent targets still invoke.
+Each invoke:
 
-Then dispatches by `testcase.targetType()`:
-- `CLASS` → `evaluateClass()`
-- `FIELD` → `evaluateField()`
-- `METHOD` → `evaluateMethod()`
-- `CONSTRUCTOR` → `evaluateConstructor()`
+1. Submits work to the **single-thread** `testcaseInvokeExecutor`.
+2. `future.get(timeoutSeconds)` — default **5s** (`app.grading.testcase-invoke-timeout-seconds`).
+3. Opens a new `URLClassLoader` on `classes/`, redirects `System.out`, reflects `Constructor.newInstance` / `Method.invoke`.
 
-### 9.4 `evaluateClass()` (lines 69–89)
+Because the invoke pool has one worker, **all testcases in the JVM queue behind each other**, including those from parallel challenge workers. Wall-clock for this pillar is the sum of invocation times, not `max` across challenges. Timeout or hang costs up to τ per testcase.
 
-1. Resolve `ClassRubric` by `testcase.targetId()`.
-2. Lookup `ParsedClass` by rubric class name.
-3. If class not found → `FAILED`, "Class not found: {name}".
-4. If `EXISTENCE` → `PASSED`, accuracy 1.0.
-5. If `DECLARATION` → partial credit on scope, declaringType, isAbstract (same 3 checks as class pillar shell).
-
-### 9.5 `evaluateField()` (lines 91–111)
-
-1. `resolveField(targetId)` — walks rubric to find owning class + field.
-2. Lookup parsed class; if missing → `ERROR`.
-3. Find field by name in `parsed.fields`.
-4. If field not found → `FAILED`.
-5. If `EXISTENCE` → `PASSED`.
-6. If `DECLARATION` → partial credit on scope + dataType (2 checks).
-
-### 9.6 `evaluateMethod()` (lines 113–136)
-
-1. `resolveMethod(targetId)`.
-2. `findMatchingMethod` by name + parameter types.
-3. If not found → `FAILED`.
-4. If `EXISTENCE` → `PASSED`.
-5. If `DECLARATION` → partial credit on scope, returnType, isStatic, isAbstract, isFinal (5 checks).
-
-### 9.7 `evaluateConstructor()` (lines 138–159)
-
-1. `resolveConstructor(targetId)`.
-2. `findMatchingConstructor` by parameter types.
-3. If not found → `FAILED`.
-4. If `EXISTENCE` → `PASSED`.
-5. If `DECLARATION` → partial credit on scope + isDefault (2 checks).
-
-### 9.8 `toEvaluation(accuracy, label)` (lines 161–170)
-
-| Accuracy | Status | Feedback |
-|----------|--------|----------|
-| ≥ 1.0 | `PASSED` | "{label} matches" |
-| ≤ 0 | `FAILED` | "{label} mismatch" |
-| between | `FAILED` | "{label} partial match (N%)" |
-
-Partial credit on DECLARATION testcases affects pillar percentage but status remains `FAILED` unless 100%.
+Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir (no persistence).
 
 ---
 
@@ -676,15 +626,15 @@ pillarPercentage = (Σ weightᵢ × accuracyᵢ) / (Σ weightᵢ) × 100
 ### 10.2 Challenge percentage
 
 ```
-challengePercentage = (classPct + mmdPct + testcasePct) / 3
+challengePercentage = Σ (pillarWeight × pillarPct) / Σ pillarWeight
 ```
 
-Equal weight across pillars. One pillar at 0% pulls challenge score down significantly.
+Only **applicable** pillars are included: class always; MMD when `has_mmd`; testcase when the challenge has at least one operational testcase. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1 (equal mean when all three apply).
 
 ### 10.3 Lab percentage
 
 ```
-labPercentage = sum(challengePcts) / challengeCount
+labPercentage = Σ (challenge.weight × challengePct) / Σ challenge.weight
 ```
 
 Includes all rubric challenges. Challenges without an uploaded folder contribute 0%.
@@ -707,7 +657,7 @@ String comparison: trim + lowercase (`normalize()`).
 |---------|-------------|
 | Pillar % | Weighted mean with partial credit |
 | `SubmissionFieldResult.correct` etc. | Boolean: `accuracy >= 1.0` only |
-| `SubmissionChallengeResult.correct` | `fullyCorrect`: all three pillars == 100% |
+| `SubmissionChallengeResult.correct` | `fullyCorrect`: all **applicable** pillars == 100% |
 | `SubmissionChallengeResult.score` | Challenge percentage (0–100) |
 
 ---
@@ -718,6 +668,8 @@ String comparison: trim + lowercase (`normalize()`).
 
 **File:** `grading/GradingResultStore.java`
 
+Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload of a **new attempt** inserts a new `lab_submission` row; element UPSERT is per (submission, rubric element), not by overwriting a prior attempt.
+
 | Table / entity | Content |
 |----------------|---------|
 | `submission_field_result` | Per-field boolean correct |
@@ -725,16 +677,16 @@ String comparison: trim + lowercase (`normalize()`).
 | `submission_constructor_result` | Per-constructor boolean correct |
 | `submission_relation_result` | Per-relation boolean correct (MMD only) |
 | `submission_challenge_result` | Per-challenge score + fullyCorrect flag |
-| `submission_testcase_result` | Per-testcase status + feedback text |
-
-Re-upload of same attempt: `loadExisting()` fetches prior rows by submission ID; `buildXxxResult()` reuses entity instances (upsert semantics).
+| `submission_testcase_result` | Per-testcase status + primary I/O display strings |
+| `submission_testcase_assertion_result` | Per-assertion status + actual JSON |
 
 ### 11.2 Ephemeral JSON sidecars
 
 | Path | Written by | Content |
 |------|-----------|---------|
-| `_compile_errors/{submissionId}.json` | `SubmissionCompileErrorStore` | Map challengeId → compile error message |
-| `_mmd_meta/{submissionId}.json` | `SubmissionMmdMetaStore` | Per challenge: mmdSubmitted, classStereotypeCorrect, relationErrors |
+| `_compile_errors/{submissionId}.json` | `SubmissionCompileErrorStore` | Map challengeId → `{ catastrophic, byClassName }` |
+| `_package_normalization/{submissionId}.json` | `SubmissionPackageNormalizationStore` | Per-challenge package-stripped warning |
+| `_mmd_meta/{submissionId}.json` | `SubmissionMmdMetaStore` | Per challenge: mmdSubmitted, parseError, classStereotypeCorrect, relationErrors |
 | `_parsed_snapshot/{submissionId}.json` | `ParsedSubmissionSnapshotStore` | Student display text for Class/MMD tabs |
 
 ### 11.3 Upload response `lab_result`
@@ -759,11 +711,14 @@ Allows student UI to render results immediately without follow-up API calls.
 
 | Property | Default | Bean | Purpose |
 |----------|---------|------|---------|
-| `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers |
-| `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers |
-| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge |
+| `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
+| `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
+| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge (not CPU-capped) |
+| (fixed) | 1 | `testcaseInvokeExecutor` | Serializes student `System.out` capture and invoke timeouts |
+| (fixed) | 2 | `persistExecutor` | Off-request detail UPSERT |
+| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout |
 | `app.grading.rubric-cache-ttl-minutes` | 30 | `LabRubricCache` | Rubric cache TTL |
-| `app.grading.timing-log` | false | — | Log `grading_timing` and `compile_timing` to stdout |
+| `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), compile, challenge, grade submission |
 | `app.storage.submission-base-dir` | `submissions/` | — | Temp upload root |
 
 **Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD+testcase futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
@@ -782,7 +737,8 @@ Allows student UI to render results immediately without follow-up API calls.
 | `grading/pipeline/ChallengeGradingContext.java` | Shared context record |
 | `grading/pipeline/ClassReflectionGrader.java` | Java/.class pillar |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar orchestration |
-| `grading/pipeline/TestcaseGrader.java` | Structural testcase pillar |
+| `grading/pipeline/TestcaseGrader.java` | Operational testcase pillar |
+| `grading/testcase/InvocationRunner.java` | Timed reflect invoke + stdout capture |
 | `grading/ReflectionClassParser.java` | URLClassLoader + reflection extraction |
 | `grading/MmdParser.java` | Mermaid `.mmd` text parser |
 | `grading/MmdComparisonService.java` | Rubric vs parsed diagram comparison |
@@ -797,7 +753,38 @@ Allows student UI to render results immediately without follow-up API calls.
 | `grading/rubric/LabRubricService.java` | Batched rubric DB load |
 | `grading/rubric/LabRubricCache.java` | In-process rubric TTL cache |
 | `config/GradingExecutorConfig.java` | `gradingExecutor` bean |
+| `config/CompileExecutorConfig.java` | `compileExecutor` bean |
 | `config/PillarExecutorConfig.java` | `pillarExecutor` bean |
+| `config/TestcaseInvokeExecutorConfig.java` | Single-thread invoke pool |
+| `config/PersistExecutorConfig.java` | Off-request detail UPSERT pool |
+| `plagiarism/PlagiarismService.java` | Fingerprint, pairwise compare, lab re-evaluate on upload |
+
+---
+
+## 14. Wall-clock cost and time complexity
+
+Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `save`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
+
+Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes.
+
+| Rank | Stage | Typical dominance | Work | Request-thread wall |
+|------|-------|-------------------|------|---------------------|
+| 1 | Operational testcases | Large *T*, slow or hanging student code | *Θ(T)* invokes; new `URLClassLoader` per invoke | **Σ invoke times across the whole lab** — `testcaseInvokeExecutor` is 1 thread, so *P* does not help. Worst case *O(T · τ)* |
+| 2 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
+| 3 | Plagiarism inspect | Busy lab (many prior attempts) | SHA-256 *O(B)*; reconstruct `.git`; pairwise *O(A)* with Jaccard *O(F)*; **O(U) DB round-trips** for peer best scores; then re-evaluate all lab matches | On the upload thread after grading (exceptions swallowed) |
+| 4 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
+| 5 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
+| 6 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | Overlaps testcases on `pillarExecutor`; usually smaller than invoke |
+| 7 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
+| 8 | Challenge-score UPSERT + snapshot | Small vs compute | *O(C)* | On the request thread |
+| — | Detail UPSERT | Large *E* | *O(E)* JDBC | **Off-request** (`persistExecutor`); GET tabs wait up to 60s |
+| — | Multipart + `.git` | Fat folders | *O(upload bytes)* | Before compile; Spring reads every part including `.git` |
+
+**Why testcases beat compile on wall-clock even when `javac` is “heavier” CPU:** compile parallelizes across challenges; invokes do not. Four challenges with 10 testcases each still run ~40 serial `future.get` calls on one worker.
+
+**Why plagiarism can overtake compile on a large roster:** `inspectUpload` compares the new fingerprint to **every other fingerprint** in the lab (every prior attempt of every other student), then `bestScoresForLabUsers` issues one query per other user.
+
+Cleanup (`deleteFolder`) runs in `finally` after the response is built; it is not on the critical path for JSON generation but still holds the HTTP thread until the delete walk finishes.
 
 ---
 
@@ -814,4 +801,4 @@ Alternatively, open the `.md` file in VS Code / Word / Google Docs and export as
 
 ---
 
-*Generated from codebase state as of 2026-08-10. Source of truth: `backend/src/main/java/com/eiu/capstone/backend/grading/`.*
+*Generated from codebase state as of 2026-09-09. Source of truth: `backend/src/main/java/com/eiu/capstone/backend/` (grading, service compile path, plagiarism).*

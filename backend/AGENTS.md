@@ -97,7 +97,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → `PlagiarismService.inspectUpload` (on the request thread; failures swallowed) → MMD hook (no-op by default) → cleanup temp folder.
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -112,7 +112,7 @@ Grading tuning properties (`application.properties`):
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads | Off-request UPSERT of field/method/constructor/relation/testcase rows after challenge scores are stored |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
-| `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload, compile, each challenge, grade submission, structure save, and read paths |
+| `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), compile, each challenge, grade submission, structure save, and read paths |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set |
