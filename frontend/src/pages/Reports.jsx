@@ -66,17 +66,17 @@ export default function ReportsPage() {
   }, [fetchReportData]);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+    <div className="max-w-full">
       <div className="space-y-6">
-        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm transition-colors">
-          <div className="flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Reports & Analytics</h2>
             </div>
             <div>
               <button
                 onClick={fetchReportData}
-                className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
+                className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 py-2 transition-colors hover:bg-surface-secondary"
                 title="Refresh reports"
               >
                 Refresh

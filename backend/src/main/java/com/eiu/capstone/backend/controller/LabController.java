@@ -70,11 +70,14 @@ public class LabController {
 
     private List<Lab> labsVisibleToCaller(JwtUserPrincipal principal) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
-        if (!principal.isStudentOnly()) {
-            return labRepository.findAll();
-        }
         Term current = termService.findCurrentTerm().orElse(null);
-        if (current == null || !termService.isEnrolled(user.getId(), current.getId())) {
+        if (current == null) {
+            return List.of();
+        }
+        if (!principal.isStudentOnly()) {
+            return labRepository.findByTerm_Id(current.getId());
+        }
+        if (!termService.isEnrolled(user.getId(), current.getId())) {
             return List.of();
         }
         Instant now = Instant.now();

@@ -9,7 +9,7 @@ export default function OverviewPanel({ overviewCards }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-foreground-secondary">{card.title}</p>
-              <p className="mt-3 text-3xl font-semibold text-foreground">{card.value}</p>
+              <p className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">{card.value}</p>
             </div>
             <div className="rounded-2xl bg-surface/60 p-3 text-foreground-secondary dark:bg-black/20">
               {card.icon}

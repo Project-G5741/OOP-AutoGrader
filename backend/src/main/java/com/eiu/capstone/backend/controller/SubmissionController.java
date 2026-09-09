@@ -120,9 +120,12 @@ public class SubmissionController {
     }
 
     @GetMapping("/my-labs")
-    public List<StudentLabSummaryDTO> getMyLabs(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public List<StudentLabSummaryDTO> getMyLabs(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam(required = false, defaultValue = "all") String scope) {
         UserAccount user = requireStudentSubmitter(principal).user();
-        return studentHistoryService.getLabSummaries(user.getId());
+        boolean currentTermOnly = "current".equalsIgnoreCase(scope);
+        return studentHistoryService.getLabSummaries(user.getId(), currentTermOnly);
     }
 
     @GetMapping("/my-history")

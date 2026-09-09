@@ -17,7 +17,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 ### StudentHistoryPage
 
-- Fetches `GET /api/submissions/my-history` with `page`, `size` (10), optional `labId`, and `sort` (server-side); plus `GET /api/submissions/my-labs`
+- Fetches `GET /api/submissions/my-history` with `page`, `size` (10), optional `labId`, and `sort` (server-side); plus `GET /api/submissions/my-labs` (all quarters; each lab/submission includes `termLabel`)
 - Out-of-term students (`inCurrentTerm === false`, from `StudentDashboard` or `user.inCurrentTerm`) see a warning banner above **Submission History**: amber tokens (`bg-warning-bg`, `text-warning-text`) for attention required — not error red; no border
 - Filter by lab via Performance by Lab rows (click to filter, click again to show all); server-side table sort via clickable column headers; prev/next pagination (10 rows per page)
 - Two-column body from `xl`: Performance by Lab ~3/10 width, All Submissions ~7/10
@@ -36,7 +36,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 `StudentDashboard.jsx` passes to `DropZone`:
 
 - Out-of-term students skip `GET /api/labs` and stay on History. The History route also skips dashboard `GET /api/labs` and `GET /api/submissions/my-labs` — `StudentHistoryPage` loads history APIs itself.
-- `labSummariesById` — from `GET /api/submissions/my-labs` in `StudentDashboard.jsx`; powers “no submission yet” notifications
+- `labSummariesById` — from `GET /api/submissions/my-labs?scope=current` in `StudentDashboard.jsx` (current quarter only); powers “no submission yet” notifications
 - `attemptNumber` — next unused attempt from backend `totalSubmissions + 1` after each upload (server still assigns `MAX+1` if the client number is stale)
 - `authToken` — from `user.accessToken`
 

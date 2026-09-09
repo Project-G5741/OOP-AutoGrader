@@ -11,15 +11,15 @@ const navItems = [
 
 export default function NavBar({ active, onNavigate }) {
   return (
-    <div className="w-full rounded-2xl border border-border bg-surface px-4 py-3 sm:px-6">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <nav className="flex flex-wrap items-center gap-2">
+    <div className="w-full rounded-2xl border border-border bg-surface px-3 py-3 sm:px-6">
+      <div className="flex items-center justify-end">
+        <nav className="flex max-w-full items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {navItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => onNavigate?.(id)}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 ${
                 active === id
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-foreground-secondary hover:bg-surface-secondary'

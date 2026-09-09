@@ -370,7 +370,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
     try {
-      const res = await apiFetch(`${API_BASE}/api/submissions/my-labs`, {
+      const res = await apiFetch(`${API_BASE}/api/submissions/my-labs?scope=current`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;

@@ -28,7 +28,9 @@ import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.TermEnrollment;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
+import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
@@ -40,15 +42,21 @@ public class TermService {
     private final AcademicYearRepository academicYearRepository;
     private final TermEnrollmentRepository termEnrollmentRepository;
     private final UserAccountRepository userAccountRepository;
+    private final LabRepository labRepository;
+    private final LecturerOverviewCache lecturerOverviewCache;
 
     public TermService(TermRepository termRepository,
                        AcademicYearRepository academicYearRepository,
                        TermEnrollmentRepository termEnrollmentRepository,
-                       UserAccountRepository userAccountRepository) {
+                       UserAccountRepository userAccountRepository,
+                       LabRepository labRepository,
+                       LecturerOverviewCache lecturerOverviewCache) {
         this.termRepository = termRepository;
         this.academicYearRepository = academicYearRepository;
         this.termEnrollmentRepository = termEnrollmentRepository;
         this.userAccountRepository = userAccountRepository;
+        this.labRepository = labRepository;
+        this.lecturerOverviewCache = lecturerOverviewCache;
     }
 
     @Transactional(readOnly = true)
@@ -57,7 +65,7 @@ public class TermService {
         return termRepository.findAllWithAcademicYear().stream()
                 .sorted(Comparator
                         .comparing((Term t) -> t.getAcademicYear().getYearLabel()).reversed()
-                        .thenComparing(Term::getTermNumber))
+                        .thenComparing(Term::getTermNumber, Comparator.reverseOrder()))
                 .map(term -> toSummary(term, counts.getOrDefault(term.getId(), 0)))
                 .toList();
     }
@@ -97,7 +105,9 @@ public class TermService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found"));
         termRepository.clearOtherCurrent(termId);
         target.setCurrent(true);
-        return toSummary(termRepository.save(target));
+        TermSummaryDTO summary = toSummary(termRepository.save(target));
+        lecturerOverviewCache.invalidate();
+        return summary;
     }
 
     @Transactional(readOnly = true)
@@ -112,7 +122,7 @@ public class TermService {
                 continue;
             }
             enrolledIds.add(user.getId());
-            if (isStudent(user)) {
+            if (isStudent(user) && user.getIsActive()) {
                 enrolled.add(toStudent(user));
             }
         }
@@ -249,6 +259,22 @@ public class TermService {
         termEnrollmentRepository.delete(enrollment);
     }
 
+    @Transactional
+    public void deleteTerm(UUID termId) {
+        Term term = requireTerm(termId);
+        if (term.isCurrent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Cannot delete the current quarter. Set another quarter as current first.");
+        }
+        if (labRepository.countByTerm_Id(termId) > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This quarter still has labs. Delete them in Solution Management first.");
+        }
+        termEnrollmentRepository.deleteByTerm_Id(termId);
+        termRepository.delete(term);
+        lecturerOverviewCache.invalidate();
+    }
+
     @Transactional(readOnly = true)
     public Optional<Term> findCurrentTerm() {
         return termRepository.findCurrent();
@@ -284,7 +310,7 @@ public class TermService {
         List<TermStudentDTO> enrolled = new ArrayList<>();
         for (TermEnrollment enrollment : termEnrollmentRepository.findByTermIdWithUser(termId)) {
             UserAccount user = enrollment.getUser();
-            if (user != null && isStudent(user)) {
+            if (user != null && isStudent(user) && user.getIsActive()) {
                 enrolled.add(toStudent(user));
             }
         }
@@ -307,6 +333,14 @@ public class TermService {
             return "Quarter 4 (Summer Quarter)";
         }
         return "Quarter " + termNumber;
+    }
+
+    public static String buildTermLabel(Term term) {
+        if (term == null) {
+            return null;
+        }
+        String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
+        return yearLabel + " — " + formatQuarterLabel(term.getTermNumber());
     }
 
     private TermSummaryDTO toSummary(Term term) {

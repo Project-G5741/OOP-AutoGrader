@@ -83,4 +83,10 @@ public class LecturerTermController {
     public void removeStudent(@PathVariable UUID termId, @PathVariable UUID studentId) {
         termService.removeStudent(termId, studentId);
     }
+
+    @DeleteMapping("/{termId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTerm(@PathVariable UUID termId) {
+        termService.deleteTerm(termId);
+    }
 }

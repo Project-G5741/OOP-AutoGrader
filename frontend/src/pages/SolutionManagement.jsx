@@ -692,7 +692,7 @@ export default function SolutionManagement() {
               type="button"
               disabled={!isDirty || saving || !draft}
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Save Lab Structure

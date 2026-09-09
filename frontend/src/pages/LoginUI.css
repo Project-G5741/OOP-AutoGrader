@@ -272,6 +272,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--text-disabled);
@@ -282,9 +284,10 @@
 
 .options-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.75rem;
   font-size: 0.9rem;
 }
 
@@ -294,6 +297,8 @@
   gap: 0.5rem;
   color: var(--text-muted);
   cursor: pointer;
+  padding: 0.5rem 0;
+  min-height: 44px;
 }
 
 .remember-option input {
@@ -416,7 +421,7 @@
 
 .error-text {
   color: var(--error);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   margin-top: 0.25rem;
 }
 
@@ -478,6 +483,40 @@
 @keyframes login-rise-in {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 480px) {
+  .login-bg {
+    padding: 1rem;
+  }
+
+  .theme-toggle {
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .login-card-wrapper {
+    max-width: 100%;
+  }
+
+  .main-title {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  .options-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .forgot-link {
+    text-align: center;
+    padding: 0.5rem 0;
+    min-height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

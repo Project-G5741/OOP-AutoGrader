@@ -47,4 +47,35 @@ public interface TermEnrollmentRepository extends JpaRepository<TermEnrollment, 
     List<TermEnrollment> findByTermIdWithUser(@Param("termId") UUID termId);
 
     void deleteByUser_Id(UUID userId);
+
+    void deleteByTerm_Id(UUID termId);
+
+    /**
+     * Active student-only accounts whose earliest enrolled quarter ordinal is at or before the threshold.
+     * Ordinal: (start_year - 2000) * 4 + (term_number - 1) from academic_years.year_label.
+     */
+    @Query(value = """
+            SELECT te.user_id
+            FROM term_enrollment te
+            JOIN term t ON t.id = te.term_id
+            JOIN academic_years ay ON ay.id = t.academic_year_id
+            JOIN user_account u ON u.id = te.user_id
+            JOIN user_role ur ON ur.user_id = u.id
+            JOIN role r ON r.id = ur.role_id
+            WHERE u.is_active = true
+              AND LOWER(r.name) = 'student'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM user_role ur2
+                  JOIN role r2 ON r2.id = ur2.role_id
+                  WHERE ur2.user_id = u.id
+                    AND LOWER(r2.name) IN ('lecturer', 'teacher')
+              )
+            GROUP BY te.user_id
+            HAVING MIN(
+                (CAST(SPLIT_PART(ay.year_label, '-', 1) AS integer) - 2000) * 4
+                + (t.term_number - 1)
+            ) <= :maxFirstOrdinal
+            """, nativeQuery = true)
+    List<UUID> findStudentIdsWithFirstEnrollmentOrdinalAtMost(@Param("maxFirstOrdinal") int maxFirstOrdinal);
 }

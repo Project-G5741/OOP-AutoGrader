@@ -11,7 +11,7 @@ export default function Footer({ variant = 'default' }) {
 
   if (variant === 'compact') {
     return (
-      <div className="px-6 pb-4 text-center">
+      <div className="px-4 pb-4 text-center sm:px-6">
         <p className="text-xs text-foreground-disabled">{FOOTER_LABEL}</p>
       </div>
     );

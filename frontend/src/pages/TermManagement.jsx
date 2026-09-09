@@ -21,6 +21,20 @@ function matchesStudentSearch(student, query) {
   return haystack.includes(query);
 }
 
+function compareTerms(a, b, order = 'desc') {
+  const yearA = a.yearLabel || '';
+  const yearB = b.yearLabel || '';
+  const yearCmp = yearA.localeCompare(yearB);
+  const termCmp = (a.termNumber ?? 0) - (b.termNumber ?? 0);
+  const combined = yearCmp !== 0 ? yearCmp : termCmp;
+  return order === 'asc' ? combined : -combined;
+}
+
+function matchesTermSearch(term, query) {
+  const haystack = `${term.label || ''} ${term.yearLabel || ''} quarter ${term.termNumber ?? ''}`.toLowerCase();
+  return haystack.includes(query);
+}
+
 export default function TermManagement() {
   const [terms, setTerms] = useState([]);
   const [selectedTermId, setSelectedTermId] = useState(null);
@@ -36,6 +50,9 @@ export default function TermManagement() {
   const [isDragging, setIsDragging] = useState(false);
   const [availableSearch, setAvailableSearch] = useState('');
   const [rosterSearch, setRosterSearch] = useState('');
+  const [termSearch, setTermSearch] = useState('');
+  const [termFilter, setTermFilter] = useState('all');
+  const [termSortOrder, setTermSortOrder] = useState('desc');
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -54,6 +71,25 @@ export default function TermManagement() {
     if (!query) return students;
     return students.filter((student) => matchesStudentSearch(student, query));
   }, [students, rosterSearch]);
+
+  const termYearOptions = useMemo(() => {
+    const years = [...new Set(terms.map((term) => term.yearLabel).filter(Boolean))];
+    years.sort((a, b) => b.localeCompare(a));
+    return years;
+  }, [terms]);
+
+  const filteredTerms = useMemo(() => {
+    let list = [...terms];
+    if (termFilter !== 'all') {
+      list = list.filter((term) => term.yearLabel === termFilter);
+    }
+    const query = termSearch.trim().toLowerCase();
+    if (query) {
+      list = list.filter((term) => matchesTermSearch(term, query));
+    }
+    list.sort((a, b) => compareTerms(a, b, termSortOrder));
+    return list;
+  }, [terms, termFilter, termSearch, termSortOrder]);
 
   const loadTerms = useCallback(async () => {
     const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
@@ -162,6 +198,41 @@ export default function TermManagement() {
       await Promise.all([loadTerms(), loadTermStudents(nextId)]);
     } catch (err) {
       setError(toFriendlyError(err, 'save'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTerm = async (termId) => {
+    const term = terms.find((item) => String(item.id) === String(termId));
+    const label = term?.label ?? 'this quarter';
+    if (!window.confirm(`Delete ${label}? Enrolled students are removed from this quarter only. This cannot be undone.`)) {
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'delete'));
+      }
+      const data = await loadTerms();
+      const next = data.find((item) => item.current) ?? data[0];
+      const nextId = next?.id ?? null;
+      setSelectedTermId(nextId);
+      if (nextId) {
+        await loadTermStudents(nextId);
+      } else {
+        setStudents([]);
+        setAvailable([]);
+      }
+      setNotice(`Deleted ${label}.`);
+    } catch (err) {
+      setError(toFriendlyError(err, 'delete'));
     } finally {
       setSaving(false);
     }
@@ -328,7 +399,7 @@ export default function TermManagement() {
   };
 
   return (
-    <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+    <div className="max-w-full space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Quarters</h2>
@@ -431,13 +502,51 @@ export default function TermManagement() {
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
             Academic quarters
           </h3>
+          {!loading && terms.length > 0 && (
+            <div className="mb-3 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
+                <input
+                  type="text"
+                  placeholder="Search quarters…"
+                  value={termSearch}
+                  onChange={(e) => setTermSearch(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-3 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <select
+                  value={termFilter}
+                  onChange={(e) => setTermFilter(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Filter quarters by year"
+                >
+                  <option value="all">All quarters</option>
+                  {termYearOptions.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+                <select
+                  value={termSortOrder}
+                  onChange={(e) => setTermSortOrder(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Sort quarters"
+                >
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
+            </div>
+          )}
           {loading ? (
             <p className="py-6 text-center text-sm text-foreground-muted">Loading quarters...</p>
           ) : terms.length === 0 ? (
             <p className="py-6 text-center text-sm text-foreground-muted">No quarters yet</p>
+          ) : filteredTerms.length === 0 ? (
+            <p className="py-6 text-center text-sm text-foreground-muted">No quarters match your search</p>
           ) : (
             <div className="space-y-2">
-              {terms.map((term) => (
+              {filteredTerms.map((term) => (
                 <button
                   key={term.id}
                   type="button"
@@ -476,16 +585,28 @@ export default function TermManagement() {
                     <p className="mt-1 text-xs text-foreground-muted">Ends {selectedTerm.endDate}</p>
                   )}
                 </div>
-                {!selectedTerm.current && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {!selectedTerm.current && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => handleSetCurrent(selectedTerm.id)}
+                      className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
+                    >
+                      Set as current
+                    </button>
+                  )}
                   <button
                     type="button"
-                    disabled={saving}
-                    onClick={() => handleSetCurrent(selectedTerm.id)}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
+                    disabled={saving || selectedTerm.current}
+                    onClick={() => handleDeleteTerm(selectedTerm.id)}
+                    title={selectedTerm.current ? 'Set another quarter as current before deleting' : 'Delete quarter'}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-error/40 px-3 py-1.5 text-sm text-error-text hover:bg-error-bg disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Set as current
+                    <Trash2 className="h-4 w-4" />
+                    Delete quarter
                   </button>
-                )}
+                </div>
               </div>
 
               <div className="mb-4 rounded-xl border border-border p-3">
@@ -602,7 +723,7 @@ export default function TermManagement() {
                     />
                   </div>
                 </div>
-                <table className="w-full">
+                <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="border-b border-border text-left text-sm text-foreground-secondary">
                       <th className="px-4 py-3">Student</th>
@@ -646,7 +767,7 @@ export default function TermManagement() {
                                 type="button"
                                 disabled={saving}
                                 onClick={() => handleSuspendToggle(student)}
-                                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs text-foreground-secondary hover:bg-surface-secondary disabled:opacity-50"
+                                className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs text-foreground-secondary hover:bg-surface-secondary disabled:opacity-50 sm:text-sm"
                               >
                                 {student.isActive === false ? <UserCheck className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
                                 {student.isActive === false ? 'Restore' : 'Suspend'}
@@ -655,7 +776,7 @@ export default function TermManagement() {
                                 type="button"
                                 disabled={saving}
                                 onClick={() => handleRemove(student.id)}
-                                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs text-error hover:bg-error-bg disabled:opacity-50"
+                                className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs text-error hover:bg-error-bg disabled:opacity-50 sm:text-sm"
                               >
                                 <Trash2 className="h-3 w-3" />
                                 Remove
