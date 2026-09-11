@@ -77,7 +77,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster **View Submission** opens `LabAttemptHistoryDrawer`; flagged rows also show **View Plagiarism** → `PlagiarismInvestigationDrawer` (lineage rooted at earliest first-submit; match signals on edges; no code diffs)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`)
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); those GETs use `DisclosureMode.LECTURER` (full rubric labels). MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`). Do not apply `studentDisplayConsolidation`.
 - Challenge tab lists **submitters only**; **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
 - Declaration Score member rows are pass or fail only; leftover `partial` flags render as fail, not a warning tick

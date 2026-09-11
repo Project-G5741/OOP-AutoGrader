@@ -70,7 +70,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
 - **Public:** `OPTIONS /**`, `GET /`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
-- `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `isStudentOnly`) — not authorization
+- `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
 - Google auth enforces `@eiu.edu.vn` domain and configured `GOOGLE_CLIENT_ID` audience via `GoogleTokenVerifier`
@@ -129,7 +129,7 @@ Grading tuning properties (`application.properties`):
 ### Read-path performance
 
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
-- `MasterDataCache` — cached scope/type labels; Class/MMD/Testcase **GET** tabs assemble from `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / challenge rubric by id (same mappers as upload `lab_result`); `loadChallengeStructures` remains for lecturer structure GET
+- `MasterDataCache` — cached scope/type labels; Class/MMD/Testcase **GET** tabs assemble from `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / challenge rubric by id (same mappers as upload `lab_result`); `loadChallengeStructures` remains for lecturer structure GET; student-facing assembly uses `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`
 - `ChallengeService` — sidebar scores from stored `submission_challenge_result` when present; otherwise recompute from element results
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`

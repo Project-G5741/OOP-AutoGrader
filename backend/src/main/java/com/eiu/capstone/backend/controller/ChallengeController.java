@@ -76,7 +76,8 @@ public class ChallengeController {
             @RequestParam(required = false) UUID submissionId) {
         requireStudentLabAccessIfNeeded(principal, labId);
         UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
-        return classStructureService.getMmdData(labId, challengeId, scopedStudentId, submissionId);
+        var disclosureMode = jwtAuthHelper.resolveDisclosureMode(principal, studentId);
+        return classStructureService.getMmdData(labId, challengeId, scopedStudentId, submissionId, disclosureMode);
     }
 
     @GetMapping("/{challengeId}/class")
@@ -88,7 +89,8 @@ public class ChallengeController {
             @RequestParam(required = false) UUID submissionId) {
         requireStudentLabAccessIfNeeded(principal, labId);
         UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
-        return classStructureService.getClassData(labId, challengeId, scopedStudentId, submissionId);
+        var disclosureMode = jwtAuthHelper.resolveDisclosureMode(principal, studentId);
+        return classStructureService.getClassData(labId, challengeId, scopedStudentId, submissionId, disclosureMode);
     }
 
     @GetMapping("/{challengeId}/testcases")

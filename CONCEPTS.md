@@ -83,7 +83,10 @@ Student-facing expandable result card per testcase: INPUT (formatted invocation)
 Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and operational testcase I/O card arrays so the student UI renders tabs without follow-up read API calls. Revisit read paths return the same testcase shape when the upload cache is absent.
 
 ### Parsed submission snapshot
-Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items and rubric expected labels for missing items, with existing per-element pass/fail flags.
+Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items. When a snapshot entry is missing, student-facing assembly (`DisclosureMode.STUDENT`) shows generic placeholders instead of rubric expected labels; lecturer drawer (`DisclosureMode.LECTURER`) still uses the full rubric checklist. Pass/fail flags are unchanged.
+
+### DisclosureMode
+Display-only switch on Class/MMD result-tab assembly. `STUDENT` never emits rubric expected names, types, or signatures for missing or wrong members (generic messages such as "Missing variable name or datatype"). `LECTURER` keeps the full rubric checklist. Scoring is unchanged. `JwtAuthHelper.resolveDisclosureMode` returns `LECTURER` when the JWT has the lecturer role and `studentId` is present; otherwise `STUDENT`. Upload `lab_result` is always `STUDENT`.
 
 ## Relationships
 

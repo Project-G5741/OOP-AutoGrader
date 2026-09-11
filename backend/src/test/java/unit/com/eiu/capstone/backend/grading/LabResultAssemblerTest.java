@@ -165,7 +165,8 @@ class LabResultAssemblerTest {
                                                         Boolean mmdSubmittedOverride,
                                                         ChallengeMmdMeta mmdMeta,
                                                         UUID submissionId,
-                                                        ChallengeSnapshot snapshot) {
+                                                        ChallengeSnapshot snapshot,
+                                                        com.eiu.capstone.backend.service.DisclosureMode disclosureMode) {
             mmdBuilds++;
             return super.buildMmdDataFromRubric(
                     challengeRubric,
@@ -174,7 +175,8 @@ class LabResultAssemblerTest {
                     mmdSubmittedOverride,
                     mmdMeta,
                     submissionId,
-                    snapshot);
+                    snapshot,
+                    disclosureMode);
         }
     }
 

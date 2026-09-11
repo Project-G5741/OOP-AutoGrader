@@ -16,6 +16,15 @@ import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } 
 import { Separator } from '../ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 import { formatMmdRelationType, firstCompileErrorLine } from '../../utils/formatters';
+import {
+  consolidateStudentClassMembers,
+  consolidateStudentMmdAttributes,
+  consolidateStudentMmdRelations,
+  formatStudentConstructorLine,
+  formatStudentFieldLine,
+  formatStudentMethodLine,
+  formatStudentScopeLine,
+} from '../../utils/studentDisplayConsolidation';
 import { formatLabDeadlineMeta } from '../../theme/statusClasses';
 import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
@@ -252,6 +261,7 @@ export default function StudentUI({
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
   const relations = relationData;
+  const displayRelations = consolidateStudentMmdRelations(relations);
 
   const relationScore = {
     ok: relations.filter((r) => r.ok).length,
@@ -491,7 +501,7 @@ export default function StudentUI({
                           <p className="text-sm font-bold text-primary-text font-mono">{cls.name}</p>
                         </div>
                         <ul className="divide-y divide-border">
-                          {cls.attributes?.map((a, i) => (
+                          {consolidateStudentMmdAttributes(cls.attributes ?? []).map((a, i) => (
                             <li key={i} className={`flex items-start gap-3 px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-surface-secondary bg-surface-secondary/50'}`}>
                               <span className={`font-mono flex-1 min-w-0 break-words ${a.type === 'field' ? 'text-info-text' : a.type === 'method' ? 'text-success-text' : 'text-warning-text'}`}>
                                 {a.name}
@@ -526,7 +536,7 @@ export default function StudentUI({
                         <span className="font-semibold text-center">Status</span>
                       </div>
                       <div className="divide-y divide-border">
-                        {relations.map((r, index) => (
+                        {displayRelations.map((r, index) => (
                           <div key={index}>
                             <div className="grid grid-cols-1 gap-2 px-4 py-3 text-sm text-foreground-secondary md:grid-cols-4 md:items-center md:gap-4">
                               <span className="font-mono text-primary">{r.from}</span>
@@ -574,9 +584,9 @@ export default function StudentUI({
                   {classData.length > 0 ? (
                     <div className="space-y-3">
                       {classData.map((cls) => {
-                        const fields = cls.fields ?? [];
-                        const constructors = cls.constructors ?? [];
-                        const methods = cls.methods ?? [];
+                        const fields = consolidateStudentClassMembers(cls.fields ?? []);
+                        const constructors = consolidateStudentClassMembers(cls.constructors ?? []);
+                        const methods = consolidateStudentClassMembers(cls.methods ?? []);
                         const isOpen = expandedClassName === cls.name;
                         const { passCount, total: gradeTotal, pct: clsPct } = classGradeCounts(cls);
                         const compileErrorLine = firstCompileErrorLine(cls.error);
@@ -613,8 +623,10 @@ export default function StudentUI({
                                       {fields.map((f, i) => (
                                         <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok && !f.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
-                                            <p className="text-xs font-mono font-semibold text-info-text">{f.name}: {f.dataType}</p>
-                                            <p className="mt-0.5 text-[10px] text-foreground-muted">{f.scope || '—'}</p>
+                                            <p className="text-xs font-mono font-semibold text-info-text">{formatStudentFieldLine(f)}</p>
+                                            {formatStudentScopeLine(f.scope) && (
+                                              <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(f.scope)}</p>
+                                            )}
                                           </div>
                                           <Tick ok={f.ok} partial={f.partial} />
                                         </div>
@@ -630,8 +642,10 @@ export default function StudentUI({
                                       {constructors.map((c, i) => (
                                         <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok && !c.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
-                                            <p className="text-xs font-mono font-semibold text-warning-text">{c.name}({c.params})</p>
-                                            <p className="mt-0.5 text-[10px] text-foreground-muted">{c.scope || '—'}</p>
+                                            <p className="text-xs font-mono font-semibold text-warning-text">{formatStudentConstructorLine(c)}</p>
+                                            {formatStudentScopeLine(c.scope) && (
+                                              <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(c.scope)}</p>
+                                            )}
                                           </div>
                                           <Tick ok={c.ok} partial={c.partial} />
                                         </div>
@@ -647,8 +661,10 @@ export default function StudentUI({
                                       {methods.map((m, i) => (
                                         <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok && !m.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
-                                            <p className="text-xs font-mono font-semibold text-success-text">{m.name}(): {m.returnType}</p>
-                                            <p className="mt-0.5 text-[10px] text-foreground-muted">{m.scope || '—'}</p>
+                                            <p className="text-xs font-mono font-semibold text-success-text">{formatStudentMethodLine(m)}</p>
+                                            {formatStudentScopeLine(m.scope) && (
+                                              <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(m.scope)}</p>
+                                            )}
                                           </div>
                                           <Tick ok={m.ok} partial={m.partial} />
                                         </div>

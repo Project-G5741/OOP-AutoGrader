@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: Anti-Answer-Leakage Grading</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;600;700&display=swap">
+  <style>
+    :root {
+      --color-primary: #1E3A5F;
+      --color-on-primary: #FFFFFF;
+      --color-background: #F8FAFC;
+      --color-foreground: #0F172A;
+      --color-card: #FFFFFF;
+      --color-muted: #E9EEF5;
+      --color-muted-foreground: #475569;
+      --color-border: #CBD5E1;
+      --color-destructive: #DC2626;
+      --color-success: #059669;
+      --color-warning: #D97706;
+      --space-sm: 0.5rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2rem;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Crimson Text", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.55;
+      color: var(--color-foreground);
+      background: var(--color-background);
+    }
+    h1, h2, h3, .meta-label { font-family: "EB Garamond", Georgia, serif; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: var(--space-xl) var(--space-md); }
+    header {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+    header h1 { margin: 0 0 var(--space-sm); font-size: 2rem; color: var(--color-primary); }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+      font-size: 0.95rem;
+    }
+    .meta-label { font-weight: 600; color: var(--color-muted-foreground); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    nav.jump {
+      background: var(--color-muted);
+      border-radius: var(--radius);
+      padding: var(--space-md);
+      margin-bottom: var(--space-xl);
+    }
+    nav.jump ul { margin: 0; padding-left: 1.2rem; }
+    nav.jump a { color: var(--color-primary); }
+    section { margin-bottom: var(--space-xl); }
+    section > h2 {
+      font-size: 1.5rem;
+      color: var(--color-primary);
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: var(--space-sm);
+    }
+    .idea-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+    .idea-card h3 { margin-top: 0; color: var(--color-primary); }
+    .idea-meta { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-md); }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-family: "EB Garamond", serif;
+      background: var(--color-muted);
+      color: var(--color-foreground);
+    }
+    .pill.conf-high { background: #D1FAE5; color: #065F46; }
+    .pill.conf-med { background: #FEF3C7; color: #92400E; }
+    .pill.cx-low { border: 1px solid var(--color-success); }
+    .pill.cx-med { border: 1px solid var(--color-warning); }
+    .pill.cx-high { border: 1px solid var(--color-destructive); }
+    dl { margin: 0; }
+    dt { font-weight: 700; margin-top: var(--space-sm); }
+    dd { margin: 0.2rem 0 0 0; }
+    code, .mono { font-family: ui-monospace, monospace; font-size: 0.88em; background: var(--color-muted); padding: 0.1em 0.35em; border-radius: 4px; }
+    .diagram {
+      margin: var(--space-md) 0;
+      padding: var(--space-md);
+      background: var(--color-muted);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    table.rejects {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    table.rejects th, table.rejects td {
+      border: 1px solid var(--color-border);
+      padding: var(--space-sm);
+      text-align: left;
+    }
+    table.rejects th { background: var(--color-muted); }
+    ul.axes { line-height: 1.8; }
+    footer.composition-signal {
+      margin-top: var(--space-xl);
+      padding-top: var(--space-md);
+      border-top: 1px solid var(--color-border);
+      font-size: 0.85rem;
+      color: var(--color-muted-foreground);
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Ideation: Anti-Answer-Leakage Grading</h1>
+      <p>Prevent lazy empty submissions from receiving a full rubric checklist that doubles as an answer key. Grade and display only what the student actually submitted; use generic failure messages for missing or wrong components.</p>
+      <div class="meta-grid">
+        <div><div class="meta-label">Date</div><time datetime="2026-09-11">2026-09-11</time></div>
+        <div><div class="meta-label">Topic</div>anti-answer-leakage-grading</div>
+        <div><div class="meta-label">Focus</div>Submission-scoped feedback; generic errors; no expected code reveal</div>
+        <div><div class="meta-label">Mode</div>repo-grounded</div>
+      </div>
+    </header>
+
+    <nav class="jump" aria-label="Jump to ideas">
+      <strong>Ranked ideas</strong>
+      <ul>
+        <li><a href="#idea-1">1. DisclosureMode Student Assembler</a></li>
+        <li><a href="#idea-2">2. Submitted-Only Row Manifest</a></li>
+        <li><a href="#idea-3">3. Hidden-Member Parity</a></li>
+        <li><a href="#idea-4">4. Dual-Audience DTO Split</a></li>
+        <li><a href="#idea-5">5. Tri-State Feedback UI + Copy Taxonomy</a></li>
+        <li><a href="#idea-6">6. Anti-Leak CI Regression Suite</a></li>
+        <li><a href="#idea-7">7. Durable Snapshot Persistence</a></li>
+      </ul>
+    </nav>
+
+    <section id="grounding">
+      <h2>Grounding Context</h2>
+      <p><strong>Codebase context.</strong> The OOP AutoGrader scores correctly against a PostgreSQL rubric via reflection (Class), MMD parse/compare, and operational testcases. The leak is in the <strong>display assembly layer</strong>, not scoring.</p>
+      <p><code>ClassStructureService</code> builds student-facing Class and MMD tabs by iterating the <em>full rubric checklist</em>. When <code>ParsedSubmissionSnapshot</code> has no entry for a member (empty file, missing class, or wiped ephemeral snapshot), assembly falls back to rubric labels:</p>
+      <ul>
+        <li><code>snapshotAttributeName(..., rubricFallback)</code> returns rubric field/method signatures when snapshot key absent.</li>
+        <li>Class tab <code>else</code> branches (~lines 569–632) emit rubric <code>name</code>, <code>scope</code>, <code>dataType</code>, <code>returnType</code>, and param lists.</li>
+        <li>MMD relations without snapshot use rubric <code>from</code>/<code>to</code>/<code>relType</code>.</li>
+      </ul>
+      <p><code>StudentUI.jsx</code> renders backend strings verbatim in monospace — no client redaction. Hidden operational testcases already omit I/O (<code>TestcaseResultMapper</code>); Class/MMD have no equivalent.</p>
+      <p><strong>Past learnings.</strong> Parsed snapshots live in ephemeral <code>SUBMISSION_BASE_DIR/_parsed_snapshot/</code>; missing files trigger rubric fallback (documented in backend AGENTS.md). No prior solution doc for answer leakage.</p>
+      <p><strong>External context.</strong> CodeGrade, Gradescope, and HackerRank use tiered visibility (hide config/output/result). Gradescope recommends custom failure messages instead of assert diffs that leak expected strings. Research (Ji et al.) suggests gap feedback on <em>visible</em> checks while keeping hidden checks opaque.</p>
+    </section>
+
+    <section id="axes">
+      <h2>Topic Axes</h2>
+      <ul class="axes">
+        <li><strong>Backend display assembly</strong> — <code>ClassStructureService</code>, <code>LabResultAssembler</code>, DTO shaping</li>
+        <li><strong>Snapshot &amp; submission presence</strong> — what was parsed vs rubric iteration</li>
+        <li><strong>Student UI feedback presentation</strong> — generic copy, partial credit visuals, accessibility</li>
+        <li><strong>Role-based / time-gated disclosure</strong> — lecturer full view vs student opaque view</li>
+        <li><strong>Testcase pillar parity</strong> — extend hidden/redacted pattern to structure pillars</li>
+      </ul>
+    </section>
+
+    <section id="ideas">
+      <h2>Ranked Ideas</h2>
+
+      <article class="idea-card" id="idea-1">
+        <h3>1. DisclosureMode Student Assembler</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Backend display assembly</span>
+          <span class="pill conf-high">Confidence 92%</span>
+          <span class="pill cx-med">Complexity Medium</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Collapse <code>buildClassData</code>, <code>buildClassDataFromRubric</code>, and MMD builders into one assembler parameterized by <code>DisclosureMode.STUDENT | LECTURER</code>. In STUDENT mode, null snapshot entries never receive rubric-shaped strings — only generic placeholders and pass/fail flags. Upload <code>lab_result</code> and GET <code>/class</code>/<code>/mmd</code> both use STUDENT mode for student JWTs.</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Identical rubric-fallback logic in upload assemble and revisit GET paths (<code>ClassStructureService.java</code> lines 569–632 and 694–749).</dd>
+          <dt>Rationale</dt>
+          <dd>One policy flip at the server stops leakage before <code>StudentUI</code> can render it. Scoring via <code>ClassReflectionGrader</code> / <code>MmdComparisonService</code> stays unchanged.</dd>
+          <dt>Downsides</dt>
+          <dd>Requires threading role/mode through controller → service; must audit all student read endpoints (upload bundle, GET tabs, history).</dd>
+        </dl>
+        <div class="diagram" role="img" aria-label="Before and after data flow">
+          <svg viewBox="0 0 720 200" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+            <text x="10" y="24" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1E3A5F">Before (leaks)</text>
+            <rect x="10" y="36" width="120" height="40" rx="6" fill="#FEE2E2" stroke="#DC2626"/>
+            <text x="70" y="61" text-anchor="middle" font-family="sans-serif" font-size="11">Rubric DB</text>
+            <path d="M130 56 H200" stroke="#475569" marker-end="url(#arr)"/>
+            <rect x="200" y="36" width="140" height="40" rx="6" fill="#FEE2E2" stroke="#DC2626"/>
+            <text x="270" y="61" text-anchor="middle" font-family="sans-serif" font-size="11">Fallback labels</text>
+            <path d="M340 56 H420" stroke="#475569"/>
+            <rect x="420" y="36" width="120" height="40" rx="6" fill="#FEE2E2" stroke="#DC2626"/>
+            <text x="480" y="61" text-anchor="middle" font-family="sans-serif" font-size="11">Student UI</text>
+            <text x="10" y="120" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1E3A5F">After (DisclosureMode)</text>
+            <rect x="10" y="132" width="120" height="40" rx="6" fill="#D1FAE5" stroke="#059669"/>
+            <text x="70" y="157" text-anchor="middle" font-family="sans-serif" font-size="11">Snapshot only</text>
+            <path d="M130 152 H210" stroke="#475569"/>
+            <rect x="210" y="132" width="150" height="40" rx="6" fill="#D1FAE5" stroke="#059669"/>
+            <text x="285" y="157" text-anchor="middle" font-family="sans-serif" font-size="11">STUDENT assembler</text>
+            <path d="M360 152 H440" stroke="#475569"/>
+            <rect x="440" y="132" width="130" height="40" rx="6" fill="#D1FAE5" stroke="#059669"/>
+            <text x="505" y="157" text-anchor="middle" font-family="sans-serif" font-size="11">Generic errors</text>
+            <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#475569"/></marker></defs>
+          </svg>
+        </div>
+      </article>
+
+      <article class="idea-card" id="idea-2">
+        <h3>2. Submitted-Only Row Manifest</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Snapshot &amp; submission presence</span>
+          <span class="pill conf-high">Confidence 88%</span>
+          <span class="pill cx-med">Complexity Medium</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Build Class/MMD tabs from <code>ParsedSubmissionSnapshot</code> keys only — classes and members the student actually declared. Unmatched rubric criteria roll up to aggregate counts (e.g., “4 of 9 required members not found”) without naming them. Zero-submission challenges show pillar empty states with scores only — no rubric-derived cards.</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> <code>ParsedSubmissionSnapshotBuilder</code> stores matched artifacts only; <code>ClassStructureService</code> still iterates full rubric for every row.</dd>
+          <dt>Rationale</dt>
+          <dd>Matches the user’s “grade only what was submitted” requirement literally. Empty uploads no longer feel like a graded walkthrough of the answer key.</dd>
+          <dt>Downsides</dt>
+          <dd>Students lose per-missing-member row granularity unless paired with rollup copy; score pill math must stay consistent with hidden rubric rows.</dd>
+        </dl>
+      </article>
+
+      <article class="idea-card" id="idea-3">
+        <h3>3. Hidden-Member Parity (Testcase Pattern for Structure)</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Testcase pillar parity</span>
+          <span class="pill conf-high">Confidence 90%</span>
+          <span class="pill cx-low">Complexity Low</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Generalize <code>TestcaseResultMapper</code>’s hidden-row behavior: for each rubric member without a snapshot entry, emit a locked summary row (pass/fail icon, no name/type/signature) or omit the row entirely while preserving aggregate score pills. Snapshot-matched members keep expandable detail with student-sourced labels only.</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Hidden testcases omit <code>input</code>/<code>expected</code>/<code>actual</code> display strings; Class/MMD expose full rubric member rows today.</dd>
+          <dt>Rationale</dt>
+          <dd>Fastest path to cross-pillar consistency — reuses a tested redaction model instead of inventing a second disclosure system.</dd>
+          <dt>Downsides</dt>
+          <dd>May feel opaque if rollup copy is too terse; lecturers need a separate full checklist (see Idea 4).</dd>
+        </dl>
+      </article>
+
+      <article class="idea-card" id="idea-4">
+        <h3>4. Dual-Audience DTO Split</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Role-based / time-gated disclosure</span>
+          <span class="pill conf-med">Confidence 85%</span>
+          <span class="pill cx-med">Complexity Medium</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Student endpoints return opaque <code>ChallengeDetailBundleDTO</code> (or a fork) with redacted member fields. Lecturer challenge drawer and plagiarism views keep today’s full rubric checklist via existing <code>?studentId=</code> reads with <code>DisclosureMode.LECTURER</code>. Optional mirror endpoint <code>GET .../rubric-checklist</code> for teaching review.</dd>
+          <dt>Basis</dt>
+          <dd><code>reasoned:</code> One DTO currently serves student dashboard and lecturer inspection; tightening student view must not regress lecturer workflows.</dd>
+          <dt>Rationale</dt>
+          <dd>Separates teaching/review surfaces from student feedback surfaces so anti-leak fixes never strip lecturer tooling.</dd>
+          <dt>Downsides</dt>
+          <dd>Two shapes to maintain; Swagger and frontend lecturer paths need explicit mode tests.</dd>
+        </dl>
+      </article>
+
+      <article class="idea-card" id="idea-5">
+        <h3>5. Tri-State Feedback UI + Copy Taxonomy</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Student UI feedback presentation</span>
+          <span class="pill conf-high">Confidence 87%</span>
+          <span class="pill cx-med">Complexity Medium</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Frontend message layer (ui-ux-pro-max aligned) mapping backend status to a fixed taxonomy:</dd>
+        </dl>
+        <ul>
+          <li><strong>Not submitted</strong> — <code>text-foreground-disabled</code>, lock icon, “Required member not found in your submission”</li>
+          <li><strong>Wrong attribute</strong> — show student’s parsed label + generic hint: “Missing or wrong variable or data” (scope/type/modifier category without expected value)</li>
+          <li><strong>Partial</strong> — existing orange <code>warning-bg</code> + minus tick; triple-encoded (color + icon + text) for WCAG</li>
+        </ul>
+        <dl>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> <code>StudentUI.jsx</code> renders <code>{f.name}: {f.dataType}</code> verbatim; <code>statusClasses.js</code> and semantic tokens already exist in <code>tokens.js</code>.</dd>
+          <dt>Rationale</dt>
+          <dd>Backend redaction is necessary but not sufficient — copy and affordances must teach <em>that something failed</em> without teaching <em>what to write</em>. Use <code>role="alert"</code> for parse errors per UX guidelines.</dd>
+          <dt>Downsides</dt>
+          <dd>Frontend-only layer is bypassable via raw API; must pair with Ideas 1–3. Requires new DTO fields like <code>feedbackCode</code> or <code>submitted: boolean</code>.</dd>
+        </dl>
+        <div class="diagram" role="img" aria-label="Tri-state member row mockup">
+          <svg viewBox="0 0 680 120" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="210" height="50" rx="8" fill="#F1F5F9" stroke="#CBD5E1"/>
+            <text x="12" y="22" font-family="monospace" font-size="11" fill="#64748B">— : —</text>
+            <text x="12" y="40" font-family="sans-serif" font-size="10" fill="#64748B">Not submitted</text>
+            <rect x="230" y="0" width="210" height="50" rx="8" fill="#FEF3C7" stroke="#D97706"/>
+            <text x="242" y="22" font-family="monospace" font-size="11" fill="#92400E">myField: int</text>
+            <text x="242" y="40" font-family="sans-serif" font-size="10" fill="#92400E">Wrong scope or modifier</text>
+            <rect x="460" y="0" width="210" height="50" rx="8" fill="#FEE2E2" stroke="#DC2626"/>
+            <text x="472" y="22" font-family="monospace" font-size="11" fill="#991B1B">count: String</text>
+            <text x="472" y="40" font-family="sans-serif" font-size="10" fill="#991B1B">Missing or wrong variable or data</text>
+            <text x="0" y="90" font-family="sans-serif" font-size="11" fill="#475569">Submitted wrong → show student text + generic hint. Missing → placeholder only.</text>
+          </svg>
+        </div>
+      </article>
+
+      <article class="idea-card" id="idea-6">
+        <h3>6. Anti-Leak CI Regression Suite</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Backend display assembly</span>
+          <span class="pill conf-med">Confidence 82%</span>
+          <span class="pill cx-low">Complexity Low</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>JUnit fixture: given a graded submission with <code>correctIds</code> populated but snapshot forcibly null, serialize student-role Class/MMD DTOs and assert no rubric-shaped strings (method signatures, param types, relation endpoints from rubric). Denylist regex fails the build on regression.</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> <code>TestcaseResultMapperTest</code> covers hidden testcase redaction; no equivalent leakage test for Class/MMD snapshot absence.</dd>
+          <dt>Rationale</dt>
+          <dd>Compounds the fix into a durable contract — future display tweaks cannot reintroduce rubric fallbacks unnoticed.</dd>
+          <dt>Downsides</dt>
+          <dd>Does not fix leakage by itself; must follow Ideas 1–3.</dd>
+        </dl>
+      </article>
+
+      <article class="idea-card" id="idea-7">
+        <h3>7. Durable Snapshot Persistence (JSONB)</h3>
+        <div class="idea-meta">
+          <span class="pill">Axis: Snapshot &amp; submission presence</span>
+          <span class="pill conf-med">Confidence 78%</span>
+          <span class="pill cx-high">Complexity High</span>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Persist <code>ParsedSubmissionSnapshot</code> to Postgres (<code>submission_display_snapshot</code> JSONB) at grade time instead of ephemeral <code>_parsed_snapshot/</code> files. Read paths never reconstruct display from rubric after Render storage wipes.</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Backend AGENTS.md documents missing snapshots cause rubric fallback on class type labels; worst-case full answer key on legacy reads.</dd>
+          <dt>Rationale</dt>
+          <dd>One migration removes an entire class of leakage incidents and improves history-tab consistency — compounds grade-time capture into durable state.</dd>
+          <dt>Downsides</dt>
+          <dd>Operator SQL migration; storage size; still needs DisclosureMode for members never captured in snapshot.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section id="rejections">
+      <h2>Rejection Summary</h2>
+      <table class="rejects">
+        <thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Post-deadline full rubric reveal</td><td>Below ambition floor for active lab window — re-enables answer farming; better as optional lecturer-only export</td></tr>
+          <tr><td>2</td><td>Jackson serialize-time filter only</td><td>Defense-in-depth only — does not fix root fallback; duplicates policy in two layers</td></tr>
+          <tr><td>3</td><td>Frontend-only anonymous checklist</td><td>Bypassable via API; insufficient without backend redaction</td></tr>
+          <tr><td>4</td><td>Block all GET tabs when snapshot missing</td><td>Too harsh for legitimate history views — prefer redacted display + durable snapshot (Ideas 1 + 7)</td></tr>
+          <tr><td>5</td><td>Ordinal slots (“Field 2”) without rollup</td><td>Weaker UX than generic category messages; duplicates Hidden-Member Parity</td></tr>
+          <tr><td>6</td><td>displayRedaction map without assembler change</td><td>Frontend flag alone cannot hide rubric strings already in JSON payload</td></tr>
+          <tr><td>7</td><td>Category hints post-deadline only</td><td>Deferred — scope creep beyond core anti-leak requirement</td></tr>
+          <tr><td>—</td><td>axis: time-gated disclosure</td><td>No survivor on pure time-gating — folded into Dual-Audience split; deadline reveal rejected</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="composition-signal">
+      Composed 2026-09-11T11:46+07:00 by ce-ideate from user scenario: empty submission answer-key leakage in Class/MMD tabs.
+    </footer>
+  </div>
+</body>
+</html>

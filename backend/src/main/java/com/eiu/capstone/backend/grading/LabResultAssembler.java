@@ -30,6 +30,7 @@ import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.ClassStructureService;
+import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.SubmissionCorrectIds;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
 
@@ -84,7 +85,8 @@ public class LabResultAssembler {
                     challengeRubric,
                     correctIds,
                     compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
-                    snapshot);
+                    snapshot,
+                    DisclosureMode.STUDENT);
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
@@ -110,7 +112,8 @@ public class LabResultAssembler {
                         mmdSubmittedOverride,
                         mmdMeta,
                         submissionId,
-                        snapshot);
+                        snapshot,
+                        DisclosureMode.STUDENT);
                 String parseError = mmdMeta != null ? mmdMeta.parseError : null;
                 if (parseError == null && mmdResult != null) {
                     parseError = mmdResult.parseError();
