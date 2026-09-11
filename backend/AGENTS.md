@@ -70,7 +70,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
 - **Public:** `OPTIONS /**`, `GET /`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
-- `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `isStudentOnly`) — not authorization
+- `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
 - Google auth enforces `@eiu.edu.vn` domain and configured `GOOGLE_CLIENT_ID` audience via `GoogleTokenVerifier`
@@ -87,9 +87,9 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
 - `Lab.student_visible` (default `true`) — when `false`, lab is hidden from student dashboard and submission APIs return 403
 - `Lab.release_date` (optional `DATE`) — when set, students see the lab from 00:00 Vietnam time on that date (requires `student_visible=true`); operator SQL `docs/sql/2026-09-09-lab-student-visibility.sql`
-- `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely)
+- `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely). Candidate selection is one anti-join (`findActiveStudentIdsForDeadlineEmail`); save-after-each-send stays for retry safety
 - Soft-delete (inactive login): users set `isActive=false` via suspend or restore; inactive accounts cannot log in
-- Lecturer **delete** (`DELETE /api/users/{id}`) permanently removes the user and cascades related submissions, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens
+- Lecturer **delete** (`DELETE /api/users/{id}`) permanently removes the user and bulk-deletes related submissions, grading result rows, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens (no per-submission delete loop)
 - Lecturer **suspend** (`POST /api/users/{id}/suspend`) is student-only `isActive=false`; restore via `POST /api/users/{id}/unsuspend`. Lecturer and dual-role accounts cannot be suspended this way.
 - `term.is_current` — lecturer-selected current term; operator SQL `docs/sql/2026-08-19-term-current.sql`. Students in that term may submit; others only use history.
 
@@ -99,7 +99,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → MMD hook (no-op by default) → cleanup temp folder.
+Upload → rubric cache load → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → `GradingService` (parallel reflect + MMD parse/compare + merge) → challenge-score UPSERT + snapshot → async member/testcase UPSERT on `persistExecutor` → `LabResultAssembler` from in-memory rubric (skip inapplicable MMD/testcase trees) → `PlagiarismService.inspectUpload` (on the request thread; failures swallowed) → MMD hook (no-op by default) → cleanup temp folder.
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -114,7 +114,7 @@ Grading tuning properties (`application.properties`):
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads | Off-request UPSERT of field/method/constructor/relation/testcase rows after challenge scores are stored |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
-| `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload, compile, each challenge, grade submission, structure save, and read paths |
+| `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), compile, each challenge, grade submission, structure save, and read paths |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set |
@@ -129,7 +129,7 @@ Grading tuning properties (`application.properties`):
 ### Read-path performance
 
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
-- `MasterDataCache` — cached scope/type labels; Class/MMD **GET** tabs still use batched JPA rubric queries; upload `lab_result` assemble uses `LabRubricSnapshot` (`buildClassDataFromRubric` / `buildMmdDataFromRubric`); student-facing assembly uses `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`
+- `MasterDataCache` — cached scope/type labels; Class/MMD/Testcase **GET** tabs assemble from `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / challenge rubric by id (same mappers as upload `lab_result`); `loadChallengeStructures` remains for lecturer structure GET; student-facing assembly uses `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`
 - `ChallengeService` — sidebar scores from stored `submission_challenge_result` when present; otherwise recompute from element results
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
@@ -144,7 +144,7 @@ Grading tuning properties (`application.properties`):
 - `GET /api/labs/{labId}/submissions/export` — full submitter roster in one query (lecturer export); same score semantics and `sort` param
 - `GET /api/labs/{labId}/students/{studentId}/attempts` — lab attempt history for lecturer roster View
 - `GET /api/submissions/my-labs` — per-lab performance summary; optional `scope=current` (dashboard: current quarter only) or default `all` (history: every quarter, includes `termLabel`)
-- `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter; `page`, `size`, `sort` for pagination)
+- `GET /api/submissions/my-history` — student's submission list + stats (optional `labId` filter; `page`, `size`, `sort` for pagination). Scope stats (`labsAttempted`, `totalSubmissions`, `averageScore` scale-2 DOWN, `bestScore`) come from one aggregate query
 - `GET /api/labs/{labId}/challenges/{challengeId}/students` — paginated roster of students with a graded submission for that challenge (submitters only; **score** is highest qualifying challenge score before deadline; **attempts** / **submittedAt** from latest graded attempt; score from `submission_challenge_result` or computed from element results when legacy rows are missing)
 - `TermEnrollmentSyncService` — on startup, backfills `term_enrollment` from existing `student_lab_progress` (idempotent)
 - `GET /api/lecturer/overview` — lecturer dashboard overview cards scoped to the **current quarter** (enrolled active students, labs in that quarter, submissions for those labs); **at-risk count** uses the same total-score rule as grade overview (average of highest lab scores, missing labs as 0; threshold < 70); empty when no current quarter is set

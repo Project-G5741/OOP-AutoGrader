@@ -9,19 +9,34 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.repository.LabRepository;
 
 @Component
 public class LabRubricCache {
 
     private final LabRubricService labRubricService;
+    private final LabRepository labRepository;
     private final long ttlMinutes;
     private final Map<UUID, CachedEntry> cache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, Object> loadLocks = new ConcurrentHashMap<>();
 
     public LabRubricCache(LabRubricService labRubricService,
+                          LabRepository labRepository,
                           @Value("${app.grading.rubric-cache-ttl-minutes:30}") long ttlMinutes) {
         this.labRubricService = labRubricService;
+        this.labRepository = labRepository;
         this.ttlMinutes = ttlMinutes;
+    }
+
+    public LabRubricSnapshot get(UUID labId) {
+        if (labId == null) {
+            throw new IllegalArgumentException("labId is required");
+        }
+        CachedEntry entry = cache.get(labId);
+        if (entry != null && !entry.isExpired()) {
+            return entry.snapshot();
+        }
+        return get(labRepository.getReferenceById(labId));
     }
 
     public LabRubricSnapshot get(Lab lab) {

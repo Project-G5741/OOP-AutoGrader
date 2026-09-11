@@ -245,16 +245,31 @@ class UserServiceTest {
     void deleteUser_hardDeletesUserAndRelatedData() {
         UserAccount student = studentAccount();
         when(userRepository.findAllWithRolesByIdIn(List.of(userId))).thenReturn(List.of(student));
-        when(labSubmissionRepository.findByUser_Id(userId)).thenReturn(List.of());
 
         UserDTO.UserResponse result = userService.deleteUser(userId);
 
         assertEquals("student@eiu.edu.vn", result.getEmail());
         verify(studentLabProgressRepository).deleteByUser_Id(userId);
-        verify(plagiarismFingerprintRepository, never()).deleteAllByUserId(any());
         verify(termEnrollmentRepository).deleteByUser_Id(userId);
         verify(labDeadlineEmailSentRepository).deleteByUser_Id(userId);
         verify(passwordResetTokenRepository).deleteByUser_Id(userId);
+        verify(plagiarismMatchRepository).deleteInvolvingUser(userId);
+        verify(plagiarismFingerprintRepository).deleteAllByUserId(userId);
+        verify(submissionTestcaseResultRepository).deleteAssertionResultsByUserId(userId);
+        verify(submissionTestcaseResultRepository).deleteByUserId(userId);
+        verify(submissionFieldResultRepository).deleteByUserId(userId);
+        verify(submissionMethodResultRepository).deleteByUserId(userId);
+        verify(submissionConstructorResultRepository).deleteByUserId(userId);
+        verify(submissionChallengeResultRepository).deleteByUserId(userId);
+        verify(submissionRelationResultRepository).deleteByUserId(userId);
+        verify(labSubmissionRepository).deleteByUser_Id(userId);
+        verify(labSubmissionRepository, never()).findByUser_Id(any());
+        verify(submissionFieldResultRepository, never()).deleteBySubmission(any());
+        verify(submissionMethodResultRepository, never()).deleteBySubmission(any());
+        verify(submissionConstructorResultRepository, never()).deleteBySubmission(any());
+        verify(submissionChallengeResultRepository, never()).deleteBySubmission(any());
+        verify(submissionRelationResultRepository, never()).deleteBySubmission(any());
+        verify(submissionTestcaseResultRepository, never()).deleteBySubmission_Id(any());
         verify(userRepository).delete(student);
     }
 

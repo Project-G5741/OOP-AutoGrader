@@ -105,7 +105,7 @@ flowchart TB
 
 - No Vite proxy — the frontend calls the backend directly with `fetch`.
 - CORS is configured in `CorsConfig` for `/api/**` (localhost + production Vercel origin).
-- Most endpoints are **open** at the Spring Security layer; JWT is checked **manually** in controllers that need it (upload, student history, user management).
+- Spring Security is **default-deny**: public auth + health + local swagger; everything else needs a JWT with the matching role. Anonymous is 401; wrong role is 403.
 
 ---
 
@@ -214,11 +214,11 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 ### 5.3 Security model
 
-- `SecurityConfig`: CSRF off, **all requests permitted** at filter level.
-- **JWT** created by `JwtService` (in-memory signing key — tokens invalidated on server restart).
+- `SecurityConfig`: CSRF off, matcher table authorizes by path + method (default-deny).
+- **JWT** created by `JwtService` from `JWT_SECRET` (required, ≥32 bytes). Tokens stay valid across restarts while the secret is unchanged.
 - Claims: `email`, `name`, `domain`, `roles`, `irn`.
-- `SubmissionController` requires Bearer token + valid `irn` (teachers cannot submit).
-- `UserController` uses `JwtAuthHelper` for lecturer-only access.
+- `SubmissionController` is student-role (`hasRole(STUDENT)`); lecturers cannot submit.
+- Lecturer routes use `hasRole(LECTURER)`. `JwtAuthHelper` is identity only (active user / student scope), not authorization.
 - Google tokens verified via `GoogleTokenVerifier` (`@eiu.edu.vn` only).
 
 ### 5.4 Core submission pipeline (most important flow)
@@ -226,47 +226,45 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 ```
-1. Parse JWT → resolve UserAccount (must have IRN)
-2. Load Lab from DB
+1. JWT principal → active student with IRN; current-term submit check
+2. Load Lab with term from DB
 3. LabRubricCache.get(lab) → immutable rubric snapshot (cached 30 min)
 4. SubmissionStorageService.processUpload(irn, requestId, files)
-5. Upsert LabSubmission row (user + lab + attempt_number)
+5. Insert new LabSubmission (MAX(attempt_number)+1; path attempt unused)
 6. GradingService.gradeSubmission(...)
-7. Save overall score to lab_submission
-8. Update student_lab_progress (attempts, highest score, timestamps)
-9. Save compile errors + MMD metadata to side stores
+7. Save overall score to lab_submission; update student_lab_progress
+8. Save compile errors, package-normalization notices, MMD metadata
+9. PlagiarismService.inspectUpload (on this thread; failures swallowed)
 10. Invalidate analytics caches
-11. Return challenge scores + overall score
+11. Return challenge scores + lab_result bundle
 12. finally: delete temp submission folder on disk
 ```
 
 #### Step 4 — File handling (`SubmissionStorageService`)
 
 - Expects multipart filenames with paths like:  
-  `12345_Name_lab_1/challenge_1/Foo.java`
+  `12345_Name/challenge_1/Foo.java`
 - Groups files by challenge folder (`challenge_1`, `challenge-2`, etc.)
-- For each challenge **in parallel** (default 4 workers):
-  - Save `.java` to `_sources_tmp/`
-  - `JavaCompilerService.compile()` → output to `classes/`
-  - Delete sources after compile
-  - Compile errors are captured per challenge (upload continues)
-- `.mmd` files are kept in memory (`mmdByChallenge`), not written to disk on the hot path
+- For each challenge **in parallel** on `compileExecutor` (default 4, capped at CPU count):
+  - Normalize sources in memory (`StudentSourceNormalizer`; no `_sources_tmp/`)
+  - `JavaCompilerService.compileSources()` → `.class` output to `classes/`
+  - Mixed javac keeps survivors and records per-class diagnostics; I/O/setup still marks the challenge failed
+- `.mmd` files stay in memory (`mmdByChallenge`); `root/.git/**` is kept for plagiarism and skipped by compile
 - Temp root: `submissions/<sanitized_irn>/<uuid-requestId>/`
 
 #### Step 6 — Grading (`GradingService`)
 
-For each challenge folder, **in parallel**:
+For each challenge folder, **in parallel** on `gradingExecutor`:
 
-1. **Java side**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`, extracts fields, methods, constructors.
-2. **MMD side**: `MmdParser` parses diagram text; `MmdComparisonService` compares to rubric (classes, members, relations).
-3. **Merge rule**: For member/class elements, **both** Java and MMD must pass. Relations are MMD-only.
-4. **Scoring**:
-   - Per challenge: 50% Java accuracy + 50% MMD accuracy
-   - Overall lab score: average across all rubric challenges (missing = 0%)
-5. **Persist** via `GradingResultStore`:
-   - `submission_field_result`, `submission_method_result`, `submission_constructor_result`, `submission_relation_result`, `submission_challenge_result`
+1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
+2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
+3. **Testcase pillar** (if the challenge has operational testcases): `TestcaseGrader` on `pillarExecutor`; student invokes serialize on single-thread `testcaseInvokeExecutor` (5s timeout each).
+4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
+5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 
-After grading, the temp folder is deleted in a `finally` block — only DB rows and optional compile-error JSON remain.
+After grading, plagiarism inspect runs, then the temp folder is deleted in `finally`. Durable state is PostgreSQL plus JSON sidecars under `SUBMISSION_BASE_DIR` (`_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot`).
+
+Wall-clock ranking and complexity: [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity).
 
 ### 5.5 Read paths (after grading)
 
@@ -345,7 +343,7 @@ erDiagram
 - Compiled `.class` files (deleted after grading)
 - Uploaded `.java` sources (deleted after compile)
 - `.mmd` file contents on disk (parsed in memory; archival hook is no-op by default)
-- JWT signing keys (in-memory only)
+- JWT signing keys (`JWT_SECRET` in env)
 - Analytics cache entries (in-process TTL caches)
 
 ---
@@ -362,7 +360,7 @@ erDiagram
 5. GET /api/labs → student picks "Lab 1"
 6. GET /api/labs/{id}/stats → shows prior grade if any
 7. Student drops folder → DropZone POST /api/submissions/{labId}/1/upload
-8. Backend: compile → reflect → compare MMD → save results → return scores
+8. Backend: compile → class/MMD/testcase pillars → persist → plagiarism inspect → return scores + `lab_result`
 9. Frontend updates challenge sidebar, class tab, stats cards
 10. Data persists in PostgreSQL; temp files deleted
 ```
@@ -378,11 +376,12 @@ erDiagram
 6. Opens challenge drawer → GET /api/labs/{id}/challenges/{id}/class?studentId=
 ```
 
-### 7.3 Re-upload same attempt
+### 7.3 Re-upload
 
 - Unique key: `(user_id, lab_id, attempt_number)` on `lab_submission`
-- Re-uploading attempt `1` **updates** the same row and upserts result rows
-- `attemptsCount` does not increment on re-upload of an existing attempt
+- Each upload **inserts a new attempt** (`MAX(attempt_number)+1`). The URL `{attemptNumber}` is not used to overwrite a prior row
+- `attemptsCount` is `COUNT(lab_submission)` after the insert
+- Element results UPSERT by (submission, rubric element) natural keys for that new submission
 
 ---
 
@@ -390,13 +389,13 @@ erDiagram
 
 | Cache | TTL | Invalidation |
 |-------|-----|--------------|
-| `LabRubricCache` | 30 min | Manual or TTL |
+| `LabRubricCache` | 30 min | Manual (`RubricCacheInvalidationSupport`) or TTL |
 | `MasterDataCache` | 60 min | TTL |
 | `LecturerOverviewCache` | 90 sec | On upload |
 | `LabStatisticsCache` | 120 sec | On upload for that lab |
 | `AnalyticsDashboardCache` | 180 sec | TTL |
 
-Grading uses a thread pool (`app.grading.parallelism=4`, capped at CPU count) for parallel challenge compile + grade.
+Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD + testcase pillars use `pillarExecutor`. Student-code invokes use a **single-thread** `testcaseInvokeExecutor`. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
 
 ---
 
@@ -420,4 +419,4 @@ CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the 
 | **Backend** | Spring Boot 3.2 + Java 17 | JVM `:8002` | PostgreSQL + temp `submissions/` |
 | **Database** | PostgreSQL (Neon) | Cloud | All users, rubrics, grades, progress |
 
-The **critical path** is: **browser upload → Spring controller → temp compile → reflection + MMD grading → JPA save → JSON response → React UI update**. Everything durable lives in PostgreSQL; everything on disk during upload is ephemeral.
+The **critical path** is: **browser upload → Spring controller → in-memory compile → reflection + MMD + operational testcases → challenge-score save → plagiarism inspect → JSON response → React UI update**. Detail UPSERT continues off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.

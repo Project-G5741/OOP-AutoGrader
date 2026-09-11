@@ -14,7 +14,6 @@ import com.eiu.capstone.backend.model.LabDeadlineEmailSent;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
-import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
@@ -27,7 +26,6 @@ public class LabDeadlineEmailService {
     private final LabRepository labRepository;
     private final TermEnrollmentRepository termEnrollmentRepository;
     private final UserAccountRepository userAccountRepository;
-    private final LabSubmissionRepository labSubmissionRepository;
     private final LabDeadlineEmailSentRepository emailSentRepository;
     private final TransactionalEmailSender emailSender;
     private final LabDeadlineHelper labDeadlineHelper;
@@ -36,7 +34,6 @@ public class LabDeadlineEmailService {
     public LabDeadlineEmailService(LabRepository labRepository,
                                      TermEnrollmentRepository termEnrollmentRepository,
                                      UserAccountRepository userAccountRepository,
-                                     LabSubmissionRepository labSubmissionRepository,
                                      LabDeadlineEmailSentRepository emailSentRepository,
                                      TransactionalEmailSender emailSender,
                                      LabDeadlineHelper labDeadlineHelper,
@@ -44,7 +41,6 @@ public class LabDeadlineEmailService {
         this.labRepository = labRepository;
         this.termEnrollmentRepository = termEnrollmentRepository;
         this.userAccountRepository = userAccountRepository;
-        this.labSubmissionRepository = labSubmissionRepository;
         this.emailSentRepository = emailSentRepository;
         this.emailSender = emailSender;
         this.labDeadlineHelper = labDeadlineHelper;
@@ -66,21 +62,14 @@ public class LabDeadlineEmailService {
     }
 
     private void sendForLabThreshold(Lab lab, short thresholdHours) {
-        List<java.util.UUID> studentIds =
-                termEnrollmentRepository.findActiveStudentIdsByTermId(lab.getTerm().getId());
+        List<java.util.UUID> studentIds = termEnrollmentRepository.findActiveStudentIdsForDeadlineEmail(
+                lab.getTerm().getId(), lab.getId(), thresholdHours);
         if (studentIds.isEmpty()) {
             return;
         }
         List<UserAccount> students = userAccountRepository.findAllById(studentIds);
         for (UserAccount student : students) {
             if (student.getEmail() == null || student.getEmail().isBlank()) {
-                continue;
-            }
-            if (labSubmissionRepository.countByUser_IdAndLab_Id(student.getId(), lab.getId()) > 0) {
-                continue;
-            }
-            if (emailSentRepository.existsByLab_IdAndUser_IdAndThresholdHours(
-                    lab.getId(), student.getId(), thresholdHours)) {
                 continue;
             }
             String subject = thresholdHours == 72

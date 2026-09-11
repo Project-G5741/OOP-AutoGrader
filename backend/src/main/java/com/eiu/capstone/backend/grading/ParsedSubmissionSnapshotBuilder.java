@@ -128,24 +128,15 @@ public class ParsedSubmissionSnapshotBuilder {
     }
 
     private static String memberGradeLabel(ClassReflectionGrader.PendingFieldResult result) {
-        if (result.correct()) {
-            return "pass";
-        }
-        return result.partial() ? "partial" : "fail";
+        return result.correct() ? "pass" : "fail";
     }
 
     private static String memberGradeLabel(ClassReflectionGrader.PendingMethodResult result) {
-        if (result.correct()) {
-            return "pass";
-        }
-        return result.partial() ? "partial" : "fail";
+        return result.correct() ? "pass" : "fail";
     }
 
     private static String memberGradeLabel(ClassReflectionGrader.PendingConstructorResult result) {
-        if (result.correct()) {
-            return "pass";
-        }
-        return result.partial() ? "partial" : "fail";
+        return result.correct() ? "pass" : "fail";
     }
 
     private MmdSnapshot buildMmdSnapshot(ChallengeRubric rubric, ParsedMmdDiagram diagram) {

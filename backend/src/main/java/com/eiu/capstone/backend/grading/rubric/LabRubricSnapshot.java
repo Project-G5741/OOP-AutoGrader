@@ -9,4 +9,16 @@ public record LabRubricSnapshot(UUID labId, Map<Integer, ChallengeRubric> byChal
     public Optional<ChallengeRubric> challenge(int challengeNumber) {
         return Optional.ofNullable(byChallengeNumber.get(challengeNumber));
     }
+
+    public Optional<ChallengeRubric> challengeById(UUID challengeId) {
+        if (challengeId == null || byChallengeNumber == null) {
+            return Optional.empty();
+        }
+        for (ChallengeRubric challenge : byChallengeNumber.values()) {
+            if (challenge != null && challengeId.equals(challenge.challengeId())) {
+                return Optional.of(challenge);
+            }
+        }
+        return Optional.empty();
+    }
 }

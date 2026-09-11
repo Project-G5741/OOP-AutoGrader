@@ -5,10 +5,7 @@ import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 
 function Tick({ ok, partial }) {
-  if (partial) {
-    return <MinusCircle className="h-4 w-4 shrink-0 text-warning" />;
-  }
-  return ok
+  return ok && !partial
     ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
     : <XCircle className="h-4 w-4 shrink-0 text-error" />;
 }
@@ -45,18 +42,18 @@ function mapClassData(classData) {
   return (Array.isArray(classData) ? classData : []).map((cls) => {
     const fields = (cls.fields ?? []).map((f) => ({
       ...f,
-      ok: f.ok ?? f.isCorrect,
-      partial: f.partial === true,
+      ok: (f.ok ?? f.isCorrect) && f.partial !== true,
+      partial: false,
     }));
     const constructors = (cls.constructors ?? []).map((c) => ({
       ...c,
-      ok: c.ok ?? c.isCorrect,
-      partial: c.partial === true,
+      ok: (c.ok ?? c.isCorrect) && c.partial !== true,
+      partial: false,
     }));
     const methods = (cls.methods ?? []).map((m) => ({
       ...m,
-      ok: m.ok ?? m.isCorrect,
-      partial: m.partial === true,
+      ok: (m.ok ?? m.isCorrect) && m.partial !== true,
+      partial: false,
     }));
     return {
       name: cls.name,
@@ -135,7 +132,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                           {cls.fields.map((field, index) => (
                             <div
                               key={`${field.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? statusClasses('correct') : field.partial ? statusClasses('pending') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
                                 <p className="text-xs font-mono font-semibold text-chart-blue dark:text-chart-blue">{field.name}: {field.dataType}</p>
@@ -155,7 +152,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                           {cls.constructors.map((ctor, index) => (
                             <div
                               key={`${ctor.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? statusClasses('correct') : ctor.partial ? statusClasses('pending') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
                                 <p className="text-xs font-mono font-semibold text-chart-amber dark:text-chart-amber">{ctor.name}({ctor.params || ''})</p>
@@ -175,7 +172,7 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                           {cls.methods.map((method, index) => (
                             <div
                               key={`${method.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? statusClasses('correct') : method.partial ? statusClasses('pending') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
                             >
                               <div>
                                 <p className="text-xs font-mono font-semibold text-success">{method.name}(): {method.returnType}</p>

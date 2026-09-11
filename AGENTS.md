@@ -86,6 +86,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `backend/AGENTS.md` | Spring Boot API: auth, users, labs, submission pipeline, config, security |
 | `frontend/AGENTS.md` | React + Vite SPA: auth, role dashboards, API patterns, build/deploy |
 | `docs/PROGRAM_REPORT.md` | Program overview: purpose, target users, features, setup, and how to run |
+| `docs/HOW_IT_RUNS.md` | End-to-end runtime: start, auth, upload pipeline, caches, deploy |
+| `docs/GRADING_WORKFLOWS.md` | Grading pipeline reference, scoring, thread pools, upload wall-clock / complexity |
 | `docs/OBJECTIVES.md` | General and specific objectives of the system |
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`) — search before debugging in documented areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes) — relevant when orienting to grading or submission flows |

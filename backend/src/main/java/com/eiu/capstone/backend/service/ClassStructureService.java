@@ -181,39 +181,39 @@ public class ClassStructureService {
         }
         detailPersistGate.await(resolvedSubmissionId);
         MmdResponseDTO result = buildMmdResponseForSubmission(
-                resolvedSubmissionId, challengeId, null, null, disclosureMode);
+                labId, resolvedSubmissionId, challengeId, null, null, disclosureMode);
         TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
     }
 
-    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId, UUID challengeId) {
-        return buildMmdResponseForSubmission(submissionId, challengeId, null, null, DisclosureMode.LECTURER);
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdResponseForSubmission(labId, submissionId, challengeId, null, null, DisclosureMode.LECTURER);
     }
 
-    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId,
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId,
+                                                        UUID submissionId,
                                                         UUID challengeId,
                                                         MmdGradingOutcome mmdOutcome,
                                                         Boolean mmdSubmittedOverride) {
         return buildMmdResponseForSubmission(
-                submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
+                labId, submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
     }
 
-    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId,
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId,
+                                                        UUID submissionId,
                                                         UUID challengeId,
                                                         MmdGradingOutcome mmdOutcome,
                                                         Boolean mmdSubmittedOverride,
                                                         DisclosureMode disclosureMode) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return new MmdResponseDTO(List.of(), null);
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        List<MmdClassDTO> classes = buildMmdData(
-                structure,
-                challengeId,
+        List<MmdClassDTO> classes = buildMmdDataFromRubric(
+                challengeRubric,
                 correctIds,
                 mmdOutcome,
                 mmdSubmittedOverride,
@@ -225,33 +225,41 @@ public class ClassStructureService {
         return new MmdResponseDTO(classes, parseError);
     }
 
-    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId, UUID challengeId) {
-        return buildMmdDataForSubmission(submissionId, challengeId, null, null, DisclosureMode.LECTURER);
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdDataForSubmission(labId, submissionId, challengeId, null, null, DisclosureMode.LECTURER);
     }
 
-    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId,
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId,
+                                                      UUID submissionId,
                                                       UUID challengeId,
                                                       MmdGradingOutcome mmdOutcome,
                                                       Boolean mmdSubmittedOverride) {
         return buildMmdDataForSubmission(
-                submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
+                labId, submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
     }
 
-    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId,
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId,
+                                                      UUID submissionId,
                                                       UUID challengeId,
                                                       MmdGradingOutcome mmdOutcome,
                                                       Boolean mmdSubmittedOverride,
                                                       DisclosureMode disclosureMode) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return List.of();
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        return buildMmdData(
-                structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, snapshot, disclosureMode);
+        return buildMmdDataFromRubric(
+                challengeRubric,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot,
+                disclosureMode);
     }
 
     public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
@@ -675,7 +683,8 @@ public class ClassStructureService {
             return new ClassTabResponse(List.of(), null);
         }
         detailPersistGate.await(resolvedSubmissionId);
-        List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId, disclosureMode);
+        List<ClassDetailDTO> result = buildClassDataForSubmission(
+                labId, resolvedSubmissionId, challengeId, disclosureMode);
         String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
         return new ClassTabResponse(result, notice);
@@ -696,19 +705,15 @@ public class ClassStructureService {
             return List.of();
         }
         detailPersistGate.await(resolvedSubmissionId);
-        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
+        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(labId, resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
         return result;
     }
 
-    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID submissionId,
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
+                                                                  UUID submissionId,
                                                                   UUID challengeId) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
-            return List.of();
-        }
-        LabRubricSnapshot rubricSnapshot = labRubricCache.get(challenge.getLab());
-        ChallengeRubric challengeRubric = rubricSnapshot.byChallengeNumber().get(challenge.getChallengeNumber());
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
         if (challengeRubric == null) {
             return List.of();
         }
@@ -729,22 +734,29 @@ public class ClassStructureService {
                 resultsByTestcaseId);
     }
 
-    public List<ClassDetailDTO> buildClassDataForSubmission(UUID submissionId, UUID challengeId) {
-        return buildClassDataForSubmission(submissionId, challengeId, DisclosureMode.LECTURER);
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildClassDataForSubmission(labId, submissionId, challengeId, DisclosureMode.LECTURER);
     }
 
-    public List<ClassDetailDTO> buildClassDataForSubmission(UUID submissionId,
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId,
+                                                            UUID submissionId,
                                                             UUID challengeId,
                                                             DisclosureMode disclosureMode) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return List.of();
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeCompileErrors compileErrors = compileErrorStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        return buildClassData(structure, challengeId, correctIds, compileErrors, snapshot, disclosureMode);
+        return buildClassDataFromRubric(challengeRubric, correctIds, compileErrors, snapshot, disclosureMode);
+    }
+
+    private ChallengeRubric challengeRubricFromCache(UUID labId, UUID challengeId) {
+        if (labId == null || challengeId == null) {
+            return null;
+        }
+        return labRubricCache.get(labId).challengeById(challengeId).orElse(null);
     }
 
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
@@ -1401,40 +1413,36 @@ public class ClassStructureService {
 
     private double computeFieldAccuracy(Field field, ClassFieldEntry entry, Map<Integer, String> masterData) {
         FieldDeclaration declaration = field.getFieldDeclaration();
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
+        return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
-                PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0)));
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0));
     }
 
     private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry) {
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
-                PartialCreditEvaluator.matches(field.scope(), entry.scope).get(0),
-                PartialCreditEvaluator.matches(field.dataType(), entry.dataType).get(0)));
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(field.scope(), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(field.dataType(), entry.dataType).get(0));
     }
 
     private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {
         MethodDeclaration declaration = method.getMethodDeclaration();
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
+        return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
-                PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0),
-                declaration.isStatic() == entry.isStatic,
-                declaration.isAbstract() == entry.isAbstract,
-                declaration.isFinal() == entry.isFinal));
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0)
+                        && declaration.isStatic() == entry.isStatic
+                        && declaration.isAbstract() == entry.isAbstract
+                        && declaration.isFinal() == entry.isFinal);
     }
 
     private double computeMethodAccuracy(MethodRubric method, ClassMethodEntry entry) {
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
-                PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0),
-                PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0),
-                method.isStatic() == entry.isStatic,
-                method.isAbstract() == entry.isAbstract,
-                method.isFinal() == entry.isFinal));
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0)
+                        && method.isStatic() == entry.isStatic
+                        && method.isAbstract() == entry.isAbstract
+                        && method.isFinal() == entry.isFinal);
     }
 
     private double computeConstructorAccuracy(Constructor constructor,
@@ -1448,22 +1456,22 @@ public class ClassStructureService {
         List<String> actualParams = parseSnapshotParamTypes(entry.params);
         boolean defaultMatches = !constructor.getConstructorDeclaration().isDefault()
                 || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
-        return PartialCreditEvaluator.accuracy(List.of(
-                sameParamTypes(actualParams, expectedParams),
-                PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
-                        entry.scope).get(0),
-                defaultMatches));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, expectedParams)
+                        && PartialCreditEvaluator.matches(
+                                resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
+                                entry.scope).get(0)
+                        && defaultMatches);
     }
 
     private double computeConstructorAccuracy(ConstructorRubric constructor, ClassConstructorEntry entry) {
         List<String> actualParams = parseSnapshotParamTypes(entry.params);
         boolean defaultMatches = !constructor.isDefault()
                 || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
-        return PartialCreditEvaluator.accuracy(List.of(
-                sameParamTypes(actualParams, constructor.parameterTypes()),
-                PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0),
-                defaultMatches));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, constructor.parameterTypes())
+                        && PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0)
+                        && defaultMatches);
     }
 
     private List<String> parseSnapshotParamTypes(String params) {
@@ -1489,19 +1497,12 @@ public class ClassStructureService {
     }
 
     private MemberGrade memberGradeFromAccuracy(double accuracy) {
-        if (accuracy >= 1.0) {
-            return new MemberGrade(true, false);
-        }
-        if (accuracy > 0) {
-            return new MemberGrade(false, true);
-        }
-        return new MemberGrade(false, false);
+        return new MemberGrade(accuracy >= 1.0, false);
     }
 
     private MemberGrade resolveMemberGradeFromLabel(String gradeLabel) {
         return switch (gradeLabel) {
             case "pass" -> new MemberGrade(true, false);
-            case "partial" -> new MemberGrade(false, true);
             default -> new MemberGrade(false, false);
         };
     }

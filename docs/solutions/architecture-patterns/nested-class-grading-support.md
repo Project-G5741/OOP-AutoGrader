@@ -50,7 +50,7 @@ When a rubric class can be nested, the fix spans four layers that must stay cons
 3. **Resolution** — key nested classes by **qualified name** (`Outer.Inner` via `ClassRubric.qualifiedName()`), not simple name. Top-level classes still resolve by simple name for backward compatibility. `ParsedClassIndex` builds the two lookup maps; `ChallengeGradingContext.resolve()` picks the correct one.
 4. **Constructor comparison** — strip the compiler-synthesized implicit outer-instance first parameter for **non-static** nested classes only, before comparing against the rubric parameter list.
 
-The DB, backend rubric model, and frontend structure editor need `outer_class_id` (self-referencing FK on `class_entity`, `ON DELETE CASCADE`) and `is_static` (boolean, default `false`). Operator SQL lives in `docs/sql/2026-08-21-class-entity-outer-class.sql` and `docs/sql/2026-08-21-class-entity-is-static.sql`.
+The DB, backend rubric model, and frontend structure editor need `outer_class_id` (self-referencing FK on `class_entity`, `ON DELETE CASCADE`) and `is_static` (boolean, default `false`). Operator SQL lives in `docs/sql/2026-08-21-class-entity-outer-class.sql` and `docs/sql/2026-08-21-class-entity-is-static.sql`. Nested class members use the same all-or-nothing Class-tab scoring as top-level classes.
 
 ## Why This Matters
 

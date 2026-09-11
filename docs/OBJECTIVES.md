@@ -9,7 +9,7 @@ To design and implement a full-stack automated grading system that evaluates EIU
 1. **Submission intake** — Let students upload a folder of `.java` and optional `.mmd` files per lab challenge through a drag-and-drop web interface, validating folder structure via `webkitRelativePath` before grading.
 2. **Runtime compilation** — Compile submitted Java source in memory at request time (`javax.tools.JavaCompiler`), in parallel per challenge, without persisting source files beyond the grading window.
 3. **Three-pillar rubric grading** — Score each challenge across up to three independent pillars, each contributing an equal share to the challenge score:
-   - **Class declaration** — fields, methods, constructors, visibility, and types checked via Java reflection on compiled `.class` files, with partial credit for near-correct declarations.
+   - **Class declaration** — fields, methods, constructors, visibility, and types checked via Java reflection on compiled `.class` files. A member earns full credit only when every graded declaration attribute matches; otherwise it earns none.
    - **MMD diagram** — classes and relations parsed from the student's Mermaid `.mmd` file and compared against the rubric's expected UML structure.
    - **Operational testcase** — runtime behavior verified by invoking student code via reflection and asserting return values, stdout, field state, exceptions, or instance comparisons.
 4. **Rubric-driven, no-code lab authoring** — Give lecturers a visual editor to define and modify challenges, classes, members, MMD relations, and testcases per lab without backend code changes.

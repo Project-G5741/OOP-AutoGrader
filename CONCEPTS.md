@@ -25,6 +25,9 @@ A class's optional Extends or Implements target, authored on the class editor as
 ### Static nested flag
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
+### Upload hot path
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: rubric cache → parallel compile → parallel grade (but testcase invokes globally serial) → challenge-score save → `lab_result` assemble → plagiarism inspect → temp-folder delete. Detail UPSERT is off-thread. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
 
@@ -42,6 +45,9 @@ A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements
 
 ### Grading pillar
 One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class, MMD, and testcase use lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
+
+### Declaration Test
+The Class-tab name for the class grading pillar: the class shell plus fields, methods, and constructors compared to the rubric. A member earns its points only when every graded declaration attribute matches; otherwise it earns none. Distinct from MMD grading and from operational testcases. Lecturer breakdowns for the same pillar are titled Declaration Score.
 
 ### Scoring weight
 A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
@@ -77,7 +83,10 @@ Student-facing expandable result card per testcase: INPUT (formatted invocation)
 Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and operational testcase I/O card arrays so the student UI renders tabs without follow-up read API calls. Revisit read paths return the same testcase shape when the upload cache is absent.
 
 ### Parsed submission snapshot
-Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items and rubric expected labels for missing items, with existing per-element pass/fail flags.
+Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items. When a snapshot entry is missing, student-facing assembly (`DisclosureMode.STUDENT`) shows generic placeholders instead of rubric expected labels; lecturer drawer (`DisclosureMode.LECTURER`) still uses the full rubric checklist. Pass/fail flags are unchanged.
+
+### DisclosureMode
+Display-only switch on Class/MMD result-tab assembly. `STUDENT` never emits rubric expected names, types, or signatures for missing or wrong members (generic messages such as "Missing variable name or datatype"). `LECTURER` keeps the full rubric checklist. Scoring is unchanged. `JwtAuthHelper.resolveDisclosureMode` returns `LECTURER` when the JWT has the lecturer role and `studentId` is present; otherwise `STUDENT`. Upload `lab_result` is always `STUDENT`.
 
 ## Relationships
 

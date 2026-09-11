@@ -43,10 +43,7 @@ function Tick({ ok, partial, error }) {
   if (error) {
     return <AlertCircle className="w-4 h-4 shrink-0 text-error" />;
   }
-  if (partial) {
-    return <MinusCircle className="w-4 h-4 shrink-0 text-warning" />;
-  }
-  return ok
+  return ok && !partial
     ? <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
     : <XCircle className="w-4 h-4 text-error flex-shrink-0" />;
 }
@@ -624,7 +621,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>
                                     <div className="space-y-2">
                                       {fields.map((f, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok ? 'bg-surface-secondary bg-background/40' : f.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok && !f.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-info-text">{formatStudentFieldLine(f)}</p>
                                             {formatStudentScopeLine(f.scope) && (
@@ -643,7 +640,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-warning">Constructors</p>
                                     <div className="space-y-2">
                                       {constructors.map((c, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok ? 'bg-surface-secondary bg-background/40' : c.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok && !c.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-warning-text">{formatStudentConstructorLine(c)}</p>
                                             {formatStudentScopeLine(c.scope) && (
@@ -662,7 +659,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-success">Methods</p>
                                     <div className="space-y-2">
                                       {methods.map((m, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok ? 'bg-surface-secondary bg-background/40' : m.partial ? 'bg-warning-bg' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok && !m.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-success-text">{formatStudentMethodLine(m)}</p>
                                             {formatStudentScopeLine(m.scope) && (

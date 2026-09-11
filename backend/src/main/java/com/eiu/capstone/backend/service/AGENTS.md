@@ -25,7 +25,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
 
 ## Local Contracts
 
@@ -68,7 +68,7 @@ Per upload request (unique `requestId` prevents collisions):
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
-- Hard delete (`deleteUser`) removes progress and enrollments first, then each submission's plagiarism rows, grading results, and testcase rows, then the `user_account` row
+- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row
 - Google upsert creates or updates user on first login
 - Inactive users cannot log in (IRN or Google)
 - Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)
@@ -104,10 +104,14 @@ Per upload request (unique `requestId` prevents collisions):
 - Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
 - Term import: `support` `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
 - Term current membership: `support` `TermServiceCurrentTermTest`
-- User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected)
+- User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected; hard-delete bulk-purges grading rows)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 - JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
-- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements)
+- Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements; `challengeById`)
+- Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them)
+- History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
+- Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
 
 ## Child DOX Index

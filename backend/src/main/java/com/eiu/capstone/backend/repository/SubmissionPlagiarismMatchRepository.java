@@ -27,4 +27,12 @@ public interface SubmissionPlagiarismMatchRepository extends JpaRepository<Submi
             where m.submissionId = :submissionId or m.otherSubmissionId = :submissionId
             """)
     void deleteInvolvingSubmission(@Param("submissionId") UUID submissionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_plagiarism_match
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+               OR other_submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteInvolvingUser(@Param("userId") UUID userId);
 }

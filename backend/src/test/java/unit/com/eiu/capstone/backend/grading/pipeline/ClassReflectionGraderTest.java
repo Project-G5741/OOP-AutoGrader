@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,10 +14,12 @@ import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.grading.ParsedClass;
 import com.eiu.capstone.backend.grading.ParsedConstructor;
+import com.eiu.capstone.backend.grading.ParsedField;
 import com.eiu.capstone.backend.grading.ParsedMethod;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
+import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 
@@ -322,6 +325,156 @@ class ClassReflectionGraderTest {
     }
 
     @Test
+    void fieldWrongType_isNotCorrectAndContributesZero() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(ageField("private", "String"));
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(personAgeRubric(fieldId), null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingFieldResult graded = fieldResult(result, fieldId);
+        assertFalse(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void fieldWrongAccess_isNotCorrectAndContributesZero() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(ageField("public", "int"));
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(personAgeRubric(fieldId), null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingFieldResult graded = fieldResult(result, fieldId);
+        assertFalse(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void missingFieldName_isNotCorrectAndContributesZero() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(null);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(personAgeRubric(fieldId), null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingFieldResult graded = fieldResult(result, fieldId);
+        assertFalse(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void fieldFullMatch_isCorrectAndFullCredit() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(ageField("private", "int"));
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(personAgeRubric(fieldId), null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingFieldResult graded = fieldResult(result, fieldId);
+        assertTrue(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("100.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void methodWrongStatic_isNotCorrectAndNotPartial() {
+        UUID classId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Counter",
+                List.of(new ClassRubric(
+                        classId,
+                        "Counter",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId, "count", "public", "int", true, false, false, List.of())),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ParsedClass parsed = new ParsedClass();
+        parsed.simpleName = "Counter";
+        parsed.scope = "public";
+        parsed.declaringType = "CLASS";
+        parsed.isAbstract = false;
+        parsed.fields = List.of();
+        ParsedMethod method = new ParsedMethod();
+        method.name = "count";
+        method.scope = "public";
+        method.returnType = "int";
+        method.isStatic = false;
+        method.isAbstract = false;
+        method.isFinal = false;
+        method.parameterTypes = List.of();
+        parsed.methods = List.of(method);
+        parsed.constructors = List.of();
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingMethodResult graded = result.methods().stream()
+                .filter(entry -> entry.methodId().equals(methodId))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void constructorWrongAccess_isNotCorrectAndNotPartial() {
+        UUID classId = UUID.randomUUID();
+        UUID ctorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Foo",
+                List.of(new ClassRubric(
+                        classId,
+                        "Foo",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of(new ConstructorRubric(ctorId, "private", false, List.of())))),
+                List.of(),
+                List.of());
+
+        ParsedClass parsed = new ParsedClass();
+        parsed.simpleName = "Foo";
+        parsed.scope = "public";
+        parsed.declaringType = "CLASS";
+        parsed.isAbstract = false;
+        parsed.fields = List.of();
+        parsed.methods = List.of();
+        ParsedConstructor ctor = new ParsedConstructor();
+        ctor.scope = "public";
+        ctor.parameterTypes = List.of();
+        parsed.constructors = List.of(ctor);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        ClassReflectionGrader.PendingConstructorResult graded = result.constructors().stream()
+                .filter(entry -> entry.constructorId().equals(ctorId))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(graded.correct());
+        assertFalse(graded.partial());
+        assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
     void extraHeritageRows_skipHeritageCheck() {
         ObserverFixture fx = observerFixture("realization");
         UUID loggerId = UUID.randomUUID();
@@ -355,6 +508,52 @@ class ClassReflectionGraderTest {
 
     private ClassReflectionGrader.ClassPillarResult grade(ObserverFixture fx, ParsedClass parsed) {
         return grader.grade(ChallengeGradingContext.of(fx.rubric, null, null, List.of(parsed)));
+    }
+
+    private ClassReflectionGrader.PendingFieldResult fieldResult(
+            ClassReflectionGrader.ClassPillarResult result, UUID fieldId) {
+        return result.fields().stream()
+                .filter(entry -> entry.fieldId().equals(fieldId))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private ChallengeRubric personAgeRubric(UUID fieldId) {
+        return new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(fieldId, "age", "private", "int")),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+    }
+
+    private ParsedClass personShell(ParsedField field) {
+        ParsedClass parsed = new ParsedClass();
+        parsed.simpleName = "Person";
+        parsed.scope = "public";
+        parsed.declaringType = "CLASS";
+        parsed.isAbstract = false;
+        parsed.fields = field == null ? List.of() : List.of(field);
+        parsed.methods = List.of();
+        parsed.constructors = List.of();
+        return parsed;
+    }
+
+    private ParsedField ageField(String scope, String dataType) {
+        ParsedField field = new ParsedField();
+        field.name = "age";
+        field.scope = scope;
+        field.dataType = dataType;
+        return field;
     }
 
     private boolean methodCorrect(ClassReflectionGrader.ClassPillarResult result, UUID methodId) {

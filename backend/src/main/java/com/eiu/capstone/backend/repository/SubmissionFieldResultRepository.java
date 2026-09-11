@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,6 +20,13 @@ public interface SubmissionFieldResultRepository extends JpaRepository<Submissio
     Optional<SubmissionFieldResult> findBySubmissionAndField(LabSubmission submission, Field field);
 
     void deleteBySubmission(LabSubmission submission);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_field_result
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteByUserId(@Param("userId") UUID userId);
 
     List<SubmissionFieldResult> findBySubmission_Id(UUID submissionId);
 
