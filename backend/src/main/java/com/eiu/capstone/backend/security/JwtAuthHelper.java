@@ -8,6 +8,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.eiu.capstone.backend.service.DisclosureMode;
 
 @Component
 public class JwtAuthHelper {
@@ -57,5 +58,16 @@ public class JwtAuthHelper {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access another student's data");
         }
         return requestedStudentId;
+    }
+
+    /**
+     * Lecturer drawer and export pass {@code studentId}; student dashboard does not.
+     * Upload {@code lab_result} assembly always uses {@link DisclosureMode#STUDENT}.
+     */
+    public DisclosureMode resolveDisclosureMode(JwtUserPrincipal principal, UUID requestedStudentId) {
+        if (principal != null && principal.hasRole(JwtRoleNames.LECTURER) && requestedStudentId != null) {
+            return DisclosureMode.LECTURER;
+        }
+        return DisclosureMode.STUDENT;
     }
 }

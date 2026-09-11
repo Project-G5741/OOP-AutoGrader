@@ -25,7 +25,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET still loads JPA structure; upload `lab_result` uses `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
 
 ## Local Contracts
 

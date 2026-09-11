@@ -129,7 +129,7 @@ Grading tuning properties (`application.properties`):
 ### Read-path performance
 
 - `SubmissionResultLoader` — single JOIN FETCH load of correct field/method/constructor IDs per submission
-- `MasterDataCache` — cached scope/type labels; Class/MMD **GET** tabs still use batched JPA rubric queries; upload `lab_result` assemble uses `LabRubricSnapshot` (`buildClassDataFromRubric` / `buildMmdDataFromRubric`)
+- `MasterDataCache` — cached scope/type labels; Class/MMD **GET** tabs still use batched JPA rubric queries; upload `lab_result` assemble uses `LabRubricSnapshot` (`buildClassDataFromRubric` / `buildMmdDataFromRubric`); student-facing assembly uses `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`
 - `ChallengeService` — sidebar scores from stored `submission_challenge_result` when present; otherwise recompute from element results
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
