@@ -256,7 +256,7 @@ When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 For each challenge folder, **in parallel** on `gradingExecutor`:
 
-1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (partial credit).
+1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
 2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
 3. **Testcase pillar** (if the challenge has operational testcases): `TestcaseGrader` on `pillarExecutor`; student invokes serialize on single-thread `testcaseInvokeExecutor` (5s timeout each).
 4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.

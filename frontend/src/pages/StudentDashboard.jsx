@@ -44,10 +44,11 @@ function mapOperationalTestcases(testcases = []) {
 }
 
 function normalizeClassMember(item) {
+  const leakedPartial = item.partial === true;
   return {
     ...item,
-    ok: item.ok ?? item.isCorrect ?? false,
-    partial: item.partial === true,
+    ok: (item.ok ?? item.isCorrect ?? false) && !leakedPartial,
+    partial: false,
   };
 }
 

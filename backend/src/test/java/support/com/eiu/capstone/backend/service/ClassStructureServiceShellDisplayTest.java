@@ -16,10 +16,12 @@ import org.junit.jupiter.api.Test;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassFieldEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassSnapshot;
@@ -354,6 +356,45 @@ class ClassStructureServiceShellDisplayTest {
   }
 
   @Test
+  void leftoverPartialFieldGrade_displaysAsFailAndCardError() {
+    UUID fieldId = UUID.randomUUID();
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.fieldGrades.put(fieldId.toString(), "partial");
+    classSnapshot.fields.put(fieldId.toString(), ageFieldEntry("private", "String"));
+
+    ClassDetailDTO card = personFieldCard(fieldId, classSnapshot, Set.of());
+
+    assertEquals(false, card.fields().get(0).ok());
+    assertEquals(false, card.fields().get(0).partial());
+    assertEquals("error", card.status());
+  }
+
+  @Test
+  void mismatchedFieldWithoutGradeLabel_displaysAsFail() {
+    UUID fieldId = UUID.randomUUID();
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+    classSnapshot.fields.put(fieldId.toString(), ageFieldEntry("private", "String"));
+
+    ClassDetailDTO card = personFieldCard(fieldId, classSnapshot, Set.of());
+
+    assertEquals(false, card.fields().get(0).ok());
+    assertEquals(false, card.fields().get(0).partial());
+    assertEquals("error", card.status());
+  }
+
+  @Test
+  void missingSnapshotField_jdbcIncorrect_displaysAsFail() {
+    UUID fieldId = UUID.randomUUID();
+    ClassSnapshot classSnapshot = new ClassSnapshot();
+
+    ClassDetailDTO card = personFieldCard(fieldId, classSnapshot, Set.of());
+
+    assertEquals(false, card.fields().get(0).ok());
+    assertEquals(false, card.fields().get(0).partial());
+    assertEquals("error", card.status());
+  }
+
+  @Test
   void buildClassDataFromRubric_perClassCompileError_gatesOnlyFailedCard() {
     UUID goodId = UUID.randomUUID();
     UUID badId = UUID.randomUUID();
@@ -457,6 +498,42 @@ class ClassStructureServiceShellDisplayTest {
 
     assertEquals(1, result.size());
     return result.get(0);
+  }
+
+  private ClassDetailDTO personFieldCard(UUID fieldId, ClassSnapshot classSnapshot, Set<UUID> correctFieldIds) {
+    UUID challengeId = UUID.randomUUID();
+    UUID classId = UUID.randomUUID();
+    ClassRubric classRubric = new ClassRubric(
+        classId,
+        "Person",
+        "PUBLIC",
+        "CLASS",
+        false,
+        List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int")),
+        List.of(),
+        List.of());
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId, 1, "Challenge 1", List.of(classRubric), List.of());
+
+    classSnapshot.shells.put(classId.toString(), matchingPublicClassShell());
+
+    ParsedSubmissionSnapshot.ChallengeSnapshot snapshot = new ParsedSubmissionSnapshot.ChallengeSnapshot();
+    snapshot.classSnapshot = classSnapshot;
+
+    List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+        challengeRubric,
+        new SubmissionCorrectIds(correctFieldIds, Set.of(), Set.of(), Set.of()),
+        ChallengeCompileErrors.none(),
+        snapshot);
+    return result.get(0);
+  }
+
+  private static ClassFieldEntry ageFieldEntry(String scope, String dataType) {
+    ClassFieldEntry entry = new ClassFieldEntry();
+    entry.name = "age";
+    entry.scope = scope;
+    entry.dataType = dataType;
+    return entry;
   }
 
   private static ClassShellEntry matchingPublicClassShell() {

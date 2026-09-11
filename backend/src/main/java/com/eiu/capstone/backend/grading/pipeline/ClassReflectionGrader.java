@@ -22,7 +22,7 @@ import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator.WeightedAc
 
 /**
  * Grades compiled student classes against the full rubric for the .class pillar.
- * Uses per-attribute partial credit for declaration checks.
+ * Class shells and members are all-or-nothing: every graded attribute must match.
  */
 @Component
 public class ClassReflectionGrader {
@@ -77,14 +77,12 @@ public class ClassReflectionGrader {
                 } else if (pf == null) {
                     accuracy = 0;
                 } else {
-                    accuracy = PartialCreditEvaluator.accuracy(List.of(
-                            true,
-                            PartialCreditEvaluator.matches(expectedField.scope(), pf.scope).get(0),
-                            PartialCreditEvaluator.matches(expectedField.dataType(), pf.dataType).get(0)));
+                    boolean allMatch = PartialCreditEvaluator.matches(expectedField.scope(), pf.scope).get(0)
+                            && PartialCreditEvaluator.matches(expectedField.dataType(), pf.dataType).get(0);
+                    accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
-                fields.add(new PendingFieldResult(
-                        expectedField.id(), shellPassed && accuracy >= 1.0, shellPassed && accuracy > 0 && accuracy < 1.0));
+                fields.add(new PendingFieldResult(expectedField.id(), shellPassed && accuracy >= 1.0, false));
             }
 
             for (MethodRubric expectedMethod : expectedClass.methods()) {
@@ -95,17 +93,15 @@ public class ClassReflectionGrader {
                 } else if (match == null) {
                     accuracy = 0;
                 } else {
-                    accuracy = PartialCreditEvaluator.accuracy(List.of(
-                            true,
-                            PartialCreditEvaluator.matches(expectedMethod.scope(), match.scope).get(0),
-                            PartialCreditEvaluator.matches(expectedMethod.returnType(), match.returnType).get(0),
-                            expectedMethod.isStatic() == match.isStatic,
-                            expectedMethod.isAbstract() == match.isAbstract,
-                            expectedMethod.isFinal() == match.isFinal));
+                    boolean allMatch = PartialCreditEvaluator.matches(expectedMethod.scope(), match.scope).get(0)
+                            && PartialCreditEvaluator.matches(expectedMethod.returnType(), match.returnType).get(0)
+                            && expectedMethod.isStatic() == match.isStatic
+                            && expectedMethod.isAbstract() == match.isAbstract
+                            && expectedMethod.isFinal() == match.isFinal;
+                    accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
-                methods.add(new PendingMethodResult(
-                        expectedMethod.id(), shellPassed && accuracy >= 1.0, shellPassed && accuracy > 0 && accuracy < 1.0));
+                methods.add(new PendingMethodResult(expectedMethod.id(), shellPassed && accuracy >= 1.0, false));
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
@@ -120,16 +116,15 @@ public class ClassReflectionGrader {
                 } else if (match == null) {
                     accuracy = 0;
                 } else {
-                    accuracy = PartialCreditEvaluator.accuracy(List.of(
-                            true,
-                            PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0),
-                            constructorDefaultMatches(expectedConstructor, match)));
+                    boolean allMatch = PartialCreditEvaluator.matches(expectedConstructor.scope(), match.scope).get(0)
+                            && constructorDefaultMatches(expectedConstructor, match);
+                    accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
                 constructors.add(new PendingConstructorResult(
                         expectedConstructor.id(),
                         shellPassed && accuracy >= 1.0,
-                        shellPassed && accuracy > 0 && accuracy < 1.0));
+                        false));
             }
         }
 

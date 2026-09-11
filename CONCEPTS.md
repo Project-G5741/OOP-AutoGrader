@@ -46,6 +46,9 @@ A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements
 ### Grading pillar
 One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class, MMD, and testcase use lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
 
+### Declaration Test
+The Class-tab name for the class grading pillar: the class shell plus fields, methods, and constructors compared to the rubric. A member earns its points only when every graded declaration attribute matches; otherwise it earns none. Distinct from MMD grading and from operational testcases. Lecturer breakdowns for the same pillar are titled Declaration Score.
+
 ### Scoring weight
 A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
 

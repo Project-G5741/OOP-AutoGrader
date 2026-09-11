@@ -384,20 +384,20 @@ double classAccuracy = classChecks.stream().allMatch(Boolean::booleanValue) ? 1.
 For each `FieldRubric`:
 - Lookup `parsedFields.get(expectedField.name())`
 - If missing → accuracy 0
-- If present → accuracy from 3 checks: existence (always true if found), scope match, dataType match
-- `correct = (accuracy >= 1.0)` — stored as boolean in DB (partial credit affects pillar % only)
+- If present → accuracy 1.0 only when scope and dataType both match; otherwise 0.0
+- `correct = (accuracy >= 1.0)` — stored as boolean in DB; mismatched members do not raise pillar %
 
 #### 7.3.4 Methods (lines 80–91)
 
 `findMatchingMethod(parsed.methods, name, parameterTypes)` — name + parameter type list must match (case-insensitive per type).
 
-If found, accuracy from 6 checks: existence, scope, returnType, isStatic, isAbstract, isFinal.
+If found, accuracy 1.0 only when scope, returnType, isStatic, isAbstract, and isFinal all match; otherwise 0.0.
 
 #### 7.3.5 Constructors (lines 93–102)
 
 `findMatchingConstructor(parsed.constructors, parameterTypes)` — match by parameter types only.
 
-Accuracy from 3 checks: existence, scope, `isDefault` (rubric) vs `parameterTypes.isEmpty()` (actual).
+Accuracy 1.0 only when scope matches and the `isDefault` rubric flag is satisfied; otherwise 0.0.
 
 #### 7.3.6 Pillar percentage (line 105)
 
@@ -649,13 +649,13 @@ accuracy(attributeMatches) = count(true) / count(total)
 
 String comparison: trim + lowercase (`normalize()`).
 
-`binaryAccuracy(correct)` → 1.0 or 0.0 (used in MMD pillar for individual elements).
+`binaryAccuracy(correct)` → 1.0 or 0.0. Class-tab fields, methods, and constructors use this all-or-nothing reduction. `accuracy()` remains for MMD class presence vs type (2-attribute mean). Leftover snapshot member labels `"partial"` display as fail; stored files and numeric scores are not rewritten.
 
 ### 10.5 Correctness flags vs percentages
 
 | Storage | Granularity |
 |---------|-------------|
-| Pillar % | Weighted mean with partial credit |
+| Pillar % | Weighted mean of member accuracies (Class-tab members are 1.0 or 0.0) |
 | `SubmissionFieldResult.correct` etc. | Boolean: `accuracy >= 1.0` only |
 | `SubmissionChallengeResult.correct` | `fullyCorrect`: all **applicable** pillars == 100% |
 | `SubmissionChallengeResult.score` | Challenge percentage (0–100) |

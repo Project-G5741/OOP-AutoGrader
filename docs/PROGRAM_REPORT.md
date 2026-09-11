@@ -113,7 +113,7 @@ Each **challenge** within a lab is scored across up to **three independent pilla
 
 - **Challenge score** = weighted mean of applicable pillar percentages (`class_weight` / `mmd_weight` / `testcase_weight`, default 1)
 - **Lab score** = weighted mean across all challenges using `challenge.weight` (missing challenges count as 0%)
-- Partial credit applies on declaration checks (e.g., correct name but wrong type)
+- Class-tab members are all-or-nothing: a field, method, or constructor earns its points only when every graded declaration attribute matches. Leftover `"partial"` labels on older snapshots display as fail; stored numeric scores are not rewritten.
 
 ### 4.3 Submission Pipeline (Backend)
 

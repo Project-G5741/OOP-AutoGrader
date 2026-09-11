@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Per-attribute partial credit for declaration checks.
- * accuracy = matchingAttributes / totalAttributesChecked (0..1).
+ * Attribute matching helpers for grading.
+ * {@link #accuracy} is the matching-attribute ratio (MMD class presence vs type).
+ * Class-tab members use {@link #binaryAccuracy} (all-or-nothing).
  */
 public final class PartialCreditEvaluator {
 

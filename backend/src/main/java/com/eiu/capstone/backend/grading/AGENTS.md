@@ -10,7 +10,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, persistence, `lab_result` assembly |
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
-| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0% (no member partial credit); otherwise members use per-attribute partial credit; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0%; otherwise members are all-or-nothing (every graded attribute must match); leftover snapshot `"partial"` labels display as fail and are not rewritten; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
@@ -20,7 +20,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
-| `grading/scoring/PartialCreditEvaluator.java` | Per-attribute accuracy for class-reflection DECLARATION checks |
+| `grading/scoring/PartialCreditEvaluator.java` | `binaryAccuracy` for Class-tab members and MMD elements; `accuracy()` matching-attribute ratio for MMD class presence vs type |
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |

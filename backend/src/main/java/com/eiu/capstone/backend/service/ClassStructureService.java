@@ -1178,40 +1178,36 @@ public class ClassStructureService {
 
     private double computeFieldAccuracy(Field field, ClassFieldEntry entry, Map<Integer, String> masterData) {
         FieldDeclaration declaration = field.getFieldDeclaration();
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
+        return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
-                PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0)));
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0));
     }
 
     private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry) {
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
-                PartialCreditEvaluator.matches(field.scope(), entry.scope).get(0),
-                PartialCreditEvaluator.matches(field.dataType(), entry.dataType).get(0)));
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(field.scope(), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(field.dataType(), entry.dataType).get(0));
     }
 
     private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {
         MethodDeclaration declaration = method.getMethodDeclaration();
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
+        return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0),
-                PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0),
-                declaration.isStatic() == entry.isStatic,
-                declaration.isAbstract() == entry.isAbstract,
-                declaration.isFinal() == entry.isFinal));
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0)
+                        && declaration.isStatic() == entry.isStatic
+                        && declaration.isAbstract() == entry.isAbstract
+                        && declaration.isFinal() == entry.isFinal);
     }
 
     private double computeMethodAccuracy(MethodRubric method, ClassMethodEntry entry) {
-        return PartialCreditEvaluator.accuracy(List.of(
-                true,
-                PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0),
-                PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0),
-                method.isStatic() == entry.isStatic,
-                method.isAbstract() == entry.isAbstract,
-                method.isFinal() == entry.isFinal));
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0)
+                        && method.isStatic() == entry.isStatic
+                        && method.isAbstract() == entry.isAbstract
+                        && method.isFinal() == entry.isFinal);
     }
 
     private double computeConstructorAccuracy(Constructor constructor,
@@ -1225,22 +1221,22 @@ public class ClassStructureService {
         List<String> actualParams = parseSnapshotParamTypes(entry.params);
         boolean defaultMatches = !constructor.getConstructorDeclaration().isDefault()
                 || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
-        return PartialCreditEvaluator.accuracy(List.of(
-                sameParamTypes(actualParams, expectedParams),
-                PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
-                        entry.scope).get(0),
-                defaultMatches));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, expectedParams)
+                        && PartialCreditEvaluator.matches(
+                                resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
+                                entry.scope).get(0)
+                        && defaultMatches);
     }
 
     private double computeConstructorAccuracy(ConstructorRubric constructor, ClassConstructorEntry entry) {
         List<String> actualParams = parseSnapshotParamTypes(entry.params);
         boolean defaultMatches = !constructor.isDefault()
                 || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
-        return PartialCreditEvaluator.accuracy(List.of(
-                sameParamTypes(actualParams, constructor.parameterTypes()),
-                PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0),
-                defaultMatches));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, constructor.parameterTypes())
+                        && PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0)
+                        && defaultMatches);
     }
 
     private List<String> parseSnapshotParamTypes(String params) {
@@ -1266,19 +1262,12 @@ public class ClassStructureService {
     }
 
     private MemberGrade memberGradeFromAccuracy(double accuracy) {
-        if (accuracy >= 1.0) {
-            return new MemberGrade(true, false);
-        }
-        if (accuracy > 0) {
-            return new MemberGrade(false, true);
-        }
-        return new MemberGrade(false, false);
+        return new MemberGrade(accuracy >= 1.0, false);
     }
 
     private MemberGrade resolveMemberGradeFromLabel(String gradeLabel) {
         return switch (gradeLabel) {
             case "pass" -> new MemberGrade(true, false);
-            case "partial" -> new MemberGrade(false, true);
             default -> new MemberGrade(false, false);
         };
     }
