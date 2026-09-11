@@ -28,7 +28,7 @@ export default function AppShell({
           />
 
           {showNav && (
-            <div className="relative mt-4 w-full min-w-0">
+            <div className="relative mt-4 w-full min-w-0 overflow-visible">
               <NavBar active={activeNav} onNavigate={onNavigate} />
             </div>
           )}
