@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,8 +60,17 @@ class StudentHistoryServiceTest {
     @Mock
     private TermService termService;
 
+    @Mock
+    private LabDeadlineHelper labDeadlineHelper;
+
     @InjectMocks
     private StudentHistoryService studentHistoryService;
+
+    @BeforeEach
+    void stubLabNameComparator() {
+        lenient().when(labDeadlineHelper.naturalLabNameComparator())
+                .thenReturn(new LabDeadlineHelper().naturalLabNameComparator());
+    }
 
     @Test
     void deriveStatus_scoreBands() {
@@ -142,8 +153,10 @@ class StudentHistoryServiceTest {
 
         when(labSubmissionRepository.findHistoryPageByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
         when(submissionChallengeResultRepository.findBySubmission_IdInWithChallenge(any())).thenReturn(List.of());
-        when(labSubmissionRepository.findHistoryStats(userId, null)).thenReturn(List.<Object[]>of(
-                new Object[] { 25L, 3L, new BigDecimal("82.50"), new BigDecimal("95.00") }));
+        when(labSubmissionRepository.countByUser_Id(userId)).thenReturn(25L);
+        when(labSubmissionRepository.countDistinctLabsByUserId(userId)).thenReturn(3L);
+        when(labSubmissionRepository.averageScoreForUser(userId)).thenReturn(new BigDecimal("82.50"));
+        when(labSubmissionRepository.bestScoreForUser(userId)).thenReturn(new BigDecimal("95.00"));
 
         var response = studentHistoryService.getHistory(userId, null, 0, 10, "submittedAt,desc");
 
@@ -162,8 +175,7 @@ class StudentHistoryServiceTest {
         Page<LabSubmission> page = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
 
         when(labSubmissionRepository.findHistoryPageByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
-        when(labSubmissionRepository.findHistoryStats(userId, null)).thenReturn(List.<Object[]>of(
-                new Object[] { 0L, 0L, null, null }));
+        when(labSubmissionRepository.countByUser_Id(userId)).thenReturn(0L);
 
         var response = studentHistoryService.getHistory(userId, null, 0, 10, "submittedAt,desc");
 
@@ -204,6 +216,22 @@ class StudentHistoryServiceTest {
         when(termService.findCurrentTerm()).thenReturn(Optional.empty());
 
         assertEquals(List.of(), studentHistoryService.getLabSummaries(userId, true));
+    }
+
+    @Test
+    void getLabSummaries_ordersByNaturalLabName() {
+        UUID userId = UUID.randomUUID();
+        StudentLabProgress lab6 = progressForLab("Lab 6", new BigDecimal("99.00"));
+        StudentLabProgress lab2 = progressForLab("Lab 2", new BigDecimal("49.00"));
+        StudentLabProgress cakeShop = progressForLab("Cake Shop", new BigDecimal("100.00"));
+        StudentLabProgress lab3 = progressForLab("Lab 3", BigDecimal.ZERO);
+
+        when(studentLabProgressRepository.findByUser_IdWithLabOrderByLastSubmittedAtDesc(userId))
+                .thenReturn(List.of(lab6, lab2, cakeShop, lab3));
+
+        var summaries = studentHistoryService.getLabSummaries(userId);
+
+        assertEquals(List.of("Lab 2", "Lab 3", "Lab 6", "Cake Shop"), summaries.stream().map(s -> s.name()).toList());
     }
 
     @Test
@@ -254,5 +282,15 @@ class StudentHistoryServiceTest {
         lab.setName(name);
         lab.setTerm(term);
         return lab;
+    }
+
+    private static StudentLabProgress progressForLab(String name, BigDecimal bestScore) {
+        Lab lab = new Lab();
+        lab.setName(name);
+        StudentLabProgress progress = new StudentLabProgress();
+        progress.setLab(lab);
+        progress.setHighestScore(bestScore);
+        progress.setAttemptsCount(1);
+        return progress;
     }
 }

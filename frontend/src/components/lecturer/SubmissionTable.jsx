@@ -1,9 +1,78 @@
-import { Eye, GitCompare } from 'lucide-react';
+import { Eye, GitCompare, FileCheck2, Users, TrendingUp, ShieldAlert } from 'lucide-react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
+
+const SUMMARY_ITEMS = [
+  {
+    key: 'studentsSubmitted',
+    label: 'Submitted',
+    icon: FileCheck2,
+    accent: 'bg-success-bg text-success-text',
+    format: (summary) => formatNumber(summary?.studentsSubmitted),
+  },
+  {
+    key: 'studentCount',
+    label: 'Enrolled',
+    icon: Users,
+    accent: 'bg-primary-light text-primary-text',
+    format: (summary) => formatNumber(summary?.studentCount),
+  },
+  {
+    key: 'completionRate',
+    label: 'Completion',
+    icon: TrendingUp,
+    accent: 'bg-info-bg text-info-text',
+    format: (summary) => formatPercent(summary?.completionRate),
+  },
+  {
+    key: 'plagiarismRate',
+    label: 'Plagiarism',
+    icon: ShieldAlert,
+    accent: 'bg-warning-bg text-warning-text',
+    format: (summary) => formatPercent(summary?.plagiarismRate),
+    valueClass: (summary) => ((summary?.plagiarismRate ?? 0) > 0 ? 'text-warning-text' : 'text-foreground'),
+  },
+];
+
+function RosterSummaryBar({ summary }) {
+  const items = SUMMARY_ITEMS.filter((item) => summary?.[item.key] != null);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="border-t border-border bg-surface-secondary/50 px-4 py-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        {items.map((item, index) => {
+          const Icon = item.icon;
+          const valueClass = item.valueClass?.(summary) ?? 'text-foreground';
+          const isLast = index === items.length - 1;
+          return (
+            <div
+              key={item.key}
+              className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm ${
+                isLast
+                  ? 'border-warning-bg/70 bg-warning-bg/30'
+                  : 'border-border-subtle bg-surface'
+              }`}
+            >
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.accent}`}>
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-foreground-muted">{item.label}</p>
+                <p className={`text-lg font-semibold tabular-nums leading-tight ${valueClass}`}>
+                  {item.format(summary)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const ROSTER_COLUMNS = [
   { key: 'studentName', label: 'Student' },
@@ -115,33 +184,10 @@ export default function SubmissionTable({
               );
             })
           )}
-
-          {(summary?.studentsSubmitted != null
-            || summary?.studentCount != null
-            || summary?.completionRate != null
-            || summary?.plagiarismRate != null) && (
-            <tr className="border-t border-primary bg-primary-light">
-              <td colSpan={6} className="px-4 py-4">
-                <div className="grid grid-cols-1 items-center gap-2 text-sm font-semibold text-primary-text sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
-                  <span className="font-bold text-primary-text">SUMMARY</span>
-                  <span className="text-center">
-                    Submitted: <span className="text-primary-text">{formatNumber(summary?.studentsSubmitted)}</span>
-                  </span>
-                  <span className="text-center">
-                    Enrolled: <span className="text-primary-text">{formatNumber(summary?.studentCount)}</span>
-                  </span>
-                  <span className="text-center">
-                    Completion: <span className="text-primary-text">{formatPercent(summary?.completionRate)}</span>
-                  </span>
-                  <span className="text-center">
-                    Plagiarism: <span className="text-primary-text">{formatPercent(summary?.plagiarismRate)}</span>
-                  </span>
-                </div>
-              </td>
-            </tr>
-          )}
         </tbody>
       </table>
+
+      <RosterSummaryBar summary={summary} />
 
       {showPagination && (
         <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
