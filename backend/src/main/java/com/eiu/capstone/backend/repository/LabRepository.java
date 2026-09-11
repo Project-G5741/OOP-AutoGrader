@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface LabRepository extends JpaRepository<Lab, UUID> {
     List<Lab> findByTerm_Id(UUID termId);
 
+    long countByTerm_Id(UUID termId);
+
     @Query("SELECT l FROM Lab l LEFT JOIN FETCH l.term WHERE l.id = :id")
     Optional<Lab> findByIdWithTerm(@Param("id") UUID id);
 

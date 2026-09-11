@@ -2,27 +2,174 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
+/* ── Pale galaxy backdrop ─────────────────────────────────────────── */
+
 .login-bg {
+  --galaxy-base: #f2f5fc;
+  --galaxy-nebula-lavender: rgba(210, 200, 245, 0.45);
+  --galaxy-nebula-blue: rgba(195, 220, 250, 0.5);
+  --galaxy-nebula-pink: rgba(235, 210, 235, 0.4);
+  --galaxy-nebula-mint: rgba(205, 235, 228, 0.35);
+  --galaxy-star: rgba(255, 255, 255, 0.95);
+  --galaxy-star-glow: rgba(200, 215, 255, 0.7);
+
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: linear-gradient(135deg, var(--background) 0%, var(--surface-secondary) 100%);
+  overflow: hidden;
+  background: var(--galaxy-base);
 }
+
+.dark .login-bg {
+  --galaxy-base: #2c3344;
+  --galaxy-nebula-lavender: rgba(180, 170, 220, 0.22);
+  --galaxy-nebula-blue: rgba(160, 195, 235, 0.25);
+  --galaxy-nebula-pink: rgba(210, 175, 210, 0.2);
+  --galaxy-nebula-mint: rgba(170, 210, 200, 0.18);
+  --galaxy-star: rgba(255, 255, 255, 0.85);
+  --galaxy-star-glow: rgba(190, 210, 255, 0.55);
+}
+
+.login-bg-ornaments {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.galaxy-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(255, 255, 255, 0.55) 0%, transparent 65%),
+    linear-gradient(165deg, #f8faff 0%, var(--galaxy-base) 40%, #eef2fa 100%);
+}
+
+.dark .galaxy-sky {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
+    linear-gradient(165deg, #343b4d 0%, var(--galaxy-base) 50%, #2a3040 100%);
+}
+
+.galaxy-spiral {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+  background: conic-gradient(
+    from 200deg at 50% 50%,
+    transparent 0deg,
+    var(--galaxy-nebula-lavender) 40deg,
+    transparent 80deg,
+    var(--galaxy-nebula-blue) 130deg,
+    transparent 170deg,
+    var(--galaxy-nebula-pink) 220deg,
+    transparent 260deg,
+    var(--galaxy-nebula-mint) 310deg,
+    transparent 360deg
+  );
+  filter: blur(48px);
+  animation: galaxy-spiral-spin 90s linear infinite;
+}
+
+.galaxy-dust {
+  position: absolute;
+  inset: -10%;
+  opacity: 0.5;
+  background:
+    radial-gradient(ellipse 35% 28% at 22% 28%, var(--galaxy-nebula-lavender), transparent 70%),
+    radial-gradient(ellipse 30% 25% at 78% 68%, var(--galaxy-nebula-blue), transparent 70%),
+    radial-gradient(ellipse 28% 22% at 55% 18%, var(--galaxy-nebula-pink), transparent 70%),
+    radial-gradient(ellipse 32% 26% at 40% 75%, var(--galaxy-nebula-mint), transparent 70%);
+  animation: galaxy-dust-drift 28s ease-in-out infinite;
+}
+
+.galaxy-nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(56px);
+  will-change: transform;
+}
+
+.galaxy-nebula--1 {
+  width: min(420px, 70vw);
+  height: min(420px, 70vw);
+  top: -10%;
+  left: -8%;
+  background: var(--galaxy-nebula-lavender);
+  animation: galaxy-float-a 22s ease-in-out infinite;
+}
+
+.galaxy-nebula--2 {
+  width: min(380px, 62vw);
+  height: min(380px, 62vw);
+  bottom: -12%;
+  right: -6%;
+  background: var(--galaxy-nebula-blue);
+  animation: galaxy-float-b 26s ease-in-out infinite;
+}
+
+.galaxy-nebula--3 {
+  width: min(300px, 50vw);
+  height: min(300px, 50vw);
+  top: 35%;
+  right: 10%;
+  background: var(--galaxy-nebula-pink);
+  animation: galaxy-float-c 18s ease-in-out infinite;
+}
+
+.galaxy-nebula--4 {
+  width: min(260px, 44vw);
+  height: min(260px, 44vw);
+  bottom: 18%;
+  left: 12%;
+  background: var(--galaxy-nebula-mint);
+  animation: galaxy-float-d 24s ease-in-out infinite;
+}
+
+.galaxy-star {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--galaxy-star);
+  box-shadow: 0 0 4px var(--galaxy-star-glow);
+  animation: galaxy-twinkle 4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.galaxy-star--bright {
+  box-shadow:
+    0 0 6px var(--galaxy-star-glow),
+    0 0 12px color-mix(in srgb, var(--galaxy-star-glow) 50%, transparent);
+}
+
+/* ── Layout (original card format) ─────────────────────────────────── */
 
 .theme-toggle {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
+  z-index: 2;
 }
 
 .login-card-wrapper {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 430px;
+  animation: login-rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.logo-title { text-align: center; margin-bottom: 1.5rem; }
+.logo-title {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
 .logo-box {
   width: 64px;
   height: 64px;
@@ -34,27 +181,42 @@
   background: linear-gradient(135deg, var(--primary), var(--primary-active));
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
 }
+
 .dark .logo-box {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
+
 .logo-icon { width: 32px; height: 32px; color: #fff; }
-.main-title { font-size: 1.8rem; margin: 0; color: var(--text-primary); }
-.subtitle { color: var(--text-muted); margin-top: 0.25rem; }
+
+.main-title {
+  font-size: 1.8rem;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
 
 .card {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
   padding: 1.5rem;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08);
-  border: 1px solid var(--border-subtle);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, white);
 }
 
 .dark .card {
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .login-form { display: flex; flex-direction: column; gap: 0.9rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.45rem; }
+
 .field-label {
   font-size: 0.9rem;
   font-weight: 600;
@@ -79,6 +241,7 @@
   display: flex;
   align-items: center;
 }
+
 .input-icon {
   position: absolute;
   left: 0.9rem;
@@ -86,6 +249,7 @@
   height: 1rem;
   color: var(--text-disabled);
 }
+
 .input-field {
   width: 100%;
   padding: 0.9rem 2.8rem 0.9rem 2.7rem;
@@ -96,42 +260,53 @@
   outline: none;
   transition: all 0.2s ease;
 }
+
 .input-field:focus {
   border-color: var(--primary-hover);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }
+
 .password-toggle {
   position: absolute;
   right: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--text-disabled);
   cursor: pointer;
 }
+
 .toggle-icon { width: 1rem; height: 1rem; }
 
 .options-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.75rem;
   font-size: 0.9rem;
 }
+
 .remember-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: var(--text-muted);
   cursor: pointer;
+  padding: 0.5rem 0;
+  min-height: 44px;
 }
+
 .remember-option input {
   width: 0.95rem;
   height: 0.95rem;
   accent-color: var(--primary);
 }
+
 .forgot-link {
   background: none;
   border: none;
@@ -152,14 +327,22 @@
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
   transition: background 0.2s ease, box-shadow 0.2s ease;
 }
-.primary-btn:hover {
+
+.primary-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--primary-hover), var(--primary));
 }
+
 .dark .primary-btn {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
-.dark .primary-btn:hover {
+
+.dark .primary-btn:hover:not(:disabled) {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.primary-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .divider {
@@ -170,6 +353,7 @@
   font-size: 0.8rem;
   margin: 0.25rem 0;
 }
+
 .divider-line {
   flex: 1;
   height: 1px;
@@ -177,6 +361,7 @@
 }
 
 .google-login-wrapper { display: flex; justify-content: center; }
+
 .google-btn {
   width: 100%;
   display: flex;
@@ -191,8 +376,10 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 .google-btn .g-icon { width: 20px; height: 20px; }
-.google-btn:hover {
+
+.google-btn:hover:not(:disabled) {
   border-color: var(--primary);
   transform: translateY(-1px);
 }
@@ -202,13 +389,6 @@
   color: var(--text-muted);
   font-size: 0.9rem;
   margin-top: 0.25rem;
-}
-
-.footer-text {
-  text-align: center;
-  margin-top: 1.25rem;
-  color: var(--text-muted);
-  font-size: 0.95rem;
 }
 
 .login-message {
@@ -241,7 +421,7 @@
 
 .error-text {
   color: var(--error);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   margin-top: 0.25rem;
 }
 
@@ -261,4 +441,94 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────── */
+
+@keyframes galaxy-spiral-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes galaxy-dust-drift {
+  0%, 100% { transform: scale(1) translate(0, 0); opacity: 0.5; }
+  50% { transform: scale(1.03) translate(12px, -8px); opacity: 0.65; }
+}
+
+@keyframes galaxy-float-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(24px, 18px); }
+}
+
+@keyframes galaxy-float-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-20px, -14px); }
+}
+
+@keyframes galaxy-float-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-16px, 12px); }
+}
+
+@keyframes galaxy-float-d {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(14px, -10px); }
+}
+
+@keyframes galaxy-twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+@keyframes login-rise-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 480px) {
+  .login-bg {
+    padding: 1rem;
+  }
+
+  .theme-toggle {
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .login-card-wrapper {
+    max-width: 100%;
+  }
+
+  .main-title {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  .options-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .forgot-link {
+    text-align: center;
+    padding: 0.5rem 0;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .galaxy-spiral,
+  .galaxy-dust,
+  .galaxy-nebula,
+  .galaxy-star,
+  .login-card-wrapper {
+    animation: none !important;
+  }
+
+  .google-btn:hover:not(:disabled) {
+    transform: none;
+  }
 }

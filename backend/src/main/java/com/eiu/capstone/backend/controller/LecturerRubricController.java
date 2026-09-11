@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
@@ -65,6 +66,13 @@ public class LecturerRubricController {
             @PathVariable UUID labId,
             @RequestBody UpdateLabDeadlineRequest request) {
         return labStructureService.updateLabDeadline(labId, request);
+    }
+
+    @PatchMapping("/{labId}/student-access")
+    public LabStructureResponse updateStudentAccess(
+            @PathVariable UUID labId,
+            @RequestBody UpdateLabStudentAccessRequest request) {
+        return labStructureService.updateLabStudentAccess(labId, request);
     }
 
     @DeleteMapping("/{labId}")

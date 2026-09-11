@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import AppLogo from '../components/ui/AppLogo';
+import LoginBackground from '../components/ui/LoginBackground';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
@@ -71,6 +72,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
     return (
       <div className="login-root">
         <div className="login-bg">
+          <LoginBackground />
           <div className="login-card-wrapper">
             <div className="card">
               <p className="info-text">Invalid reset link. Please request a new password reset from the login page.</p>
@@ -87,6 +89,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
   return (
     <div className="login-root">
       <div className="login-bg">
+        <LoginBackground />
         <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">

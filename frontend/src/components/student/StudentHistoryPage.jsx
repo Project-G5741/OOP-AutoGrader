@@ -314,7 +314,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
   const enrolledInCurrentTerm = inCurrentTerm ?? isInCurrentTerm(user?.inCurrentTerm);
 
   return (
-    <div className="w-full flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-8 max-w-full overflow-x-hidden">
+    <div className="flex w-full max-w-full flex-col gap-6 py-4 sm:py-8">
       {!enrolledInCurrentTerm && (
         <div
           role="status"
@@ -322,7 +322,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
           <p>
-            You do not belong to any class in this term. If you do, please contact your lecturer for submission permissions.
+            You do not belong to any class in this quarter. If you do, please contact your lecturer for submission permissions.
           </p>
         </div>
       )}
@@ -350,7 +350,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         <button
           type="button"
           onClick={handleRefresh}
-          className="p-2 rounded-lg border border-border hover:bg-surface-secondary transition-colors"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
           title="Refresh"
         >
           <RefreshCw className={`w-4 h-4 text-foreground-muted ${isPageBusy ? 'animate-spin' : ''}`} />
@@ -375,14 +375,14 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                   {card.icon}
                 </div>
               </div>
-              <p className={`mt-4 text-3xl font-semibold ${card.tone}`}>{card.displayValue}</p>
+              <p className={`mt-4 text-2xl font-semibold sm:text-3xl ${card.tone}`}>{card.displayValue}</p>
             </div>
           ))
         )}
       </div>
 
       {/* ===== Labs Summary Sidebar + Submissions Table ===== */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
         {initialLoading ? (
           <>
             <section className="rounded-3xl border border-border bg-surface p-6 animate-pulse">
@@ -425,6 +425,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className={isSelected ? 'font-medium text-primary-text' : 'text-foreground-secondary'}>
                         {lab.name}
+                        {lab.termLabel && (
+                          <span className="mt-0.5 block text-xs font-normal text-foreground-muted">
+                            {lab.termLabel}
+                          </span>
+                        )}
                       </span>
                       {lab.bestScore !== null && lab.bestScore !== undefined ? (
                         <span className={`font-semibold ${
@@ -500,7 +505,14 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                           } hover:bg-surface-secondary hover:bg-surface-tertiary`}
                           onClick={() => toggleRow(item.id)}
                         >
-                          <td className="px-4 py-4 text-foreground">{item.lab?.name || 'Unknown Lab'}</td>
+                          <td className="px-4 py-4 text-foreground">
+                            <span>{item.lab?.name || 'Unknown Lab'}</span>
+                            {item.lab?.termLabel && (
+                              <span className="mt-0.5 block text-xs text-foreground-muted">
+                                {item.lab.termLabel}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-4 text-foreground-secondary">#{item.attemptNumber}</td>
                           <td className="px-4 py-4">
                             <ScorePill score={item.score} />
@@ -571,7 +583,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                 </tbody>
               </table>
               {showPagination && (
-                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-foreground-secondary">
                     Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
                   </p>

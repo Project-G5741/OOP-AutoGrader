@@ -8,5 +8,6 @@ public record StudentLabSummaryDTO(
         String name,
         BigDecimal bestScore,
         int attempts,
-        String lastSubmittedAt) {
+        String lastSubmittedAt,
+        String termLabel) {
 }

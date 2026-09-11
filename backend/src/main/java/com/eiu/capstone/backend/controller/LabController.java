@@ -1,12 +1,15 @@
 package com.eiu.capstone.backend.controller;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +29,7 @@ import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.LabDeadlineHelper;
 import com.eiu.capstone.backend.service.LabDeadlineHelper.UrgencyState;
 import com.eiu.capstone.backend.service.StatsService;
+import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.TermService;
 
 @RestController
@@ -38,19 +42,22 @@ public class LabController {
     private final LabDeadlineHelper labDeadlineHelper;
     private final JwtAuthHelper jwtAuthHelper;
     private final TermService termService;
+    private final StudentTermAccessService studentTermAccessService;
 
     public LabController(LabRepository labRepository,
                          StatsService statsService,
                          LecturerAnalyticsService lecturerAnalyticsService,
                          LabDeadlineHelper labDeadlineHelper,
                          JwtAuthHelper jwtAuthHelper,
-                         TermService termService) {
+                         TermService termService,
+                         StudentTermAccessService studentTermAccessService) {
         this.labRepository = labRepository;
         this.statsService = statsService;
         this.lecturerAnalyticsService = lecturerAnalyticsService;
         this.labDeadlineHelper = labDeadlineHelper;
         this.jwtAuthHelper = jwtAuthHelper;
         this.termService = termService;
+        this.studentTermAccessService = studentTermAccessService;
     }
 
     @GetMapping
@@ -63,22 +70,41 @@ public class LabController {
 
     private List<Lab> labsVisibleToCaller(JwtUserPrincipal principal) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
-        if (!principal.isStudentOnly()) {
-            return labRepository.findAll();
-        }
         Term current = termService.findCurrentTerm().orElse(null);
-        if (current == null || !termService.isEnrolled(user.getId(), current.getId())) {
+        if (current == null) {
             return List.of();
         }
-        return labRepository.findByTerm_Id(current.getId());
+        if (!principal.isStudentOnly()) {
+            return labRepository.findByTerm_Id(current.getId());
+        }
+        if (!termService.isEnrolled(user.getId(), current.getId())) {
+            return List.of();
+        }
+        Instant now = Instant.now();
+        return labRepository.findByTerm_Id(current.getId()).stream()
+                .filter(lab -> labDeadlineHelper.isOpenForStudentSubmission(
+                        lab.isStudentVisible(), lab.getReleaseDate(), now))
+                .toList();
     }
 
     private LabSummary toSummary(Lab lab) {
-        UrgencyState urgency = labDeadlineHelper.urgencyState(lab.getDeadlineDate(), java.time.Instant.now());
-        return new LabSummary(lab.getId(), lab.getName(), lab.getDeadlineDate(), urgency.name());
+        UrgencyState urgency = labDeadlineHelper.urgencyState(lab.getDeadlineDate(), Instant.now());
+        return new LabSummary(
+                lab.getId(),
+                lab.getName(),
+                lab.getDeadlineDate(),
+                urgency.name(),
+                lab.isStudentVisible(),
+                lab.getReleaseDate());
     }
 
-    public record LabSummary(UUID id, String name, LocalDate deadlineDate, String urgencyState) {}
+    public record LabSummary(
+            UUID id,
+            String name,
+            LocalDate deadlineDate,
+            String urgencyState,
+            boolean studentVisible,
+            LocalDate releaseDate) {}
 
     /** Lab-scoped stats for parallel dashboard load (same data as challenge stats route). */
     @GetMapping("/{labId}/stats")
@@ -87,6 +113,12 @@ public class LabController {
             @PathVariable UUID labId,
             @RequestParam(required = false) UUID studentId) {
         UUID scopedStudentId = jwtAuthHelper.resolveStudentScope(principal, studentId);
+        if (principal.isStudentOnly()) {
+            Lab lab = labRepository.findByIdWithTerm(labId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+            studentTermAccessService.requireStudentLabAccess(
+                    jwtAuthHelper.requireActiveUser(principal), lab);
+        }
         return statsService.getStats(labId, scopedStudentId);
     }
 

@@ -23,6 +23,12 @@ public class Lab {
     @Column(name = "deadline_date")
     private LocalDate deadlineDate;
 
+    @Column(name = "student_visible", nullable = false)
+    private boolean studentVisible = true;
+
+    @Column(name = "release_date")
+    private LocalDate releaseDate;
+
     public Lab() {}
 
     public UUID getId() { return id; }
@@ -35,4 +41,10 @@ public class Lab {
 
     public LocalDate getDeadlineDate() { return deadlineDate; }
     public void setDeadlineDate(LocalDate deadlineDate) { this.deadlineDate = deadlineDate; }
+
+    public boolean isStudentVisible() { return studentVisible; }
+    public void setStudentVisible(boolean studentVisible) { this.studentVisible = studentVisible; }
+
+    public LocalDate getReleaseDate() { return releaseDate; }
+    public void setReleaseDate(LocalDate releaseDate) { this.releaseDate = releaseDate; }
 }

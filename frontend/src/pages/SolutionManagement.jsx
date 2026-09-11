@@ -4,8 +4,14 @@ import Modal from '../components/ui/Modal';
 import Toast from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
 import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
-import StructureSidebar from '../components/lecturer/structure/StructureSidebar';
+import SolutionLabSidebar from '../components/lecturer/structure/SolutionLabSidebar';
+import StructureTree from '../components/lecturer/structure/StructureTree';
+import LabSchedulingPanel from '../components/lecturer/structure/LabSchedulingPanel';
 import DatePicker from '../components/ui/DatePicker';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar';
+import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
+import { formatLabDeadlineMeta } from '../theme/statusClasses';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
@@ -18,6 +24,8 @@ const emptyDraft = (lab) => ({
   name: lab.name,
   termId: lab.termId || null,
   deadlineDate: lab.deadlineDate ?? null,
+  studentVisible: lab.studentVisible !== false,
+  releaseDate: lab.releaseDate ?? null,
   challenges: [],
 });
 
@@ -61,7 +69,6 @@ export default function SolutionManagement() {
   const [selectedLabId, setSelectedLabId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [savedSnapshot, setSavedSnapshot] = useState(null);
-  const [expandedLabs, setExpandedLabs] = useState({});
   const [expandedChallenges, setExpandedChallenges] = useState({});
   const [selectedClassRef, setSelectedClassRef] = useState(null);
   const [selectedChallengeId, setSelectedChallengeId] = useState(null);
@@ -78,6 +85,9 @@ export default function SolutionManagement() {
   const [challengeTabById, setChallengeTabById] = useState({});
   const [deadlineInput, setDeadlineInput] = useState('');
   const [deadlineSaving, setDeadlineSaving] = useState(false);
+  const [studentVisibleInput, setStudentVisibleInput] = useState(true);
+  const [releaseDateInput, setReleaseDateInput] = useState('');
+  const [studentAccessSaving, setStudentAccessSaving] = useState(false);
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) return false;
@@ -93,7 +103,9 @@ export default function SolutionManagement() {
 
   useEffect(() => {
     setDeadlineInput(toDateInputValue(savedSnapshot?.deadlineDate));
-  }, [selectedLabId, savedSnapshot?.deadlineDate]);
+    setStudentVisibleInput(savedSnapshot?.studentVisible !== false);
+    setReleaseDateInput(toDateInputValue(savedSnapshot?.releaseDate));
+  }, [selectedLabId, savedSnapshot?.deadlineDate, savedSnapshot?.studentVisible, savedSnapshot?.releaseDate]);
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
@@ -140,7 +152,6 @@ export default function SolutionManagement() {
     setSelectedLabId(labId);
     setDraft(nextDraft);
     setSavedSnapshot(snapshot);
-    setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
   }, []);
 
   const selectLab = useCallback(async (labId, force = false) => {
@@ -152,11 +163,13 @@ export default function SolutionManagement() {
     const cached = structureCacheRef.current[labId];
     if (cached) {
       setSelectedLabId(labId);
-      setDraft(cloneDraft(cached.draft));
+      const nextDraft = cloneDraft(cached.draft);
+      setDraft(nextDraft);
       setSavedSnapshot(cloneDraft(cached.snapshot));
-      setExpandedLabs((prev) => ({ ...prev, [labId]: true }));
       setSelectedClassRef(null);
-      setSelectedChallengeId(null);
+      const challenges = nextDraft.challenges || [];
+      setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
+      setSelectedChallengeId(challenges[0]?.id ?? null);
       return;
     }
     setStructureLoading(true);
@@ -164,7 +177,9 @@ export default function SolutionManagement() {
       const structure = await loadStructure(labId);
       applyStructure(labId, structure);
       setSelectedClassRef(null);
-      setSelectedChallengeId(null);
+      const challenges = structure.challenges || [];
+      setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
+      setSelectedChallengeId(challenges[0]?.id ?? null);
     } catch (e) {
       setError(toFriendlyError(e, 'read'));
     } finally {
@@ -216,6 +231,11 @@ export default function SolutionManagement() {
     if (!draft || !selectedChallengeId || selectedClassRef) return null;
     return draft.challenges.find((c) => c.id === selectedChallengeId) || null;
   }, [draft, selectedChallengeId, selectedClassRef]);
+
+  const selectedLab = useMemo(
+    () => labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? null,
+    [labs, selectedLabId],
+  );
 
   const updateSelectedClass = (updatedClass) => {
     if (!draft || !selectedClassRef) return;
@@ -314,6 +334,73 @@ export default function SolutionManagement() {
     if (cached) {
       cached.draft = { ...cached.draft, deadlineDate: normalized };
       cached.snapshot = { ...cached.snapshot, deadlineDate: normalized };
+    }
+  };
+
+  const applyStudentAccessToSelectedLab = (labId, studentVisible, releaseDate) => {
+    const normalizedRelease = toDateInputValue(releaseDate) || null;
+    const patch = { studentVisible, releaseDate: normalizedRelease };
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    setSavedSnapshot((prev) => (prev ? { ...prev, ...patch } : prev));
+    setLabs((prev) => prev.map((lab) => (
+      lab.id === labId ? { ...lab, ...patch } : lab
+    )));
+    const cached = structureCacheRef.current[labId];
+    if (cached) {
+      cached.draft = { ...cached.draft, ...patch };
+      cached.snapshot = { ...cached.snapshot, ...patch };
+    }
+  };
+
+  const handleStudentAccessSave = async () => {
+    if (!selectedLabId || studentAccessSaving) return;
+    const nextRelease = toDateInputValue(releaseDateInput) || null;
+    if (releaseDateInput && !nextRelease) {
+      setToast({
+        message: 'Pick a valid release date from the calendar, then click Save student access.',
+        type: 'error',
+      });
+      return;
+    }
+    if (nextRelease && !isValidCalendarDate(nextRelease)) {
+      setToast({
+        message: 'That day does not exist. Pick a valid release date from the calendar.',
+        type: 'error',
+      });
+      return;
+    }
+    const previousVisible = savedSnapshot?.studentVisible !== false;
+    const previousRelease = toDateInputValue(savedSnapshot?.releaseDate) || null;
+    setStudentAccessSaving(true);
+    applyStudentAccessToSelectedLab(selectedLabId, studentVisibleInput, nextRelease);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/student-access`, {
+        method: 'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ studentVisible: studentVisibleInput, releaseDate: nextRelease }),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const updated = await res.json();
+      applyStudentAccessToSelectedLab(
+        selectedLabId,
+        updated.studentVisible !== false,
+        updated.releaseDate ?? null,
+      );
+      setStudentVisibleInput(updated.studentVisible !== false);
+      setReleaseDateInput(toDateInputValue(updated.releaseDate));
+      setToast({
+        message: studentVisibleInput
+          ? `${draft?.name || 'Lab'} is visible to students.`
+          : `${draft?.name || 'Lab'} is hidden from students.`,
+        type: 'success',
+      });
+    } catch (e) {
+      applyStudentAccessToSelectedLab(selectedLabId, previousVisible, previousRelease);
+      setStudentVisibleInput(previousVisible);
+      setReleaseDateInput(previousRelease ?? '');
+      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    } finally {
+      setStudentAccessSaving(false);
     }
   };
 
@@ -416,186 +503,203 @@ export default function SolutionManagement() {
     );
   }
 
+  const accessBadge = savedSnapshot?.studentVisible === false
+    ? { variant: 'destructive', label: 'Hidden' }
+    : savedSnapshot?.releaseDate
+      ? { variant: 'warning', label: 'Scheduled' }
+      : { variant: 'default', label: 'Live' };
+
   return (
-    <div className="flex min-h-[calc(100dvh-16rem)] flex-col">
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Solution Management</h2>
-          <p className="text-sm text-foreground-secondary">Define lab rubric structure for grading.</p>
-        </div>
-
-        {draft && (
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface-secondary px-4 py-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-                Deadline for {draft.name}
-              </label>
-              <DatePicker
-                value={deadlineInput}
-                disabled={deadlineSaving}
-                placeholder="Select Date..."
-                onChange={setDeadlineInput}
-              />
-            </div>
-            <button
-              type="button"
-              className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deadlineSaving}
-              onClick={() => handleDeadlineChange(deadlineInput)}
-            >
-              {deadlineSaving ? 'Saving…' : 'Save deadline'}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deadlineSaving}
-              onClick={() => handleDeadlineChange(null)}
-            >
-              Clear deadline
-            </button>
-            <p className="text-xs text-foreground-muted pb-2">
-              Use the calendar to pick a real date, then Save. End of day 23:59 Vietnam time.
+    <SidebarProvider>
+      <SolutionLabSidebar
+        labs={labs}
+        selectedLabId={selectedLabId}
+        onSelectLab={(labId) => selectLab(labId)}
+        onAddLab={() => setShowCreateLab(true)}
+        onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
+      />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {selectedLab?.name ?? 'Select a lab'}
             </p>
+            {selectedLab && (
+              <p className="truncate text-xs text-foreground-muted">
+                {formatLabDeadlineMeta(selectedLab, { withUrgencyHint: false })}
+              </p>
+            )}
           </div>
-        )}
+          {selectedLab && (
+            <div className="flex shrink-0 flex-wrap gap-1.5">
+              <Badge variant={accessBadge.variant}>{accessBadge.label}</Badge>
+              {savedSnapshot?.deadlineDate && (
+                <Badge variant="outline">Deadline set</Badge>
+              )}
+            </div>
+          )}
+        </header>
 
-        {error && <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">{error}</div>}
+        <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+          {error && (
+            <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">
+              {error}
+            </div>
+          )}
 
-        <div className="relative flex flex-col gap-4 lg:flex-row">
-        {structureLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        )}
-        <StructureSidebar
-          labs={labs}
-          draft={draft}
-          selectedLabId={selectedLabId}
-          expandedLabs={expandedLabs}
-          expandedChallenges={expandedChallenges}
-          selectedChallengeId={selectedChallengeId}
-          selectedClassId={selectedClassRef?.classId}
-          onSelectLab={(labId) => selectLab(labId)}
-          onToggleLab={(labId) => setExpandedLabs((prev) => ({ ...prev, [labId]: !prev[labId] }))}
-          onToggleChallenge={(challengeId) => setExpandedChallenges((prev) => ({ ...prev, [challengeId]: !prev[challengeId] }))}
-          onSelectChallenge={(challengeId) => {
-            setSelectedChallengeId(challengeId);
-            setSelectedClassRef(null);
-            setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
-          }}
-          onSelectClass={(challengeId, classId) => {
-            setSelectedClassRef({ challengeId, classId });
-            setSelectedChallengeId(challengeId);
-          }}
-          onRenameChallenge={(challengeId, name) => {
-            if (!draft) return;
-            setDraft({
-              ...draft,
-              challenges: draft.challenges.map((c) => (
-                c.id === challengeId ? { ...c, name } : c
-              )),
-            });
-          }}
-          onAddLab={() => setShowCreateLab(true)}
-          onAddChallenge={() => {
-            if (!draft) return;
-            const nextNumber = (draft.challenges || []).reduce(
-              (max, c) => Math.max(max, c.challengeNumber ?? 0),
-              0,
-            ) + 1;
-            const challenge = {
-              id: crypto.randomUUID(),
-              name: `Problem ${nextNumber}`,
-              challengeNumber: nextNumber,
-              classes: [],
-              relations: [],
-              hasMmd: true,
-              weight: 1,
-              classWeight: 1,
-              mmdWeight: 1,
-              testcaseWeight: 1,
-            };
-            setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
-            setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
-          }}
-          onAddClass={(challengeId) => {
-            const cls = {
-              id: crypto.randomUUID(),
-              name: 'NewClass',
-              scopeId: scopeOptions[0]?.id,
-              declaringTypeId: declaringTypeOptions[0]?.id,
-              isAbstract: false,
-              isStatic: false,
-              fields: [],
-              methods: [],
-              constructors: [],
-              weight: 1,
-            };
-            setDraft({
-              ...draft,
-              challenges: draft.challenges.map((c) => (
-                c.id === challengeId ? { ...c, classes: [...(c.classes || []), cls] } : c
-              )),
-            });
-            setSelectedClassRef({ challengeId, classId: cls.id });
-            setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
-          }}
-          onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
-          onDeleteChallenge={(challengeId) => setConfirmDelete({ type: 'challenge', challengeId })}
-          formatClassLabel={formatQualifiedClassName}
-          onDeleteClass={(challengeId, classId) => {
-            const challenge = draft?.challenges?.find((c) => c.id === challengeId);
-            const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
-            const nestedNames = (challenge?.classes || [])
-              .filter((cls) => nestedIds.has(cls.id))
-              .map((cls) => formatQualifiedClassName(cls, challenge?.classes));
-            setConfirmDelete({ type: 'class', challengeId, classId, nestedNames });
-          }}
-        />
-
-        <div className="min-w-0 flex-1">
-          {selectedClass ? (
-            <ClassDetailPanel
-              classData={selectedClass}
-              challengeClasses={selectedChallengeClasses}
-              scopeOptions={scopeOptions}
-              declaringTypeOptions={declaringTypeOptions}
-              relationTypeOptions={relationTypeOptions}
-              relations={selectedClassChallenge?.relations || []}
-              onChange={updateSelectedClass}
-              onRelationsChange={updateSelectedClassRelations}
-            />
-          ) : (
-            <ChallengeDetailPanel
-              challenge={selectedChallenge}
-              relationTypeOptions={relationTypeOptions}
-              onMmdChange={updateSelectedChallenge}
-              activeTab={challengeTabById[selectedChallengeId] || 'mmd'}
-              onTabChange={(tab) => {
-                if (selectedChallengeId) {
-                  setChallengeTabById((prev) => ({ ...prev, [selectedChallengeId]: tab }));
-                }
-              }}
-              labId={selectedLabId}
-              structureDirty={isDirty}
-              onToast={setToast}
+          {draft && (
+            <LabSchedulingPanel
+              compact
+              labName={draft.name}
+              savedStudentVisible={savedSnapshot?.studentVisible !== false}
+              savedReleaseDate={savedSnapshot?.releaseDate}
+              savedDeadlineDate={savedSnapshot?.deadlineDate}
+              studentVisible={studentVisibleInput}
+              releaseDate={releaseDateInput}
+              deadlineDate={deadlineInput}
+              studentAccessSaving={studentAccessSaving}
+              deadlineSaving={deadlineSaving}
+              onStudentVisibleChange={setStudentVisibleInput}
+              onReleaseDateChange={setReleaseDateInput}
+              onDeadlineChange={setDeadlineInput}
+              onSaveStudentAccess={handleStudentAccessSave}
+              onClearReleaseDate={() => setReleaseDateInput('')}
+              onSaveDeadline={() => handleDeadlineChange(deadlineInput)}
+              onClearDeadline={() => handleDeadlineChange(null)}
             />
           )}
-        </div>
-      </div>
-      </div>
 
-      <div className="mt-6 flex flex-1 items-center justify-end py-8">
-        <button
-          type="button"
-          disabled={!isDirty || saving || !draft}
-          onClick={handleSave}
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          Save Lab Structure
-        </button>
-      </div>
+          <div className="relative flex flex-col gap-4 lg:flex-row">
+            {structureLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            )}
+            <StructureTree
+              draft={draft}
+              expandedChallenges={expandedChallenges}
+              selectedChallengeId={selectedChallengeId}
+              selectedClassId={selectedClassRef?.classId}
+              onToggleChallenge={(challengeId) => setExpandedChallenges((prev) => ({ ...prev, [challengeId]: !prev[challengeId] }))}
+              onSelectChallenge={(challengeId) => {
+                setSelectedChallengeId(challengeId);
+                setSelectedClassRef(null);
+                setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+              }}
+              onSelectClass={(challengeId, classId) => {
+                setSelectedClassRef({ challengeId, classId });
+                setSelectedChallengeId(challengeId);
+              }}
+              onRenameChallenge={(challengeId, name) => {
+                if (!draft) return;
+                setDraft({
+                  ...draft,
+                  challenges: draft.challenges.map((c) => (
+                    c.id === challengeId ? { ...c, name } : c
+                  )),
+                });
+              }}
+              onAddChallenge={() => {
+                if (!draft) return;
+                const nextNumber = (draft.challenges || []).reduce(
+                  (max, c) => Math.max(max, c.challengeNumber ?? 0),
+                  0,
+                ) + 1;
+                const challenge = {
+                  id: crypto.randomUUID(),
+                  name: `Problem ${nextNumber}`,
+                  challengeNumber: nextNumber,
+                  classes: [],
+                  relations: [],
+                  hasMmd: true,
+                  weight: 1,
+                  classWeight: 1,
+                  mmdWeight: 1,
+                  testcaseWeight: 1,
+                };
+                setDraft({ ...draft, challenges: [...(draft.challenges || []), challenge] });
+                setExpandedChallenges((prev) => ({ ...prev, [challenge.id]: true }));
+              }}
+              onAddClass={(challengeId) => {
+                const cls = {
+                  id: crypto.randomUUID(),
+                  name: 'NewClass',
+                  scopeId: scopeOptions[0]?.id,
+                  declaringTypeId: declaringTypeOptions[0]?.id,
+                  isAbstract: false,
+                  isStatic: false,
+                  fields: [],
+                  methods: [],
+                  constructors: [],
+                  weight: 1,
+                };
+                setDraft({
+                  ...draft,
+                  challenges: draft.challenges.map((c) => (
+                    c.id === challengeId ? { ...c, classes: [...(c.classes || []), cls] } : c
+                  )),
+                });
+                setSelectedClassRef({ challengeId, classId: cls.id });
+                setExpandedChallenges((prev) => ({ ...prev, [challengeId]: true }));
+              }}
+              onDeleteChallenge={(challengeId) => setConfirmDelete({ type: 'challenge', challengeId })}
+              formatClassLabel={formatQualifiedClassName}
+              onDeleteClass={(challengeId, classId) => {
+                const challenge = draft?.challenges?.find((c) => c.id === challengeId);
+                const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+                const nestedNames = (challenge?.classes || [])
+                  .filter((cls) => nestedIds.has(cls.id))
+                  .map((cls) => formatQualifiedClassName(cls, challenge?.classes));
+                setConfirmDelete({ type: 'class', challengeId, classId, nestedNames });
+              }}
+            />
+
+            <div className="min-w-0 flex-1">
+              {selectedClass ? (
+                <ClassDetailPanel
+                  classData={selectedClass}
+                  challengeClasses={selectedChallengeClasses}
+                  scopeOptions={scopeOptions}
+                  declaringTypeOptions={declaringTypeOptions}
+                  relationTypeOptions={relationTypeOptions}
+                  relations={selectedClassChallenge?.relations || []}
+                  onChange={updateSelectedClass}
+                  onRelationsChange={updateSelectedClassRelations}
+                />
+              ) : (
+                <ChallengeDetailPanel
+                  challenge={selectedChallenge}
+                  relationTypeOptions={relationTypeOptions}
+                  onMmdChange={updateSelectedChallenge}
+                  activeTab={challengeTabById[selectedChallengeId] || 'mmd'}
+                  onTabChange={(tab) => {
+                    if (selectedChallengeId) {
+                      setChallengeTabById((prev) => ({ ...prev, [selectedChallengeId]: tab }));
+                    }
+                  }}
+                  labId={selectedLabId}
+                  structureDirty={isDirty}
+                  onToast={setToast}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              disabled={!isDirty || saving || !draft}
+              onClick={handleSave}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Save Lab Structure
+            </button>
+          </div>
+        </div>
+      </SidebarInset>
 
       {showCreateLab && (
         <Modal onClose={() => setShowCreateLab(false)}>
@@ -610,7 +714,7 @@ export default function SolutionManagement() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-foreground-muted">Term</label>
+              <label className="mb-1 block text-xs text-foreground-muted">Quarter</label>
               <select
                 className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 value={newLabTermId}
@@ -621,7 +725,7 @@ export default function SolutionManagement() {
                   setNewLabDeadline(term?.endDate ?? '');
                 }}
               >
-                <option value="">Select term</option>
+                <option value="">Select quarter</option>
                 {terms.map((term) => (
                   <option key={term.id} value={term.id}>{term.label}</option>
                 ))}
@@ -673,6 +777,6 @@ export default function SolutionManagement() {
           </div>
         </Modal>
       )}
-    </div>
+    </SidebarProvider>
   );
 }

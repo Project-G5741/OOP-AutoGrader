@@ -17,7 +17,9 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
-| `TermService` | Create terms by year, set current term, enroll/remove students |
+| `TermService` | Create terms by year, set current term, enroll/remove students, delete empty non-current quarters |
+| `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
+| `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
@@ -81,7 +83,10 @@ Per upload request (unique `requestId` prevents collisions):
 - Current-term membership is `existsByUser_IdAndTerm_CurrentTrue` (no extra current-term fetch)
 - `findCurrentTerm()` loads the current term row only (no academic-year join); year is fetched on term list
 - `GET /{termId}/roster` loads enrolled + available students in one enrollment fetch plus `findActiveStudents`
-- Set current term uses one bulk `UPDATE` (`clearOtherCurrent`) instead of loading every current row
+- Set current term uses one bulk `UPDATE` (`clearOtherCurrent`) instead of loading every current row; student account expiry purge runs on the daily scheduler only (not when the current quarter changes)
+- Term roster enrolled list includes only active students; available list is active students not yet enrolled
+- `DELETE /api/lecturer/terms/{termId}` removes enrollments then the quarter; blocked when the quarter is current or still has labs
+- Lecturer grade overview (`GET /api/lecturer/grade-overview`) scopes to the current quarter: active enrolled students and that quarter's labs only
 
 ## Work Guidance
 

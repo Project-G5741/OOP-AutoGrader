@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -26,9 +27,11 @@ import com.eiu.capstone.backend.DTO.StudentHistoryStatsDTO;
 import com.eiu.capstone.backend.DTO.StudentLabRefDTO;
 import com.eiu.capstone.backend.DTO.StudentLabSummaryDTO;
 import com.eiu.capstone.backend.DTO.StudentSubmissionHistoryItemDTO;
+import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.StudentLabProgress;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
+import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
@@ -46,20 +49,41 @@ public class StudentHistoryService {
     private final LabSubmissionRepository labSubmissionRepository;
     private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
     private final ChallengeService challengeService;
+    private final TermService termService;
 
     public StudentHistoryService(StudentLabProgressRepository studentLabProgressRepository,
                                  LabSubmissionRepository labSubmissionRepository,
                                  SubmissionChallengeResultRepository submissionChallengeResultRepository,
-                                 ChallengeService challengeService) {
+                                 ChallengeService challengeService,
+                                 TermService termService) {
         this.studentLabProgressRepository = studentLabProgressRepository;
         this.labSubmissionRepository = labSubmissionRepository;
         this.submissionChallengeResultRepository = submissionChallengeResultRepository;
         this.challengeService = challengeService;
+        this.termService = termService;
     }
 
     public List<StudentLabSummaryDTO> getLabSummaries(UUID userId) {
+        return getLabSummaries(userId, false);
+    }
+
+    /**
+     * @param currentTermOnly when true, only labs in the current quarter (empty if none set)
+     */
+    public List<StudentLabSummaryDTO> getLabSummaries(UUID userId, boolean currentTermOnly) {
+        List<StudentLabProgress> progressRows;
+        if (currentTermOnly) {
+            Optional<Term> current = termService.findCurrentTerm();
+            if (current.isEmpty()) {
+                return List.of();
+            }
+            progressRows = studentLabProgressRepository
+                    .findByUser_IdAndLab_Term_IdWithLabOrderByLastSubmittedAtDesc(userId, current.get().getId());
+        } else {
+            progressRows = studentLabProgressRepository.findByUser_IdWithLabOrderByLastSubmittedAtDesc(userId);
+        }
         List<StudentLabSummaryDTO> summaries = new ArrayList<>();
-        for (StudentLabProgress progress : studentLabProgressRepository.findByUser_IdWithLabOrderByLastSubmittedAtDesc(userId)) {
+        for (StudentLabProgress progress : progressRows) {
             summaries.add(toLabSummary(progress));
         }
         return summaries;
@@ -178,12 +202,21 @@ public class StudentHistoryService {
     }
 
     private StudentLabSummaryDTO toLabSummary(StudentLabProgress progress) {
+        Lab lab = progress.getLab();
         return new StudentLabSummaryDTO(
-                progress.getLab().getId(),
-                progress.getLab().getName(),
+                lab.getId(),
+                lab.getName(),
                 progress.getHighestScore(),
                 progress.getAttemptsCount() != null ? progress.getAttemptsCount() : 0,
-                formatTimestamp(progress.getLastSubmittedAt()));
+                formatTimestamp(progress.getLastSubmittedAt()),
+                termLabelForLab(lab));
+    }
+
+    private String termLabelForLab(Lab lab) {
+        if (lab == null || lab.getTerm() == null) {
+            return null;
+        }
+        return TermService.buildTermLabel(lab.getTerm());
     }
 
     private StudentSubmissionHistoryItemDTO toHistoryItem(
@@ -193,7 +226,10 @@ public class StudentHistoryService {
         String status = deriveStatus(submission.getScore(), challengeDtos);
         return new StudentSubmissionHistoryItemDTO(
                 submission.getId(),
-                new StudentLabRefDTO(submission.getLab().getId(), submission.getLab().getName()),
+                new StudentLabRefDTO(
+                        submission.getLab().getId(),
+                        submission.getLab().getName(),
+                        termLabelForLab(submission.getLab())),
                 submission.getAttemptNumber(),
                 submission.getScore(),
                 formatTimestamp(submission.getSubmittedAt()),

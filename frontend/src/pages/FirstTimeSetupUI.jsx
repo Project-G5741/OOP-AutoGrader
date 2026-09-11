@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
+import Footer from '../components/Footer';
 import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
@@ -188,11 +189,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
             </div>
           )}
 
-          {!done && (
-            <div className="px-6 pb-4 text-center">
-              <p className="text-xs text-foreground-disabled">Make by Pham Quan Kha & Doan Tuan Kiet</p>
-            </div>
-          )}
+          {!done && <Footer variant="compact" />}
         </div>
       </div>
     </div>

@@ -31,25 +31,25 @@ export default function ReportsPanel({ reportData }) {
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="rounded-3xl border border-border bg-surface-secondary p-4">
               <p className="text-xs text-foreground-muted">Overall average</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
+              <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatPercent(data.overallAverage)}
               </p>
             </div>
             <div className="rounded-3xl border border-border bg-surface-secondary p-4">
               <p className="text-xs text-foreground-muted">Lowest average lab</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
+              <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatText(data.lowestAverageLab)}
               </p>
             </div>
             <div className="rounded-3xl border border-border bg-surface-secondary p-4">
               <p className="text-xs text-foreground-muted">Lowest average score</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
+              <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatPercent(data.lowestAverageScore)}
               </p>
             </div>
             <div className="rounded-3xl border border-border bg-surface-secondary p-4">
               <p className="text-xs text-foreground-muted">Most difficult topic</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
+              <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatText(data.mostDifficultTopic)}
               </p>
             </div>

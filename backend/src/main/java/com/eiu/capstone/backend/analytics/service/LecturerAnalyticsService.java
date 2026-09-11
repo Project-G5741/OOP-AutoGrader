@@ -7,12 +7,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
@@ -26,8 +29,12 @@ import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.mapper.AnalyticsMapper;
 import com.eiu.capstone.backend.analytics.repository.LecturerAnalyticsRepository;
+import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.plagiarism.PlagiarismService;
+import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.service.ChallengeService;
+import com.eiu.capstone.backend.service.TermService;
 
 @Service
 public class LecturerAnalyticsService {
@@ -40,17 +47,23 @@ public class LecturerAnalyticsService {
     private final LecturerOverviewCache lecturerOverviewCache;
     private final LabStatisticsCache labStatisticsCache;
     private final PlagiarismService plagiarismService;
+    private final TermService termService;
+    private final LabRepository labRepository;
 
     public LecturerAnalyticsService(LecturerAnalyticsRepository lecturerAnalyticsRepository,
                                     ChallengeService challengeService,
                                     LecturerOverviewCache lecturerOverviewCache,
                                     LabStatisticsCache labStatisticsCache,
-                                    PlagiarismService plagiarismService) {
+                                    PlagiarismService plagiarismService,
+                                    TermService termService,
+                                    LabRepository labRepository) {
         this.lecturerAnalyticsRepository = lecturerAnalyticsRepository;
         this.challengeService = challengeService;
         this.lecturerOverviewCache = lecturerOverviewCache;
         this.labStatisticsCache = labStatisticsCache;
         this.plagiarismService = plagiarismService;
+        this.termService = termService;
+        this.labRepository = labRepository;
     }
 
     public LecturerOverviewResponse getOverview() {
@@ -58,7 +71,13 @@ public class LecturerAnalyticsService {
     }
 
     private LecturerOverviewResponse loadOverview() {
-        Object[] metrics = lecturerAnalyticsRepository.findOverviewMetrics();
+        Optional<Term> currentTerm = termService.findCurrentTerm();
+        if (currentTerm.isEmpty()) {
+            return emptyOverview();
+        }
+        UUID termId = currentTerm.get().getId();
+
+        Object[] metrics = lecturerAnalyticsRepository.findOverviewMetricsForTerm(termId);
         long totalStudents = 0L;
         long totalLabs = 0L;
         BigDecimal averageScore = null;
@@ -73,7 +92,7 @@ public class LecturerAnalyticsService {
         }
 
         List<LecturerOverviewResponse.RecentSubmissionItem> recentSubmissions = new ArrayList<>();
-        for (Object[] row : lecturerAnalyticsRepository.findRecentSubmissions(10)) {
+        for (Object[] row : lecturerAnalyticsRepository.findRecentSubmissionsForTerm(termId, 10)) {
             LecturerOverviewResponse.RecentSubmissionItem item = toRecentSubmission(row);
             if (item != null) {
                 recentSubmissions.add(item);
@@ -90,7 +109,12 @@ public class LecturerAnalyticsService {
         );
     }
 
+    private static LecturerOverviewResponse emptyOverview() {
+        return new LecturerOverviewResponse(0L, 0L, null, 0L, List.of(), 0L);
+    }
+
     public LabStatisticsResponse getLabStatistics(UUID labId) {
+        requireCurrentTermLab(labId);
         return labStatisticsCache.get(labId, () -> loadLabStatistics(labId));
     }
 
@@ -167,6 +191,7 @@ public class LecturerAnalyticsService {
                                                         String afterName,
                                                         UUID afterId,
                                                         String search) {
+        requireCurrentTermLab(labId);
         int safeSize = size <= 0 ? 5 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveLabSort(sort);
@@ -196,6 +221,7 @@ public class LecturerAnalyticsService {
     }
 
     public List<SubmissionSummaryDTO> getLabSubmissionsExport(UUID labId, String sort) {
+        requireCurrentTermLab(labId);
         SortSpec sortSpec = resolveLabSort(sort);
         List<SubmissionSummaryDTO> items = new ArrayList<>();
         for (Object[] row : lecturerAnalyticsRepository.findLabStudentRosterExport(
@@ -213,6 +239,7 @@ public class LecturerAnalyticsService {
                                                                   int page,
                                                                   int size,
                                                                   String sort) {
+        requireCurrentTermLab(labId);
         int safeSize = size <= 0 ? 5 : Math.min(size, 100);
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveChallengeSort(sort);
@@ -243,9 +270,15 @@ public class LecturerAnalyticsService {
         int safePage = Math.max(page, 0);
         SortSpec sortSpec = resolveGradeOverviewSort(sort);
 
+        Optional<Term> currentTerm = termService.findCurrentTerm();
+        if (currentTerm.isEmpty()) {
+            return new GradeOverviewResponse(List.of(), List.of(), safePage, safeSize, 0L, 0);
+        }
+        UUID termId = currentTerm.get().getId();
+
         List<GradeOverviewLabColumnDTO> labs = new ArrayList<>();
         List<UUID> labIds = new ArrayList<>();
-        for (Object[] row : lecturerAnalyticsRepository.findAllLabsOrdered()) {
+        for (Object[] row : lecturerAnalyticsRepository.findLabsForTermOrdered(termId)) {
             UUID labId = AnalyticsMapper.toUuid(row[0]);
             String labName = AnalyticsMapper.toString(row[1]);
             if (labId != null) {
@@ -254,12 +287,13 @@ public class LecturerAnalyticsService {
             }
         }
 
-        long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudents(search);
+        long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudentsForTerm(termId, search);
         List<GradeOverviewStudentRowDTO> rows = new ArrayList<>();
         int labCount = labIds.size();
         if (totalStudents > 0) {
             int offset = safePage * safeSize;
-            List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudents(
+            List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudentsForTerm(
+                    termId,
                     sortSpec.column(), sortSpec.direction(), sortSpec.labId(), offset, safeSize, search);
             List<UUID> studentIds = new ArrayList<>();
             for (Object[] row : students) {
@@ -270,7 +304,7 @@ public class LecturerAnalyticsService {
             }
 
             Map<UUID, Map<UUID, BigDecimal>> scoresByStudent = new HashMap<>();
-            for (Object[] row : lecturerAnalyticsRepository.findLabScoresForStudents(studentIds)) {
+            for (Object[] row : lecturerAnalyticsRepository.findLabScoresForStudents(studentIds, termId)) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);
                 UUID labId = AnalyticsMapper.toUuid(row[1]);
                 BigDecimal score = AnalyticsMapper.toBigDecimal(row[2]);
@@ -311,6 +345,7 @@ public class LecturerAnalyticsService {
     }
 
     public List<LabAttemptHistoryItemDTO> getLabAttemptHistory(UUID labId, UUID studentId) {
+        requireCurrentTermLab(labId);
         List<LabAttemptHistoryItemDTO> items = new ArrayList<>();
         for (Object[] row : lecturerAnalyticsRepository.findLabAttemptHistory(labId, studentId)) {
             LabAttemptHistoryItemDTO item = toAttemptHistoryRow(row);
@@ -319,6 +354,16 @@ public class LecturerAnalyticsService {
             }
         }
         return items;
+    }
+
+    private void requireCurrentTermLab(UUID labId) {
+        Term current = termService.findCurrentTerm()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        Lab lab = labRepository.findByIdWithTerm(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        if (lab.getTerm() == null || !current.getId().equals(lab.getTerm().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
+        }
     }
 
     private LabStatisticsResponse emptyLabStatistics(UUID labId) {

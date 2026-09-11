@@ -8,6 +8,7 @@ const INPUT_CLASSES =
   'rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted dark:bg-surface';
 
 export default function DatePicker({
+  id,
   value = '',
   onChange,
   disabled = false,
@@ -63,6 +64,7 @@ export default function DatePicker({
     <span className={cn('inline-block', className.includes('w-full') && 'w-full')}>
       <input
         ref={inputRef}
+        id={id}
         type="text"
         className={cn(INPUT_CLASSES, className)}
         placeholder={placeholder}

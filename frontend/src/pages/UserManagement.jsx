@@ -71,6 +71,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
+  const [touchedFields, setTouchedFields] = useState({});
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [sortState, setSortState] = useState({ field: 'fullname', direction: 'asc' });
@@ -100,15 +102,28 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     return filteredUsers.slice(start, start + PAGE_SIZE);
   }, [filteredUsers, page]);
 
-  const currentFieldErrors = useMemo(
+  const rawFieldErrors = useMemo(
     () => getUserFormErrors(form, modal),
     [form, modal]
   );
-  const canSave = modal === 'create' || modal === 'edit' ? isFormValid(currentFieldErrors) : false;
+  const currentFieldErrors = useMemo(() => {
+    const visible = {};
+    for (const [key, message] of Object.entries(rawFieldErrors)) {
+      visible[key] = hasAttemptedSave || touchedFields[key] ? message : '';
+    }
+    return visible;
+  }, [rawFieldErrors, hasAttemptedSave, touchedFields]);
+  const canSave = modal === 'create' || modal === 'edit' ? isFormValid(rawFieldErrors) : false;
+
+  const resetFormValidation = () => {
+    setTouchedFields({});
+    setHasAttemptedSave(false);
+  };
 
   const openCreate = () => {
     setForm({ ...EMPTY_FORM, roles: ['STUDENT'] });
     setFormError('');
+    resetFormValidation();
     setSelected(null);
     setModal('create');
   };
@@ -131,15 +146,23 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       return upper === 'TEACHER' ? 'LECTURER' : upper;
     });
 
+    const hasLecturer = normalizedRoles.includes('LECTURER');
+    const needsStudentIrn = normalizedRoles.includes('STUDENT') && !hasLecturer;
+
     setForm({
-      studentIrn: item.studentCode || (normalizedRoles.length === 1 && normalizedRoles[0] === 'STUDENT' ? item.irn : '') || '',
-      lecturerIrn: item.teacherCode || (normalizedRoles.length === 1 && normalizedRoles[0] === 'LECTURER' ? item.irn : '') || '',
+      studentIrn: needsStudentIrn
+        ? (item.studentCode || (normalizedRoles.length === 1 ? item.irn : '') || '')
+        : '',
+      lecturerIrn: hasLecturer
+        ? (item.teacherCode || item.irn || '')
+        : '',
       fullname: item.fullname || item.fullName || '',
       email: item.email || '',
       password: '',
       roles: normalizedRoles.length ? normalizedRoles : ['STUDENT'],
     });
     setFormError('');
+    resetFormValidation();
     setModal('edit');
   };
 
@@ -159,7 +182,12 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       const next = current.includes(roleName)
         ? current.filter((role) => role !== roleName)
         : [...current, roleName];
-      const nextForm = { ...prev, roles: next.length ? next : current };
+      const nextRoles = next.length ? next : current;
+      const nextForm = {
+        ...prev,
+        roles: nextRoles,
+        studentIrn: nextRoles.includes('LECTURER') ? '' : prev.studentIrn,
+      };
       return nextForm;
     });
     setFormError('');
@@ -170,18 +198,22 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     setFormError('');
   };
 
+  const handleFieldBlur = (field) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
+
   const buildPayload = () => {
     const roleNames = [...(form.roles || [])];
-    const studentCode = roleNames.includes('STUDENT')
+    const hasLecturer = roleNames.includes('LECTURER');
+    const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer;
+    const studentCode = needsStudentIrn
       ? (form.studentIrn || selected?.studentCode || selected?.irn || '').trim()
       : null;
-    const teacherCode = roleNames.includes('LECTURER')
+    const teacherCode = hasLecturer
       ? (form.lecturerIrn || selected?.teacherCode || '').trim()
       : null;
-    const legacyRole = roleNames.includes('LECTURER') && !roleNames.includes('STUDENT')
-      ? 'LECTURER'
-      : 'STUDENT';
-    const legacyIrn = legacyRole === 'LECTURER' ? teacherCode : studentCode;
+    const legacyRole = hasLecturer ? 'LECTURER' : 'STUDENT';
+    const legacyIrn = hasLecturer ? teacherCode : studentCode;
 
     const payload = {
       fullName: form.fullname?.trim(),
@@ -226,6 +258,17 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   }, []);
 
   const handleSave = async () => {
+    setHasAttemptedSave(true);
+    setTouchedFields((prev) => ({
+      ...prev,
+      roles: true,
+      studentIrn: true,
+      lecturerIrn: true,
+      fullname: true,
+      email: true,
+      password: true,
+    }));
+
     const nextErrors = getUserFormErrors(form, modal);
     if (!isFormValid(nextErrors)) {
       return;
@@ -321,7 +364,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   ];
 
   const inner = (
-    <main className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+    <main className="max-w-full space-y-6">
       <div className="mb-5">
         <h1 className="text-xl font-semibold text-foreground">User Management</h1>
       </div>
@@ -370,11 +413,13 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         onClose={() => {
           setModal(null);
           setFormError('');
+          resetFormValidation();
         }}
         onSave={handleSave}
         onDelete={handleDelete}
         onSuspendToggle={handleSuspendToggle}
         onFieldChange={handleFieldChange}
+        onFieldBlur={handleFieldBlur}
         onRoleToggle={handleRoleToggle}
       />
     </div>

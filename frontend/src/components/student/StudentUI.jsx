@@ -340,11 +340,11 @@ export default function StudentUI({
             </div>
             {resultsRevealed && hasValue(sessionOverallScore) ? (
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl text-success-text font-bold">{sessionOverallScore}</span>
+                <span className="text-3xl font-bold text-success-text sm:text-4xl">{sessionOverallScore}</span>
                 <span className="text-success-text/70 text-sm">/100</span>
               </div>
             ) : (
-              <span className="text-4xl text-success-text font-bold">--/--</span>
+              <span className="text-3xl font-bold text-success-text sm:text-4xl">--/--</span>
             )}
           </div>
           <div className="bg-surface rounded-xl p-5 shadow-sm dark:shadow-none">
@@ -372,7 +372,7 @@ export default function StudentUI({
         </div>
 
         {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
-        <div className="relative flex flex-col gap-4 min-h-[560px] lg:flex-row">
+        <div className="relative flex min-h-0 flex-col gap-4 lg:min-h-[560px] lg:flex-row">
           {isRefreshingResults && (
             <div
               className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/60"
@@ -446,18 +446,20 @@ export default function StudentUI({
             {resultsRevealed ? (
               <>
             {/* Tabs */}
-            <div className="flex border-b border-border px-2">
-              {visibleTabs.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={tabCls(t)}
-                >
-                  {TAB_LABELS[t]}
-                </button>
-              ))}
-              <div className="flex-1 flex items-center justify-end pr-4">
-                <span className="text-xs text-foreground-disabled">
+            <div className="flex min-w-0 border-b border-border">
+              <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {visibleTabs.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    className={`${tabCls(t)} shrink-0`}
+                  >
+                    {TAB_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+              <div className="hidden shrink-0 items-center pr-4 sm:flex">
+                <span className="max-w-[12rem] truncate text-xs text-foreground-disabled">
                   {currentChallenge?.name || 'No challenge selected'}
                 </span>
               </div>
@@ -520,7 +522,7 @@ export default function StudentUI({
                         </div>
                         <ScorePill ok={relationScore.ok} total={relationScore.total} pct={relationScore.pct} />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4 border-b border-border px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-foreground-muted">
+                      <div className="hidden items-center gap-4 border-b border-border px-4 py-3 text-[11px] uppercase tracking-[0.25em] text-foreground-muted md:grid md:grid-cols-4">
                         <span className="font-semibold">From</span>
                         <div className="flex justify-center"><span className="font-semibold">Relation</span></div>
                         <span className="font-semibold">To</span>
@@ -529,7 +531,7 @@ export default function StudentUI({
                       <div className="divide-y divide-border">
                         {relations.map((r, index) => (
                           <div key={index}>
-                            <div className="grid grid-cols-4 items-center gap-4 px-4 py-3 text-sm text-foreground-secondary">
+                            <div className="grid grid-cols-1 gap-2 px-4 py-3 text-sm text-foreground-secondary md:grid-cols-4 md:items-center md:gap-4">
                               <span className="font-mono text-primary">{r.from}</span>
                               <div className="flex justify-center">
                                 <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold ${relationTypeStyle(r.relType)}`}>
@@ -546,8 +548,8 @@ export default function StudentUI({
                               </div>
                             </div>
                             {!r.ok && r.error && (
-                              <div className="grid grid-cols-4 px-4 py-2 text-xs font-mono text-error-text bg-error-bg">
-                                <div className="col-span-4 text-left">{r.from} → {r.to}: {r.error}</div>
+                              <div className="px-4 py-2 text-xs font-mono text-error-text bg-error-bg">
+                                <div className="text-left">{r.from} → {r.to}: {r.error}</div>
                               </div>
                             )}
                           </div>

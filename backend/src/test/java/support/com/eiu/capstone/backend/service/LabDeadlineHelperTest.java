@@ -58,6 +58,27 @@ class LabDeadlineHelperTest {
     }
 
     @Test
+    void releaseStartInstant_isStartOfDayVietnam() {
+        Instant release = helper.releaseStartInstant(LocalDate.of(2026, 9, 15));
+        Instant expected = LocalDate.of(2026, 9, 15)
+                .atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh"))
+                .toInstant();
+        assertEquals(expected, release);
+    }
+
+    @Test
+    void isOpenForStudentSubmission_respectsVisibilityAndReleaseDate() {
+        LocalDate release = LocalDate.of(2026, 9, 15);
+        Instant beforeRelease = helper.releaseStartInstant(release).minusSeconds(1);
+        Instant onRelease = helper.releaseStartInstant(release);
+
+        assertTrue(!helper.isOpenForStudentSubmission(false, null, onRelease));
+        assertTrue(!helper.isOpenForStudentSubmission(true, release, beforeRelease));
+        assertTrue(helper.isOpenForStudentSubmission(true, release, onRelease));
+        assertTrue(helper.isOpenForStudentSubmission(true, null, onRelease));
+    }
+
+    @Test
     void submissionCountsForLecturer_respectsCutoff() {
         LocalDate deadline = LocalDate.of(2026, 8, 15);
         Instant before = helper.cutoffInstant(deadline).minusSeconds(60);

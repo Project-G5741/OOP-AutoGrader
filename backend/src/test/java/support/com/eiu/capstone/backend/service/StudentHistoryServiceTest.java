@@ -15,8 +15,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.eiu.capstone.backend.DTO.StudentChallengeResultDTO;
 import com.eiu.capstone.backend.DTO.StudentHistoryStatsDTO;
+import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
+import com.eiu.capstone.backend.model.StudentLabProgress;
+import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
@@ -26,7 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -48,6 +54,9 @@ class StudentHistoryServiceTest {
 
     @Mock
     private ChallengeService challengeService;
+
+    @Mock
+    private TermService termService;
 
     @InjectMocks
     private StudentHistoryService studentHistoryService;
@@ -166,6 +175,38 @@ class StudentHistoryServiceTest {
     }
 
     @Test
+    void getLabSummaries_currentTermOnly_usesCurrentTermFilter() {
+        UUID userId = UUID.randomUUID();
+        UUID termId = UUID.randomUUID();
+        Term current = termWithLabel(termId, "2025-2026", 2);
+
+        Lab lab = labForTerm(current, "Lab 1");
+        StudentLabProgress progress = new StudentLabProgress();
+        progress.setLab(lab);
+        progress.setHighestScore(new BigDecimal("72.00"));
+        progress.setAttemptsCount(2);
+
+        when(termService.findCurrentTerm()).thenReturn(Optional.of(current));
+        when(studentLabProgressRepository.findByUser_IdAndLab_Term_IdWithLabOrderByLastSubmittedAtDesc(userId, termId))
+                .thenReturn(List.of(progress));
+
+        var summaries = studentHistoryService.getLabSummaries(userId, true);
+
+        assertEquals(1, summaries.size());
+        assertEquals("Lab 1", summaries.get(0).name());
+        assertEquals("2025-2026 — Quarter 2", summaries.get(0).termLabel());
+        verify(studentLabProgressRepository).findByUser_IdAndLab_Term_IdWithLabOrderByLastSubmittedAtDesc(userId, termId);
+    }
+
+    @Test
+    void getLabSummaries_currentTermOnly_noCurrentTerm_returnsEmpty() {
+        UUID userId = UUID.randomUUID();
+        when(termService.findCurrentTerm()).thenReturn(Optional.empty());
+
+        assertEquals(List.of(), studentHistoryService.getLabSummaries(userId, true));
+    }
+
+    @Test
     void computeStats_unfiltered_countsDistinctLabs() {
         UUID labA = UUID.randomUUID();
         UUID labB = UUID.randomUUID();
@@ -196,5 +237,22 @@ class StudentHistoryServiceTest {
         LabSubmission submission = submissionWithScore(score);
         submission.setLab(lab);
         return submission;
+    }
+
+    private static Term termWithLabel(UUID termId, String yearLabel, int termNumber) {
+        AcademicYear year = new AcademicYear();
+        year.setYearLabel(yearLabel);
+        Term term = mock(Term.class);
+        when(term.getId()).thenReturn(termId);
+        when(term.getTermNumber()).thenReturn(termNumber);
+        when(term.getAcademicYear()).thenReturn(year);
+        return term;
+    }
+
+    private static Lab labForTerm(Term term, String name) {
+        Lab lab = new Lab();
+        lab.setName(name);
+        lab.setTerm(term);
+        return lab;
     }
 }

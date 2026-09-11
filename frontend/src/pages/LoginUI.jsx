@@ -3,8 +3,10 @@ import { GoogleLogin } from '@react-oauth/google';
 import './LoginUI.css';
 import { Eye, EyeOff, User, Lock } from 'lucide-react';
 import AppLogo from '../components/ui/AppLogo';
+import LoginBackground from '../components/ui/LoginBackground';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
+import Footer from '../components/Footer';
 import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
 import { getLoginFieldErrors, isFormValid } from '../utils/validation';
@@ -189,6 +191,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
   return (
     <div className="login-root">
       <div className="login-bg">
+        <LoginBackground />
         <ThemeToggle className="theme-toggle" />
 
         <div className="login-card-wrapper">
@@ -318,7 +321,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
             </form>
           </div>
 
-          <div className="footer-text">Made by Pham Quan Kha & Doan Tuan Kiet</div>
+          <Footer variant="login" />
         </div>
       </div>
     </div>

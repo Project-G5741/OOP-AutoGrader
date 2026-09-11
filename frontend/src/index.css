@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  /* Fluid base: ~14px on small phones → 16px on desktop */
+  font-size: clamp(14px, 0.35vw + 13px, 16px);
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;

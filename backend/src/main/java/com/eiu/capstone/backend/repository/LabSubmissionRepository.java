@@ -77,12 +77,24 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             @Param("labId") UUID labId);
 
     @Query(
-            value = "SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId",
+            value = """
+                    SELECT s FROM LabSubmission s
+                    JOIN FETCH s.lab l
+                    JOIN FETCH l.term t
+                    JOIN FETCH t.academicYear
+                    WHERE s.user.id = :userId
+                    """,
             countQuery = "SELECT COUNT(s) FROM LabSubmission s WHERE s.user.id = :userId")
     Page<LabSubmission> findHistoryPageByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Query(
-            value = "SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId AND s.lab.id = :labId",
+            value = """
+                    SELECT s FROM LabSubmission s
+                    JOIN FETCH s.lab l
+                    JOIN FETCH l.term t
+                    JOIN FETCH t.academicYear
+                    WHERE s.user.id = :userId AND s.lab.id = :labId
+                    """,
             countQuery = "SELECT COUNT(s) FROM LabSubmission s WHERE s.user.id = :userId AND s.lab.id = :labId")
     Page<LabSubmission> findHistoryPageByUserIdAndLabId(
             @Param("userId") UUID userId,

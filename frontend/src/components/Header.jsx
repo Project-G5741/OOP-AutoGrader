@@ -28,8 +28,8 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
         <div className="flex items-center gap-3">
           <button onClick={handleLogoClick} className="flex items-center gap-3">
             <AppLogo variant="header" />
-            <div className="flex flex-col justify-center">
-              <span className="text-sm font-semibold uppercase tracking-[0.25em] text-primary">{brand.appName}</span>
+            <div className="flex min-w-0 flex-col justify-center">
+              <span className="truncate text-sm font-semibold uppercase tracking-[0.15em] text-primary sm:max-w-none sm:tracking-[0.25em]">{brand.appName}</span>
             </div>
           </button>
         </div>
@@ -50,7 +50,7 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
           </button>
           <button
             onClick={toggleTheme}
-            className="flex min-w-[120px] items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary"
+            className="flex min-h-11 min-w-0 items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:min-w-[120px]"
             type="button"
           >
             <span className="flex items-center gap-2">
@@ -66,7 +66,7 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
               </button>
 
               {openMenu && (
-                <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-3xl border border-border bg-surface text-foreground shadow-lg">
+                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-border bg-surface text-foreground shadow-lg">
                   <div className="space-y-2 border-b border-border px-4 py-4">
                     <p className="text-sm font-semibold text-foreground">{user?.fullName || user?.username || 'Student'}</p>
                     {user?.email && <p className="text-sm text-foreground-muted">{user.email}</p>}

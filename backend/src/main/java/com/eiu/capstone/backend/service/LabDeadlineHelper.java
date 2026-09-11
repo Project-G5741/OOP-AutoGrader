@@ -34,6 +34,24 @@ public class LabDeadlineHelper {
         return endOfDay.toInstant();
     }
 
+    public Instant releaseStartInstant(LocalDate releaseDate) {
+        if (releaseDate == null) {
+            return null;
+        }
+        return releaseDate.atStartOfDay(VIETNAM_ZONE).toInstant();
+    }
+
+    public boolean isOpenForStudentSubmission(boolean studentVisible, LocalDate releaseDate, Instant now) {
+        if (!studentVisible) {
+            return false;
+        }
+        Instant releaseStart = releaseStartInstant(releaseDate);
+        if (releaseStart != null && now.isBefore(releaseStart)) {
+            return false;
+        }
+        return true;
+    }
+
     public UrgencyState urgencyState(LocalDate deadlineDate, Instant now) {
         if (deadlineDate == null) {
             return UrgencyState.NONE;

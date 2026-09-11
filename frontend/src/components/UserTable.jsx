@@ -48,7 +48,7 @@ export default function UserTable({
               placeholder="Search by IRN, name or email…"
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 w-72 bg-surface-secondary bg-surface-secondary border border-border rounded-lg text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full max-w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary sm:w-72"
             />
           </div>
         </div>
@@ -62,7 +62,7 @@ export default function UserTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full table-auto text-sm min-w-full">
+        <table className="w-full min-w-[720px] table-auto text-sm">
           <thead>
             <tr className="border-b border-border">
               {USER_COLUMNS.map((col) => (
@@ -122,19 +122,19 @@ export default function UserTable({
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => onEdit(u)} className="p-1.5 text-foreground-muted hover:text-primary hover:bg-primary-light rounded-lg transition-colors">
+                    <button onClick={() => onEdit(u)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground-muted transition-colors hover:bg-primary-light hover:text-primary">
                       <Pencil className="w-4 h-4" />
                     </button>
                     {isStudentOnly(u) && onSuspend && (
                       <button
                         onClick={() => onSuspend(u)}
                         title={u.isActive === false ? 'Restore student' : 'Suspend student'}
-                        className="p-1.5 text-foreground-muted hover:text-warning-text hover:bg-warning-bg rounded-lg transition-colors"
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground-muted transition-colors hover:bg-warning-bg hover:text-warning-text"
                       >
                         {u.isActive === false ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                       </button>
                     )}
-                    <button onClick={() => onDelete(u)} className="p-1.5 text-foreground-muted hover:text-error hover:bg-error-bg rounded-lg transition-colors">
+                    <button onClick={() => onDelete(u)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground-muted transition-colors hover:bg-error-bg hover:text-error">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

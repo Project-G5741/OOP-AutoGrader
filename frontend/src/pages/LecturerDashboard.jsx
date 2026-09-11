@@ -169,6 +169,21 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [challengesLabId, setChallengesLabId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
+  const clearLabDetailState = useCallback(() => {
+    setSelectedLabId(null);
+    setSubmissions([]);
+    setLabStatistics(null);
+    setChallenges([]);
+    setChallengesLabId(null);
+    setChallengeSubmissions([]);
+    setPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+    setChallengePagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+    setSubmissionsError(null);
+    setStatisticsError(null);
+    setChallengeSubmissionsError(null);
+    setActiveTab('overview');
+  }, []);
+
   const fetchLabs = useCallback(async () => {
     setLoadingLabs(true);
     setLabsError(null);
@@ -176,22 +191,29 @@ export default function LecturerDashboard({ user, onLogout }) {
       const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
       if (!response.ok) {
         setLabs([]);
+        clearLabDetailState();
         setLabsError(await friendlyLoadErrorFromResponse(response));
         return;
       }
       const data = await response.json();
       const nextLabs = Array.isArray(data) ? data : [];
       setLabs(nextLabs);
-      if (nextLabs.length > 0) {
-        setSelectedLabId((current) => current ?? nextLabs[0].id);
+      if (nextLabs.length === 0) {
+        clearLabDetailState();
+        return;
       }
+      setSelectedLabId((current) => {
+        const stillVisible = current && nextLabs.some((lab) => String(lab.id) === String(current));
+        return stillVisible ? current : nextLabs[0].id;
+      });
     } catch (err) {
       setLabs([]);
+      clearLabDetailState();
       setLabsError(toFriendlyError(err, 'read'));
     } finally {
       setLoadingLabs(false);
     }
-  }, []);
+  }, [clearLabDetailState]);
 
   const fetchPlagiarismFlags = useCallback(async () => {
     try {
@@ -422,10 +444,13 @@ export default function LecturerDashboard({ user, onLogout }) {
   }, [gradeOverviewSearchInput]);
 
   useEffect(() => {
+    if (activeNav !== 'dashboard') {
+      return;
+    }
     fetchLabs();
     fetchOverview();
     fetchPlagiarismFlags();
-  }, [fetchLabs, fetchOverview, fetchPlagiarismFlags]);
+  }, [activeNav, fetchLabs, fetchOverview, fetchPlagiarismFlags]);
 
   useEffect(() => {
     if (activeNav === 'grading') {
@@ -751,7 +776,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         {isInitialLoading ? (
           <LoadingSpinner />
         ) : activeNav === 'dashboard' ? (
-          <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+          <div className="max-w-full space-y-6">
             {(overviewError || labsError) && (
               <div className="rounded-xl border border-warning bg-warning-bg p-4 text-sm text-warning-text">
                 {[overviewError, labsError].filter(Boolean).join(' · ')}
@@ -765,7 +790,7 @@ export default function LecturerDashboard({ user, onLogout }) {
               actions={
                 <button
                   onClick={handleRefresh}
-                  className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
                   title="Refresh"
                 >
                   <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingOverview || loadingSubmissions ? 'animate-spin' : ''}`} />
@@ -839,7 +864,11 @@ export default function LecturerDashboard({ user, onLogout }) {
                     </div>
 
                     <div className="mt-6">
-                      {activeTab === 'overview' ? (
+                      {!selectedLabId ? (
+                        <p className="py-12 text-center text-sm text-foreground-muted">
+                          No labs in the current quarter.
+                        </p>
+                      ) : activeTab === 'overview' ? (
                         <div className="space-y-6">
                           {statisticsError && (
                             <p className="text-sm text-warning-text">{statisticsError}</p>
@@ -962,19 +991,19 @@ export default function LecturerDashboard({ user, onLogout }) {
             </DashboardSection>
           </div>
         ) : activeNav === 'grading' ? (
-          <div className="space-y-6 px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+          <div className="max-w-full space-y-6">
             <DashboardSection
               title="Grading"
               actions={
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                     <input
                       type="text"
                       value={gradeOverviewSearchInput}
                       onChange={(e) => setGradeOverviewSearchInput(e.target.value)}
                       placeholder="Search by name or IRN..."
-                      className="w-56 sm:w-72 rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-4 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary sm:w-56 md:w-72"
                     />
                   </div>
                   <ExportMenu
@@ -983,7 +1012,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                   />
                   <button
                     onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch)}
-                    className="p-2 rounded-lg border border-border hover:bg-surface-secondary hover:bg-surface-secondary transition-colors"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
                     title="Refresh"
                   >
                     <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingGradeOverview ? 'animate-spin' : ''}`} />
@@ -1027,13 +1056,13 @@ export default function LecturerDashboard({ user, onLogout }) {
             </DashboardSection>
           </div>
         ) : activeNav === 'users' ? (
-          <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+          <div className="max-w-full">
             <UserManagement hideNav noShell user={user} onLogout={onLogout} />
           </div>
         ) : activeNav === 'terms' ? (
           <TermManagement />
         ) : activeNav === 'projects' ? (
-          <div className="px-4 sm:px-6 lg:px-8 max-w-full overflow-x-hidden">
+          <div className="max-w-full">
             <SolutionManagement />
           </div>
         ) : activeNav === 'reports' ? (

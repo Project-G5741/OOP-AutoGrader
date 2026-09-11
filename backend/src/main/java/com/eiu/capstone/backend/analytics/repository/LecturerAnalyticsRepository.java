@@ -14,17 +14,38 @@ import org.springframework.stereotype.Repository;
 public class LecturerAnalyticsRepository {
 
     /**
-     * Roster population: distinct students with lab progress, union enrolled students for the term.
+     * Roster population: active students enrolled in the lab's quarter, plus active
+     * students with lab progress or submissions (covers submitters missing enrollment rows).
+     * Subquery form so callers can append JOIN / WHERE clauses safely.
      */
     private static final String ROSTER_STUDENT_BASE = """
             FROM (
-                SELECT DISTINCT p.user_id
-                FROM student_lab_progress p
-                WHERE p.lab_id = :labId
-                UNION
                 SELECT DISTINCT te.user_id
                 FROM term_enrollment te
                 JOIN lab l_enr ON l_enr.term_id = te.term_id AND l_enr.id = :labId
+                JOIN user_account u_enr ON u_enr.id = te.user_id
+                JOIN user_role ur ON ur.user_id = u_enr.id
+                JOIN role r ON r.id = ur.role_id
+                WHERE u_enr.is_active = true
+                  AND LOWER(r.name) = 'student'
+                UNION
+                SELECT DISTINCT p.user_id
+                FROM student_lab_progress p
+                JOIN user_account u_p ON u_p.id = p.user_id
+                JOIN user_role ur ON ur.user_id = u_p.id
+                JOIN role r ON r.id = ur.role_id
+                WHERE p.lab_id = :labId
+                  AND u_p.is_active = true
+                  AND LOWER(r.name) = 'student'
+                UNION
+                SELECT DISTINCT s.user_id
+                FROM lab_submission s
+                JOIN user_account u_s ON u_s.id = s.user_id
+                JOIN user_role ur ON ur.user_id = u_s.id
+                JOIN role r ON r.id = ur.role_id
+                WHERE s.lab_id = :labId
+                  AND u_s.is_active = true
+                  AND LOWER(r.name) = 'student'
             ) roster_ids
             JOIN user_account u ON u.id = roster_ids.user_id
             JOIN lab l ON l.id = :labId
@@ -58,6 +79,17 @@ public class LecturerAnalyticsRepository {
             JOIN lab l ON l.term_id = te.term_id
             UNION
             SELECT DISTINCT s.user_id FROM lab_submission s
+            """;
+
+    private static final String CURRENT_TERM_ACTIVE_STUDENT_IDS = """
+            SELECT te.user_id
+            FROM term_enrollment te
+            JOIN user_account u ON u.id = te.user_id
+            JOIN user_role ur ON ur.user_id = u.id
+            JOIN role r ON r.id = ur.role_id
+            WHERE te.term_id = :termId
+              AND u.is_active = true
+              AND LOWER(r.name) = 'student'
             """;
 
     private static final String QUALIFYING_SCORES_CTE = """
@@ -149,6 +181,91 @@ public class LecturerAnalyticsRepository {
         return (Object[]) result.get(0);
     }
 
+    public Object[] findOverviewMetricsForTerm(UUID termId) {
+        String sql = """
+                SELECT
+                    (SELECT COUNT(DISTINCT u.id)
+                     FROM term_enrollment te
+                     JOIN user_account u ON u.id = te.user_id
+                     JOIN user_role ur ON ur.user_id = u.id
+                     JOIN role r ON r.id = ur.role_id
+                     WHERE te.term_id = :termId
+                       AND u.is_active = true
+                       AND LOWER(r.name) = 'student') AS enrolled_students,
+                    (SELECT COUNT(*) FROM lab WHERE term_id = :termId) AS total_labs,
+                    (SELECT AVG(best.score) FROM (
+                        SELECT MAX(s.score) AS score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE l.term_id = :termId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        GROUP BY s.user_id, s.lab_id
+                    ) best) AS average_score,
+                    (SELECT COUNT(*) FROM (
+                        WITH lab_total AS (
+                            SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab WHERE term_id = :termId
+                        ),
+                        grade_students AS (
+                            SELECT te.user_id AS id
+                            FROM term_enrollment te
+                            JOIN user_account u ON u.id = te.user_id
+                            JOIN user_role ur ON ur.user_id = u.id
+                            JOIN role r ON r.id = ur.role_id
+                            WHERE te.term_id = :termId
+                              AND u.is_active = true
+                              AND LOWER(r.name) = 'student'
+                        ),
+                        qualifying_scores AS (
+                            SELECT s.user_id, s.lab_id, MAX(s.score) AS score
+                            FROM lab_submission s
+                            JOIN lab l ON l.id = s.lab_id
+                            WHERE l.term_id = :termId
+                              AND (l.deadline_date IS NULL
+                                   OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                            GROUP BY s.user_id, s.lab_id
+                        ),
+                        student_totals AS (
+                            SELECT gs.id,
+                                   CASE WHEN lt.lab_count > 0 THEN
+                                       (SELECT COALESCE(SUM(COALESCE(qs.score, 0)), 0) / lt.lab_count
+                                        FROM lab l
+                                        LEFT JOIN qualifying_scores qs
+                                            ON qs.user_id = gs.id AND qs.lab_id = l.id
+                                        WHERE l.term_id = :termId)
+                                   END AS total_score
+                            FROM grade_students gs
+                            CROSS JOIN lab_total lt
+                        )
+                        SELECT id FROM student_totals WHERE total_score < 70
+                    ) at_risk) AS at_risk_students,
+                    (SELECT COUNT(DISTINCT u.id)
+                     FROM term_enrollment te
+                     JOIN user_account u ON u.id = te.user_id
+                     JOIN user_role ur ON ur.user_id = u.id
+                     JOIN role r ON r.id = ur.role_id
+                     JOIN lab l ON l.term_id = te.term_id
+                     WHERE te.term_id = :termId
+                       AND u.is_active = true
+                       AND LOWER(r.name) = 'student'
+                       AND EXISTS (
+                           SELECT 1
+                           FROM lab_submission s
+                           WHERE s.user_id = u.id
+                             AND s.lab_id = l.id
+                             AND (l.deadline_date IS NULL
+                                  OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                       )) AS active_submitters
+                """;
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("termId", termId);
+        List<?> result = query.getResultList();
+        if (result.isEmpty()) {
+            return null;
+        }
+        return (Object[]) result.get(0);
+    }
+
     public List<Object[]> findRecentSubmissions(int limit) {
         String sql = """
                 SELECT u.full_name,
@@ -164,6 +281,27 @@ public class LecturerAnalyticsRepository {
                 LIMIT :limit
                 """;
         Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("limit", limit);
+        return query.getResultList();
+    }
+
+    public List<Object[]> findRecentSubmissionsForTerm(UUID termId, int limit) {
+        String sql = """
+                SELECT u.full_name,
+                       COALESCE(u.student_code, u.teacher_code),
+                       l.name,
+                       s.score,
+                       s.attempt_number,
+                       s.submitted_at
+                FROM lab_submission s
+                JOIN user_account u ON s.user_id = u.id
+                JOIN lab l ON s.lab_id = l.id
+                WHERE l.term_id = :termId
+                ORDER BY s.submitted_at DESC
+                LIMIT :limit
+                """;
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("termId", termId);
         query.setParameter("limit", limit);
         return query.getResultList();
     }
@@ -528,6 +666,13 @@ public class LecturerAnalyticsRepository {
         return entityManager.createNativeQuery(sql).getResultList();
     }
 
+    public List<Object[]> findLabsForTermOrdered(UUID termId) {
+        String sql = "SELECT l.id, l.name FROM lab l WHERE l.term_id = :termId ORDER BY l.name";
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("termId", termId);
+        return query.getResultList();
+    }
+
     public long countGradeOverviewStudents() {
         return countGradeOverviewStudents(null);
     }
@@ -545,6 +690,27 @@ public class LecturerAnalyticsRepository {
             sql += STUDENT_SEARCH_CLAUSE;
         }
         Query query = entityManager.createNativeQuery(sql);
+        if (normalized != null) {
+            query.setParameter("search", normalized);
+        }
+        Object result = query.getSingleResult();
+        return result == null ? 0L : ((Number) result).longValue();
+    }
+
+    public long countGradeOverviewStudentsForTerm(UUID termId, String search) {
+        String normalized = normalizeSearch(search);
+        String sql = """
+                SELECT COUNT(*)
+                FROM user_account u
+                WHERE u.id IN (
+                """ + CURRENT_TERM_ACTIVE_STUDENT_IDS + """
+                )
+                """;
+        if (normalized != null) {
+            sql += STUDENT_SEARCH_CLAUSE;
+        }
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("termId", termId);
         if (normalized != null) {
             query.setParameter("search", normalized);
         }
@@ -603,6 +769,63 @@ public class LecturerAnalyticsRepository {
         return query.getResultList();
     }
 
+    public List<Object[]> findGradeOverviewStudentsForTerm(UUID termId,
+            String sortColumn, String sortDirection, UUID sortLabId, int offset, int pageSize, String search) {
+        String normalizedSearch = normalizeSearch(search);
+        String searchClause = normalizedSearch == null ? "" : STUDENT_SEARCH_CLAUSE;
+        String sql = """
+                WITH grade_students AS (
+                    SELECT u.id, u.full_name, COALESCE(u.student_code, u.teacher_code) AS irn
+                    FROM user_account u
+                    WHERE u.id IN (
+                """ + CURRENT_TERM_ACTIVE_STUDENT_IDS + """
+                    )
+                """ + searchClause + """
+                ),
+                lab_total AS (
+                    SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab WHERE term_id = :termId
+                ),
+                qualifying_scores AS (
+                    SELECT s.user_id, s.lab_id, MAX(s.score) AS score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE l.term_id = :termId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    GROUP BY s.user_id, s.lab_id
+                ),
+                student_totals AS (
+                    SELECT gs.id,
+                           gs.full_name,
+                           gs.irn,
+                           CASE WHEN lt.lab_count > 0 THEN
+                               (SELECT COALESCE(SUM(COALESCE(qs.score, 0)), 0) / lt.lab_count
+                                FROM lab l
+                                LEFT JOIN qualifying_scores qs
+                                    ON qs.user_id = gs.id AND qs.lab_id = l.id
+                                WHERE l.term_id = :termId)
+                           END AS total_score
+                    FROM grade_students gs
+                    CROSS JOIN lab_total lt
+                )
+                SELECT id, full_name, irn
+                FROM student_totals
+                ORDER BY %s
+                LIMIT :pageSize OFFSET :offset
+                """.formatted(formatGradeOverviewOrderBy(sortColumn, sortDirection, sortLabId));
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("termId", termId);
+        query.setParameter("pageSize", pageSize);
+        query.setParameter("offset", offset);
+        if (normalizedSearch != null) {
+            query.setParameter("search", normalizedSearch);
+        }
+        if ("lab_score".equals(sortColumn) && sortLabId != null) {
+            query.setParameter("sortLabId", sortLabId);
+        }
+        return query.getResultList();
+    }
+
     private static String formatGradeOverviewOrderBy(String sortColumn, String sortDirection, UUID sortLabId) {
         if ("total_score".equals(sortColumn)) {
             return "total_score " + sortDirection + " NULLS LAST, full_name ASC";
@@ -616,20 +839,29 @@ public class LecturerAnalyticsRepository {
     }
 
     public List<Object[]> findLabScoresForStudents(List<UUID> studentIds) {
+        return findLabScoresForStudents(studentIds, null);
+    }
+
+    public List<Object[]> findLabScoresForStudents(List<UUID> studentIds, UUID termId) {
         if (studentIds == null || studentIds.isEmpty()) {
             return List.of();
         }
+        String termFilter = termId == null ? "" : " AND l.term_id = :termId ";
         String sql = """
                 SELECT s.user_id, s.lab_id, MAX(s.score) AS score
                 FROM lab_submission s
                 JOIN lab l ON l.id = s.lab_id
                 WHERE s.user_id IN (:studentIds)
+                """ + termFilter + """
                   AND (l.deadline_date IS NULL
                        OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
                 GROUP BY s.user_id, s.lab_id
                 """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentIds", studentIds);
+        if (termId != null) {
+            query.setParameter("termId", termId);
+        }
         return query.getResultList();
     }
 

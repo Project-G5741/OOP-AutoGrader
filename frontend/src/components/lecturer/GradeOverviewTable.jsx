@@ -12,7 +12,7 @@ const HEADER_CLASS =
   'sticky top-0 z-[1] bg-surface px-3 py-0 h-10 text-left text-sm font-medium text-foreground-secondary';
 const CELL_CLASS = 'px-3 py-0 h-10 text-sm text-foreground align-middle';
 const PANEL_CLASS =
-  'flex h-[320px] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-colors';
+  'flex h-[50vh] min-h-[240px] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-colors md:h-[320px]';
 
 function LabScoreCell({ score, flagged, overlapPercent, plagiarismRole }) {
   const showOverlap = flagged && overlapPercent != null && overlapPercent > 0;
@@ -89,7 +89,7 @@ export default function GradeOverviewTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid min-h-[280px] grid-cols-[max-content_minmax(0,1fr)] gap-4">
+      <div className="grid min-h-[280px] grid-cols-1 gap-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
         <section className={PANEL_CLASS} aria-label="Student identity">
           <div
             ref={identityRef}
@@ -238,7 +238,7 @@ export default function GradeOverviewTable({
       </div>
 
       {showPagination && (
-        <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-foreground-secondary">
             Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
           </p>

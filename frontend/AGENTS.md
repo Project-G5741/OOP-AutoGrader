@@ -65,6 +65,14 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
 
+### Design intelligence (UI/UX Pro Max)
+
+- Cursor skill: `.cursor/skills/ui-ux-pro-max/` — auto-activates for UI/UX design, build, review, and fix work
+- Persisted design rules: `design-system/oop-autograder/MASTER.md`; page overrides in `design-system/oop-autograder/pages/[page].md`
+- **Color contract:** keep `src/theme/tokens.js` as the source of truth for palette; apply MASTER.md for layout, typography, spacing, interaction, accessibility, and anti-patterns
+- Stack searches: `python .cursor/skills/ui-ux-pro-max/scripts/search.py "<query>" --stack react`
+- Regenerate or tune: `--design-system --density 8` for dashboard density; `--variance` / `--motion` for visual boldness and animation
+
 ### Mock vs live data
 
 | Area | Source |

@@ -33,7 +33,7 @@ export default function SubmissionTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm transition-colors border-border">
-      <table className="w-full table-auto">
+      <table className="w-full min-w-[640px] table-auto">
         <thead>
           <tr className="border-b border-border">
             {ROSTER_COLUMNS.map((col) => (
@@ -92,19 +92,21 @@ export default function SubmissionTable({
                         type="button"
                         disabled={!canView}
                         onClick={() => onView?.(submission)}
-                        className="flex items-center gap-1 rounded-lg bg-success px-3 py-1.5 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled"
+                        className="flex min-h-10 items-center gap-1 rounded-lg bg-success px-3 py-2 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled sm:text-sm"
                       >
-                        <Eye className="h-3 w-3" />
-                        {viewLabel}
+                        <Eye className="h-3 w-3 shrink-0" />
+                        <span className="hidden sm:inline">{viewLabel}</span>
+                        <span className="sm:hidden">View</span>
                       </button>
                       {flagged ? (
                         <button
                           type="button"
                           onClick={() => onViewPlagiarism?.(submission)}
-                          className="flex items-center gap-1 rounded-lg bg-warning px-3 py-1.5 text-xs text-white transition-colors hover:bg-warning-hover"
+                          className="flex min-h-10 items-center gap-1 rounded-lg bg-warning px-3 py-2 text-xs text-white transition-colors hover:bg-warning-hover sm:text-sm"
                         >
-                          <GitCompare className="h-3 w-3" />
-                          View Plagiarism
+                          <GitCompare className="h-3 w-3 shrink-0" />
+                          <span className="hidden sm:inline">View Plagiarism</span>
+                          <span className="sm:hidden">Plagiarism</span>
                         </button>
                       ) : null}
                     </div>
@@ -120,7 +122,7 @@ export default function SubmissionTable({
             || summary?.plagiarismRate != null) && (
             <tr className="border-t border-primary bg-primary-light">
               <td colSpan={6} className="px-4 py-4">
-                <div className="grid grid-cols-5 items-center gap-4 text-sm font-semibold text-primary-text">
+                <div className="grid grid-cols-1 items-center gap-2 text-sm font-semibold text-primary-text sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
                   <span className="font-bold text-primary-text">SUMMARY</span>
                   <span className="text-center">
                     Submitted: <span className="text-primary-text">{formatNumber(summary?.studentsSubmitted)}</span>
@@ -142,7 +144,7 @@ export default function SubmissionTable({
       </table>
 
       {showPagination && (
-        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+        <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-foreground-secondary">
             Page {pagination.page + 1} of {Math.max(pagination.totalPages, 1)}
           </p>

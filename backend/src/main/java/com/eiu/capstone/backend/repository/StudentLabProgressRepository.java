@@ -19,8 +19,27 @@ public interface StudentLabProgressRepository extends JpaRepository<StudentLabPr
 
     Optional<StudentLabProgress> findByUser_IdAndLab_Id(UUID userId, UUID labId);
 
-    @Query("SELECT p FROM StudentLabProgress p JOIN FETCH p.lab WHERE p.user.id = :userId ORDER BY p.lastSubmittedAt DESC")
+    @Query("""
+            SELECT p FROM StudentLabProgress p
+            JOIN FETCH p.lab l
+            JOIN FETCH l.term t
+            JOIN FETCH t.academicYear
+            WHERE p.user.id = :userId
+            ORDER BY p.lastSubmittedAt DESC
+            """)
     List<StudentLabProgress> findByUser_IdWithLabOrderByLastSubmittedAtDesc(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT p FROM StudentLabProgress p
+            JOIN FETCH p.lab l
+            JOIN FETCH l.term t
+            JOIN FETCH t.academicYear
+            WHERE p.user.id = :userId AND t.id = :termId
+            ORDER BY p.lastSubmittedAt DESC
+            """)
+    List<StudentLabProgress> findByUser_IdAndLab_Term_IdWithLabOrderByLastSubmittedAtDesc(
+            @Param("userId") UUID userId,
+            @Param("termId") UUID termId);
 
     void deleteByUser_Id(UUID userId);
 }
