@@ -23,7 +23,6 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.BulkCreateResult;
 import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
-import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
@@ -276,23 +275,16 @@ public class UserService {
         labDeadlineEmailSentRepository.deleteByUser_Id(userId);
         passwordResetTokenRepository.deleteByUser_Id(userId);
 
-        List<LabSubmission> submissions = labSubmissionRepository.findByUser_Id(userId);
-        for (LabSubmission submission : submissions) {
-            deleteSubmissionData(submission);
-        }
-    }
-
-    private void deleteSubmissionData(LabSubmission submission) {
-        UUID submissionId = submission.getId();
-        plagiarismMatchRepository.deleteInvolvingSubmission(submissionId);
-        plagiarismFingerprintRepository.deleteBySubmissionId(submissionId);
-        submissionFieldResultRepository.deleteBySubmission(submission);
-        submissionMethodResultRepository.deleteBySubmission(submission);
-        submissionConstructorResultRepository.deleteBySubmission(submission);
-        submissionChallengeResultRepository.deleteBySubmission(submission);
-        submissionRelationResultRepository.deleteBySubmission(submission);
-        submissionTestcaseResultRepository.deleteBySubmission_Id(submissionId);
-        labSubmissionRepository.delete(submission);
+        plagiarismMatchRepository.deleteInvolvingUser(userId);
+        plagiarismFingerprintRepository.deleteAllByUserId(userId);
+        submissionTestcaseResultRepository.deleteAssertionResultsByUserId(userId);
+        submissionTestcaseResultRepository.deleteByUserId(userId);
+        submissionFieldResultRepository.deleteByUserId(userId);
+        submissionMethodResultRepository.deleteByUserId(userId);
+        submissionConstructorResultRepository.deleteByUserId(userId);
+        submissionChallengeResultRepository.deleteByUserId(userId);
+        submissionRelationResultRepository.deleteByUserId(userId);
+        labSubmissionRepository.deleteByUser_Id(userId);
     }
 
     @Transactional

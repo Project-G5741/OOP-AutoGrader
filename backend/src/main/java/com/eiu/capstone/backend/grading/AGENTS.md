@@ -25,7 +25,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
 | `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, instances, assertions) in batched DB queries |
-| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
 | `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |
@@ -94,12 +94,12 @@ Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`)
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` still load structure from the database after `SubmissionDetailPersistGate.await`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` use the same from-rubric mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
 
 ## Work Guidance
 
 - Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
-- Upload `lab_result` assemble must not call `loadChallengeStructures`; GET tabs keep the JPA load after the detail persist gate
+- Upload `lab_result` assemble and student GET Class/MMD/Testcase tabs must not call `loadChallengeStructures`; lecturer structure GET still uses the JPA bundle load
 - Do not grade source `.java` files directly; compilation must succeed first
 - Inheritance and realization (`class_relation`) also feed the Java class shell via declared superclass/interfaces; other relation kinds stay MMD-only. Java grades a set Extends/Implements pair even when `has_mmd=false`
 - **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; parameters accept `int yearModel`, `message String`, and `message: String`; package visibility `~`; colon form (`ClassName : +type field`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; method return types accept UML colon (`method(): Type`) and Mermaid space (`method() Type`) as equivalent; glued returns (`method()Type`) are a parse error; omitted return after `()` is `void`; classifiers may sit between `)` and the return type (`method()*: Type`, `method()$ Type`); `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`

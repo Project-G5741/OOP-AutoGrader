@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -7,8 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.math.BigDecimal;
-
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -43,6 +43,17 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             @Param("labId") UUID labId,
             @Param("userIds") java.util.Collection<UUID> userIds);
 
+    @Query("""
+            SELECT COUNT(s.id), COUNT(DISTINCT s.lab.id), AVG(s.score), MAX(s.score)
+            FROM LabSubmission s
+            WHERE s.user.id = :userId
+              AND (:labId IS NULL OR s.lab.id = :labId)
+            """)
+    List<Object[]> findHistoryStats(@Param("userId") UUID userId, @Param("labId") UUID labId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM LabSubmission s WHERE s.user.id = :userId")
+    void deleteByUser_Id(@Param("userId") UUID userId);
 
     List<LabSubmission> findByUser_Id(UUID userId);
 

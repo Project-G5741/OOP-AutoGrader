@@ -113,32 +113,50 @@ public class StudentHistoryService {
     }
 
     StudentHistoryStatsDTO computeStatsForScope(UUID userId, UUID labId) {
-        long totalSubmissions = labId == null
-                ? labSubmissionRepository.countByUser_Id(userId)
-                : labSubmissionRepository.countByUser_IdAndLab_Id(userId, labId);
+        List<Object[]> rows = labSubmissionRepository.findHistoryStats(userId, labId);
+        if (rows == null || rows.isEmpty() || rows.get(0) == null) {
+            return new StudentHistoryStatsDTO(0, 0, null, null);
+        }
+        Object[] row = rows.get(0);
+        long totalSubmissions = toLong(row, 0);
         if (totalSubmissions == 0) {
             return new StudentHistoryStatsDTO(0, 0, null, null);
         }
 
-        int labsAttempted = labId != null
-                ? 1
-                : (int) labSubmissionRepository.countDistinctLabsByUserId(userId);
-
-        BigDecimal averageScore = labId == null
-                ? labSubmissionRepository.averageScoreForUser(userId)
-                : labSubmissionRepository.averageScoreForUserAndLab(userId, labId);
+        int labsAttempted = toInt(row, 1);
+        BigDecimal averageScore = toBigDecimal(row, 2);
         if (averageScore != null) {
             averageScore = averageScore.setScale(2, RoundingMode.DOWN);
         }
-        BigDecimal bestScore = labId == null
-                ? labSubmissionRepository.bestScoreForUser(userId)
-                : labSubmissionRepository.bestScoreForUserAndLab(userId, labId);
+        BigDecimal bestScore = toBigDecimal(row, 3);
 
         return new StudentHistoryStatsDTO(
                 labsAttempted,
                 (int) totalSubmissions,
                 averageScore,
                 bestScore);
+    }
+
+    private static long toLong(Object[] row, int index) {
+        if (row.length <= index || row[index] == null) {
+            return 0L;
+        }
+        return ((Number) row[index]).longValue();
+    }
+
+    private static int toInt(Object[] row, int index) {
+        return (int) toLong(row, index);
+    }
+
+    private static BigDecimal toBigDecimal(Object[] row, int index) {
+        if (row.length <= index || row[index] == null) {
+            return null;
+        }
+        Object value = row[index];
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        return new BigDecimal(value.toString());
     }
 
     private Map<UUID, List<SubmissionChallengeResult>> loadChallengeResultsBySubmission(List<LabSubmission> submissions) {

@@ -405,33 +405,10 @@ public class LecturerAnalyticsRepository {
     }
 
     private static final String CHALLENGE_GRADED_SUBMISSION_EXISTS = """
-            (
-                EXISTS (
-                    SELECT 1
-                    FROM submission_challenge_result scr_x
-                    WHERE scr_x.submission_id = s2.id AND scr_x.challenge_id = :challengeId
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM submission_field_result sfr
-                    JOIN field f ON f.id = sfr.field_id
-                    JOIN class_entity ce ON ce.id = f.class_id
-                    WHERE sfr.submission_id = s2.id AND ce.challenge_id = :challengeId
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM submission_method_result smr
-                    JOIN method m ON m.id = smr.method_id
-                    JOIN class_entity ce ON ce.id = m.class_id
-                    WHERE smr.submission_id = s2.id AND ce.challenge_id = :challengeId
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM submission_constructor_result scr_c
-                    JOIN "constructor" c ON c.id = scr_c.constructor_id
-                    JOIN class_entity ce ON ce.id = c.class_id
-                    WHERE scr_c.submission_id = s2.id AND ce.challenge_id = :challengeId
-                )
+            EXISTS (
+                SELECT 1
+                FROM submission_challenge_result scr_x
+                WHERE scr_x.submission_id = s2.id AND scr_x.challenge_id = :challengeId
             )
             """;
 

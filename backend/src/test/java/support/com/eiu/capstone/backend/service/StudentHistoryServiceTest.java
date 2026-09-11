@@ -132,11 +132,9 @@ class StudentHistoryServiceTest {
         Page<LabSubmission> page = new PageImpl<>(List.of(submission), PageRequest.of(0, 10), 25);
 
         when(labSubmissionRepository.findHistoryPageByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
-        when(labSubmissionRepository.countByUser_Id(userId)).thenReturn(25L);
         when(submissionChallengeResultRepository.findBySubmission_IdInWithChallenge(any())).thenReturn(List.of());
-        when(labSubmissionRepository.countDistinctLabsByUserId(userId)).thenReturn(3L);
-        when(labSubmissionRepository.averageScoreForUser(userId)).thenReturn(new BigDecimal("82.50"));
-        when(labSubmissionRepository.bestScoreForUser(userId)).thenReturn(new BigDecimal("95.00"));
+        when(labSubmissionRepository.findHistoryStats(userId, null)).thenReturn(List.<Object[]>of(
+                new Object[] { 25L, 3L, new BigDecimal("82.50"), new BigDecimal("95.00") }));
 
         var response = studentHistoryService.getHistory(userId, null, 0, 10, "submittedAt,desc");
 
@@ -145,6 +143,26 @@ class StudentHistoryServiceTest {
         assertEquals(3, response.totalPages());
         assertEquals(25, response.stats().totalSubmissions());
         assertEquals(3, response.stats().labsAttempted());
+        assertEquals(0, response.stats().averageScore().compareTo(new BigDecimal("82.50")));
+        assertEquals(0, response.stats().bestScore().compareTo(new BigDecimal("95.00")));
+    }
+
+    @Test
+    void getHistory_zeroSubmissions_returnsZerosAndNullScores() {
+        UUID userId = UUID.randomUUID();
+        Page<LabSubmission> page = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
+
+        when(labSubmissionRepository.findHistoryPageByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
+        when(labSubmissionRepository.findHistoryStats(userId, null)).thenReturn(List.<Object[]>of(
+                new Object[] { 0L, 0L, null, null }));
+
+        var response = studentHistoryService.getHistory(userId, null, 0, 10, "submittedAt,desc");
+
+        assertEquals(0, response.submissions().size());
+        assertEquals(0, response.stats().labsAttempted());
+        assertEquals(0, response.stats().totalSubmissions());
+        assertNull(response.stats().averageScore());
+        assertNull(response.stats().bestScore());
     }
 
     @Test

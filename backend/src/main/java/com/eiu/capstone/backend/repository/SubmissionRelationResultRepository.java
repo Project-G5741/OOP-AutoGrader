@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,4 +22,11 @@ public interface SubmissionRelationResultRepository extends JpaRepository<Submis
     List<SubmissionRelationResult> findBySubmission_IdWithRelation(@Param("submissionId") UUID submissionId);
 
     void deleteBySubmission(LabSubmission submission);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_relation_result
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteByUserId(@Param("userId") UUID userId);
 }

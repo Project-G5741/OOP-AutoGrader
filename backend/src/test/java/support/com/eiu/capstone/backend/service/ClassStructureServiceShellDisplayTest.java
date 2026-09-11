@@ -3,6 +3,7 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
@@ -115,6 +117,18 @@ class ClassStructureServiceShellDisplayTest {
     assertEquals(1, cakeFactory.methods().size());
     assertEquals(false, cakeFactory.methods().get(0).ok());
     assertEquals(false, cakeFactory.methods().get(0).partial());
+  }
+
+  @Test
+  void challengeById_findsRubricWithoutScanningJpa() {
+    UUID challengeId = UUID.randomUUID();
+    ChallengeRubric challengeRubric = new ChallengeRubric(
+        challengeId, 2, "Challenge 2", List.of(), List.of());
+    LabRubricSnapshot snapshot = new LabRubricSnapshot(
+        UUID.randomUUID(), Map.of(2, challengeRubric));
+
+    assertEquals(challengeId, snapshot.challengeById(challengeId).orElseThrow().challengeId());
+    assertTrue(snapshot.challengeById(UUID.randomUUID()).isEmpty());
   }
 
   @Test

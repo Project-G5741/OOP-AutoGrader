@@ -179,30 +179,29 @@ public class ClassStructureService {
             return new MmdResponseDTO(List.of(), null);
         }
         detailPersistGate.await(resolvedSubmissionId);
-        MmdResponseDTO result = buildMmdResponseForSubmission(resolvedSubmissionId, challengeId);
+        MmdResponseDTO result = buildMmdResponseForSubmission(labId, resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
         return result;
     }
 
-    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId, UUID challengeId) {
-        return buildMmdResponseForSubmission(submissionId, challengeId, null, null);
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdResponseForSubmission(labId, submissionId, challengeId, null, null);
     }
 
-    public MmdResponseDTO buildMmdResponseForSubmission(UUID submissionId,
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId,
+                                                        UUID submissionId,
                                                         UUID challengeId,
                                                         MmdGradingOutcome mmdOutcome,
                                                         Boolean mmdSubmittedOverride) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return new MmdResponseDTO(List.of(), null);
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        List<MmdClassDTO> classes = buildMmdData(
-                structure,
-                challengeId,
+        List<MmdClassDTO> classes = buildMmdDataFromRubric(
+                challengeRubric,
                 correctIds,
                 mmdOutcome,
                 mmdSubmittedOverride,
@@ -213,23 +212,30 @@ public class ClassStructureService {
         return new MmdResponseDTO(classes, parseError);
     }
 
-    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId, UUID challengeId) {
-        return buildMmdDataForSubmission(submissionId, challengeId, null, null);
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdDataForSubmission(labId, submissionId, challengeId, null, null);
     }
 
-    public List<MmdClassDTO> buildMmdDataForSubmission(UUID submissionId,
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId,
+                                                      UUID submissionId,
                                                       UUID challengeId,
                                                       MmdGradingOutcome mmdOutcome,
                                                       Boolean mmdSubmittedOverride) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return List.of();
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        return buildMmdData(structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, snapshot);
+        return buildMmdDataFromRubric(
+                challengeRubric,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot);
     }
 
     public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
@@ -468,7 +474,7 @@ public class ClassStructureService {
             return new ClassTabResponse(List.of(), null);
         }
         detailPersistGate.await(resolvedSubmissionId);
-        List<ClassDetailDTO> result = buildClassDataForSubmission(resolvedSubmissionId, challengeId);
+        List<ClassDetailDTO> result = buildClassDataForSubmission(labId, resolvedSubmissionId, challengeId);
         String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
         return new ClassTabResponse(result, notice);
@@ -485,19 +491,15 @@ public class ClassStructureService {
             return List.of();
         }
         detailPersistGate.await(resolvedSubmissionId);
-        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(resolvedSubmissionId, challengeId);
+        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(labId, resolvedSubmissionId, challengeId);
         TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
         return result;
     }
 
-    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID submissionId,
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
+                                                                  UUID submissionId,
                                                                   UUID challengeId) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
-            return List.of();
-        }
-        LabRubricSnapshot rubricSnapshot = labRubricCache.get(challenge.getLab());
-        ChallengeRubric challengeRubric = rubricSnapshot.byChallengeNumber().get(challenge.getChallengeNumber());
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
         if (challengeRubric == null) {
             return List.of();
         }
@@ -518,16 +520,22 @@ public class ClassStructureService {
                 resultsByTestcaseId);
     }
 
-    public List<ClassDetailDTO> buildClassDataForSubmission(UUID submissionId, UUID challengeId) {
-        Challenge challenge = challengeRepository.findById(challengeId).orElse(null);
-        if (challenge == null) {
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
             return List.of();
         }
-        LabChallengeStructureBundle structure = loadChallengeStructures(List.of(challengeId));
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeCompileErrors compileErrors = compileErrorStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
-        return buildClassData(structure, challengeId, correctIds, compileErrors, snapshot);
+        return buildClassDataFromRubric(challengeRubric, correctIds, compileErrors, snapshot);
+    }
+
+    private ChallengeRubric challengeRubricFromCache(UUID labId, UUID challengeId) {
+        if (labId == null || challengeId == null) {
+            return null;
+        }
+        return labRubricCache.get(labId).challengeById(challengeId).orElse(null);
     }
 
     public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,

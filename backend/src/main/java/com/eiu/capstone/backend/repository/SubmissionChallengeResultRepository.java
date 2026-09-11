@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,6 +20,13 @@ public interface SubmissionChallengeResultRepository extends JpaRepository<Submi
     Optional<SubmissionChallengeResult> findBySubmissionAndChallenge(LabSubmission submission, Challenge challenge);
 
     void deleteBySubmission(LabSubmission submission);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_challenge_result
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteByUserId(@Param("userId") UUID userId);
 
     @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id = :submissionId")
     List<SubmissionChallengeResult> findBySubmission_IdWithChallenge(@Param("submissionId") UUID submissionId);
