@@ -15,9 +15,9 @@ export default function AppShell({
   hideHome = false,
 }) {
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors">
-      <div className="w-full px-4 py-0 sm:px-6 lg:px-8">
-        <div className="w-full max-w-full min-w-0">
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground transition-colors">
+      <div className="w-full min-w-0 px-4 py-0 sm:px-6 lg:px-8">
+        <div className="w-full max-w-full min-w-0 overflow-x-hidden">
           <Header
             user={user}
             onLogout={onLogout}
@@ -28,7 +28,7 @@ export default function AppShell({
           />
 
           {showNav && (
-            <div className="mt-4 w-full">
+            <div className="relative mt-4 w-full min-w-0">
               <NavBar active={activeNav} onNavigate={onNavigate} />
             </div>
           )}

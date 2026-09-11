@@ -819,8 +819,8 @@ export default function LecturerDashboard({ user, onLogout }) {
                               : 'border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-primary-light'
                           }`}
                         >
-                          <div className="inline-flex h-4 min-w-0 items-center leading-4 whitespace-nowrap">
-                            <span className="font-medium">{formatText(lab.name)}</span>
+                          <div className="inline-flex min-w-0 items-center leading-4">
+                            <span className="truncate font-medium">{formatText(lab.name)}</span>
                             <PlagiarismDangerMark show={labHasPlagiarism(lab.id, flaggedLabIds)} />
                           </div>
                           {selectedLabId === lab.id && (
@@ -843,7 +843,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
 
                   <div className="mt-4 min-w-0">
-                    <div className="scrollbar-themed -mx-1 flex min-w-0 gap-3 overflow-x-auto border-b border-border px-1 pb-2">
+                    <div className="flex min-w-0 flex-wrap gap-2 border-b border-border pb-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setActiveTab('overview')}
