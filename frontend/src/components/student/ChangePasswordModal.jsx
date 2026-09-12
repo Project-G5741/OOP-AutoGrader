@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Eye, EyeOff, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
-import { getChangePasswordErrors, isFormValid, validatePassword } from '../../utils/validation';
+import { getChangePasswordErrors, isFormValid } from '../../utils/validation';
 import { apiFetch } from '../../utils/apiFetch';
 import { readFriendlyAuthError, toFriendlyError } from '../../utils/apiError';
+import ModalOverlay from '../ui/ModalOverlay';
+
+const EMPTY_TOUCHED = {
+  currentPassword: false,
+  newPassword: false,
+  confirmPassword: false,
+};
 
 export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -13,14 +20,48 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [touchedFields, setTouchedFields] = useState(EMPTY_TOUCHED);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrent(false);
+    setShowNew(false);
+    setSaved(false);
+    setLoading(false);
+    setError('');
+    setHasAttemptedSubmit(false);
+    setTouchedFields(EMPTY_TOUCHED);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const fieldErrors = getChangePasswordErrors(currentPassword, newPassword, confirmPassword);
-  const canSave = isFormValid(fieldErrors);
-  const passwordsMatch = confirmPassword && !fieldErrors.confirmPassword;
+  const rawFieldErrors = getChangePasswordErrors(currentPassword, newPassword, confirmPassword);
+  const fieldErrors = {
+    currentPassword:
+      hasAttemptedSubmit || touchedFields.currentPassword ? rawFieldErrors.currentPassword : '',
+    newPassword: hasAttemptedSubmit || touchedFields.newPassword ? rawFieldErrors.newPassword : '',
+    confirmPassword:
+      hasAttemptedSubmit || touchedFields.confirmPassword ? rawFieldErrors.confirmPassword : '',
+  };
+  const canSave = isFormValid(rawFieldErrors);
+  const passwordsMatch = confirmPassword && !rawFieldErrors.confirmPassword;
+
+  const handleFieldBlur = (field) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
 
   const handleSave = async () => {
+    setHasAttemptedSubmit(true);
+    setTouchedFields({
+      currentPassword: true,
+      newPassword: true,
+      confirmPassword: true,
+    });
+
     if (!canSave) {
       return;
     }
@@ -75,8 +116,11 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-surface shadow-2xl">
+    <ModalOverlay onBackdropClick={onClose}>
+      <div
+        className="w-full max-w-md overflow-hidden rounded-3xl bg-surface shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Change Password</h2>
@@ -111,6 +155,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                     setCurrentPassword(e.target.value);
                     setError('');
                   }}
+                  onBlur={() => handleFieldBlur('currentPassword')}
                   placeholder="Enter current password"
                   className={`w-full rounded-2xl bg-surface-secondary px-10 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
                     fieldErrors.currentPassword ? 'ring-1 ring-error/30' : ''
@@ -142,6 +187,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                     setNewPassword(e.target.value);
                     setError('');
                   }}
+                  onBlur={() => handleFieldBlur('newPassword')}
                   placeholder="Enter new password"
                   className={`w-full rounded-2xl bg-surface-secondary px-10 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
                     fieldErrors.newPassword ? 'ring-1 ring-error/30' : ''
@@ -158,7 +204,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
               {fieldErrors.newPassword && (
                 <p className="mt-1 text-xs text-error">{fieldErrors.newPassword}</p>
               )}
-              {!fieldErrors.newPassword && newPassword && !validatePassword(newPassword) && (
+              {!fieldErrors.newPassword && newPassword && !rawFieldErrors.newPassword && (
                 <p className="mt-1 text-xs text-success">✓ Password is valid</p>
               )}
             </div>
@@ -174,6 +220,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                   setConfirmPassword(e.target.value);
                   setError('');
                 }}
+                onBlur={() => handleFieldBlur('confirmPassword')}
                 placeholder="Repeat new password"
                 className={`w-full rounded-2xl bg-surface-secondary px-4 py-3 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/30 ${
                   fieldErrors.confirmPassword
@@ -210,6 +257,6 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

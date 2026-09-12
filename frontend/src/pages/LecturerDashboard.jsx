@@ -751,7 +751,6 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleShellCommand = useCallback((cmd) => {
     if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
-    else if (cmd === 'history') navigate(ROUTES.lecturerSolution);
     else if (cmd === 'changePassword' || cmd === 'editProfile') setShowProfile(true);
   }, [navigate]);
 
@@ -768,7 +767,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         user={user}
         onLogout={onLogout}
         showNav
-        hideUserMenu
+        hideHistory
         activeNav={activeNav}
         onNavigate={handleNavChange}
         onCommand={handleShellCommand}

@@ -1,4 +1,5 @@
 import { Check, Trash2, X, Ban, UserCheck } from 'lucide-react';
+import ModalOverlay from './ui/ModalOverlay';
 
 const ROLE_OPTIONS = [
   { value: 'STUDENT', label: 'STUDENT' },
@@ -19,7 +20,6 @@ export default function UserModal({
   fieldErrors = {},
   formError = '',
   canSave = false,
-  isDark,
   onClose,
   onSave,
   onDelete,
@@ -35,10 +35,12 @@ export default function UserModal({
   const hasStudentOnly = roles.includes('STUDENT') && !hasLecturer;
 
   return (
-    <div className={isDark ? 'dark' : ''}>
-      <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+    <ModalOverlay onBackdropClick={onClose}>
         {modal === 'delete' && selected && (
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-border">
+          <div
+            className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-border"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center justify-center w-12 h-12 bg-error-bg rounded-xl mb-4 mx-auto">
               <Trash2 className="w-6 h-6 text-error" />
             </div>
@@ -54,7 +56,10 @@ export default function UserModal({
         )}
 
         {(modal === 'suspend' || modal === 'restore') && selected && (
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-border">
+          <div
+            className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-border"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={`flex items-center justify-center w-12 h-12 rounded-xl mb-4 mx-auto ${
               modal === 'suspend' ? 'bg-warning-bg' : 'bg-success-bg'
             }`}>
@@ -85,7 +90,10 @@ export default function UserModal({
         )}
 
         {(modal === 'create' || modal === 'edit') && (
-          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg border border-border">
+          <div
+            className="bg-surface rounded-2xl shadow-2xl w-full max-w-lg border border-border"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="text-foreground font-semibold">{modal === 'create' ? 'Add New User' : 'Edit User'}</h3>
               <button onClick={onClose} className="p-1.5 text-foreground-muted hover:text-foreground-secondary hover:bg-surface-secondary hover:bg-surface-secondary rounded-lg transition-colors">
@@ -189,7 +197,6 @@ export default function UserModal({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </ModalOverlay>
   );
 }

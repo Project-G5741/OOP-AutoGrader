@@ -1,12 +1,32 @@
 import { useTheme } from '../context/ThemeContext';
 import { Moon, Sun, LogOut, User, Home, Clock, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
 
-export default function Header({ onLogout, user, onNavigate, onCommand, hideUserMenu = false, hideHome = false }) {
+export default function Header({
+  onLogout,
+  user,
+  onNavigate,
+  onCommand,
+  hideUserMenu = false,
+  hideHome = false,
+  hideHistory = false,
+}) {
   const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!openMenu) return undefined;
+    function handlePointerDown(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [openMenu]);
 
   const handleLogoClick = () => {
     if (hideHome) {
@@ -60,15 +80,25 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
           </button>
 
           {!hideUserMenu && (
-            <div className="relative">
-              <button onClick={() => setOpenMenu((v) => !v)} className="ml-2 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-foreground-secondary shadow-sm">
+            <div ref={menuRef} className="relative">
+              <button
+                type="button"
+                aria-label="Open account menu"
+                aria-expanded={openMenu}
+                aria-haspopup="menu"
+                onClick={() => setOpenMenu((v) => !v)}
+                className="ml-2 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-foreground-secondary shadow-sm transition-colors hover:bg-surface-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
                 <User className="h-5 w-5" />
               </button>
 
               {openMenu && (
-                <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-border bg-surface text-foreground shadow-lg">
+                <div
+                  role="menu"
+                  className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-border bg-surface text-foreground shadow-lg"
+                >
                   <div className="space-y-2 border-b border-border px-4 py-4">
-                    <p className="text-sm font-semibold text-foreground">{user?.fullName || user?.username || 'Student'}</p>
+                    <p className="text-sm font-semibold text-foreground">{user?.fullName || user?.username || 'User'}</p>
                     {user?.email && <p className="text-sm text-foreground-muted">{user.email}</p>}
                     <div className="grid gap-2 text-xs text-foreground-muted mt-3">
                       {(user?.irn || user?.studentCode || user?.lecturerCode || user?.id) && (
@@ -93,9 +123,11 @@ export default function Header({ onLogout, user, onNavigate, onCommand, hideUser
                       <Home className="h-4 w-4" /> Home
                     </button>
                     )}
+                    {!hideHistory && (
                     <button onClick={() => handleMenu('history')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Clock className="h-4 w-4" /> History
                     </button>
+                    )}
                     <button onClick={() => handleMenu('changePassword')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Lock className="h-4 w-4" /> Change Password
                     </button>

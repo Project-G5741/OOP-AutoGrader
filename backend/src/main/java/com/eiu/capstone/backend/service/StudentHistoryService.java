@@ -50,17 +50,20 @@ public class StudentHistoryService {
     private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
     private final ChallengeService challengeService;
     private final TermService termService;
+    private final LabDeadlineHelper labDeadlineHelper;
 
     public StudentHistoryService(StudentLabProgressRepository studentLabProgressRepository,
                                  LabSubmissionRepository labSubmissionRepository,
                                  SubmissionChallengeResultRepository submissionChallengeResultRepository,
                                  ChallengeService challengeService,
-                                 TermService termService) {
+                                 TermService termService,
+                                 LabDeadlineHelper labDeadlineHelper) {
         this.studentLabProgressRepository = studentLabProgressRepository;
         this.labSubmissionRepository = labSubmissionRepository;
         this.submissionChallengeResultRepository = submissionChallengeResultRepository;
         this.challengeService = challengeService;
         this.termService = termService;
+        this.labDeadlineHelper = labDeadlineHelper;
     }
 
     public List<StudentLabSummaryDTO> getLabSummaries(UUID userId) {
@@ -86,6 +89,9 @@ public class StudentHistoryService {
         for (StudentLabProgress progress : progressRows) {
             summaries.add(toLabSummary(progress));
         }
+        summaries.sort(Comparator.comparing(
+                StudentLabSummaryDTO::name,
+                labDeadlineHelper.naturalLabNameComparator()));
         return summaries;
     }
 
@@ -137,50 +143,31 @@ public class StudentHistoryService {
     }
 
     StudentHistoryStatsDTO computeStatsForScope(UUID userId, UUID labId) {
-        List<Object[]> rows = labSubmissionRepository.findHistoryStats(userId, labId);
-        if (rows == null || rows.isEmpty() || rows.get(0) == null) {
-            return new StudentHistoryStatsDTO(0, 0, null, null);
-        }
-        Object[] row = rows.get(0);
-        long totalSubmissions = toLong(row, 0);
+        long totalSubmissions = labId == null
+                ? labSubmissionRepository.countByUser_Id(userId)
+                : labSubmissionRepository.countByUser_IdAndLab_Id(userId, labId);
         if (totalSubmissions == 0) {
             return new StudentHistoryStatsDTO(0, 0, null, null);
         }
 
-        int labsAttempted = toInt(row, 1);
-        BigDecimal averageScore = toBigDecimal(row, 2);
+        int labsAttempted = labId == null
+                ? (int) labSubmissionRepository.countDistinctLabsByUserId(userId)
+                : 1;
+        BigDecimal averageScore = labId == null
+                ? labSubmissionRepository.averageScoreForUser(userId)
+                : labSubmissionRepository.averageScoreForUserAndLab(userId, labId);
         if (averageScore != null) {
             averageScore = averageScore.setScale(2, RoundingMode.DOWN);
         }
-        BigDecimal bestScore = toBigDecimal(row, 3);
+        BigDecimal bestScore = labId == null
+                ? labSubmissionRepository.bestScoreForUser(userId)
+                : labSubmissionRepository.bestScoreForUserAndLab(userId, labId);
 
         return new StudentHistoryStatsDTO(
                 labsAttempted,
                 (int) totalSubmissions,
                 averageScore,
                 bestScore);
-    }
-
-    private static long toLong(Object[] row, int index) {
-        if (row.length <= index || row[index] == null) {
-            return 0L;
-        }
-        return ((Number) row[index]).longValue();
-    }
-
-    private static int toInt(Object[] row, int index) {
-        return (int) toLong(row, index);
-    }
-
-    private static BigDecimal toBigDecimal(Object[] row, int index) {
-        if (row.length <= index || row[index] == null) {
-            return null;
-        }
-        Object value = row[index];
-        if (value instanceof BigDecimal decimal) {
-            return decimal;
-        }
-        return new BigDecimal(value.toString());
     }
 
     private Map<UUID, List<SubmissionChallengeResult>> loadChallengeResultsBySubmission(List<LabSubmission> submissions) {

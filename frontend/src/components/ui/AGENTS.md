@@ -15,6 +15,8 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Fixed viewport toast (`success` / `error`), auto-dismiss (default 3s) |
+| `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
+| `Modal.jsx` | Centered dialog shell built on `ModalOverlay` |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |

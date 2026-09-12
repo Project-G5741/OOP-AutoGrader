@@ -10,13 +10,15 @@ const navItems = [
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
-function NavButton({ id, label, icon: Icon, active, onClick, className = '' }) {
+function NavButton({ id, label, icon: Icon, active, onClick, fullWidth = false, className = '' }) {
   const isActive = active === id;
   return (
     <button
       type="button"
       onClick={() => onClick(id)}
-      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors min-h-11 cursor-pointer ${
+      className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
+        fullWidth ? 'w-full gap-3 rounded-xl px-4 py-3' : ''
+      } ${
         isActive
           ? 'bg-primary text-white shadow-sm'
           : 'text-foreground-secondary hover:bg-surface-secondary'
@@ -88,6 +90,7 @@ export default function NavBar({ active, onNavigate }) {
                   icon={icon}
                   active={active}
                   onClick={handleNavigate}
+                  fullWidth
                 />
               ))}
             </div>
@@ -96,7 +99,7 @@ export default function NavBar({ active, onNavigate }) {
       )}
 
       {/* Desktop: inline navigation */}
-      <nav className="hidden items-center justify-end gap-2 lg:flex">
+      <nav className="hidden w-full flex-wrap items-center justify-end gap-2 lg:flex">
         {navItems.map(({ id, label, icon }) => (
           <NavButton
             key={id}
@@ -105,7 +108,6 @@ export default function NavBar({ active, onNavigate }) {
             icon={icon}
             active={active}
             onClick={handleNavigate}
-            className="w-auto shrink-0 rounded-lg px-3 py-2.5"
           />
         ))}
       </nav>

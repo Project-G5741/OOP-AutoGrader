@@ -409,7 +409,6 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         fieldErrors={currentFieldErrors}
         formError={formError}
         canSave={canSave}
-        isDark={isDark}
         onClose={() => {
           setModal(null);
           setFormError('');
