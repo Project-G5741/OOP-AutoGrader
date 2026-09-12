@@ -93,6 +93,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy")
+- Default `Footer` (AppShell) polls `GET /api/presence` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence` so the count drops; count is far-left, course title stays centered
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 

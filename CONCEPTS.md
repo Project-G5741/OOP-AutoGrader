@@ -133,6 +133,9 @@ API posture where a request is refused unless an explicit path-and-method rule a
 ### No-access
 The SPA screen for a signed-in user whose API call was forbidden. The session stays valid so they can return to their default dashboard. It is not used for wrong-role page URLs (those use the default-dashboard redirect) and not used for missing or expired sessions (those return to login).
 
+### Active user presence
+In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently.
+
 ## Backend tests
 
 ### Aspect-root test home

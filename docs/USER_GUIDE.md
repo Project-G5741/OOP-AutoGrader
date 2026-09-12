@@ -509,4 +509,9 @@ A: Go to **Terms**, select the term, and drag an Excel/CSV file onto the drop zo
 
 ---
 
+**Q: What does Active Users in the footer mean?**  
+A: It is how many people are currently signed in and using the app. The count refreshes every 10 seconds and drops when someone logs out. The course title stays in the center of the footer.
+
+---
+
 *Last updated: September 2026*

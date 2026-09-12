@@ -49,6 +49,15 @@ final class SecurityAuthorizationProbes {
     }
 
     @RestController
+    @RequestMapping("/api/presence")
+    static class PresenceProbeController {
+        @GetMapping
+        String presence() {
+            return "{\"count\":0}";
+        }
+    }
+
+    @RestController
     @RequestMapping("/api/labs")
     static class LabProbeController {
         @GetMapping

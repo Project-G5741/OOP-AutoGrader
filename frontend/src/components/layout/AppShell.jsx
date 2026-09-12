@@ -15,9 +15,9 @@ export default function AppShell({
   hideHome = false,
 }) {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-background text-foreground transition-colors">
-      <div className="w-full min-w-0 px-4 py-0 sm:px-6 lg:px-8">
-        <div className="w-full max-w-full min-w-0 overflow-x-hidden">
+    <div className="flex min-h-screen flex-col overflow-x-clip bg-background text-foreground transition-colors">
+      <div className="flex w-full min-w-0 flex-1 flex-col px-4 py-0 sm:px-6 lg:px-8">
+        <div className="flex w-full max-w-full min-w-0 flex-1 flex-col overflow-x-clip">
           <Header
             user={user}
             onLogout={onLogout}

@@ -59,6 +59,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create; `DELETE /{id}` hard-deletes user and related rows; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
+| `PresenceController` | `/api/presence` | `GET` — public active-user count; a valid JWT records a heartbeat. `DELETE` — signed-in leave (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated locally when `SPRINGDOC_ENABLED` is true; omit or set `false` in production)
 
@@ -69,7 +70,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
-- **Public:** `OPTIONS /**`, `GET /`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
+- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
 - `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
