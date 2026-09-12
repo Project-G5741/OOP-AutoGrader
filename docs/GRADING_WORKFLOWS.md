@@ -322,7 +322,7 @@ Step 12: return ChallengePipelineResult(...)
 | `parsedClasses` | Reflection output | Class + Testcase graders |
 | `parsedByName` | Map `simpleName → ParsedClass` | Lookup by rubric class name |
 | `failedClassNames` | Mixed javac roots + dependents | ClassReflectionGrader zeros those classes; TestcaseGrader ERROR if an invoked type failed |
-| `compileErrorsByClassName` | Root javac text or `Compilation Error on {Upstream}` | Class tab `cls.error` and testcase ERROR feedback |
+| `compileErrorsByClassName` | One `CompileErrorMessage` line (see `backend/src/main/java/com/eiu/capstone/backend/service/compile/AGENTS.md`) | Class tab `cls.error` and testcase ERROR feedback |
 
 ---
 

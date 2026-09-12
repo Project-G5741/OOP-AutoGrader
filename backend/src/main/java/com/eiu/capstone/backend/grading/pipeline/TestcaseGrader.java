@@ -28,6 +28,7 @@ import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
+import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
 
 @Component
 public class TestcaseGrader {
@@ -75,8 +76,8 @@ public class TestcaseGrader {
         }
         String failedType = firstFailedInvokedType(testcase, context.failedClassNames());
         if (failedType != null) {
-            String message = context.compileErrorsByClassName().getOrDefault(
-                    failedType, "Compilation Error on " + failedType);
+            String message = CompileErrorMessage.summarize(context.compileErrorsByClassName().getOrDefault(
+                    failedType, CompileErrorMessage.see(failedType)));
             return compileErrorEvaluation(testcase, message);
         }
 

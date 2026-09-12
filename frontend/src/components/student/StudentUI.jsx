@@ -604,7 +604,9 @@ export default function StudentUI({
                                   <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type || 'Class'}</span>
                                   <p className="mt-1 font-bold font-mono text-foreground">{cls.name}</p>
                                   {compileErrorLine && (
-                                    <p className="mt-1 truncate font-mono text-[11px] text-error-text">{compileErrorLine}</p>
+                                    <p className="mt-1 break-words font-mono text-[11px] leading-snug text-error-text">
+                                      {compileErrorLine}
+                                    </p>
                                   )}
                                 </div>
                               </div>

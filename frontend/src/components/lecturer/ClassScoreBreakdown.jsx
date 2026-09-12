@@ -113,7 +113,9 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                       <span className="text-[10px] uppercase tracking-wider text-foreground-muted">{cls.type}</span>
                       <p className="mt-1 font-mono text-sm font-bold text-foreground">{cls.name}</p>
                       {compileErrorLine && (
-                        <p className="mt-1 truncate font-mono text-[11px] text-error-text">{compileErrorLine}</p>
+                        <p className="mt-1 break-words font-mono text-[11px] leading-snug text-error-text">
+                          {compileErrorLine}
+                        </p>
                       )}
                     </div>
                   </div>

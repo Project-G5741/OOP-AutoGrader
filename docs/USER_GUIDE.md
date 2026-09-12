@@ -390,6 +390,7 @@ Compares your uploaded UML/MMD diagram against the expected class diagram.
 Tests whether your Java class declarations (class names, fields, constructors, methods) match the rubric.
 
 - Each **class card** shows pass (green) or fail (red) for the class shell.
+- A compile problem is **one short red line** under the class name (for example `Missing ; on line 4`, `Observer not found`, `Wrong class in this file`, `Declared in Observer.java`, or `See Subject`). The line wraps; it is not a raw javac dump.
 - Expand a card to see individual field / constructor / method results:
   - **Green ✓** — matches rubric.
   - **Red ✗** — wrong or missing.

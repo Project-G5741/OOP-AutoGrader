@@ -53,7 +53,7 @@ export function formatMmdRelationType(type) {
   return String(type ?? '').trim();
 }
 
-/** First non-empty line of a class compile diagnostic for Class-card display. */
+/** First non-empty line of a class compile diagnostic. Backend already shortens via CompileErrorMessage. */
 export function firstCompileErrorLine(error) {
   if (error == null) {
     return null;

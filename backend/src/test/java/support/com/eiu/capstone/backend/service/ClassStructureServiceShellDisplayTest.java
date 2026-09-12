@@ -417,7 +417,7 @@ class ClassStructureServiceShellDisplayTest {
     ClassDetailDTO good = result.stream().filter(card -> "Good".equals(card.name())).findFirst().orElseThrow();
     ClassDetailDTO bad = result.stream().filter(card -> "Bad".equals(card.name())).findFirst().orElseThrow();
     assertEquals(null, good.error());
-    assertEquals("ERROR: line 1: ';' expected", bad.error());
+    assertEquals("Missing ; on line 1", bad.error());
     assertEquals("error", bad.status());
   }
 
