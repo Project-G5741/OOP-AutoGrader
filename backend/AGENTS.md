@@ -59,6 +59,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | CRUD + bulk create; `DELETE /{id}` hard-deletes user and related rows; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
+| `PresenceController` | `/api/presence` | `GET` — public active-user count; a valid JWT records a heartbeat. `DELETE` — signed-in leave (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated locally when `SPRINGDOC_ENABLED` is true; omit or set `false` in production)
 
@@ -69,7 +70,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
-- **Public:** `OPTIONS /**`, `GET /`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
+- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
 - `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
@@ -134,7 +135,7 @@ Grading tuning properties (`application.properties`):
 - `LabStructureService.saveLabStructure` — prefetches the full lab tree once (`SaveContext`: challenges, classes, fields/methods/constructors, relations, master data), syncs from in-memory maps (no per-entity `findById`), batches `saveAll` per challenge for classes/members/relations (parameters bulk-deleted/reinserted per challenge), prints a `[timing] Save lab structure` block when `app.grading.timing-log=true`, returns the request payload (no post-save full reload)
 - Upload response `challengeResult` is `Map<UUID, Integer>` (scores only); class detail via `GET /challenges/{id}/class`
 - `attemptsCount` on progress is set from `COUNT(lab_submission)` after each upload. Each upload inserts a **new** attempt (`MAX(attempt_number)+1`); the path `{attemptNumber}` is not used to upsert.
-- Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards
+- Per-challenge compile failures are stored in `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json` and shown on Class tab cards as one `CompileErrorMessage` line (convention: `service/compile/AGENTS.md`)
 - Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static plus declared superclass and interfaces. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match. A matching shell with no fields/constructors/methods is card status `success`, not `info`. Inheritance/realization pairs are graded on the Java shell independently of the MMD pillar.

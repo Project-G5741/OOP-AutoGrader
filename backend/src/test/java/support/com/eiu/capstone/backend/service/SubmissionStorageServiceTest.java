@@ -165,7 +165,7 @@ class SubmissionStorageServiceTest {
             assertEquals(1, challenge1.classFileCount);
             assertTrue(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Good.class")));
             assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Bad.class")));
-            assertTrue(challenge1.compileErrorsByClassName.get("Bad").contains("line"));
+            assertEquals("Unclosed class on line 1", challenge1.compileErrorsByClassName.get("Bad"));
         } finally {
             compileExecutor.shutdownNow();
         }
@@ -191,7 +191,7 @@ class SubmissionStorageServiceTest {
             assertNull(challenge1.compileError);
             assertTrue(challenge1.failedClassNames.contains("Student"));
             assertTrue(challenge1.failedClassNames.contains("BankAccount"));
-            assertEquals("Compilation Error on Student",
+            assertEquals("See Student",
                     challenge1.compileErrorsByClassName.get("BankAccount"));
             assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Student.class")));
             assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/BankAccount.class")));

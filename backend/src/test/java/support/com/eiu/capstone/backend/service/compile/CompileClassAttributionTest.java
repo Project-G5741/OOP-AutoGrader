@@ -34,7 +34,7 @@ class CompileClassAttributionTest {
 
         assertTrue(result.failedClassNames().contains("Bad"));
         assertFalse(result.failedClassNames().contains("Good"));
-        assertTrue(result.compileErrorsByClassName().get("Bad").contains("line"));
+        assertEquals("Unclosed class on line 1", result.compileErrorsByClassName().get("Bad"));
         assertFalse(result.compileErrorsByClassName().containsKey("Good"));
     }
 
@@ -47,9 +47,10 @@ class CompileClassAttributionTest {
 
         assertTrue(result.failedClassNames().contains("Student"));
         assertTrue(result.failedClassNames().contains("BankAccount"));
-        assertEquals("Compilation Error on Student",
+        assertEquals("See Student",
                 result.compileErrorsByClassName().get("BankAccount"));
-        assertTrue(result.compileErrorsByClassName().get("Student").contains("line"));
+        assertEquals("Unclosed class on line 1",
+                result.compileErrorsByClassName().get("Student"));
         assertFalse(result.compileErrorsByClassName().get("BankAccount").contains("reached end of file"));
     }
 
@@ -62,8 +63,8 @@ class CompileClassAttributionTest {
                 entry("C.java", "public class C { B b; }"));
 
         assertTrue(result.failedClassNames().containsAll(List.of("A", "B", "C")));
-        assertEquals("Compilation Error on A", result.compileErrorsByClassName().get("B"));
-        assertEquals("Compilation Error on A", result.compileErrorsByClassName().get("C"));
+        assertEquals("See A", result.compileErrorsByClassName().get("B"));
+        assertEquals("See A", result.compileErrorsByClassName().get("C"));
     }
 
     @Test
@@ -80,6 +81,41 @@ class CompileClassAttributionTest {
         assertEquals(
                 result.compileErrorsByClassName().get("Student"),
                 result.compileErrorsByClassName().get("Helper"));
+    }
+
+    @Test
+    void cannotFindSymbolNamesTheMissingType() throws Exception {
+        Result result = attribute(
+                List.of("SMSSubscriber", "Observer"),
+                entry("SMSSubscriber.java", "public class SMSSubscriber implements Observer {}"));
+
+        assertEquals("Observer not found", result.compileErrorsByClassName().get("SMSSubscriber"));
+    }
+
+    @Test
+    void publicClassFilenameMismatchUsesFileStem() throws Exception {
+        Result result = attribute(
+                List.of("Observer", "EmailSubscriber"),
+                entry("Observer.java", "public class EmailSubscriber {}"));
+
+        assertEquals("Wrong class in this file", result.compileErrorsByClassName().get("Observer"));
+        assertEquals("Declared in Observer.java", result.compileErrorsByClassName().get("EmailSubscriber"));
+    }
+
+    @Test
+    void nestedStaticClassSharesOuterSyntaxError() throws Exception {
+        Result result = attribute(
+                List.of("Outer", "Outer.Inner"),
+                entry("Outer.java", """
+                        public class Outer {
+                          public static class Inner {}
+                        """));
+
+        String outerError = result.compileErrorsByClassName().get("Outer");
+        assertEquals("Unclosed class on line 2", outerError);
+        assertEquals(outerError, result.compileErrorsByClassName().get("Outer.Inner"));
+        assertFalse(result.compileErrorsByClassName().containsValue("Declared in Outer.java"));
+        assertFalse(result.compileErrorsByClassName().containsValue("Wrong class in this file"));
     }
 
     private Result attribute(List<String> preferredOrder, SourceEntry... sources) throws Exception {

@@ -98,7 +98,7 @@ class TestcaseGraderTest {
                 .gradeSingle(testcase, context);
 
         assertEquals(TestcaseResultStatus.ERROR, result.status());
-        assertTrue(result.feedback().contains("ERROR: line 1"));
+        assertTrue(result.feedback().contains("Missing ; on line 1"));
     }
 
     @Test
@@ -155,8 +155,7 @@ class TestcaseGraderTest {
                 .gradeSingle(testcase, context);
 
         assertEquals(TestcaseResultStatus.ERROR, result.status());
-        assertTrue(result.feedback().contains("Compilation Error on Student")
-                || result.feedback().contains("ERROR: line 1"));
+        assertTrue(result.feedback().contains("Missing ; on line 1"));
     }
 
     @Test

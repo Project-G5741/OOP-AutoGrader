@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -67,7 +68,7 @@ public final class CompileClassAttribution {
         }
 
         Set<SourceEntry> errorFiles = new LinkedHashSet<>();
-        Map<SourceEntry, List<String>> messagesByFile = new LinkedHashMap<>();
+        Map<SourceEntry, String> messageByFile = new LinkedHashMap<>();
         for (Diagnostic<? extends JavaFileObject> diagnostic : outcome.diagnostics()) {
             if (diagnostic.getKind() != Diagnostic.Kind.ERROR) {
                 continue;
@@ -77,12 +78,17 @@ public final class CompileClassAttribution {
                 continue;
             }
             errorFiles.add(file);
-            messagesByFile.computeIfAbsent(file, key -> new ArrayList<>()).add(CompileOutcome.format(diagnostic));
+            messageByFile.putIfAbsent(file, CompileErrorMessage.forDiagnostic(diagnostic));
         }
 
         Set<String> roots = new LinkedHashSet<>();
         for (SourceEntry errorFile : errorFiles) {
-            roots.addAll(declaredByFile.getOrDefault(errorFile, Set.of()));
+            Set<String> declared = declaredByFile.getOrDefault(errorFile, Set.of());
+            roots.addAll(declared);
+            String stem = sourceFileStem(errorFile.logicalPath());
+            if (stem != null && !declared.contains(stem)) {
+                roots.add(stem);
+            }
         }
         List<String> order = (preferredRootOrder == null || preferredRootOrder.isEmpty())
                 ? declaredOrder
@@ -106,6 +112,11 @@ public final class CompileClassAttribution {
             for (String typeName : declared) {
                 fileByType.put(typeName, entry);
                 referencedTypes.put(typeName, referenced);
+            }
+            String stem = sourceFileStem(entry.logicalPath());
+            if (stem != null && !declared.contains(stem)) {
+                fileByType.putIfAbsent(stem, entry);
+                referencedTypes.putIfAbsent(stem, referenced);
             }
         }
 
@@ -132,18 +143,63 @@ public final class CompileClassAttribution {
         Map<String, String> errorsByClass = new LinkedHashMap<>();
         for (String failedName : failed) {
             if (roots.contains(failedName)) {
-                SourceEntry file = fileByType.get(failedName);
-                List<String> messages = file == null ? List.of() : messagesByFile.getOrDefault(file, List.of());
-                errorsByClass.put(failedName, messages.isEmpty()
-                        ? String.join("\n", outcome.messages())
-                        : String.join("\n", messages));
+                errorsByClass.put(failedName, rootMessage(
+                        failedName, errorFiles, declaredByFile, fileByType, messageByFile, outcome));
             } else {
                 String root = firstReachableRoot(failedName, roots, referencedTypes, order);
-                errorsByClass.put(failedName, "Compilation Error on " + root);
+                errorsByClass.put(failedName, CompileErrorMessage.see(root));
             }
         }
 
         return new Result(failed, errorsByClass);
+    }
+
+    private static String rootMessage(String failedName,
+                                      Set<SourceEntry> errorFiles,
+                                      Map<SourceEntry, Set<String>> declaredByFile,
+                                      Map<String, SourceEntry> fileByType,
+                                      Map<SourceEntry, String> messageByFile,
+                                      CompileOutcome outcome) {
+        SourceEntry file = errorFileForRoot(failedName, errorFiles, declaredByFile, fileByType);
+        String fileDiagnostic = file == null
+                ? firstDiagnosticLine(outcome)
+                : messageByFile.getOrDefault(file, firstDiagnosticLine(outcome));
+        Set<String> declared = file == null ? Set.of() : declaredByFile.getOrDefault(file, Set.of());
+        String stem = file == null ? null : sourceFileStem(file.logicalPath());
+        return CompileErrorMessage.forFileRoot(failedName, stem, declared, fileDiagnostic);
+    }
+
+    private static SourceEntry errorFileForRoot(String failedName,
+                                                Set<SourceEntry> errorFiles,
+                                                Map<SourceEntry, Set<String>> declaredByFile,
+                                                Map<String, SourceEntry> fileByType) {
+        SourceEntry stemMismatch = null;
+        SourceEntry declaredElsewhere = null;
+        for (SourceEntry errorFile : errorFiles) {
+            Set<String> declared = declaredByFile.getOrDefault(errorFile, Set.of());
+            String stem = sourceFileStem(errorFile.logicalPath());
+            if (failedName.equals(stem) && declared.contains(failedName)) {
+                return errorFile;
+            }
+            if (failedName.equals(stem)) {
+                stemMismatch = errorFile;
+            } else if (declared.contains(failedName)) {
+                declaredElsewhere = errorFile;
+            }
+        }
+        if (stemMismatch != null) {
+            return stemMismatch;
+        }
+        return declaredElsewhere != null ? declaredElsewhere : fileByType.get(failedName);
+    }
+
+    private static String firstDiagnosticLine(CompileOutcome outcome) {
+        for (Diagnostic<? extends JavaFileObject> diagnostic : outcome.diagnostics()) {
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                return CompileErrorMessage.forDiagnostic(diagnostic);
+            }
+        }
+        return "Compile error";
     }
 
     private static SourceEntry resolveSource(Diagnostic<? extends JavaFileObject> diagnostic,
@@ -220,6 +276,21 @@ public final class CompileClassAttribution {
     private static String simpleName(String typeName) {
         int dot = typeName.lastIndexOf('.');
         return dot >= 0 ? typeName.substring(dot + 1) : typeName;
+    }
+
+    private static String sourceFileStem(String logicalPath) {
+        if (logicalPath == null || logicalPath.isBlank()) {
+            return null;
+        }
+        String name = logicalPath.replace('\\', '/');
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) {
+            name = name.substring(slash + 1);
+        }
+        if (name.toLowerCase(Locale.ENGLISH).endsWith(".java")) {
+            name = name.substring(0, name.length() - 5);
+        }
+        return name.isBlank() ? null : name;
     }
 
     private static String firstReachableRoot(String dependent,

@@ -14,6 +14,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import NoAccessPage from "./pages/NoAccessPage";
 import RequireRole from "./components/auth/RequireRole";
 import { defaultDashboardPath, normalizeRoleList, readStoredUser, ROUTES } from "./utils/authRoutes";
+import { leavePresence } from "./utils/presence";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -59,6 +60,7 @@ export default function App() {
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
+    leavePresence();
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("user");
     localStorage.removeItem("token");

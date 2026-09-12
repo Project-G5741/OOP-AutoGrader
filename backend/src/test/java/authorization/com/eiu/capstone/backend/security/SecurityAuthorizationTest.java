@@ -2,6 +2,7 @@ package authorization.com.eiu.capstone.backend.security;
 
 import com.eiu.capstone.backend.security.*;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,7 +30,8 @@ import com.eiu.capstone.backend.service.JwtService;
         SecurityAuthorizationProbes.AuthProbeController.class,
         SecurityAuthorizationProbes.LecturerProbeController.class,
         SecurityAuthorizationProbes.SubmissionProbeController.class,
-        SecurityAuthorizationProbes.LabProbeController.class
+        SecurityAuthorizationProbes.LabProbeController.class,
+        SecurityAuthorizationProbes.PresenceProbeController.class
 })
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtService.class, RootController.class})
 @TestPropertySource(properties = {
@@ -102,6 +104,16 @@ class SecurityAuthorizationTest {
     @Test
     void anonymousRoot_is200() throws Exception {
         mockMvc.perform(get("/")).andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousPresence_is200() throws Exception {
+        mockMvc.perform(get("/api/presence")).andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousPresenceLeave_is401() throws Exception {
+        mockMvc.perform(delete("/api/presence")).andExpect(status().isUnauthorized());
     }
 
     @Test

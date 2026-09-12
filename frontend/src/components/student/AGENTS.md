@@ -60,7 +60,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
 - Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (green check when correct, red X when wrong). A type with no rubric fields/constructors/methods (e.g. an enum) counts as `1/1 · 100%` from the shell, not `0/1`. When the shell fails, member rows are all fail (no green ticks). Fields, methods, and constructors are pass or fail only — leftover `partial` flags render as fail, not an orange minus
 - Student Class/MMD rows come from API `DisclosureMode.STUDENT`: missing or wrong members show generic messages, never rubric expected names. `studentDisplayConsolidation.js` collapses repeated generic error rows; score counts still use the full rubric-scoped arrays. Lecturer drawer does not use these consolidators.
-- A class compile error is one truncated line under the class name (`firstCompileErrorLine`); there is no expanded diagnostic banner. Independent sibling cards stay a normal grade
+- A class compile error is one wrapping line under the class name (`CompileErrorMessage` convention). Do not CSS-truncate it and do not show an expanded diagnostic banner. Independent sibling cards stay a normal grade.
 
 ### Testcase tab rows (`StudentUI.jsx`)
 

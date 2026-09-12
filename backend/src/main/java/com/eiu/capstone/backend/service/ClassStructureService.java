@@ -24,6 +24,7 @@ import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntr
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdRelationEntry;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
+import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
 import com.eiu.capstone.backend.model.*;
 import com.eiu.capstone.backend.repository.*;
 import com.eiu.capstone.backend.utility.TimingLog;
@@ -1135,7 +1136,11 @@ public class ClassStructureService {
         if (compileErrors == null || compileErrors.isEmpty()) {
             return null;
         }
-        return compileErrors.messageForClass(names);
+        String message = compileErrors.messageForClass(names);
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        return CompileErrorMessage.summarize(message);
     }
 
     private String formatClassDisplayName(ClassEntity classEntity) {

@@ -21,6 +21,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
+| `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
@@ -53,7 +54,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`
 - Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
-- Compile diagnostics appear on Class tab cards via `ClassDetailDTO.error`
+- Compile diagnostics appear on Class tab cards via `ClassDetailDTO.error`. Lines follow the convention in `compile/AGENTS.md` (`CompileErrorMessage`).
 - Empty source list returns without invoking the compiler
 - Lecturer dry-run uses the same `CompileOutcome` + `CompileClassAttribution`; mixed reference compile is a preview DTO (`ERROR` if the testcase touches a failed type), not HTTP 422
 - With `app.grading.timing-log=true`, `SubmissionStorageService` prints a `[timing] Compile <challenge>` block (`build sources`, `javac`, `count`, `total`)
@@ -107,7 +108,9 @@ Per upload request (unique `requestId` prevents collisions):
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected; hard-delete bulk-purges grading rows)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)
 - JWT signing key: `authorization` `JwtServiceTest` (same secret verifies across re-init; missing/blank/short secrets fail at construction)
+- Active users: `unit` `PresenceServiceTest` (unique email, expiry, leave); `authorization` `PresenceControllerTest` (public GET, JWT heartbeat, JWT leave)
 - Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements; `challengeById`)
+- Compile-error convention: `support` `CompileErrorMessageTest`, `support` `CompileClassAttributionTest`
 - Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them)
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
@@ -116,4 +119,6 @@ Per upload request (unique `requestId` prevents collisions):
 
 ## Child DOX Index
 
-No child docs.
+| Path | Scope |
+|---|---|
+| `compile/AGENTS.md` | In-memory javac, per-class attribution, Class-card compile-error convention |

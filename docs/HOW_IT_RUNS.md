@@ -209,12 +209,14 @@ Controller (thin) → Service / GradingService → Repository (JPA) → PostgreS
 | `UserController` | `/api/users` | User CRUD (lecturer JWT) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade matrix |
 | `AnalyticsController` | `/api/analytics` | Dashboard, student reports |
+| `PresenceController` | `/api/presence` | Public GET count; JWT heartbeat; JWT DELETE leave |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 
 ### 5.3 Security model
 
 - `SecurityConfig`: CSRF off, matcher table authorizes by path + method (default-deny).
+- Public: `GET /`, `GET /api/presence`, `/api/auth/**` (and swagger when enabled).
 - **JWT** created by `JwtService` from `JWT_SECRET` (required, ≥32 bytes). Tokens stay valid across restarts while the secret is unchanged.
 - Claims: `email`, `name`, `domain`, `roles`, `irn`.
 - `SubmissionController` is student-role (`hasRole(STUDENT)`); lecturers cannot submit.

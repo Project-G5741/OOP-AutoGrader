@@ -390,6 +390,7 @@ Compares your uploaded UML/MMD diagram against the expected class diagram.
 Tests whether your Java class declarations (class names, fields, constructors, methods) match the rubric.
 
 - Each **class card** shows pass (green) or fail (red) for the class shell.
+- A compile problem is **one short red line** under the class name (for example `Missing ; on line 4`, `Observer not found`, `Wrong class in this file`, `Declared in Observer.java`, or `See Subject`). The line wraps; it is not a raw javac dump.
 - Expand a card to see individual field / constructor / method results:
   - **Green ✓** — matches rubric.
   - **Red ✗** — wrong or missing.
@@ -505,6 +506,11 @@ A: Lecturers can export from:
 
 **Q: How do I import students into a term?**  
 A: Go to **Terms**, select the term, and drag an Excel/CSV file onto the drop zone. The file must have columns for Student ID (or IRN) and Email. See [Section 2.4](#24-terms--term-management) for details.
+
+---
+
+**Q: What does Active Users in the footer mean?**  
+A: It is how many people are currently signed in and using the app. The count refreshes every 10 seconds and drops when someone logs out. The course title stays in the center of the footer.
 
 ---
 
