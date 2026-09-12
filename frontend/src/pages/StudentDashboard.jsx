@@ -131,6 +131,31 @@ function challengeScoresFromBundles(indexedLabResult) {
   return scores;
 }
 
+function emptyStats() {
+  return { currentGrade: null, totalSubmissions: null, latestSubmission: null };
+}
+
+function statsFromLab(lab) {
+  if (!lab) return emptyStats();
+  return {
+    currentGrade: null,
+    totalSubmissions: lab.totalSubmissions ?? null,
+    latestSubmission: lab.latestSubmission ?? null,
+  };
+}
+
+function cacheEmbeddedChallenges(labs, cache) {
+  for (const lab of labs) {
+    if (Array.isArray(lab?.challenges)) {
+      cache[lab.id] = lab.challenges;
+    }
+  }
+}
+
+function firstChallengeId(challenges) {
+  return challenges.length > 0 ? challenges[0].id : null;
+}
+
 export default function StudentDashboard({ user, onLogout, view = 'dashboard' }) {
   const navigate = useNavigate();
   const showHistory = view === 'history';
@@ -159,7 +184,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   });
   const [nextAttemptNumber, setNextAttemptNumber] = useState(1);
 
-  const [isLoadingLabs, setIsLoadingLabs] = useState(false);
+  const [isLoadingLabs, setIsLoadingLabs] = useState(
+    () => view !== 'history' && isInCurrentTerm(user?.inCurrentTerm),
+  );
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isRefreshingResults, setIsRefreshingResults] = useState(false);
@@ -173,6 +200,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const testcaseDataCacheRef = useRef({});
   const labResultCacheRef = useRef({});
   const statsFetchGenRef = useRef(0);
+  const skipLabReloadRef = useRef(false);
+  const challengesByLabRef = useRef({});
 
   const studentId = user?.id;
 
@@ -186,6 +215,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (!labId) return;
     if (!silent) {
       setIsLoadingChallenges(true);
+      setChallenges([]);
+      setSelectedChallengeId(null);
     }
     setChallengesError(null);
     try {
@@ -402,9 +433,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
         const data = await res.json();
+        cacheEmbeddedChallenges(data, challengesByLabRef.current);
         setLabs(data);
         if (data.length > 0) {
-          setSelectedLabId(data[0].id);
+          setSelectedLabId((prev) => prev ?? data[0].id);
         }
       } catch (err) {
         console.info('Failed to fetch labs:', err.message);
@@ -443,9 +475,25 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     if (!selectedLabId) return;
-    fetchChallenges(selectedLabId);
-    fetchStats(selectedLabId);
-  }, [selectedLabId, fetchChallenges, fetchStats]);
+    if (skipLabReloadRef.current) return;
+    const cached = challengesByLabRef.current[selectedLabId];
+    if (cached) {
+      setChallenges(cached);
+      setSelectedChallengeId((prev) => {
+        if (prev && cached.some((challenge) => challenge.id === prev)) return prev;
+        return firstChallengeId(cached);
+      });
+      setIsLoadingChallenges(false);
+    } else {
+      fetchChallenges(selectedLabId);
+    }
+    const lab = labs.find((item) => String(item.id) === String(selectedLabId));
+    if (lab && Array.isArray(lab.challenges)) {
+      setStats(statsFromLab(lab));
+    } else {
+      fetchStats(selectedLabId);
+    }
+  }, [selectedLabId, fetchChallenges, fetchStats, labs]);
 
   useEffect(() => {
     if (!selectedLabId) return;
@@ -522,10 +570,23 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const handleLabChange = (labId) => {
     if (labId == null || String(labId) === String(selectedLabId)) return;
+    skipLabReloadRef.current = false;
     statsFetchGenRef.current += 1;
-    setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
+    const lab = labs.find((item) => String(item.id) === String(labId));
+    const cached = challengesByLabRef.current[labId];
+    if (lab && Array.isArray(lab.challenges)) {
+      setStats(statsFromLab(lab));
+    } else {
+      setStats(emptyStats());
+    }
+    if (cached) {
+      setChallenges(cached);
+      setSelectedChallengeId(firstChallengeId(cached));
+    } else {
+      setChallenges([]);
+      setSelectedChallengeId(null);
+    }
     setSelectedLabId(labId);
-    setSelectedChallengeId(null);
     classDataCacheRef.current = {};
     classNoticeCacheRef.current = {};
     mmdDataCacheRef.current = {};
@@ -582,6 +643,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const handleUploadComplete = async (uploadResponse) => {
     if (!selectedLabId) return;
 
+    skipLabReloadRef.current = true;
     statsFetchGenRef.current += 1;
     const reportedTotal = uploadResponse?.totalSubmissions;
     if (reportedTotal != null) {
@@ -602,6 +664,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       });
       setNextAttemptNumber((n) => n + 1);
     }
+    setLabs((prev) => prev.map((lab) => {
+      if (String(lab.id) !== String(selectedLabId)) return lab;
+      return {
+        ...lab,
+        totalSubmissions: reportedTotal ?? (Number(lab.totalSubmissions) || 0) + 1,
+        latestSubmission: uploadResponse?.latestSubmission ?? lab.latestSubmission,
+      };
+    }));
 
     const score = uploadResponse?.score != null
       ? Math.floor(Number(uploadResponse.score))
@@ -623,6 +693,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       ...challengeScoresFromBundles(indexedLabResult),
     };
 
+    setChallenges((prev) => {
+      const next = prev.map((challenge) => {
+        const nextScore = challengeScores[challenge.id] ?? challengeScores[String(challenge.id)];
+        if (nextScore == null || nextScore === challenge.score) {
+          return challenge;
+        }
+        return { ...challenge, score: nextScore };
+      });
+      challengesByLabRef.current[selectedLabId] = next;
+      return next;
+    });
+
     classDataCacheRef.current = {};
     mmdDataCacheRef.current = {};
     testcaseDataCacheRef.current = {};
@@ -640,7 +722,20 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       },
     }));
 
-    fetchLabSummaries();
+    setLabSummariesById((prev) => {
+      const existing = prev[selectedLabId];
+      const nextAttempts = reportedTotal != null
+        ? Number(reportedTotal)
+        : (Number(existing?.attempts) || 0) + 1;
+      return {
+        ...prev,
+        [selectedLabId]: {
+          ...(existing ?? { id: selectedLabId }),
+          attempts: nextAttempts,
+          lastSubmittedAt: uploadResponse?.latestSubmission ?? existing?.lastSubmittedAt ?? null,
+        },
+      };
+    });
 
     setRevealedLabIds((prev) =>
       prev.includes(selectedLabId) ? prev : [...prev, selectedLabId]
@@ -701,7 +796,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     return <Navigate to={ROUTES.studentHistory} replace />;
   }
 
-  const isInitialLoading = isLoadingLabs || (isLoadingChallenges && challenges.length === 0);
+  const isInitialLoading = isLoadingLabs;
 
   return (
     <>
@@ -739,6 +834,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               nextAttemptNumber={nextAttemptNumber}
               onUploadComplete={handleUploadComplete}
               isLoading={isInitialLoading}
+              isLoadingChallenges={isLoadingChallenges}
               isLoadingDetails={isLoadingDetails}
               isRefreshingResults={isRefreshingResults}
               resultsRevealed={resultsRevealed}

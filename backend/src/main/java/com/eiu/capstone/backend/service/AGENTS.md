@@ -20,11 +20,12 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete empty non-current quarters |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
-| `StudentTermAccessService` | Current-term enrollment check; blocks submit when the student is inactive or out of term |
+| `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
+| `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
 | `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
-| `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results) |
+| `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 | `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
 
@@ -46,7 +47,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
-- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading
+- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread)
 
 ### Java compilation
 
@@ -97,12 +98,14 @@ Per upload request (unique `requestId` prevents collisions):
 - `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle
 - Auth service changes affect both `AuthController` and `SubmissionController` JWT parsing
+- Upload access is `requireUploadAccess` (one query, successful results cached `app.upload.access-cache-ttl-seconds`). `GET /api/labs` calls `rememberSuccessfulAccess` after enrollment is proven. Student GET challenges/stats use `requireUploadAccess`. Do not add serial `findByEmail` / `findByIdWithTerm` / `findCurrentTerm` / `isEnrolled` back onto `POST .../upload`
+- `UploadPersistService` owns the post-grade write: one JDBC statement (`GradingResultJdbcWriter.persistUpload`) inserts `lab_submission` with `MAX(attempt)+1` and the final score, UPSERTs challenge scores, and UPSERTs progress. Do not split that into Hibernate flush + extra statements. Schedule detail UPSERT after that statement succeeds (autocommit).
 
 ## Verification
 
 - Compile path: upload `.java` files via frontend `DropZone`, confirm `classes/` populated before cleanup
 - Auth: `POST /api/auth/google` and `POST /api/auth/login` via Swagger or frontend login
-- Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected)
+- Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected; `requireUploadAccess` 401/404/403; success reused within TTL; `rememberSuccessfulAccess` skips the query)
 - Term import: `support` `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
 - Term current membership: `support` `TermServiceCurrentTermTest`
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected; hard-delete bulk-purges grading rows)
@@ -113,9 +116,10 @@ Per upload request (unique `requestId` prevents collisions):
 - Compile-error convention: `support` `CompileErrorMessageTest`, `support` `CompileClassAttributionTest`
 - Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them)
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
+- Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
-- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 
 ## Child DOX Index
 

@@ -2,14 +2,17 @@ package com.eiu.capstone.backend.controller;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
-import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,15 +40,12 @@ import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.StudentLabProgress;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabRepository;
-import com.eiu.capstone.backend.repository.LabSubmissionRepository;
-import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
-import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
-import com.eiu.capstone.backend.service.SubmissionAttemptNumbers;
+import com.eiu.capstone.backend.service.UploadPersistService;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
@@ -64,10 +64,7 @@ public class SubmissionController {
 
     private final JwtAuthHelper jwtAuthHelper;
     private final SubmissionStorageService submissionStorageService;
-    private final UserAccountRepository userAccountRepository;
     private final LabRepository labRepository;
-    private final LabSubmissionRepository labSubmissionRepository;
-    private final StudentLabProgressRepository studentLabProgressRepository;
     private final GradingService gradingService;
     private final LabRubricCache labRubricCache;
     private final MmdPersistenceHook mmdPersistenceHook;
@@ -79,14 +76,13 @@ public class SubmissionController {
     private final LecturerOverviewCache lecturerOverviewCache;
     private final PlagiarismService plagiarismService;
     private final StudentTermAccessService studentTermAccessService;
+    private final UploadPersistService uploadPersistService;
+    private final ExecutorService persistExecutor;
     private final boolean timingLog;
 
     public SubmissionController(JwtAuthHelper jwtAuthHelper,
                                  SubmissionStorageService submissionStorageService,
-                                 UserAccountRepository userAccountRepository,
                                  LabRepository labRepository,
-                                 LabSubmissionRepository labSubmissionRepository,
-                                 StudentLabProgressRepository studentLabProgressRepository,
                                  GradingService gradingService,
                                  LabRubricCache labRubricCache,
                                  MmdPersistenceHook mmdPersistenceHook,
@@ -98,13 +94,12 @@ public class SubmissionController {
                                  LecturerOverviewCache lecturerOverviewCache,
                                  PlagiarismService plagiarismService,
                                  StudentTermAccessService studentTermAccessService,
+                                 UploadPersistService uploadPersistService,
+                                 @Qualifier("persistExecutor") ExecutorService persistExecutor,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.jwtAuthHelper = jwtAuthHelper;
         this.submissionStorageService = submissionStorageService;
-        this.userAccountRepository = userAccountRepository;
         this.labRepository = labRepository;
-        this.labSubmissionRepository = labSubmissionRepository;
-        this.studentLabProgressRepository = studentLabProgressRepository;
         this.gradingService = gradingService;
         this.labRubricCache = labRubricCache;
         this.mmdPersistenceHook = mmdPersistenceHook;
@@ -116,6 +111,8 @@ public class SubmissionController {
         this.lecturerOverviewCache = lecturerOverviewCache;
         this.plagiarismService = plagiarismService;
         this.studentTermAccessService = studentTermAccessService;
+        this.uploadPersistService = uploadPersistService;
+        this.persistExecutor = persistExecutor;
         this.timingLog = timingLog;
     }
 
@@ -151,20 +148,22 @@ public class SubmissionController {
 
         long totalStart = System.currentTimeMillis();
 
-        StudentSubmitter submitter = requireStudentSubmitter(principal);
-        UserAccount userAccount = submitter.user();
-        String irn = submitter.irn();
-
-        Lab lab = labRepository.findByIdWithTerm(labId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
-        studentTermAccessService.requireCanSubmit(userAccount, lab);
+        if (principal == null || principal.email() == null || principal.email().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
+        }
+        long accessStart = System.currentTimeMillis();
+        StudentTermAccessService.UploadAccess access =
+                studentTermAccessService.requireUploadAccess(principal.email(), labId);
+        UserAccount userAccount = access.user();
+        Lab lab = access.lab();
+        String irn = resolveSubmitterIrn(principal, userAccount);
+        long accessMs = System.currentTimeMillis() - accessStart;
 
         String requestId = UUID.randomUUID().toString();
         Path submissionFolderToDelete = null;
         try {
-            long rubricStart = System.currentTimeMillis();
-            LabRubricSnapshot rubric = labRubricCache.get(lab);
-            long rubricMs = System.currentTimeMillis() - rubricStart;
+            CompletableFuture<LabRubricSnapshot> rubricFuture = CompletableFuture.supplyAsync(
+                    () -> labRubricCache.get(lab), persistExecutor);
 
             long processStart = System.currentTimeMillis();
             SubmissionStorageService.ProcessResult uploadResult =
@@ -172,40 +171,49 @@ public class SubmissionController {
             submissionFolderToDelete = uploadResult.submissionFolder;
             long processMs = System.currentTimeMillis() - processStart;
 
+            long rubricJoinStart = System.currentTimeMillis();
+            LabRubricSnapshot rubric = joinRubric(rubricFuture);
+            long rubricMs = System.currentTimeMillis() - rubricJoinStart;
+
             if (attemptNumber == null || attemptNumber < 1) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "attemptNumber must be a positive integer");
             }
 
-            // Path attemptNumber is not used to locate a row. A stale client value
-            // (common after a large lab_result parse) would upsert and freeze counts.
-            int assignedAttempt = SubmissionAttemptNumbers.next(
-                    labSubmissionRepository.findMaxAttemptNumber(userAccount.getId(), labId));
             LabSubmission submission = new LabSubmission();
+            submission.setId(UUID.randomUUID());
             submission.setUser(userAccount);
             submission.setLab(lab);
-            submission.setAttemptNumber(assignedAttempt);
             submission.setScore(BigDecimal.ZERO);
-            submission = labSubmissionRepository.save(submission);
+            submission.setSubmittedAt(TimeUtil.nowInVietnam());
 
             long gradeStart = System.currentTimeMillis();
             GradingOutcome gradingOutcome = gradingService.gradeSubmission(
                     submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
-            submission.setScore(gradingOutcome.overallScore());
-            submission = labSubmissionRepository.save(submission);
+            long persistStart = System.currentTimeMillis();
+            UploadPersistService.PersistResult persisted = uploadPersistService.persist(
+                    submission, gradingOutcome);
+            submission = persisted.submission();
+            StudentLabProgress progress = persisted.progress();
+            int assignedAttempt = submission.getAttemptNumber();
+            long persistMs = System.currentTimeMillis() - persistStart;
 
-            int totalSubmissions = (int) labSubmissionRepository.countByUser_IdAndLab_Id(
-                    userAccount.getId(), labId);
-
-            StudentLabProgress progress = updateStudentProgress(
-                    userAccount, lab, submission, gradingOutcome.overallScore(), totalSubmissions);
-
-            compileErrorStore.save(submission.getId(), compileErrorsByChallengeId(rubric, uploadResult.challenges));
-            packageNormalizationStore.save(
-                    submission.getId(),
-                    packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges));
-            submissionMmdMetaStore.save(submission.getId(), gradingOutcome.mmdMetaByChallengeId());
+            UUID persistedId = submission.getId();
+            Map<UUID, ChallengeCompileErrors> compileErrors =
+                    compileErrorsByChallengeId(rubric, uploadResult.challenges);
+            Map<UUID, String> packageNotices =
+                    packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges);
+            var mmdMeta = gradingOutcome.mmdMetaByChallengeId();
+            CompletableFuture.runAsync(() -> {
+                try {
+                    compileErrorStore.save(persistedId, compileErrors);
+                    packageNormalizationStore.save(persistedId, packageNotices);
+                    submissionMmdMetaStore.save(persistedId, mmdMeta);
+                } catch (RuntimeException e) {
+                    System.out.printf("sidecar persist failed submission=%s%n", persistedId);
+                }
+            }, persistExecutor);
 
             long plagiarismStart = System.currentTimeMillis();
             try {
@@ -226,9 +234,11 @@ public class SubmissionController {
 
             if (timingLog) {
                 TimingLog.block(true, "Upload",
+                        "access", accessMs,
                         "rubric", rubricMs,
                         "compile", processMs,
                         "grade", gradeMs,
+                        "persist", persistMs,
                         "plagiarism", plagiarismMs,
                         "total", System.currentTimeMillis() - totalStart);
             }
@@ -240,7 +250,7 @@ public class SubmissionController {
                     challengeResult,
                     submission.getScore(),
                     assignedAttempt,
-                    totalSubmissions,
+                    assignedAttempt,
                     progress.getLastSubmittedAt() == null
                             ? null
                             : TimeUtil.formatLatestSubmission(progress.getLastSubmittedAt()),
@@ -248,34 +258,22 @@ public class SubmissionController {
             ));
         } finally {
             if (submissionFolderToDelete != null) {
-                submissionStorageService.deleteFolder(submissionFolderToDelete);
+                Path folder = submissionFolderToDelete;
+                CompletableFuture.runAsync(() -> submissionStorageService.deleteFolder(folder), persistExecutor);
             }
         }
     }
 
-    private StudentLabProgress updateStudentProgress(UserAccount userAccount,
-                                                     Lab lab,
-                                                     LabSubmission submission,
-                                                     BigDecimal score,
-                                                     int submissionCount) {
-        StudentLabProgress progress = studentLabProgressRepository.findByUserAndLab(userAccount, lab)
-                .orElseGet(StudentLabProgress::new);
-        progress.setUser(userAccount);
-        progress.setLab(lab);
-
-        OffsetDateTime now = TimeUtil.nowInVietnam();
-        if (progress.getFirstSubmittedAt() == null) {
-            progress.setFirstSubmittedAt(now);
+    private LabRubricSnapshot joinRubric(CompletableFuture<LabRubricSnapshot> rubricFuture) {
+        try {
+            return rubricFuture.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw e;
         }
-        progress.setLastSubmittedAt(now);
-        progress.setAttemptsCount(submissionCount);
-
-        if (progress.getHighestScore() == null || score.compareTo(progress.getHighestScore()) > 0) {
-            progress.setHighestScore(score);
-            progress.setBestSubmissionId(submission.getId());
-        }
-
-        return studentLabProgressRepository.save(progress);
     }
 
     private Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId(
@@ -321,10 +319,7 @@ public class SubmissionController {
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : null;
     }
 
-    private record StudentSubmitter(UserAccount user, String irn) {}
-
-    private StudentSubmitter requireStudentSubmitter(JwtUserPrincipal principal) {
-        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+    private String resolveSubmitterIrn(JwtUserPrincipal principal, UserAccount user) {
         String irn = principal != null ? principal.irn() : null;
         if (irn == null || irn.isBlank()) {
             irn = user.getIrn();
@@ -333,6 +328,13 @@ public class SubmissionController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "This account has no IRN on file (teacher accounts cannot submit labs)");
         }
-        return new StudentSubmitter(user, irn);
+        return irn;
+    }
+
+    private record StudentSubmitter(UserAccount user, String irn) {}
+
+    private StudentSubmitter requireStudentSubmitter(JwtUserPrincipal principal) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return new StudentSubmitter(user, resolveSubmitterIrn(principal, user));
     }
 }

@@ -1,5 +1,8 @@
 package com.eiu.capstone.backend.service;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -34,11 +37,23 @@ public class StatsService {
         }
 
         var statsRow = statsRepository.findStats(studentId, labId);
-        if (statsRow.isEmpty()) {
-            return new StatsDTO(null, null, null);
-        }
+        StatsDTO result = statsRow.map(this::toDto).orElseGet(() -> new StatsDTO(null, null, null));
+        TimingLog.line(timingLog, "Read stats", System.currentTimeMillis() - start);
+        return result;
+    }
 
-        StatsRepository.StatsRow row = statsRow.get();
+    public Map<UUID, StatsDTO> getStatsForLabs(UUID studentId, Collection<UUID> labIds) {
+        if (studentId == null || labIds == null || labIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, StatsDTO> byLab = new HashMap<>();
+        for (var entry : statsRepository.findStatsByLabIds(studentId, labIds).entrySet()) {
+            byLab.put(entry.getKey(), toDto(entry.getValue()));
+        }
+        return byLab;
+    }
+
+    private StatsDTO toDto(StatsRepository.StatsRow row) {
         if (row.submissionCount() == 0 && row.attemptsFromProgress() == null) {
             return new StatsDTO(null, null, null);
         }
@@ -49,12 +64,7 @@ public class StatsService {
 
         int submissionCount = row.submissionCount();
         Integer totalSubmissions = submissionCount == 0 ? null : submissionCount;
-
         String latestSubmission = TimeUtil.formatLatestSubmission(row.latestSubmittedAtOffset());
-
-        StatsDTO result = new StatsDTO(currentGrade, totalSubmissions, latestSubmission);
-
-        TimingLog.line(timingLog, "Read stats", System.currentTimeMillis() - start);
-        return result;
+        return new StatsDTO(currentGrade, totalSubmissions, latestSubmission);
     }
 }

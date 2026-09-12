@@ -191,6 +191,7 @@ export default function StudentUI({
 
   // Loading/Error states
   isLoading = false,
+  isLoadingChallenges = false,
   isLoadingDetails = false,
   isRefreshingResults = false,
   resultsRevealed = false,
@@ -395,7 +396,12 @@ export default function StudentUI({
               <h2 className="text-sm font-semibold text-foreground-secondary">Challenges</h2>
             </div>
             <ul className="flex-1 overflow-y-auto divide-y divide-border">
-              {challenges.length === 0 ? (
+              {isLoadingChallenges && challenges.length === 0 ? (
+                <li className="px-4 py-8 text-center">
+                  <div className="mx-auto h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <p className="mt-2 text-sm text-foreground-muted">Loading challenges...</p>
+                </li>
+              ) : challenges.length === 0 ? (
                 <li className="px-4 py-8 text-center text-foreground-muted text-sm">
                   No challenges available
                 </li>

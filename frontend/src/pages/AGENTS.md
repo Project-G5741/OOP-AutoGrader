@@ -58,7 +58,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results) | `GET /api/labs` only when `inCurrentTerm`; `GET /api/submissions/my-labs?scope=current` for notifications; `GET /api/labs/{id}/stats` on login/lab change for attempts + latest timestamp only; **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
+| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results) | Full-page spinner waits only for `GET /api/labs` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `/challenges` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` + `my-labs` (all quarters, `termLabel` on each lab/submission) |
 
 ### Header commands (`Header.jsx` → `onCommand`)
@@ -80,7 +80,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `DELETE /api/users/{id}` | `UserManagement.jsx` |
 | `POST /api/users/{id}/suspend` | `UserManagement.jsx`, `TermManagement.jsx` — student-only; blocks login |
 | `POST /api/users/{id}/unsuspend` | `UserManagement.jsx`, `TermManagement.jsx` — restores login |
-| `GET /api/labs` | `StudentDashboard.jsx` (student JWT; current-term labs only; skipped when out of term) |
+| `GET /api/labs` | `StudentDashboard.jsx` (student JWT; current-term labs only, with embedded challenges + attempt stats; skipped when out of term) |
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
 | `GET /api/lecturer/terms` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |

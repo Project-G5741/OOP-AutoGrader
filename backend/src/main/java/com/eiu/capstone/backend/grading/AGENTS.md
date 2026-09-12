@@ -8,7 +8,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 
 | File | Role |
 |---|---|
-| `GradingService.java` | Thin orchestrator: parallel per-challenge grading, persistence, `lab_result` assembly |
+| `GradingService.java` | Thin orchestrator: parallel per-challenge grading, `lab_result` assembly (persist is `UploadPersistService`) |
 | `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
 | `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0%; otherwise members are all-or-nothing (every graded attribute must match); leftover snapshot `"partial"` labels display as fail and are not rewritten; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
@@ -46,20 +46,22 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 
 ```
 SubmissionController
-  → LabRubricCache.get(lab)
+  → StudentTermAccessService.requireUploadAccess()  (one query; 30s success cache; warmed by GET /api/labs)
+  → LabRubricCache.get(lab)                         (overlaps compile)
   → SubmissionStorageService.processUpload()
-  → GradingService.gradeSubmission()
+  → assign lab_submission.id in memory
+  → GradingService.gradeSubmission()   (compute + assemble only)
       → GradingPipeline.gradeChallenge() per folder
           → ClassReflectionGrader (sync)
           → MmdPillarGrader + TestcaseGrader (parallel on `pillarExecutor`, not `gradingExecutor`)
-      → GradingResultStore.saveChallengeScores() (JDBC UPSERT)
-      → ParsedSubmissionSnapshotStore
-      → persistExecutor: GradingResultJdbcWriter detail UPSERT
       → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
           → skip MMD/testcase trees when pillar not applicable
-  → PlagiarismService.inspectUpload()   (request thread; after grade; failures swallowed)
+  → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
+      → persistExecutor after that statement: GradingResultJdbcWriter detail UPSERT
+  → compile/package/mmd sidecars off-thread
+  → PlagiarismService.inspectUpload()   (request thread; after persist; failures swallowed)
   → MmdPersistenceHook.onUploadComplete()
-  → SubmissionStorageService.deleteFolder() (finally)
+  → SubmissionStorageService.deleteFolder() (finally, off-thread)
 ```
 
 ### Scoring
@@ -83,7 +85,7 @@ SubmissionController
 
 ### Result persistence
 
-Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
+Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (one statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
 
 | Entity | Stores |
 |---|---|
@@ -114,7 +116,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
 - Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
-- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `save`, `assemble`, `total`); upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`)
+- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `assemble`, `total`); upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`)
 
 ## Verification
 

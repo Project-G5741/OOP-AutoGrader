@@ -42,23 +42,24 @@ Each **challenge** in a lab is graded on up to **three independent pillars**. Cl
 ```
 POST /api/submissions/{labId}/{attemptNumber}/upload
   │
-  ├─ LabRubricCache.get(lab)                      ← load rubric from DB (cached)
+  ├─ requireUploadAccess                          ← one query (cached 30s on success; warmed by GET /api/labs)
+  ├─ LabRubricCache.get(lab)                      ← overlaps compile (cache hit is leftover 0ms)
   ├─ SubmissionStorageService.processUpload()     ← validate paths, in-memory compile .java per challenge
-  ├─ insert new LabSubmission (MAX(attempt_number)+1; path attempt is unused)
-  ├─ GradingService.gradeSubmission()
+  ├─ assign lab_submission.id in memory (path attempt unused)
+  ├─ GradingService.gradeSubmission()             ← compute + lab_result assemble only
   │    ├─ [parallel per challenge on gradingExecutor]
   │    │    └─ GradingPipeline.gradeChallenge()
   │    │         ├─ ReflectionClassParser.parseClasses()   ← load .class via URLClassLoader
   │    │         ├─ ClassReflectionGrader.grade()            ← sync
   │    │         ├─ MmdPillarGrader.grade()                  ← async on pillarExecutor
   │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor; invokes serialize on testcaseInvokeExecutor
-  │    ├─ GradingResultStore.saveChallengeScores()  ← challenge scores on the request thread
-  │    ├─ persistExecutor: detail UPSERT            ← members/testcases off-request
   │    └─ LabResultAssembler.assemble()             ← in-memory lab_result bundle
-  ├─ compileErrorStore / packageNormalizationStore / mmdMetaStore
-  ├─ PlagiarismService.inspectUpload()            ← on the request thread; must not fail the upload
+  ├─ UploadPersistService.persist()               ← one SQL: insert MAX+1, challenge UPSERT, progress
+  │    └─ persistExecutor after that statement: detail UPSERT
+  ├─ compileErrorStore / packageNormalizationStore / mmdMetaStore  ← persistExecutor
+  ├─ PlagiarismService.inspectUpload()            ← on the request thread after persist; must not fail the upload
   ├─ MmdPersistenceHook.onUploadComplete()        ← no-op by default
-  └─ SubmissionStorageService.deleteFolder()      ← finally: wipe temp files
+  └─ SubmissionStorageService.deleteFolder()      ← finally on persistExecutor: wipe temp files
 ```
 
 ---
@@ -74,18 +75,19 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
 public ResponseEntity<SubmissionUploadResponse> upload(...)
 ```
 
-1. **`@AuthenticationPrincipal JwtUserPrincipal`** — Spring Security JWT; `requireStudentSubmitter` requires an active student with a usable IRN. Lecturers cannot submit.
-2. **`labRepository.findByIdWithTerm(labId)`** — Loads the lab with its term; 404 if missing. `studentTermAccessService.requireCanSubmit` blocks inactive or out-of-term students.
+1. **`@AuthenticationPrincipal JwtUserPrincipal`** — Spring Security JWT (`/api/submissions/**` is `STUDENT` only). Blank email is 401.
+2. **`studentTermAccessService.requireUploadAccess(email, labId)`** — One query (`UserAccountRepository.findUploadAccess`) loads the user, optional lab+term, and enrollment count. Successful results are cached `app.upload.access-cache-ttl-seconds` (default 30); denials are not. `GET /api/labs` remembers visible labs after enrollment is proven, and student GET challenges/stats call the same method, so the first upload after opening the dashboard usually skips the Neon round-trip. Deadline openness is still checked with `Instant.now()` on a cache hit. Same 401/404/403 families as before (unknown user, missing lab, inactive, not enrolled, lab not in current quarter, lab not open). Compile does not start until this succeeds. IRN is resolved from the JWT or the user row; teacher-only accounts without IRN are 403.
 3. **`requestId = UUID.randomUUID()`** — Unique folder name to prevent upload collisions under the same IRN.
 4. **`submissionFolderToDelete = null`** — Tracked so the `finally` block can always clean up temp storage.
 
-### 2.2 Rubric load
+### 2.2 Rubric load (overlaps compile)
 
 ```java
-LabRubricSnapshot rubric = labRubricCache.get(lab);
+CompletableFuture<LabRubricSnapshot> rubricFuture = CompletableFuture.supplyAsync(
+        () -> labRubricCache.get(lab));
 ```
 
-Loads the full immutable rubric graph (challenges → classes → fields/methods/constructors → relations → testcases with invocations/assertions) from PostgreSQL, with in-process TTL caching (`app.grading.rubric-cache-ttl-minutes`, default 30).
+Loads the full immutable rubric graph (challenges → classes → fields/methods/constructors → relations → testcases with invocations/assertions) from PostgreSQL, with in-process TTL caching (`app.grading.rubric-cache-ttl-minutes`, default 30). The future starts before `processUpload`; `rubric` in the timing log is leftover wait after compile (0 on a warm cache hit).
 
 ### 2.3 Upload processing
 
@@ -93,13 +95,14 @@ Loads the full immutable rubric graph (challenges → classes → fields/methods
 SubmissionStorageService.ProcessResult uploadResult =
     submissionStorageService.processUpload(irn, requestId, files);
 submissionFolderToDelete = uploadResult.submissionFolder;
+LabRubricSnapshot rubric = rubricFuture.join();
 ```
 
 Validates folder structure, groups files by challenge, compiles Java in parallel. Returns challenge folders, MMD file lists, and compile metadata. See [Phase B](#4-phase-b-upload-processing--java-compilation).
 
 ### 2.4 Submission record
 
-Each upload **inserts a new attempt**. `SubmissionAttemptNumbers.next(MAX+1)` assigns the number. The `{attemptNumber}` path segment is not used to locate or overwrite a prior row (a stale client value after a large `lab_result` parse would otherwise freeze counts).
+Each upload **inserts a new attempt after grade**. `lab_submission.id` is assigned in memory so grading can reference it before insert. Attempt number is `MAX+1` inside the persist SQL. The `{attemptNumber}` path segment is not used to locate or overwrite a prior row (a stale client value after a large `lab_result` parse would otherwise freeze counts).
 
 ### 2.5 Grading
 
@@ -108,22 +111,21 @@ GradingOutcome gradingOutcome = gradingService.gradeSubmission(
     submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge);
 ```
 
-Main grading entry. See [Phase C](#5-phase-c-grading-orchestration). Detail rows UPSERT by natural key; there is no `loadExisting` / `isNewSubmission` flag.
+Main grading entry (compute + `lab_result` assemble only). See [Phase C](#5-phase-c-grading-orchestration). Detail rows UPSERT by natural key after persist commits; there is no `loadExisting` / `isNewSubmission` flag.
 
 ### 2.6 Post-grade persistence
 
-- **`submission.setScore(gradingOutcome.overallScore())`** — Lab-level percentage saved to `lab_submission.score`.
-- **`updateStudentProgress(...)`** — Updates `student_lab_progress` (attempts count from `COUNT(lab_submission)`, highest score, timestamps).
-- **`compileErrorStore.save(...)`** — Writes per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
-- **`packageNormalizationStore.save(...)`** — Non-blocking package-stripped warning when student sources included `package` declarations.
-- **`submissionMmdMetaStore.save(...)`** — Writes MMD metadata to `_mmd_meta/{submissionId}.json`.
+- **`UploadPersistService.persist(...)`** — One JDBC statement (`GradingResultJdbcWriter.persistUpload`): insert `lab_submission` with `MAX+1` and the final score, UPSERT `submission_challenge_result`, UPSERT `student_lab_progress`. Then write the parsed snapshot and schedule member/testcase UPSERT (the submission row is already committed).
+- **`compileErrorStore.save(...)`** — Off-thread after persist: per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
+- **`packageNormalizationStore.save(...)`** — Off-thread: package-stripped warning when student sources included `package` declarations.
+- **`submissionMmdMetaStore.save(...)`** — Off-thread: MMD metadata to `_mmd_meta/{submissionId}.json`.
 - **`plagiarismService.inspectUpload(submission, files)`** — Fingerprint + pairwise compare against other students in the lab. Runs on the upload thread; exceptions are swallowed so the student still gets results.
 - **`labStatisticsCache.invalidate(labId)`** / **`lecturerOverviewCache.invalidate()`** — Clears lecturer analytics caches.
 - **`mmdPersistenceHook.onUploadComplete(...)`** — Extension point for archiving `.mmd` files (default no-op).
 
 ### 2.7 Response & cleanup
 
-Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bundle. The `finally` block calls `submissionStorageService.deleteFolder(submissionFolderToDelete)` — compiled classes and temp folders are deleted after grading. Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` (60s) for the off-thread detail UPSERT.
+Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bundle. The `finally` block schedules `submissionStorageService.deleteFolder(submissionFolderToDelete)` on `persistExecutor` — compiled classes and temp folders are deleted after grading without holding the HTTP response. Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` (60s) for the off-thread detail UPSERT. The student dashboard applies the upload payload in place and does not refetch `GET /challenges` or `GET /stats` until the student selects a different lab.
 
 ---
 
@@ -231,11 +233,8 @@ public GradingOutcome gradeSubmission(LabSubmission submission,
 |------|--------|---------|
 | 1 | `emptyExistingResults()` | Always empty maps; UPSERT by natural key, no `loadExisting` |
 | 2 | `computeAgainstSnapshot(...)` | Parallel per-challenge grading |
-| 3 | `gradingResultStore.saveChallengeScores(computed)` | Challenge scores on the request thread |
-| 4 | `parsedSubmissionSnapshotStore.save(...)` | Save display snapshots for Class/MMD tabs |
-| 5 | `gradingResultStore.scheduleDetailPersist(...)` | Member/testcase UPSERT on `persistExecutor` |
-| 6 | `labResultAssembler.assemble(...)` | In-memory `lab_result` from `LabRubricSnapshot` (no Neon structure reload) |
-| 7 | `return new GradingOutcome(...)` | Overall score + challenge summaries + MMD meta + lab_result |
+| 3 | `labResultAssembler.assemble(...)` | In-memory `lab_result` from `LabRubricSnapshot` (no Neon structure reload) |
+| 4 | `return new GradingOutcome(...)` | Overall score + challenge summaries + MMD meta + lab_result + computed (persist is `UploadPersistService`) |
 
 ### 5.2 `computeAgainstSnapshot()` (lines 136–235)
 
@@ -668,7 +667,7 @@ String comparison: trim + lowercase (`normalize()`).
 
 **File:** `grading/GradingResultStore.java`
 
-Challenge scores UPSERT on the upload thread (`submission_challenge_result_key`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload of a **new attempt** inserts a new `lab_submission` row; element UPSERT is per (submission, rubric element), not by overwriting a prior attempt.
+`UploadPersistService` runs one JDBC statement: insert `lab_submission` (`MAX+1`, final score), UPSERT `submission_challenge_result`, UPSERT `student_lab_progress` (`ON CONFLICT student_lab_progress_user_lab_key`). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Snapshot write is local disk after that statement. Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after the statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload of a **new attempt** inserts a new `lab_submission` row; element UPSERT is per (submission, rubric element), not by overwriting a prior attempt.
 
 | Table / entity | Content |
 |----------------|---------|
@@ -715,10 +714,11 @@ Allows student UI to render results immediately without follow-up API calls.
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
 | (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge (not CPU-capped) |
 | (fixed) | 1 | `testcaseInvokeExecutor` | Serializes student `System.out` capture and invoke timeouts |
-| (fixed) | 2 | `persistExecutor` | Off-request detail UPSERT |
+| (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, temp delete |
 | `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout |
 | `app.grading.rubric-cache-ttl-minutes` | 30 | `LabRubricCache` | Rubric cache TTL |
-| `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), compile, challenge, grade submission |
+| `app.upload.access-cache-ttl-seconds` | 30 | `StudentTermAccessService` | Successful upload-access cache; denials not cached |
+| `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), compile, challenge, grade submission |
 | `app.storage.submission-base-dir` | `submissions/` | — | Temp upload root |
 
 **Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD+testcase futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
@@ -730,9 +730,11 @@ Allows student UI to render results immediately without follow-up API calls.
 | File | Role |
 |------|------|
 | `controller/SubmissionController.java` | Upload HTTP entry, JWT auth, post-grade side effects |
+| `service/StudentTermAccessService.java` | Upload + student GET challenges/stats `requireUploadAccess` (one query, 30s success cache); other submit paths `requireCanSubmit` |
+| `service/UploadPersistService.java` | After grade: one JDBC persist SQL + snapshot; detail persist after that statement |
 | `service/SubmissionStorageService.java` | Path validation, parallel compile, folder lifecycle |
 | `service/JavaCompilerService.java` | `javax.tools.JavaCompiler` wrapper |
-| `grading/GradingService.java` | Top-level orchestrator, parallel challenges, persistence |
+| `grading/GradingService.java` | Top-level orchestrator, parallel challenges, `lab_result` assemble |
 | `grading/pipeline/GradingPipeline.java` | Per-challenge staged pipeline |
 | `grading/pipeline/ChallengeGradingContext.java` | Shared context record |
 | `grading/pipeline/ClassReflectionGrader.java` | Java/.class pillar |
@@ -763,7 +765,7 @@ Allows student UI to render results immediately without follow-up API calls.
 
 ## 14. Wall-clock cost and time complexity
 
-Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`rubric`, `compile`, `grade`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `save`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
+Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
 Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes.
 
@@ -776,7 +778,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 | 5 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
 | 6 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | Overlaps testcases on `pillarExecutor`; usually smaller than invoke |
 | 7 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
-| 8 | Challenge-score UPSERT + snapshot | Small vs compute | *O(C)* | On the request thread |
+| 8 | Persist SQL (insert MAX+1 + challenge UPSERT + progress) | One Neon RTT | *O(C)* | On the request thread after assemble |
 | — | Detail UPSERT | Large *E* | *O(E)* JDBC | **Off-request** (`persistExecutor`); GET tabs wait up to 60s |
 | — | Multipart + `.git` | Fat folders | *O(upload bytes)* | Before compile; Spring reads every part including `.git` |
 
@@ -784,7 +786,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 
 **Why plagiarism can overtake compile on a large roster:** `inspectUpload` compares the new fingerprint to **every other fingerprint** in the lab (every prior attempt of every other student), then `bestScoresForLabUsers` issues one query per other user.
 
-Cleanup (`deleteFolder`) runs in `finally` after the response is built; it is not on the critical path for JSON generation but still holds the HTTP thread until the delete walk finishes.
+Cleanup (`deleteFolder`) is scheduled on `persistExecutor` in `finally` after the response is built; it does not hold the HTTP thread.
 
 ---
 

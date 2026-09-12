@@ -12,4 +12,5 @@ public record GradingOutcome(
         BigDecimal overallScore,
         List<GradedChallengeSummary> gradedChallenges,
         Map<UUID, ChallengeMmdMeta> mmdMetaByChallengeId,
-        Map<String, ChallengeDetailBundleDTO> labResult) {}
+        Map<String, ChallengeDetailBundleDTO> labResult,
+        GradingService.GradingComputationResult computed) {}

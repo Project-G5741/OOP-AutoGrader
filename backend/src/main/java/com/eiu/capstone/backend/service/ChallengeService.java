@@ -112,20 +112,39 @@ public class ChallengeService {
                         constructorsByClass,
                         correctIds);
             }
-            result.add(new ChallengeDTO(
-                    challenge.getId(),
-                    challenge.getChallengeNumber(),
-                    challenge.getName(),
-                    score,
-                    Math.max(1, challenge.getWeight()),
-                    Math.max(1, challenge.getClassWeight()),
-                    Math.max(1, challenge.getMmdWeight()),
-                    Math.max(1, challenge.getTestcaseWeight()),
-                    challenge.isHasMmd()));
+            result.add(toSidebarDto(challenge, score));
         }
 
         TimingLog.line(timingLog, "Read challenges", System.currentTimeMillis() - start);
         return result;
+    }
+
+    public Map<UUID, List<ChallengeDTO>> listSidebarChallengesByLabIds(Collection<UUID> labIds) {
+        if (labIds == null || labIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<ChallengeDTO>> byLab = new LinkedHashMap<>();
+        for (UUID labId : labIds) {
+            byLab.put(labId, new ArrayList<>());
+        }
+        for (Challenge challenge : challengeRepository.findByLab_IdInOrderByChallengeNumberAsc(labIds)) {
+            UUID labId = challenge.getLab().getId();
+            byLab.computeIfAbsent(labId, ignored -> new ArrayList<>()).add(toSidebarDto(challenge, null));
+        }
+        return byLab;
+    }
+
+    private ChallengeDTO toSidebarDto(Challenge challenge, Integer score) {
+        return new ChallengeDTO(
+                challenge.getId(),
+                challenge.getChallengeNumber(),
+                challenge.getName(),
+                score,
+                Math.max(1, challenge.getWeight()),
+                Math.max(1, challenge.getClassWeight()),
+                Math.max(1, challenge.getMmdWeight()),
+                Math.max(1, challenge.getTestcaseWeight()),
+                challenge.isHasMmd());
     }
 
     /**

@@ -228,18 +228,17 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 ```
-1. JWT principal → active student with IRN; current-term submit check
-2. Load Lab with term from DB
-3. LabRubricCache.get(lab) → immutable rubric snapshot (cached 30 min)
-4. SubmissionStorageService.processUpload(irn, requestId, files)
-5. Insert new LabSubmission (MAX(attempt_number)+1; path attempt unused)
-6. GradingService.gradeSubmission(...)
-7. Save overall score to lab_submission; update student_lab_progress
-8. Save compile errors, package-normalization notices, MMD metadata
-9. PlagiarismService.inspectUpload (on this thread; failures swallowed)
-10. Invalidate analytics caches
-11. Return challenge scores + lab_result bundle
-12. finally: delete temp submission folder on disk
+1. JWT email → `requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs`)
+2. LabRubricCache.get(lab) starts in parallel with compile → immutable rubric snapshot (cached 30 min)
+3. SubmissionStorageService.processUpload(irn, requestId, files)
+4. Assign lab_submission.id in memory (path attempt unused)
+5. GradingService.gradeSubmission(...) compute + lab_result assemble
+6. UploadPersistService: one JDBC statement inserts submission (`MAX+1`, final score), challenge UPSERT, progress; detail UPSERT after that statement
+7. Save compile errors, package-normalization notices, MMD metadata (`persistExecutor`)
+8. PlagiarismService.inspectUpload (request thread after persist; failures swallowed)
+9. Invalidate analytics caches
+10. Return challenge scores + lab_result bundle
+11. finally: delete temp submission folder on disk (`persistExecutor`)
 ```
 
 #### Step 4 — File handling (`SubmissionStorageService`)
@@ -362,7 +361,7 @@ erDiagram
 5. GET /api/labs → student picks "Lab 1"
 6. GET /api/labs/{id}/stats → shows prior grade if any
 7. Student drops folder → DropZone POST /api/submissions/{labId}/1/upload
-8. Backend: compile → class/MMD/testcase pillars → persist → plagiarism inspect → return scores + `lab_result`
+8. Backend: access check → compile → class/MMD/testcase pillars → one persist SQL → plagiarism inspect (unless disabled) → return scores + `lab_result`
 9. Frontend updates challenge sidebar, class tab, stats cards
 10. Data persists in PostgreSQL; temp files deleted
 ```
@@ -382,7 +381,7 @@ erDiagram
 
 - Unique key: `(user_id, lab_id, attempt_number)` on `lab_submission`
 - Each upload **inserts a new attempt** (`MAX(attempt_number)+1`). The URL `{attemptNumber}` is not used to overwrite a prior row
-- `attemptsCount` is `COUNT(lab_submission)` after the insert
+- `attemptsCount` / upload `totalSubmissions` is the assigned attempt number (equal to `COUNT` after a successful `MAX+1` insert)
 - Element results UPSERT by (submission, rubric element) natural keys for that new submission
 
 ---
@@ -421,4 +420,4 @@ CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the 
 | **Backend** | Spring Boot 3.2 + Java 17 | JVM `:8002` | PostgreSQL + temp `submissions/` |
 | **Database** | PostgreSQL (Neon) | Cloud | All users, rubrics, grades, progress |
 
-The **critical path** is: **browser upload → Spring controller → in-memory compile → reflection + MMD + operational testcases → challenge-score save → plagiarism inspect → JSON response → React UI update**. Detail UPSERT continues off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.
+The **critical path** is: **browser upload → Spring controller → one-query access check → in-memory compile → reflection + MMD + operational testcases → one persist SQL → plagiarism inspect (when enabled) → JSON response → React UI update**. Detail UPSERT continues off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.

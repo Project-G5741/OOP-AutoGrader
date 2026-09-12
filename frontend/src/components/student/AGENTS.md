@@ -36,20 +36,21 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 `StudentDashboard.jsx` passes to `DropZone`:
 
 - Out-of-term students skip `GET /api/labs` and stay on History. The History route also skips dashboard `GET /api/labs` and `GET /api/submissions/my-labs` — `StudentHistoryPage` loads history APIs itself.
-- `labSummariesById` — from `GET /api/submissions/my-labs?scope=current` in `StudentDashboard.jsx` (current quarter only); powers “no submission yet” notifications
+- `GET /api/labs` for a student JWT includes `challenges` plus `totalSubmissions` / `latestSubmission` per lab. `StudentDashboard` caches those by lab id and skips follow-up `/challenges` and `/stats` on login and lab switch unless the fields are missing.
+- `labSummariesById` — from `GET /api/submissions/my-labs?scope=current` in `StudentDashboard.jsx` (current quarter only); after upload, `attempts` is patched from the upload response so the “no submission yet” notification clears without a refetch
 - `attemptNumber` — next unused attempt from backend `totalSubmissions + 1` after each upload (server still assigns `MAX+1` if the client number is stale)
 - `authToken` — from `user.accessToken`
 
 Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
 
-After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `challengeNumber` from `GET /api/labs/{id}/challenges`) and populates Class/MMD/Testcase tabs without follow-up `/class` or `/mmd` fetches. History view still uses read endpoints when no cached bundle exists.
+After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD/Testcase tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view still uses read endpoints when no cached bundle exists.
 
 - **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
 
 ### Lab list layout (`StudentUI.jsx`)
 
 - Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
-- Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results
+- Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 - Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
 
@@ -72,7 +73,7 @@ After upload, `StudentDashboard` caches `lab_result` per challenge (keyed by `ch
 
 ### Dashboard stats row (`StudentUI.jsx`)
 
-- Stats are lab-scoped; `StudentDashboard` clears attempt/latest only when switching to a **different** lab, then reloads them from `GET /api/labs/{labId}/stats` (grade is not loaded from this API). Clicking the already-selected lab is a no-op.
+- Stats are lab-scoped; `StudentDashboard` applies `totalSubmissions` / `latestSubmission` from the selected lab in `GET /api/labs` (or `/stats` if those fields are missing). Switching labs uses the already-loaded lab payload; grade is not loaded from this API. Clicking the already-selected lab is a no-op.
 - **Total Submissions** and **Latest Submission** always reflect DB history for the selected lab.
 - **Current Grade** follows the same session-reveal rule as challenge sidebar scores: `--/--` until the student completes an upload in the current browser session for that lab; then shows the score from the upload response. Switching labs resets the grade until that lab is uploaded again in-session.
 
