@@ -25,6 +25,21 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @EntityGraph(attributePaths = "roles")
     Optional<UserAccount> findByEmail(String email);
 
+    /**
+     * One round-trip for upload access: user by email, optional lab+term, enrollment count
+     * in that lab's term (0 when the lab/term is missing).
+     */
+    @Query("""
+            SELECT u, l, t,
+                   (SELECT COUNT(e.id) FROM TermEnrollment e
+                    WHERE e.user.id = u.id AND e.term.id = t.id)
+            FROM UserAccount u
+            LEFT JOIN Lab l ON l.id = :labId
+            LEFT JOIN l.term t
+            WHERE u.email = :email
+            """)
+    List<Object[]> findUploadAccess(@Param("email") String email, @Param("labId") UUID labId);
+
     @EntityGraph(attributePaths = "roles")
     Optional<UserAccount> findByEmailIgnoreCase(String email);
 

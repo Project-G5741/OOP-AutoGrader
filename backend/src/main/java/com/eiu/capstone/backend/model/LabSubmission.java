@@ -7,8 +7,6 @@ import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -29,7 +27,6 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 public class LabSubmission {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -53,6 +50,9 @@ public class LabSubmission {
 
     @PrePersist
     protected void onCreate() {
+        if (id == null) {
+            id = UUID.randomUUID();
+        }
         if (score == null) {
             score = BigDecimal.ZERO;
         }
@@ -62,6 +62,7 @@ public class LabSubmission {
     }
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public UserAccount getUser() { return user; }
     public void setUser(UserAccount user) { this.user = user; }

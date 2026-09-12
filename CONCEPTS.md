@@ -26,7 +26,7 @@ A class's optional Extends or Implements target, authored on the class editor as
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
 ### Upload hot path
-The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: rubric cache → parallel compile → parallel grade (but testcase invokes globally serial) → challenge-score save → `lab_result` assemble → plagiarism inspect → temp-folder delete. Detail UPSERT is off-thread. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel grade compute (testcase invokes globally serial) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → plagiarism inspect. Temp-folder delete and detail UPSERT run on `persistExecutor` after persist succeeds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
 
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
@@ -72,6 +72,9 @@ The lecturer testcase PUT contract: testcase ids omitted from the payload are de
 
 ### Testcase invoke executor
 Dedicated single-worker executor for operational testcase reflection. All student-code invocations and stdout capture run through this queue so parallel challenge grading does not interleave `System.out` or race on timeout cancellation.
+
+### Isolated testcase worker
+A separate JVM process that loads and invokes student classes for operational testcases, including lecturer dry-run, so a crash or unkillable loop cannot terminate the API JVM. The worker does not inherit API secrets, does not load the grading-harness classpath, and caps captured stdout. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from later container sandboxing.
 
 ### Assertion kind
 The category of check applied to an invoke or comparison outcome: return value, field state, stdout, exception type, or comparison result. A testcase passes only when every configured assertion kind passes.

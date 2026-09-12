@@ -20,8 +20,8 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
 
     /**
      * Maps to the lab_submission_user_lab_attempt_key unique constraint
-     * (user_id, lab_id, attempt_number). SubmissionController uses this to decide
-     * whether to update an existing attempt's row or insert a new one.
+     * (user_id, lab_id, attempt_number). Upload always inserts MAX+1; this finder
+     * is not on the hot path.
      */
     Optional<LabSubmission> findByUserAndLabAndAttemptNumber(UserAccount user, Lab lab, Integer attemptNumber);
 

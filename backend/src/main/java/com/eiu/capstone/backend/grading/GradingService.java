@@ -48,7 +48,6 @@ import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
-import com.eiu.capstone.backend.service.ParsedSubmissionSnapshotStore;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
 import com.eiu.capstone.backend.utility.CompletableFutures;
@@ -66,14 +65,12 @@ public class GradingService {
     private final ConstructorRepository constructorRepository;
     private final MmdComparisonService mmdComparisonService;
     private final ExecutorService gradingExecutor;
-    private final GradingResultStore gradingResultStore;
     private final ClassRelationRepository classRelationRepository;
     private final GradingPipeline gradingPipeline;
     private final TestcaseRepository testcaseRepository;
     private final TestcaseAssertionRepository testcaseAssertionRepository;
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
-    private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
     private final boolean timingLog;
 
     public GradingService(ChallengeRepository challengeRepository,
@@ -82,14 +79,12 @@ public class GradingService {
                           ConstructorRepository constructorRepository,
                           MmdComparisonService mmdComparisonService,
                           @Qualifier("gradingExecutor") ExecutorService gradingExecutor,
-                          GradingResultStore gradingResultStore,
                           ClassRelationRepository classRelationRepository,
                           GradingPipeline gradingPipeline,
                           TestcaseRepository testcaseRepository,
                           TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
-                          ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
                           @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
@@ -97,14 +92,12 @@ public class GradingService {
         this.constructorRepository = constructorRepository;
         this.mmdComparisonService = mmdComparisonService;
         this.gradingExecutor = gradingExecutor;
-        this.gradingResultStore = gradingResultStore;
         this.classRelationRepository = classRelationRepository;
         this.gradingPipeline = gradingPipeline;
         this.testcaseRepository = testcaseRepository;
         this.testcaseAssertionRepository = testcaseAssertionRepository;
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
-        this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
         this.timingLog = timingLog;
     }
 
@@ -124,12 +117,6 @@ public class GradingService {
                 rubric, challengeFolderResults, mmdByChallenge, submission, existing);
         long computeMs = System.currentTimeMillis() - computeStart;
 
-        long saveStart = System.currentTimeMillis();
-        gradingResultStore.saveChallengeScores(computed);
-        parsedSubmissionSnapshotStore.save(submission.getId(), computed.snapshotsByChallengeId);
-        gradingResultStore.scheduleDetailPersist(submission.getId(), computed);
-        long saveMs = System.currentTimeMillis() - saveStart;
-
         long assembleStart = System.currentTimeMillis();
         var labResult = labResultAssembler.assemble(
                 submission.getId(),
@@ -140,14 +127,14 @@ public class GradingService {
         TimingLog.block(timingLog, "Grade submission",
                 "load existing", loadMs,
                 "compute", computeMs,
-                "save", saveMs,
                 "assemble", System.currentTimeMillis() - assembleStart,
                 "total", System.currentTimeMillis() - totalStart);
         return new GradingOutcome(
                 computed.overallScore,
                 computed.gradedChallenges,
                 computed.mmdMetaByChallengeId,
-                labResult);
+                labResult,
+                computed);
     }
 
     private static ExistingResults emptyExistingResults() {

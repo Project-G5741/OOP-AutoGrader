@@ -4,10 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,8 +18,6 @@ import com.eiu.capstone.backend.DTO.StatsDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.analytics.dto.ChallengeStudentRowDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
-import com.eiu.capstone.backend.model.Lab;
-import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.ChallengeService;
@@ -38,7 +34,6 @@ public class ChallengeController {
     private final StatsService statsService;
     private final LecturerAnalyticsService lecturerAnalyticsService;
     private final JwtAuthHelper jwtAuthHelper;
-    private final LabRepository labRepository;
     private final StudentTermAccessService studentTermAccessService;
 
     public ChallengeController(ChallengeService challengeService,
@@ -46,14 +41,12 @@ public class ChallengeController {
                                 StatsService statsService,
                                 LecturerAnalyticsService lecturerAnalyticsService,
                                 JwtAuthHelper jwtAuthHelper,
-                                LabRepository labRepository,
                                 StudentTermAccessService studentTermAccessService) {
         this.challengeService = challengeService;
         this.classStructureService = classStructureService;
         this.statsService = statsService;
         this.lecturerAnalyticsService = lecturerAnalyticsService;
         this.jwtAuthHelper = jwtAuthHelper;
-        this.labRepository = labRepository;
         this.studentTermAccessService = studentTermAccessService;
     }
 
@@ -130,9 +123,6 @@ public class ChallengeController {
         if (principal == null || !principal.isStudentOnly()) {
             return;
         }
-        Lab lab = labRepository.findByIdWithTerm(labId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
-        studentTermAccessService.requireStudentLabAccess(
-                jwtAuthHelper.requireActiveUser(principal), lab);
+        studentTermAccessService.requireUploadAccess(principal.email(), labId);
     }
 }
