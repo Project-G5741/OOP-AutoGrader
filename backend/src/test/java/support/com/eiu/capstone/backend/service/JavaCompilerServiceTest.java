@@ -30,6 +30,53 @@ class JavaCompilerServiceTest {
     Path tempDir;
 
     @Test
+    void compileSources_jdkUtilTypesStillCompile() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("jdk");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Bag.java",
+                        "public class Bag { java.util.List<String> items = new java.util.ArrayList<>(); }"
+                                .getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = service.compileSources(sources, outputDir);
+
+        assertTrue(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("Bag.class")));
+    }
+
+    @Test
+    void compileSources_doesNotResolveApplicationClasspathTypes() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("spring");
+        Files.createDirectories(outputDir);
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Hook.java",
+                        """
+                        import org.springframework.stereotype.Service;
+                        @Service
+                        public class Hook {}
+                        """.getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = service.compileSources(sources, outputDir);
+
+        assertFalse(outcome.succeeded());
+        assertFalse(Files.exists(outputDir.resolve("Hook.class")));
+        assertTrue(outcome.messages().stream().anyMatch(message ->
+                message.toLowerCase().contains("cannot find symbol")
+                        || message.toLowerCase().contains("package org.springframework")
+                        || message.toLowerCase().contains("service")));
+    }
+
+    @Test
     void compileSources_writesClassFilesForValidSources() throws Exception {
         JavaCompilerService service = new JavaCompilerService();
         service.initCompiler();

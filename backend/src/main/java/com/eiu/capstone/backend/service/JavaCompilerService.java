@@ -4,10 +4,12 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -20,12 +22,14 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
 import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
+import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
 
@@ -41,6 +45,24 @@ public class JavaCompilerService {
         if (compiler == null) {
             throw new IllegalStateException(
                     "No system Java compiler available — the backend must run on a JDK, not a JRE.");
+        }
+        warmCompiler();
+    }
+
+    private void warmCompiler() {
+        try {
+            Path dir = Files.createTempDirectory("javac-warmup");
+            try {
+                CompileOutcome warmed = compileSources(List.of(new MemorySourceJavaFileObject(
+                        "Warmup.java", "public class Warmup {}".getBytes(StandardCharsets.UTF_8))), dir);
+                if (!warmed.succeeded()) {
+                    throw new IllegalStateException("Java compiler warmup failed: " + warmed.messages());
+                }
+            } finally {
+                deleteRecursively(dir);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to warm Java compiler", e);
         }
     }
 
@@ -86,13 +108,8 @@ public class JavaCompilerService {
     private boolean runTask(List<JavaFileObject> sources,
                             Path outputDir,
                             DiagnosticCollector<JavaFileObject> diagnostics) {
-        StandardJavaFileManager fileManager = fileManagerHolder.get();
-        if (fileManager == null) {
-            fileManager = compiler.getStandardFileManager(null, Locale.getDefault(), null);
-            fileManagerHolder.set(fileManager);
-        }
-
-        List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8");
+        StandardJavaFileManager fileManager = fileManager();
+        List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8", "-proc:none");
         StringWriter errorOutput = new StringWriter();
         JavaCompiler.CompilationTask task = compiler.getTask(
                 errorOutput, fileManager, diagnostics, options, null, sources);
@@ -198,6 +215,40 @@ public class JavaCompilerService {
                     .count();
         } catch (IOException e) {
             return 0;
+        }
+    }
+
+    private StandardJavaFileManager fileManager() {
+        StandardJavaFileManager fileManager = fileManagerHolder.get();
+        if (fileManager != null) {
+            return fileManager;
+        }
+        fileManager = compiler.getStandardFileManager(null, Locale.getDefault(), null);
+        try {
+            fileManager.setLocation(StandardLocation.CLASS_PATH, List.of());
+        } catch (IOException e) {
+            try {
+                fileManager.close();
+            } catch (IOException ignored) {
+            }
+            throw new UncheckedIOException(e);
+        }
+        fileManagerHolder.set(fileManager);
+        return fileManager;
+    }
+
+    private static void deleteRecursively(Path path) {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (var stream = Files.walk(path)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
         }
     }
 

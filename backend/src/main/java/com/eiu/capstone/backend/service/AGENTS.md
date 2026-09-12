@@ -52,8 +52,8 @@ Per upload request (unique `requestId` prevents collisions):
 ### Java compilation
 
 - `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources that have no ERROR diagnostic and are not attributed dependents into the same `classes/`
-- Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager`
-- Compiler options: `-d <outputDir>`, `-encoding UTF-8`
+- Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager` with empty `CLASS_PATH` (JDK types only; not the Spring Boot classpath). `initCompiler` warms javac with a throwaway `Warmup` compile so the first student upload is not the cold hit
+- Compiler options: `-d <outputDir>`, `-encoding UTF-8`, `-proc:none`
 - Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
 - Compile diagnostics appear on Class tab cards via `ClassDetailDTO.error`. Lines follow the convention in `compile/AGENTS.md` (`CompileErrorMessage`).
 - Empty source list returns without invoking the compiler
@@ -114,6 +114,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Active users: `unit` `PresenceServiceTest` (unique email, expiry, leave); `authorization` `PresenceControllerTest` (public GET, JWT heartbeat, JWT leave)
 - Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements; `challengeById`)
 - Compile-error convention: `support` `CompileErrorMessageTest`, `support` `CompileClassAttributionTest`
+- Student javac isolation: `support` `JavaCompilerServiceTest` (JDK types compile; Spring classpath types do not)
 - Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them)
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
