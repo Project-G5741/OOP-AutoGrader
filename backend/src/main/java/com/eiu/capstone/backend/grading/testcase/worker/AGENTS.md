@@ -14,6 +14,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 
 - Launch with `java -jar worker.jar`, never the API fat JAR or `PropertiesLauncher`.
 - `--self-check` prints `{"ok":true}` and exits (packaging probe).
+- Probe flags `--dump-env`, `--hang`, `--child-hang`, `--stderr-flood` exist so spawn/kill tests can run before NDJSON invoke exists.
 - NDJSON protocol is filled by the invoke engine; this class must not load student classes.
 - Worker JAR must not contain `org.springframework` types.
 

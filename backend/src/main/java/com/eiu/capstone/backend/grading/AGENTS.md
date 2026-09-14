@@ -16,6 +16,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
 | `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
+| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR, env allowlist, stderr cap, respawn without releasing the host slot |
+| `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
