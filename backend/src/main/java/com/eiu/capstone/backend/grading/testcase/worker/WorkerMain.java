@@ -26,7 +26,16 @@ public final class WorkerMain {
                 floodStderr();
                 ipcIn.transferTo(OutputStream.nullOutputStream());
             }
-            default -> ipcIn.transferTo(OutputStream.nullOutputStream());
+            default -> ipcLoop(ipcIn, ipcOut);
+        }
+    }
+
+    private static void ipcLoop(InputStream ipcIn, PrintStream ipcOut) throws Exception {
+        java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(ipcIn, StandardCharsets.UTF_8));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            ipcOut.println(WorkerIpc.writeLine(WorkerIpc.handleLine(line)));
         }
     }
 

@@ -51,6 +51,14 @@ public class GradingPipeline {
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
             List<MultipartFile> mmdFiles) {
+        return gradeChallenge(rubric, folderResult, mmdFiles, null);
+    }
+
+    public ChallengePipelineResult gradeChallenge(
+            LabRubricSnapshot rubric,
+            SubmissionStorageService.ChallengeResult folderResult,
+            List<MultipartFile> mmdFiles,
+            com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle workerSession) {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
@@ -77,7 +85,8 @@ public class GradingPipeline {
                 folderResult.compileError,
                 parsedClasses,
                 folderResult.failedClassNames,
-                folderResult.compileErrorsByClassName);
+                folderResult.compileErrorsByClassName,
+                workerSession);
 
         long classStart = System.currentTimeMillis();
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);

@@ -7,15 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
+import com.eiu.capstone.backend.grading.testcase.worker.WorkerMain;
 import com.eiu.capstone.backend.model.InvocationKind;
 
 class InvocationRunnerTest {
@@ -25,6 +31,7 @@ class InvocationRunnerTest {
 
     private Path classesDir;
     private InvocationRunner runner;
+    private WorkerSessionHandle handle;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -60,14 +67,23 @@ class InvocationRunnerTest {
         String compileOutput = new String(compile.getInputStream().readAllBytes());
         assertEquals(0, exitCode, () -> "javac failed: " + compileOutput);
 
-        runner = new InvocationRunner(new JsonValueCoercer(), Executors.newSingleThreadExecutor(), 5);
+        runner = new InvocationRunner(new JsonValueCoercer(), 5);
+        WorkerProcessClient client = new WorkerProcessClient("java", "missing-worker.jar");
+        handle = WorkerSessionHandle.startCommand(client, 5, javaCommand());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (handle != null) {
+            handle.close();
+        }
     }
 
     @Test
     void methodInvocationUsesReceiverConstructor() {
         InvocationRubric rubric = methodWithReceiver("getSpeed", List.of(), "[]");
 
-        InvocationOutcome outcome = runner.invokeSingle(classesDir, rubric);
+        InvocationOutcome outcome = runner.invokeSingle(context(), rubric, List.of("speed"));
 
         assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind());
         assertEquals(0, outcome.returnValue());
@@ -89,7 +105,7 @@ class InvocationRunnerTest {
                 List.of(),
                 null);
 
-        InvocationOutcome outcome = runner.invokeSingle(classesDir, rubric);
+        InvocationOutcome outcome = runner.invokeSingle(context(), rubric, List.of());
 
         assertEquals(InvocationOutcomeKind.ERROR, outcome.kind());
         assertTrue(outcome.errorMessage().contains("no-argument constructor"));
@@ -99,9 +115,16 @@ class InvocationRunnerTest {
     void voidMethodInvocationSucceedsWithReceiver() {
         InvocationRubric rubric = methodWithReceiver("accelerate", List.of(), "[]");
 
-        InvocationOutcome outcome = runner.invokeSingle(classesDir, rubric);
+        InvocationOutcome outcome = runner.invokeSingle(context(), rubric, List.of("speed"));
 
         assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind());
+        assertEquals(5, outcome.fieldSnapshots().get("speed"));
+    }
+
+    private ChallengeGradingContext context() {
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(), 1, "c1", List.of(), List.of(), List.of());
+        return ChallengeGradingContext.of(rubric, classesDir, null, List.of(), Set.of(), Map.of(), handle);
     }
 
     private static InvocationRubric methodWithReceiver(String methodName,
@@ -120,5 +143,17 @@ class InvocationRunnerTest {
                 "Car",
                 List.of("int", "String"),
                 "[2020, \"Toyota\"]");
+    }
+
+    private static List<String> javaCommand() {
+        List<String> command = new ArrayList<>();
+        command.add(ProcessHandle.current().info().command().orElse("java"));
+        command.add(WorkerProcessClient.HEAP_FLAG);
+        command.add(WorkerProcessClient.METASPACE_FLAG);
+        command.add(WorkerProcessClient.EXIT_ON_OOM_FLAG);
+        command.add("-cp");
+        command.add(System.getProperty("java.class.path"));
+        command.add(WorkerMain.class.getName());
+        return command;
     }
 }

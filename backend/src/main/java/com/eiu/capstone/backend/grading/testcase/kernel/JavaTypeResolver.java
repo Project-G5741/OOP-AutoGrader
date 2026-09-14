@@ -1,4 +1,4 @@
-package com.eiu.capstone.backend.grading.testcase;
+package com.eiu.capstone.backend.grading.testcase.kernel;
 
 import java.util.List;
 

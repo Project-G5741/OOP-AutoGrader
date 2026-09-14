@@ -201,8 +201,8 @@ class TestcaseGraderTest {
 
         com.eiu.capstone.backend.grading.testcase.InvocationRunner runner =
                 org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.InvocationRunner.class);
-        org.mockito.Mockito.when(runner.invokeSingle(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-                .thenReturn(com.eiu.capstone.backend.grading.testcase.InvocationOutcome.normal(null, null, ""));
+        org.mockito.Mockito.when(runner.invokeSingle(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(com.eiu.capstone.backend.grading.testcase.InvocationOutcome.normal(null, "", false, Map.of()));
         com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter formatter =
                 org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter.class);
         org.mockito.Mockito.when(formatter.formatInput(org.mockito.ArgumentMatchers.any())).thenReturn("in");
@@ -214,7 +214,7 @@ class TestcaseGraderTest {
                 new TestcaseGrader(runner, null, selector, formatter).gradeSingle(testcase, context);
 
         org.mockito.Mockito.verify(runner).invokeSingle(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         assertTrue(result.feedback() == null || !result.feedback().startsWith("Compilation error:"));
     }
 }

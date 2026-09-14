@@ -119,7 +119,12 @@
                                     <includes>
                                         <include>com/eiu/capstone/backend/grading/testcase/worker/**</include>
                                         <include>com/eiu/capstone/backend/grading/testcase/kernel/**</include>
+                                        <include>com/eiu/capstone/backend/grading/testcase/SerializedInvocationOutcome.class</include>
+                                        <include>com/eiu/capstone/backend/grading/rubric/InvocationRubric.class</include>
+                                        <include>com/eiu/capstone/backend/grading/rubric/InstanceRubric.class</include>
                                         <include>com/eiu/capstone/backend/model/ComparisonMode.class</include>
+                                        <include>com/eiu/capstone/backend/model/InvocationKind.class</include>
+                                        <include>com/eiu/capstone/backend/model/TestcaseComparisonMethod.class</include>
                                     </includes>
                                 </filter>
                                 <filter>
