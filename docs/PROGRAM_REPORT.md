@@ -98,7 +98,7 @@ flowchart LR
 
 1. Student selects a lab
 2. Student drags a folder containing `challenge_N/` subfolders with `.java` and optionally `.mmd` files (optional `root/.git/` for plagiarism)
-3. Backend compiles Java in parallel, grades against the rubric, inspects plagiarism, persists results
+3. Backend compiles Java in parallel, grades against the rubric, persists scores, then inspects plagiarism off the student wait
 4. Student sees scores, detailed breakdowns, and testcase input/output cards immediately
 
 ### 4.2 The Three-Pillar Grading Model
@@ -127,7 +127,7 @@ Upload (multipart folder)
       → MmdPillarGrader + TestcaseGrader (parallel; invokes serialize on one thread)
   → Challenge-score UPSERT + async detail UPSERT
   → Assemble lab_result bundle for immediate UI rendering
-  → Plagiarism inspect (on the upload thread)
+  → Snapshot plagiarism signals; inspect on persistExecutor
   → Delete temp upload folder
 ```
 

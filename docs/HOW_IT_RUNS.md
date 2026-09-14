@@ -235,8 +235,8 @@ When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 5. GradingService.gradeSubmission(...) compute + lab_result assemble
 6. UploadPersistService: one JDBC statement inserts submission (`MAX+1`, final score), challenge UPSERT, progress; detail UPSERT after that statement
 7. Save compile errors, package-normalization notices, MMD metadata (`persistExecutor`)
-8. PlagiarismService.inspectUpload (request thread after persist; failures swallowed)
-9. Invalidate analytics caches
+8. Snapshot plagiarism signals on the request thread; `inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed)
+9. Invalidate analytics caches (request thread after persist; again after inspect)
 10. Return challenge scores + lab_result bundle
 11. finally: delete temp submission folder on disk (`persistExecutor`)
 ```
@@ -263,7 +263,7 @@ For each challenge folder, **in parallel** on `gradingExecutor`:
 4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
 5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 
-After grading, plagiarism inspect runs, then the temp folder is deleted in `finally`. Durable state is PostgreSQL plus JSON sidecars under `SUBMISSION_BASE_DIR` (`_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot`).
+After grading, plagiarism signals are snapshotted and inspect runs on `persistExecutor`; the temp folder is deleted in `finally`. Durable state is PostgreSQL plus JSON sidecars under `SUBMISSION_BASE_DIR` (`_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot`). Lecturer flags typically appear within ~1–3s.
 
 Wall-clock ranking and complexity: [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity).
 
@@ -361,7 +361,7 @@ erDiagram
 5. GET /api/labs → student picks "Lab 1"
 6. GET /api/labs/{id}/stats → shows prior grade if any
 7. Student drops folder → DropZone POST /api/submissions/{labId}/1/upload
-8. Backend: access check → compile → class/MMD/testcase pillars → one persist SQL → plagiarism inspect (unless disabled) → return scores + `lab_result`
+8. Backend: access check → compile → class/MMD/testcase pillars → one persist SQL → snapshot plagiarism signals → return scores + `lab_result` (inspect continues on persistExecutor)
 9. Frontend updates challenge sidebar, class tab, stats cards
 10. Data persists in PostgreSQL; temp files deleted
 ```
@@ -420,4 +420,4 @@ CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the 
 | **Backend** | Spring Boot 3.2 + Java 17 | JVM `:8002` | PostgreSQL + temp `submissions/` |
 | **Database** | PostgreSQL (Neon) | Cloud | All users, rubrics, grades, progress |
 
-The **critical path** is: **browser upload → Spring controller → one-query access check → in-memory compile → reflection + MMD + operational testcases → one persist SQL → plagiarism inspect (when enabled) → JSON response → React UI update**. Detail UPSERT continues off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.
+The **critical path** is: **browser upload → Spring controller → one-query access check → in-memory compile → reflection + MMD + operational testcases → one persist SQL → snapshot plagiarism signals → JSON response → React UI update**. Detail UPSERT and plagiarism inspect continue off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.

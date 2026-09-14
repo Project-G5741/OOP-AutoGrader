@@ -57,7 +57,8 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
   ├─ UploadPersistService.persist()               ← one SQL: insert MAX+1, challenge UPSERT, progress
   │    └─ persistExecutor after that statement: detail UPSERT
   ├─ compileErrorStore / packageNormalizationStore / mmdMetaStore  ← persistExecutor
-  ├─ PlagiarismService.inspectUpload()            ← on the request thread after persist; must not fail the upload
+  ├─ snapshot PlagiarismSignals                     ← request thread (SHA-256 + git parse)
+  ├─ PlagiarismService.inspectUpload(signals)       ← persistExecutor after persist; must not fail the upload
   ├─ MmdPersistenceHook.onUploadComplete()        ← no-op by default
   └─ SubmissionStorageService.deleteFolder()      ← finally on persistExecutor: wipe temp files
 ```
@@ -119,8 +120,8 @@ Main grading entry (compute + `lab_result` assemble only). See [Phase C](#5-phas
 - **`compileErrorStore.save(...)`** — Off-thread after persist: per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
 - **`packageNormalizationStore.save(...)`** — Off-thread: package-stripped warning when student sources included `package` declarations.
 - **`submissionMmdMetaStore.save(...)`** — Off-thread: MMD metadata to `_mmd_meta/{submissionId}.json`.
-- **`plagiarismService.inspectUpload(submission, files)`** — Fingerprint + pairwise compare against other students in the lab. Runs on the upload thread; exceptions are swallowed so the student still gets results.
-- **`labStatisticsCache.invalidate(labId)`** / **`lecturerOverviewCache.invalidate()`** — Clears lecturer analytics caches.
+- **`plagiarismService.inspectUpload(submission, signals)`** — Snapshot `PlagiarismSignals` from multipart on the upload thread, then compare on `persistExecutor`. Exceptions are swallowed so the student still gets results. Lecturer flags typically appear within ~1–3s (live SQL). Lab statistics / overview caches invalidate after persist and again after inspect.
+- **`labStatisticsCache.invalidate(labId)`** / **`lecturerOverviewCache.invalidate()`** — Clears lecturer analytics caches (again after inspect so `plagiarismRate` is not cached without new flags).
 - **`mmdPersistenceHook.onUploadComplete(...)`** — Extension point for archiving `.mmd` files (default no-op).
 
 ### 2.7 Response & cleanup
@@ -714,7 +715,7 @@ Allows student UI to render results immediately without follow-up API calls.
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
 | (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge (not CPU-capped) |
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM (acquire on HTTP thread) |
-| (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, temp delete |
+| (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, plagiarism inspect, temp delete |
 | `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout (process kill) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
 | `app.grading.worker-java` | `java` | — | Java binary used to spawn the worker |
@@ -769,7 +770,7 @@ Allows student UI to render results immediately without follow-up API calls.
 
 ## 14. Wall-clock cost and time complexity
 
-Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
+Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
 Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Concurrent uploads also wait on the one-worker slot (`worker_slot_wait_ms`).
 
@@ -777,7 +778,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 |------|-------|-------------------|------|---------------------|
 | 1 | Operational testcases | Large *T*, slow or hanging student code | *Θ(T)* invokes on one worker JVM per request | **Σ invoke times across the lab**, plus `worker_slot_wait_ms` under concurrent uploads. Worst case *O(T · τ)* plus respawn |
 | 2 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
-| 3 | Plagiarism inspect | Busy lab (many prior attempts) | SHA-256 *O(B)*; reconstruct `.git`; pairwise *O(A)* with Jaccard *O(F)*; **O(U) DB round-trips** for peer best scores; then re-evaluate all lab matches | On the upload thread after grading (exceptions swallowed) |
+| 3 | Plagiarism snapshot | Fat `.git` without reflog (rare reconstruct) | SHA-256 *O(B)*; in-memory git `config`+reflog | **Extract + schedule** on the upload thread (milliseconds unless reconstruct). Compare/persist is **off-request** (`persistExecutor`); see `[timing] Plagiarism inspect` |
 | 4 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
 | 5 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
 | 6 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | Overlaps testcases on `pillarExecutor`; usually smaller than invoke |
@@ -788,7 +789,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 
 **Why testcases beat compile on wall-clock even when `javac` is “heavier” CPU:** compile parallelizes across challenges; invokes of one request share one worker JVM and stay serial. Concurrent uploads wait for the one-process slot.
 
-**Why plagiarism can overtake compile on a large roster:** `inspectUpload` compares the new fingerprint to **every other fingerprint** in the lab (every prior attempt of every other student), then `bestScoresForLabUsers` issues one query per other user.
+**Why plagiarism used to overtake compile on a large roster:** pairwise compare still walks every other fingerprint, but that work is on `persistExecutor`. The student wait is only the signal snapshot. Peer/prior bests are one grouped attempts load; non-matches are not inserted; re-eval is limited to rows where this uploader is the other side.
 
 Cleanup (`deleteFolder`) is scheduled on `persistExecutor` in `finally` after the response is built; it does not hold the HTTP thread.
 

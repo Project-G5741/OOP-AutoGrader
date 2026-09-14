@@ -493,7 +493,7 @@ A: Labs with an **Expired** badge may still accept uploads depending on lecturer
 ---
 
 **Q: A lab shows a ⚠ plagiarism flag next to my name (lecturer view).**  
-A: The system detected code similarity between submissions. Lecturers can click the flag to see an overlap percentage report. This is an automated check and does not constitute a final ruling.
+A: The system detected code similarity between submissions. Flags usually appear within a few seconds of a student upload — refresh the roster if a new upload is not flagged yet. Lecturers can click the flag to see an overlap percentage report. This is an automated check and does not constitute a final ruling.
 
 ---
 

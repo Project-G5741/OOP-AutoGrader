@@ -51,6 +51,7 @@ import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
 import com.eiu.capstone.backend.plagiarism.PlagiarismService;
+import com.eiu.capstone.backend.plagiarism.PlagiarismSignals;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 import com.eiu.capstone.backend.utility.TimingLog;
@@ -216,11 +217,7 @@ public class SubmissionController {
             }, persistExecutor);
 
             long plagiarismStart = System.currentTimeMillis();
-            try {
-                plagiarismService.inspectUpload(submission, files);
-            } catch (RuntimeException e) {
-                System.out.printf("plagiarism inspect failed submission=%s%n", submission.getId());
-            }
+            schedulePlagiarismInspect(submission, files);
             long plagiarismMs = System.currentTimeMillis() - plagiarismStart;
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
@@ -262,6 +259,37 @@ public class SubmissionController {
                 CompletableFuture.runAsync(() -> submissionStorageService.deleteFolder(folder), persistExecutor);
             }
         }
+    }
+
+    private void schedulePlagiarismInspect(LabSubmission submission, List<MultipartFile> files) {
+        if (submission == null || submission.getId() == null
+                || submission.getLab() == null || submission.getLab().getId() == null
+                || submission.getUser() == null || submission.getUser().getId() == null) {
+            return;
+        }
+        UUID inspectLabId = submission.getLab().getId();
+        PlagiarismSignals signals;
+        try {
+            signals = plagiarismService.snapshotSignals(files);
+        } catch (RuntimeException e) {
+            System.out.printf("plagiarism snapshot failed submission=%s%n", submission.getId());
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            long inspectStart = System.currentTimeMillis();
+            try {
+                plagiarismService.inspectUpload(submission, signals);
+            } catch (RuntimeException e) {
+                System.out.printf("plagiarism inspect failed submission=%s%n", submission.getId());
+            }
+            TimingLog.line(timingLog, "Plagiarism inspect", System.currentTimeMillis() - inspectStart);
+            try {
+                labStatisticsCache.invalidate(inspectLabId);
+                lecturerOverviewCache.invalidate();
+            } catch (RuntimeException e) {
+                System.out.printf("plagiarism cache invalidate failed lab=%s%n", inspectLabId);
+            }
+        }, persistExecutor);
     }
 
     private LabRubricSnapshot joinRubric(CompletableFuture<LabRubricSnapshot> rubricFuture) {

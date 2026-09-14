@@ -26,7 +26,7 @@ A class's optional Extends or Implements target, authored on the class editor as
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
 ### Upload hot path
-The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel grade compute (testcase invokes globally serial) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → plagiarism inspect. Temp-folder delete and detail UPSERT run on `persistExecutor` after persist succeeds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel grade compute (testcase invokes globally serial) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → snapshot plagiarism signals. Temp-folder delete, detail UPSERT, and plagiarism inspect run on `persistExecutor` after persist succeeds. Lecturer flags typically appear within a few seconds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
 
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
@@ -117,7 +117,7 @@ The unique set of enrolled/active students for a lab's term/course. Challenge an
 Optional calendar date on a lab, defaulting to the parent term's end date when set at creation. The effective cutoff is 23:59:59 Vietnam time (UTC+7) on that date. Lecturers manage it in Solution Management and may extend it to a later date.
 
 ### Plagiarism check
-Three independent comparisons of one lab submission against other students in the same lab: (1) ordered git commit hashes from the uploaded `.git` must match 100% in the same order; (2) git metadata (config user plus ordered author name/email/timestamp) must match 100%; (3) SHA-256 hashes of `.java` and `.mmd` bytes use Jaccard similarity and flag above 90%. Any firing check marks the pair flagged.
+Three independent comparisons of one lab submission against other students in the same lab: (1) ordered git commit hashes from the uploaded `.git` must match 100% in the same order; (2) git metadata (config user plus ordered author name/email/timestamp) must match 100%; (3) SHA-256 hashes of `.java` and `.mmd` bytes use Jaccard similarity and flag above 90%. Any firing check marks the pair flagged. Fingerprint signals are snapshotted before the upload response; compare/persist runs off the student wait (typically ~1–3s). Students never see flags.
 
 ### Score rounding
 Grade percentages persist at two decimal places and display as integers by always rounding **down** (never half-up). A repeating third such as 66.666… is stored as `66.66` and shown as `66`. Plagiarism overlap and completion rates are not scores and do not use this rule.
