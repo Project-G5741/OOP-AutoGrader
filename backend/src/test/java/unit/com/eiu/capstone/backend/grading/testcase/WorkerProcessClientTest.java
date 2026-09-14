@@ -63,7 +63,7 @@ class WorkerProcessClientTest {
     }
 
     @Test
-    void workerDoesNotInheritNamedSecrets() throws Exception {
+    void ae6WorkerDoesNotInheritNamedSecrets() throws Exception {
         List<String> command = javaCommand("--dump-env", "JWT_SECRET", "DB_PASSWORD");
         try (WorkerSession session = client.startCommand(command)) {
             String line = session.readLine(Duration.ofSeconds(15), WorkerProcessClient.IPC_LINE_CAP_BYTES);
@@ -113,7 +113,7 @@ class WorkerProcessClientTest {
 
     @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})
-    void timeoutKillsChildOsProcess() throws Exception {
+    void ae3TimeoutKillsChildOsProcess() throws Exception {
         WorkerSession session = client.startCommand(javaCommand("--child-hang"));
         try {
             String line = session.readLine(Duration.ofSeconds(15), WorkerProcessClient.IPC_LINE_CAP_BYTES);

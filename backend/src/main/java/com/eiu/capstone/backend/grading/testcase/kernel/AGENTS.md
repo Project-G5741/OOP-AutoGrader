@@ -10,6 +10,7 @@ Spring-free JSON coerce and value compare used by both the API scoring path and 
 |---|---|
 | `JsonValueCoercer.java` | Coerce rubric JSON to Java values; encode values to JSON |
 | `ValueComparator.java` | Compare actual vs expected with `ComparisonMode` |
+| `JavaTypeResolver.java` | Map rubric type names to `Class` objects |
 
 ## Local Contracts
 

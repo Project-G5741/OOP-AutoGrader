@@ -66,7 +66,10 @@ class WorkerJarIsolationTest {
         Path workerJar = workerJarPath();
         try (JarFile jar = new JarFile(workerJar.toFile())) {
             assertNotNull(jar.getJarEntry("com/eiu/capstone/backend/grading/testcase/worker/WorkerMain.class"));
+            assertNotNull(jar.getJarEntry("com/eiu/capstone/backend/grading/testcase/worker/WorkerInvokeEngine.class"));
+            assertNotNull(jar.getJarEntry("com/eiu/capstone/backend/grading/testcase/worker/WorkerIpc.class"));
             assertNotNull(jar.getJarEntry("com/eiu/capstone/backend/grading/testcase/kernel/JsonValueCoercer.class"));
+            assertNotNull(jar.getJarEntry("com/eiu/capstone/backend/grading/testcase/SerializedInvocationOutcome.class"));
             assertTrue(jar.stream().noneMatch(entry -> entry.getName().startsWith("org/springframework/")),
                     "worker JAR must not contain Spring types");
             String mainClass = jar.getManifest().getMainAttributes().getValue("Main-Class");
@@ -76,7 +79,19 @@ class WorkerJarIsolationTest {
     }
 
     static boolean workerJarExists() {
-        return Files.isRegularFile(workerJarPath());
+        Path jar = workerJarPath();
+        if (!Files.isRegularFile(jar)) {
+            return false;
+        }
+        Path engine = Path.of("target/classes/com/eiu/capstone/backend/grading/testcase/worker/WorkerInvokeEngine.class");
+        if (!Files.isRegularFile(engine)) {
+            return true;
+        }
+        try {
+            return Files.getLastModifiedTime(jar).toMillis() >= Files.getLastModifiedTime(engine).toMillis();
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private static Path workerJarPath() {

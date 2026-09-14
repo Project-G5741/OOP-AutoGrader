@@ -259,7 +259,7 @@ For each challenge folder, **in parallel** on `gradingExecutor`:
 
 1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
 2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
-3. **Testcase pillar** (if the challenge has operational testcases): `TestcaseGrader` on `pillarExecutor`; student invokes serialize on single-thread `testcaseInvokeExecutor` (5s timeout each).
+3. **Testcase pillar** (if the challenge has operational testcases): `TestcaseGrader` on `pillarExecutor`; student invokes run in one isolated worker JVM per upload (5s timeout each; host slot of 1).
 4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
 5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 
@@ -396,7 +396,7 @@ erDiagram
 | `LabStatisticsCache` | 120 sec | On upload for that lab |
 | `AnalyticsDashboardCache` | 180 sec | TTL |
 
-Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD + testcase pillars use `pillarExecutor`. Student-code invokes use a **single-thread** `testcaseInvokeExecutor`. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
+Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD + testcase pillars use `pillarExecutor`. Student-code invokes run in one isolated worker JVM per request (host slot of 1). See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
 
 ---
 
