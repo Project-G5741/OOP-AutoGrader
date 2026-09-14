@@ -64,7 +64,8 @@ SubmissionController
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
       → persistExecutor after that statement: GradingResultJdbcWriter detail UPSERT
   → compile/package/mmd sidecars off-thread
-  → PlagiarismService.inspectUpload()   (request thread; after persist; failures swallowed)
+  → snapshot PlagiarismSignals (request thread)
+  → PlagiarismService.inspectUpload(submission, signals)  (persistExecutor; failures swallowed)
   → MmdPersistenceHook.onUploadComplete()
   → SubmissionStorageService.deleteFolder() (finally, off-thread)
 ```
@@ -125,7 +126,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
 - Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)
-- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `assemble`, `total`); upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`)
+- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge (`parse`, `class`, `mmd`, `testcase`, `score`, `total`); grade submission (`load existing`, `compute`, `assemble`, `total`); upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = snapshot+schedule, `total`); off-thread `Plagiarism inspect`
 
 ## Verification
 

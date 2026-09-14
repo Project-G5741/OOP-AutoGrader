@@ -14,9 +14,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads ordered commit history from a reconstructed {@code .git} directory.
+ * Reads ordered commit history from {@code .git/config} plus {@code logs/HEAD},
+ * or from a reconstructed {@code .git} directory when the reflog is missing.
  */
 public final class GitHistoryReader {
+
+    static final String CONFIG_FILE = "config";
+    static final String REFLOG_FILE = "logs/HEAD";
 
     private static final Pattern REFLOG_LINE = Pattern.compile(
             "^[0-9a-f]{4,40}\\s+([0-9a-f]{7,40})\\s+(.+?)\\s+<([^>]+)>\\s+(\\d+)\\s+");
@@ -29,30 +33,44 @@ public final class GitHistoryReader {
         if (gitDir == null || !Files.isDirectory(gitDir)) {
             return GitHistory.empty();
         }
-        String userName = "";
-        String userEmail = "";
-        Path config = gitDir.resolve("config");
+        String configText = "";
+        Path config = gitDir.resolve(CONFIG_FILE);
         if (Files.isRegularFile(config)) {
             try {
-                String text = Files.readString(config, StandardCharsets.UTF_8);
-                Matcher name = CONFIG_NAME.matcher(text);
-                if (name.find()) {
-                    userName = name.group(1).trim();
-                }
-                Matcher email = CONFIG_EMAIL.matcher(text);
-                if (email.find()) {
-                    userEmail = email.group(1).trim();
-                }
+                configText = Files.readString(config, StandardCharsets.UTF_8);
             } catch (IOException ignored) {
                 // keep empty git user
             }
         }
 
-        List<GitCommitRecord> commits = readReflog(gitDir.resolve("logs").resolve("HEAD"));
+        List<GitCommitRecord> commits = readReflog(gitDir.resolve(REFLOG_FILE));
         if (commits.isEmpty()) {
             commits = readGitLog(gitDir);
         }
-        return new GitHistory(userName, userEmail, List.copyOf(commits));
+        return fromConfigAndReflog(configText, commits);
+    }
+
+    /**
+     * Parses {@code .git/config} user plus reflog text without reconstructing the rest of {@code .git}.
+     */
+    public static GitHistory fromConfigAndReflog(String configText, String reflogText) {
+        return fromConfigAndReflog(configText, parseReflog(reflogText));
+    }
+
+    private static GitHistory fromConfigAndReflog(String configText, List<GitCommitRecord> commits) {
+        String userName = "";
+        String userEmail = "";
+        if (configText != null && !configText.isBlank()) {
+            Matcher name = CONFIG_NAME.matcher(configText);
+            if (name.find()) {
+                userName = name.group(1).trim();
+            }
+            Matcher email = CONFIG_EMAIL.matcher(configText);
+            if (email.find()) {
+                userEmail = email.group(1).trim();
+            }
+        }
+        return new GitHistory(userName, userEmail, List.copyOf(commits == null ? List.of() : commits));
     }
 
     public static List<GitCommitRecord> parseReflog(String text) {

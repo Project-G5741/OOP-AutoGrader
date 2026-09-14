@@ -1,11 +1,13 @@
 package com.eiu.capstone.backend.plagiarism;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
@@ -26,18 +28,35 @@ public final class PlagiarismFingerprintExtractor {
         }
         List<String> fileHashes = new ArrayList<>();
         List<GitFile> gitFiles = new ArrayList<>();
+        String gitConfigText = null;
+        String gitReflogText = null;
+        boolean otherGitFiles = false;
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
         for (MultipartFile file : files) {
             String relative = relativePath(file);
             if (relative.isEmpty()) {
                 continue;
             }
             if (isGitPath(relative)) {
-                gitFiles.add(new GitFile(gitRelative(relative), file));
+                String gitRelative = gitRelative(relative);
+                gitFiles.add(new GitFile(gitRelative, file));
+                if (GitHistoryReader.CONFIG_FILE.equals(gitRelative)) {
+                    gitConfigText = readUtf8(file);
+                } else if (GitHistoryReader.REFLOG_FILE.equals(gitRelative)) {
+                    gitReflogText = readUtf8(file);
+                } else if (!gitRelative.isBlank()) {
+                    otherGitFiles = true;
+                }
                 continue;
             }
             if (isHashedSource(relative)) {
                 try {
-                    fileHashes.add(sha256(file.getBytes()));
+                    fileHashes.add(sha256(digest, file.getBytes()));
                 } catch (IOException ignored) {
                     // skip unreadable source
                 }
@@ -45,8 +64,8 @@ public final class PlagiarismFingerprintExtractor {
         }
         fileHashes.sort(String::compareTo);
 
-        GitHistory history = GitHistory.empty();
-        if (!gitFiles.isEmpty()) {
+        GitHistory history = GitHistoryReader.fromConfigAndReflog(gitConfigText, gitReflogText);
+        if (!history.hasCommits() && otherGitFiles) {
             history = readGitHistory(gitFiles);
         }
         List<String> commitHashes = history.commits().stream()
@@ -88,10 +107,21 @@ public final class PlagiarismFingerprintExtractor {
         String[] segments = normalize(relativePath).split("/");
         for (int i = 0; i < segments.length; i++) {
             if (".git".equals(segments[i])) {
-                return String.join("/", List.of(segments).subList(i + 1, segments.length));
+                if (i + 1 >= segments.length) {
+                    return "";
+                }
+                return String.join("/", Arrays.copyOfRange(segments, i + 1, segments.length));
             }
         }
         return "";
+    }
+
+    private static String readUtf8(MultipartFile file) {
+        try {
+            return new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     private static GitHistory readGitHistory(List<GitFile> gitFiles) {
@@ -121,7 +151,7 @@ public final class PlagiarismFingerprintExtractor {
     }
 
     private static void deleteRecursively(Path root) {
-        if (root == null || !Files.exists(root)) {
+        if (root == null) {
             return;
         }
         try (var walk = Files.walk(root)) {
@@ -137,12 +167,9 @@ public final class PlagiarismFingerprintExtractor {
         }
     }
 
-    private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
+    private static String sha256(MessageDigest digest, byte[] bytes) {
+        digest.reset();
+        return HexFormat.of().formatHex(digest.digest(bytes));
     }
 
     private static String normalize(String path) {

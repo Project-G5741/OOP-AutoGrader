@@ -46,4 +46,17 @@ class GitHistoryReaderTest {
         assertTrue(history.hasCommits());
         assertEquals("cccccccccccccccccccccccccccccccccccccccc", history.commits().get(0).hash());
     }
+
+    @Test
+    void fromConfigAndReflog_matchesOnDiskRead() {
+        GitHistory fromText = GitHistoryReader.fromConfigAndReflog("""
+                [user]
+                \tname = Alice
+                \temail = alice@eiu.edu.vn
+                """,
+                "0000000000000000000000000000000000000000 cccccccccccccccccccccccccccccccccccccccc Alice <alice@eiu.edu.vn> 1700000000 +0700\tcommit: only\n");
+        assertEquals("Alice", fromText.userName());
+        assertEquals("alice@eiu.edu.vn", fromText.userEmail());
+        assertEquals("cccccccccccccccccccccccccccccccccccccccc", fromText.commits().get(0).hash());
+    }
 }

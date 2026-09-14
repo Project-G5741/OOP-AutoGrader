@@ -53,8 +53,21 @@ public class PlagiarismService {
         this.objectMapper = objectMapper;
     }
 
-    @Transactional
+    public PlagiarismSignals snapshotSignals(List<MultipartFile> files) {
+        return PlagiarismFingerprintExtractor.extract(files);
+    }
+
+    /**
+     * Convenience for tests: extract signals then inspect. Production must call
+     * {@link #inspectUpload(LabSubmission, PlagiarismSignals)} on the Spring bean
+     * (this overload self-invokes, so {@code @Transactional} would not apply).
+     */
     public void inspectUpload(LabSubmission submission, List<MultipartFile> files) {
+        inspectUpload(submission, snapshotSignals(files));
+    }
+
+    @Transactional
+    public void inspectUpload(LabSubmission submission, PlagiarismSignals signals) {
         if (submission == null || submission.getId() == null || submission.getLab() == null
                 || submission.getUser() == null) {
             return;
@@ -63,42 +76,47 @@ public class PlagiarismService {
         UUID labId = submission.getLab().getId();
         UUID userId = submission.getUser().getId();
 
-        PlagiarismSignals signals = PlagiarismFingerprintExtractor.extract(files);
-        SubmissionPlagiarismFingerprint fingerprint = fingerprintRepository.findById(submissionId)
-                .orElseGet(SubmissionPlagiarismFingerprint::new);
+        PlagiarismSignals captured = signals == null ? PlagiarismSignals.empty() : signals;
+        SubmissionPlagiarismFingerprint fingerprint = new SubmissionPlagiarismFingerprint();
         fingerprint.setSubmissionId(submissionId);
         fingerprint.setLabId(labId);
         fingerprint.setUserId(userId);
-        fingerprint.setGitCommitHashes(writeJson(signals.gitCommitHashes()));
-        fingerprint.setMetadataCanonical(signals.metadataCanonical());
-        fingerprint.setFileHashes(writeJson(signals.fileHashes()));
+        fingerprint.setGitCommitHashes(writeJson(captured.gitCommitHashes()));
+        fingerprint.setMetadataCanonical(captured.metadataCanonical());
+        fingerprint.setFileHashes(writeJson(captured.fileHashes()));
         fingerprintRepository.save(fingerprint);
 
         matchRepository.deleteInvolvingSubmission(submissionId);
 
-        BigDecimal currentScore = submission.getScore() != null ? submission.getScore() : BigDecimal.ZERO;
-        BigDecimal priorBest = labSubmissionRepository.bestScoreForUserAndLabExcludingSubmission(
-                userId, labId, submissionId);
-        if (priorBest == null) {
-            priorBest = BigDecimal.ZERO;
-        }
-
         List<SubmissionPlagiarismFingerprint> others =
                 fingerprintRepository.findByLabIdAndUserIdNot(labId, userId);
-        Set<UUID> otherUserIds = new HashSet<>();
+        if (others.isEmpty()) {
+            return;
+        }
+
+        Set<UUID> scoreUserIds = new HashSet<>();
+        scoreUserIds.add(userId);
         for (SubmissionPlagiarismFingerprint other : others) {
             if (other.getUserId() != null) {
-                otherUserIds.add(other.getUserId());
+                scoreUserIds.add(other.getUserId());
             }
         }
-        Map<UUID, BigDecimal> otherBestByUserId = bestScoresForLabUsers(labId, otherUserIds);
+        Map<UUID, List<LabSubmission>> attemptsByUser = attemptsByUser(labId, scoreUserIds);
+        Map<UUID, LabSubmission> submissionsById = submissionsById(attemptsByUser);
+        submissionsById.putIfAbsent(submissionId, submission);
+
+        BigDecimal currentScore = submission.getScore() != null ? submission.getScore() : BigDecimal.ZERO;
+        BigDecimal priorBest = bestScoreExcluding(
+                attemptsByUser.getOrDefault(userId, List.of()), submissionId);
+        Map<UUID, BigDecimal> bestByUser = bestScoresFromAttempts(attemptsByUser);
 
         List<SubmissionPlagiarismMatch> matches = new ArrayList<>();
         for (SubmissionPlagiarismFingerprint other : others) {
-            PlagiarismComparison comparison = PlagiarismComparator.compare(signals, toSignals(other));
-            BigDecimal otherBest = otherBestByUserId.getOrDefault(other.getUserId(), BigDecimal.ZERO);
-            // Use prior best (exclude current): first-time copy that scores 100 still flags (prior=0 < peer).
-            // Already-proven ability (prior >= peer best) does not flag. Zero-score attempts never flag.
+            PlagiarismComparison comparison = PlagiarismComparator.compare(captured, toSignals(other));
+            if (!comparison.flagged()) {
+                continue;
+            }
+            BigDecimal otherBest = bestByUser.getOrDefault(other.getUserId(), BigDecimal.ZERO);
             boolean scoreGate = scoreGateAllowsFlag(priorBest, otherBest, currentScore);
             SubmissionPlagiarismMatch match = new SubmissionPlagiarismMatch();
             match.setLabId(labId);
@@ -107,13 +125,13 @@ public class PlagiarismService {
             match.setGitMatch(comparison.gitMatch());
             match.setMetadataMatch(comparison.metadataMatch());
             match.setHashSimilarity(comparison.hashSimilarity());
-            match.setFlagged(comparison.flagged() && scoreGate);
+            match.setFlagged(scoreGate);
             matches.add(match);
         }
         if (!matches.isEmpty()) {
             matchRepository.saveAll(matches);
         }
-        reevaluateLabMatches(labId);
+        reevaluateMatchesAgainstUploader(labId, userId, attemptsByUser, submissionsById);
     }
 
     /**
@@ -167,17 +185,81 @@ public class PlagiarismService {
                 userIds.add(sid);
             }
         }
-        // Batch: all attempts for these users in this lab (avoids N+1 prior-best queries).
-        Map<UUID, List<LabSubmission>> attemptsByUser = new java.util.HashMap<>();
-        if (!userIds.isEmpty()) {
-            for (LabSubmission attempt : labSubmissionRepository.findByLabIdAndUserIdIn(labId, userIds)) {
-                UUID sid = studentId(attempt);
-                if (sid == null) {
-                    continue;
-                }
-                attemptsByUser.computeIfAbsent(sid, ignored -> new ArrayList<>()).add(attempt);
+        Map<UUID, List<LabSubmission>> attemptsByUser = attemptsByUser(labId, userIds);
+        applyFlagUpdates(matches, submissionsById, attemptsByUser);
+    }
+
+    /**
+     * Content matches stored against this uploader as the other side can newly flag when
+     * the uploader's lab best rises. Other students' latest-attempt status is unchanged.
+     */
+    private void reevaluateMatchesAgainstUploader(
+            UUID labId,
+            UUID uploaderUserId,
+            Map<UUID, List<LabSubmission>> attemptsByUser,
+            Map<UUID, LabSubmission> submissionsById) {
+        Set<UUID> uploaderSubmissionIds = new HashSet<>();
+        for (LabSubmission attempt : attemptsByUser.getOrDefault(uploaderUserId, List.of())) {
+            if (attempt != null && attempt.getId() != null) {
+                uploaderSubmissionIds.add(attempt.getId());
             }
         }
+        if (uploaderSubmissionIds.isEmpty()) {
+            return;
+        }
+        List<SubmissionPlagiarismMatch> peerSide =
+                matchRepository.findByLabIdAndOtherSubmissionIdIn(labId, uploaderSubmissionIds);
+        if (peerSide.isEmpty()) {
+            return;
+        }
+        fillMissingSubmissions(labId, peerSide, attemptsByUser, submissionsById);
+        applyFlagUpdates(peerSide, submissionsById, attemptsByUser);
+    }
+
+    private void fillMissingSubmissions(
+            UUID labId,
+            List<SubmissionPlagiarismMatch> matches,
+            Map<UUID, List<LabSubmission>> attemptsByUser,
+            Map<UUID, LabSubmission> submissionsById) {
+        Set<UUID> missingIds = new HashSet<>();
+        for (SubmissionPlagiarismMatch match : matches) {
+            if (match.getSubmissionId() != null && !submissionsById.containsKey(match.getSubmissionId())) {
+                missingIds.add(match.getSubmissionId());
+            }
+            if (match.getOtherSubmissionId() != null
+                    && !submissionsById.containsKey(match.getOtherSubmissionId())) {
+                missingIds.add(match.getOtherSubmissionId());
+            }
+        }
+        if (missingIds.isEmpty()) {
+            return;
+        }
+        Set<UUID> extraUserIds = new HashSet<>();
+        for (LabSubmission extra : labSubmissionRepository.findAllWithUserByIdIn(missingIds)) {
+            submissionsById.put(extra.getId(), extra);
+            UUID sid = studentId(extra);
+            if (sid != null && !attemptsByUser.containsKey(sid)) {
+                extraUserIds.add(sid);
+            }
+        }
+        if (extraUserIds.isEmpty()) {
+            return;
+        }
+        Map<UUID, List<LabSubmission>> extraAttempts = attemptsByUser(labId, extraUserIds);
+        for (Map.Entry<UUID, List<LabSubmission>> entry : extraAttempts.entrySet()) {
+            attemptsByUser.put(entry.getKey(), entry.getValue());
+            for (LabSubmission attempt : entry.getValue()) {
+                if (attempt.getId() != null) {
+                    submissionsById.put(attempt.getId(), attempt);
+                }
+            }
+        }
+    }
+
+    private void applyFlagUpdates(
+            List<SubmissionPlagiarismMatch> matches,
+            Map<UUID, LabSubmission> submissionsById,
+            Map<UUID, List<LabSubmission>> attemptsByUser) {
         Map<UUID, BigDecimal> bestByUser = bestScoresFromAttempts(attemptsByUser);
         List<SubmissionPlagiarismMatch> dirty = new ArrayList<>();
         for (SubmissionPlagiarismMatch match : matches) {
@@ -204,6 +286,33 @@ public class PlagiarismService {
         if (!dirty.isEmpty()) {
             matchRepository.saveAll(dirty);
         }
+    }
+
+    private Map<UUID, List<LabSubmission>> attemptsByUser(UUID labId, Collection<UUID> userIds) {
+        Map<UUID, List<LabSubmission>> attemptsByUser = new java.util.HashMap<>();
+        if (labId == null || userIds == null || userIds.isEmpty()) {
+            return attemptsByUser;
+        }
+        for (LabSubmission attempt : labSubmissionRepository.findByLabIdAndUserIdIn(labId, userIds)) {
+            UUID sid = studentId(attempt);
+            if (sid == null) {
+                continue;
+            }
+            attemptsByUser.computeIfAbsent(sid, ignored -> new ArrayList<>()).add(attempt);
+        }
+        return attemptsByUser;
+    }
+
+    private static Map<UUID, LabSubmission> submissionsById(Map<UUID, List<LabSubmission>> attemptsByUser) {
+        Map<UUID, LabSubmission> submissionsById = new java.util.HashMap<>();
+        for (List<LabSubmission> attempts : attemptsByUser.values()) {
+            for (LabSubmission attempt : attempts) {
+                if (attempt != null && attempt.getId() != null) {
+                    submissionsById.put(attempt.getId(), attempt);
+                }
+            }
+        }
+        return submissionsById;
     }
 
     /**
@@ -244,14 +353,7 @@ public class PlagiarismService {
         Map<UUID, Map<UUID, UUID>> latestSubmissionByLabAndUser = new java.util.HashMap<>();
         for (Map.Entry<UUID, Set<UUID>> entry : userIdsByLab.entrySet()) {
             UUID labId = entry.getKey();
-            Map<UUID, List<LabSubmission>> attemptsByUser = new java.util.HashMap<>();
-            for (LabSubmission attempt : labSubmissionRepository.findByLabIdAndUserIdIn(labId, entry.getValue())) {
-                UUID sid = studentId(attempt);
-                if (sid == null) {
-                    continue;
-                }
-                attemptsByUser.computeIfAbsent(sid, ignored -> new ArrayList<>()).add(attempt);
-            }
+            Map<UUID, List<LabSubmission>> attemptsByUser = attemptsByUser(labId, entry.getValue());
             Map<UUID, UUID> latestByUser = new java.util.HashMap<>();
             for (Map.Entry<UUID, List<LabSubmission>> userEntry : attemptsByUser.entrySet()) {
                 UUID latestId = latestSubmissionId(userEntry.getValue());
@@ -344,21 +446,6 @@ public class PlagiarismService {
             }
         }
         return best;
-    }
-
-    private Map<UUID, BigDecimal> bestScoresForLabUsers(UUID labId, Collection<UUID> userIds) {
-        Map<UUID, BigDecimal> bestByUser = new java.util.HashMap<>();
-        if (labId == null || userIds == null) {
-            return bestByUser;
-        }
-        for (UUID userId : userIds) {
-            if (userId == null) {
-                continue;
-            }
-            BigDecimal best = labSubmissionRepository.bestScoreForUserAndLab(userId, labId);
-            bestByUser.put(userId, best == null ? BigDecimal.ZERO : best);
-        }
-        return bestByUser;
     }
 
     @Transactional(readOnly = true)

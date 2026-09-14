@@ -35,7 +35,7 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     List<LabSubmission> findAllWithUserByIdIn(@Param("ids") java.util.Collection<UUID> ids);
 
     @Query("""
-            SELECT s FROM LabSubmission s
+            SELECT s FROM LabSubmission s JOIN FETCH s.user
             WHERE s.lab.id = :labId
               AND s.user.id IN :userIds
             """)

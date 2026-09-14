@@ -16,6 +16,9 @@ public interface SubmissionPlagiarismMatchRepository extends JpaRepository<Submi
 
     List<SubmissionPlagiarismMatch> findByLabId(UUID labId);
 
+    List<SubmissionPlagiarismMatch> findByLabIdAndOtherSubmissionIdIn(
+            UUID labId, java.util.Collection<UUID> otherSubmissionIds);
+
     List<SubmissionPlagiarismMatch> findByFlaggedTrue();
 
     @Query("SELECT DISTINCT m.labId FROM SubmissionPlagiarismMatch m")
