@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.grading.testcase;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +20,6 @@ public final class WorkerSession implements AutoCloseable {
     private final Thread stderrDrain;
     private final AtomicInteger stderrBytesKept;
     private final Object invokeMutex = new Object();
-    private final long spawnEpochMs = System.currentTimeMillis();
     private int respawnCount;
 
     WorkerSession(Process process,
@@ -36,16 +36,8 @@ public final class WorkerSession implements AutoCloseable {
         return process;
     }
 
-    public Object invokeMutex() {
-        return invokeMutex;
-    }
-
     public int stderrBytesKept() {
         return stderrBytesKept.get();
-    }
-
-    public long spawnEpochMs() {
-        return spawnEpochMs;
     }
 
     public int respawnCount() {
@@ -74,7 +66,7 @@ public final class WorkerSession implements AutoCloseable {
 
     public String readLine(Duration timeout, int byteCap) {
         long deadline = System.nanoTime() + timeout.toNanos();
-        StringBuilder line = new StringBuilder();
+        ByteArrayOutputStream line = new ByteArrayOutputStream();
         try {
             while (System.nanoTime() < deadline) {
                 if (ipcStdout.available() <= 0 && process.isAlive()) {
@@ -83,17 +75,17 @@ public final class WorkerSession implements AutoCloseable {
                 }
                 int next = ipcStdout.read();
                 if (next < 0) {
-                    return line.isEmpty() ? null : line.toString();
+                    return line.size() == 0 ? null : decodeIpcLine(line.toByteArray());
                 }
                 if (next == '\n') {
-                    return stripCr(line.toString());
+                    return decodeIpcLine(line.toByteArray());
                 }
-                if (line.length() >= byteCap) {
+                if (line.size() >= byteCap) {
                     throw new WorkerSpawnException("Worker IPC line exceeded " + byteCap + " bytes");
                 }
-                line.append((char) next);
+                line.write(next);
             }
-            throw new WorkerSpawnException("Timed out reading worker IPC line");
+            throw new WorkerTimeoutException("Timed out reading worker IPC line");
         } catch (WorkerSpawnException e) {
             throw e;
         } catch (InterruptedException e) {
@@ -104,11 +96,12 @@ public final class WorkerSession implements AutoCloseable {
         }
     }
 
-    private static String stripCr(String line) {
-        if (line.endsWith("\r")) {
-            return line.substring(0, line.length() - 1);
+    private static String decodeIpcLine(byte[] bytes) {
+        int length = bytes.length;
+        if (length > 0 && bytes[length - 1] == '\r') {
+            length--;
         }
-        return line;
+        return new String(bytes, 0, length, StandardCharsets.UTF_8);
     }
 
     @Override

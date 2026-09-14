@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
@@ -17,23 +16,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 public class InvocationRunner {
 
     private final JsonValueCoercer jsonValueCoercer;
-    private final int timeoutSeconds;
 
-    public InvocationRunner(JsonValueCoercer jsonValueCoercer,
-                            @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int timeoutSeconds) {
+    public InvocationRunner(JsonValueCoercer jsonValueCoercer) {
         this.jsonValueCoercer = jsonValueCoercer;
-        this.timeoutSeconds = timeoutSeconds;
-    }
-
-    int timeoutSeconds() {
-        return timeoutSeconds;
     }
 
     public InvocationOutcome invokeSingle(ChallengeGradingContext context,
                                           InvocationRubric invocation,
                                           List<String> snapshotFieldNames) {
-        if (context == null || context.classesDir() == null
-                || !java.nio.file.Files.isDirectory(context.classesDir())) {
+        if (!hasRunnableClassesDir(context)) {
             return InvocationOutcome.error("Missing compiled classes directory");
         }
         if (invocation == null) {
@@ -50,8 +41,7 @@ public class InvocationRunner {
     public ComparisonOutcome invokeComparison(ChallengeGradingContext context,
                                               TestcaseComparisonMethod comparisonMethod,
                                               List<InstanceRubric> instances) {
-        if (context == null || context.classesDir() == null
-                || !java.nio.file.Files.isDirectory(context.classesDir())) {
+        if (!hasRunnableClassesDir(context)) {
             return ComparisonOutcome.error("Missing compiled classes directory");
         }
         WorkerSessionHandle handle = context.workerSession();
@@ -67,15 +57,15 @@ public class InvocationRunner {
             return InvocationOutcome.error("Empty worker response");
         }
         return switch (serialized.kind()) {
-            case "TIMED_OUT" -> InvocationOutcome.timedOut(serialized.stdout());
-            case "ERROR" -> InvocationOutcome.error(
+            case SerializedInvocationOutcome.KIND_TIMED_OUT -> InvocationOutcome.timedOut(serialized.stdout());
+            case SerializedInvocationOutcome.KIND_ERROR -> InvocationOutcome.error(
                     serialized.errorMessage() != null ? serialized.errorMessage() : "Worker IPC failure");
-            case "THREW" -> InvocationOutcome.threw(
+            case SerializedInvocationOutcome.KIND_THREW -> InvocationOutcome.threw(
                     serialized.stdout(),
                     serialized.stdoutTruncated(),
                     serialized.exceptionSimpleName(),
                     serialized.exceptionSuperclassSimpleNames());
-            case "NORMAL" -> InvocationOutcome.normal(
+            case SerializedInvocationOutcome.KIND_NORMAL -> InvocationOutcome.normal(
                     decodeJson(serialized.returnValueJson()),
                     serialized.stdout(),
                     serialized.stdoutTruncated(),
@@ -89,16 +79,23 @@ public class InvocationRunner {
             return ComparisonOutcome.error("Empty worker response");
         }
         return switch (serialized.kind()) {
-            case "ERROR", "TIMED_OUT" -> ComparisonOutcome.error(
-                    serialized.errorMessage() != null ? serialized.errorMessage() : "Comparison invocation failed");
-            case "THREW" -> ComparisonOutcome.error(
+            case SerializedInvocationOutcome.KIND_ERROR, SerializedInvocationOutcome.KIND_TIMED_OUT ->
+                    ComparisonOutcome.error(
+                            serialized.errorMessage() != null ? serialized.errorMessage() : "Comparison invocation failed");
+            case SerializedInvocationOutcome.KIND_THREW -> ComparisonOutcome.error(
                     serialized.exceptionSimpleName() != null ? serialized.exceptionSimpleName() : "Comparison threw");
-            case "NORMAL" -> ComparisonOutcome.normal(decodeJson(
+            case SerializedInvocationOutcome.KIND_NORMAL -> ComparisonOutcome.normal(decodeJson(
                     serialized.comparisonResultJson() != null
                             ? serialized.comparisonResultJson()
                             : serialized.returnValueJson()));
             default -> ComparisonOutcome.error("Malformed IPC JSON");
         };
+    }
+
+    private static boolean hasRunnableClassesDir(ChallengeGradingContext context) {
+        return context != null
+                && context.classesDir() != null
+                && java.nio.file.Files.isDirectory(context.classesDir());
     }
 
     private Map<String, Object> decodeSnapshots(Map<String, String> snapshots) {

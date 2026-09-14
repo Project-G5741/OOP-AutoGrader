@@ -47,6 +47,10 @@ public class GradingPipeline {
         this.timingLog = timingLog;
     }
 
+    /**
+     * Class/MMD-only entry. Challenges with testcases must use the four-arg overload
+     * and pass a live {@code WorkerSessionHandle}.
+     */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
@@ -72,6 +76,13 @@ public class GradingPipeline {
         long challengeStart = System.currentTimeMillis();
         String challengeKey = folderResult.challengeName;
 
+        boolean mmdApplicable = challengeRubric.hasMmd();
+        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
+        if (testcaseApplicable && workerSession == null) {
+            throw new IllegalStateException(
+                    "Worker session required when challenge " + challengeKey + " has testcases");
+        }
+
         Path classesDir = folderResult.folder.resolve("classes");
         long parseStart = System.currentTimeMillis();
         List<com.eiu.capstone.backend.grading.ParsedClass> parsedClasses = Files.exists(classesDir)
@@ -91,9 +102,6 @@ public class GradingPipeline {
         long classStart = System.currentTimeMillis();
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);
         long classMs = System.currentTimeMillis() - classStart;
-
-        boolean mmdApplicable = challengeRubric.hasMmd();
-        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
 
         long[] mmdMs = {0};
         long[] testcaseMs = {0};

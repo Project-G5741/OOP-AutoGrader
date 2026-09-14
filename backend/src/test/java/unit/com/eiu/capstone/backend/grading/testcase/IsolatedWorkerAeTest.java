@@ -28,13 +28,14 @@ import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
-import com.eiu.capstone.backend.grading.testcase.worker.WorkerMain;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
+
+import support.com.eiu.capstone.backend.grading.testcase.WorkerTestSupport;
 
 /**
  * Named AE1–AE9 coverage for the isolated worker. AE3/AE6 live in
@@ -59,7 +60,7 @@ class IsolatedWorkerAeTest {
                         }
                         """));
         try (WorkerSessionHandle handle = startWorker()) {
-            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer(), 5);
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
             InvocationOutcome first = runner.invokeSingle(
                     context(classesDir, handle), methodInvoke("ExitBoom", "boom"), List.of());
             assertEquals(InvocationOutcomeKind.ERROR, first.kind());
@@ -93,7 +94,7 @@ class IsolatedWorkerAeTest {
         try (WorkerSessionHandle handle = startWorker()) {
             JsonValueCoercer coercer = new JsonValueCoercer();
             TestcaseGrader grader = new TestcaseGrader(
-                    new InvocationRunner(coercer, 5),
+                    new InvocationRunner(coercer),
                     new AssertionEvaluator(coercer),
                     new PrimaryAssertionSelector(),
                     new TestcaseDisplayFormatter(coercer));
@@ -105,6 +106,55 @@ class IsolatedWorkerAeTest {
     }
 
     @Test
+    void utf8ReturnValueAndStdoutRoundTripThroughIpc() throws Exception {
+        Path classesDir = compile("Accent.java", """
+                public class Accent {
+                    public String greet() {
+                        System.out.print("Xin ch\\u00e0o");
+                        return "caf\\u00e9";
+                    }
+                }
+                """);
+        try (WorkerSessionHandle handle = startWorker()) {
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
+            InvocationOutcome outcome = runner.invokeSingle(
+                    context(classesDir, handle), methodInvoke("Accent", "greet"), List.of());
+            assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind(), outcome.errorMessage());
+            assertEquals("caf\u00e9", outcome.returnValue(), () -> codepoints(outcome.returnValue()));
+            assertEquals("Xin ch\u00e0o", outcome.stdout(), () -> codepoints(outcome.stdout()));
+        }
+    }
+
+    @Test
+    void hangingMethodTimesOutThenLaterInvokeStillRuns() throws Exception {
+        Path classesDir = compile(Map.of(
+                "Hang.java", """
+                        public class Hang {
+                            public int spin() {
+                                while (true) {
+                                    Thread.onSpinWait();
+                                }
+                            }
+                        }
+                        """,
+                "Ok.java", """
+                        public class Ok {
+                            public int value() { return 7; }
+                        }
+                        """));
+        try (WorkerSessionHandle handle = startWorker(1)) {
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
+            InvocationOutcome hung = runner.invokeSingle(
+                    context(classesDir, handle), methodInvoke("Hang", "spin"), List.of());
+            assertEquals(InvocationOutcomeKind.TIMED_OUT, hung.kind(), hung.errorMessage());
+            InvocationOutcome later = runner.invokeSingle(
+                    context(classesDir, handle), methodInvoke("Ok", "value"), List.of());
+            assertEquals(InvocationOutcomeKind.NORMAL, later.kind(), later.errorMessage());
+            assertEquals(7, later.returnValue());
+        }
+    }
+
+    @Test
     void ae5OrdinaryInvokeStillPasses() throws Exception {
         Path classesDir = compile("Ok.java", """
                 public class Ok {
@@ -112,7 +162,7 @@ class IsolatedWorkerAeTest {
                 }
                 """);
         try (WorkerSessionHandle handle = startWorker()) {
-            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer(), 5);
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
             InvocationOutcome outcome = runner.invokeSingle(
                     context(classesDir, handle), methodInvoke("Ok", "value"), List.of());
             assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind(), outcome.errorMessage());
@@ -132,7 +182,7 @@ class IsolatedWorkerAeTest {
                 }
                 """);
         try (WorkerSessionHandle handle = startWorker()) {
-            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer(), 5);
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
             InvocationOutcome outcome = runner.invokeSingle(
                     context(classesDir, handle), methodInvoke("Flood", "flood"), List.of());
             assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind(), outcome.errorMessage());
@@ -167,7 +217,7 @@ class IsolatedWorkerAeTest {
                 }
                 """);
         try (WorkerSessionHandle handle = startWorker()) {
-            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer(), 5);
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
             ComparisonOutcome outcome = runner.invokeComparison(
                     context(classesDir, handle),
                     TestcaseComparisonMethod.EQUALS,
@@ -207,8 +257,14 @@ class IsolatedWorkerAeTest {
     }
 
     private static WorkerSessionHandle startWorker() {
+        return startWorker(5);
+    }
+
+    private static WorkerSessionHandle startWorker(int timeoutSeconds) {
         return WorkerSessionHandle.startCommand(
-                new WorkerProcessClient("java", "missing-worker.jar"), 5, javaCommand());
+                new WorkerProcessClient("java", "missing-worker.jar"),
+                timeoutSeconds,
+                WorkerTestSupport.javaCommand());
     }
 
     private static ChallengeGradingContext context(Path classesDir, WorkerSessionHandle handle) {
@@ -241,6 +297,20 @@ class IsolatedWorkerAeTest {
                         0)));
     }
 
+    private static String codepoints(Object value) {
+        if (!(value instanceof String text)) {
+            return String.valueOf(value);
+        }
+        StringBuilder hex = new StringBuilder();
+        text.codePoints().forEach(cp -> {
+            if (hex.length() > 0) {
+                hex.append(' ');
+            }
+            hex.append(Integer.toHexString(cp));
+        });
+        return hex.toString();
+    }
+
     private static InvocationRubric methodInvoke(String className, String methodName) {
         return new InvocationRubric(
                 UUID.randomUUID(),
@@ -255,17 +325,5 @@ class IsolatedWorkerAeTest {
                 null,
                 List.of(),
                 null);
-    }
-
-    private static List<String> javaCommand() {
-        List<String> command = new ArrayList<>();
-        command.add(ProcessHandle.current().info().command().orElse("java"));
-        command.add(WorkerProcessClient.HEAP_FLAG);
-        command.add(WorkerProcessClient.METASPACE_FLAG);
-        command.add(WorkerProcessClient.EXIT_ON_OOM_FLAG);
-        command.add("-cp");
-        command.add(System.getProperty("java.class.path"));
-        command.add(WorkerMain.class.getName());
-        return command;
     }
 }

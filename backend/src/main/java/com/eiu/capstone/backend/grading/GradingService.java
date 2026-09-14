@@ -133,16 +133,15 @@ public class GradingService {
             throw new IllegalStateException("Interrupted waiting for isolated worker slot", e);
         }
         long slotWaitMs = System.currentTimeMillis() - slotWaitStart;
-        WorkerSessionHandle workerSession = null;
         GradingComputationResult computed;
-        try {
-            workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds);
+        long workerSpawnMs = 0;
+        int workerRespawnCount = 0;
+        try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
             computed = computeAgainstSnapshot(
                     rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+            workerSpawnMs = workerSession.spawnMs();
+            workerRespawnCount = workerSession.respawnCount();
         } finally {
-            if (workerSession != null) {
-                workerSession.close();
-            }
             workerJvmSlot.release();
         }
         long computeMs = System.currentTimeMillis() - computeStart;
@@ -158,8 +157,8 @@ public class GradingService {
                 "load existing", loadMs,
                 "compute", computeMs,
                 "worker_slot_wait_ms", slotWaitMs,
-                "worker_spawn_ms", workerSession == null ? 0 : workerSession.spawnMs(),
-                "worker_respawn_count", workerSession == null ? 0 : workerSession.respawnCount(),
+                "worker_spawn_ms", workerSpawnMs,
+                "worker_respawn_count", workerRespawnCount,
                 "assemble", System.currentTimeMillis() - assembleStart,
                 "total", System.currentTimeMillis() - totalStart);
         return new GradingOutcome(

@@ -21,19 +21,40 @@ public final class ProcessTreeKiller {
             return;
         }
         ProcessHandle root = process.toHandle();
-        destroySnapshot(root);
-        try {
-            long millis = Math.max(1L, grace.toMillis());
-            process.waitFor(millis, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        if (root.isAlive()) {
-            destroySnapshot(root);
+        if (!root.isAlive()) {
             try {
-                process.waitFor(grace.toMillis(), TimeUnit.MILLISECONDS);
+                process.waitFor(1, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            }
+            return;
+        }
+        destroySnapshot(root);
+        waitUntilDead(process, root, grace);
+        if (root.isAlive()) {
+            destroySnapshot(root);
+            waitUntilDead(process, root, grace);
+        }
+    }
+
+    private static void waitUntilDead(Process process, ProcessHandle root, Duration grace) {
+        if (!root.isAlive()) {
+            return;
+        }
+        long remaining = Math.max(1L, grace.toMillis());
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(remaining);
+        while (root.isAlive() && System.nanoTime() < deadline) {
+            long slice = Math.min(50L, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
+            if (slice <= 0) {
+                break;
+            }
+            try {
+                if (process.waitFor(slice, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
     }

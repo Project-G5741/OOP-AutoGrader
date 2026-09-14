@@ -15,6 +15,8 @@ public final class WorkerIpc {
     public static final int MAX_LINE_BYTES = 524288;
     public static final int DEFAULT_STDOUT_CAP = 65536;
     public static final int MAX_NESTING_DEPTH = 8;
+    public static final String OP_INVOKE = "invoke";
+    public static final String OP_COMPARE = "compare";
 
     private static final ObjectMapper MAPPER = createMapper();
     private static final WorkerInvokeEngine ENGINE = new WorkerInvokeEngine();
@@ -45,8 +47,8 @@ public final class WorkerIpc {
         Path classesDir = request.classesDir() != null ? Path.of(request.classesDir()) : null;
         try {
             return switch (request.op()) {
-                case "invoke" -> ENGINE.invoke(classesDir, request.invoke(), request.snapshotFieldNames(), stdoutCap);
-                case "compare" -> ENGINE.compare(classesDir, request.compare(), stdoutCap);
+                case OP_INVOKE -> ENGINE.invoke(classesDir, request.invoke(), request.snapshotFieldNames(), stdoutCap);
+                case OP_COMPARE -> ENGINE.compare(classesDir, request.compare(), stdoutCap);
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
             };
         } catch (Exception e) {

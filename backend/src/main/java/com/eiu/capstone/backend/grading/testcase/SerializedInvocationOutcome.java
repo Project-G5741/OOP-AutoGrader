@@ -20,13 +20,18 @@ public record SerializedInvocationOutcome(
         String comparisonResultJson,
         String errorMessage) {
 
+    public static final String KIND_ERROR = "ERROR";
+    public static final String KIND_NORMAL = "NORMAL";
+    public static final String KIND_THREW = "THREW";
+    public static final String KIND_TIMED_OUT = "TIMED_OUT";
+
     public static SerializedInvocationOutcome error(String message) {
         return new SerializedInvocationOutcome(
-                "ERROR", null, "", false, Map.of(), null, List.of(), null, message);
+                KIND_ERROR, null, "", false, Map.of(), null, List.of(), null, message);
     }
 
     public static SerializedInvocationOutcome timedOut(String stdout, boolean truncated) {
         return new SerializedInvocationOutcome(
-                "TIMED_OUT", null, stdout, truncated, Map.of(), null, List.of(), null, "Invocation timed out");
+                KIND_TIMED_OUT, null, stdout, truncated, Map.of(), null, List.of(), null, "Invocation timed out");
     }
 }

@@ -86,6 +86,9 @@ SubmissionController
 - COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
+- IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
+- `GradingPipeline.gradeChallenge(...)` without a worker is class/MMD-only; a challenge with testcases and a null session fails fast
+- Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives
 

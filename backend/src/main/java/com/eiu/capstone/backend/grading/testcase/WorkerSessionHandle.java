@@ -19,7 +19,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
     private final Object lock = new Object();
     private WorkerSession session;
     private final List<String> restartCommand;
-    private final String spawnFailure;
+    private String spawnFailure;
     private final AtomicInteger respawns = new AtomicInteger();
     private final long spawnMs;
 
@@ -73,7 +73,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                                               InvocationRubric invocation,
                                               List<String> snapshotFieldNames) {
         WorkerIpc.Request request = new WorkerIpc.Request(
-                "invoke",
+                WorkerIpc.OP_INVOKE,
                 classesDir,
                 toInvokeSpec(invocation),
                 null,
@@ -89,7 +89,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
             return SerializedInvocationOutcome.error("Comparison testcase requires two instances");
         }
         WorkerIpc.Request request = new WorkerIpc.Request(
-                "compare",
+                WorkerIpc.OP_COMPARE,
                 classesDir,
                 null,
                 new WorkerIpc.CompareSpec(
@@ -103,14 +103,12 @@ public final class WorkerSessionHandle implements AutoCloseable {
 
     private SerializedInvocationOutcome roundTrip(WorkerIpc.Request request) {
         synchronized (lock) {
-            if (spawnFailure != null) {
-                return SerializedInvocationOutcome.error(spawnFailure);
-            }
             if (session == null || !session.isAlive()) {
                 respawnLocked();
             }
             if (session == null || !session.isAlive()) {
-                return SerializedInvocationOutcome.error("Worker stopped");
+                return SerializedInvocationOutcome.error(
+                        spawnFailure != null ? spawnFailure : "Worker stopped");
             }
             String json;
             try {
@@ -123,10 +121,6 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 String line = session.readLine(
                         Duration.ofSeconds(Math.max(1, timeoutSeconds)),
                         WorkerProcessClient.IPC_LINE_CAP_BYTES);
-                if (session.process().getInputStream().available() > 0) {
-                    respawnLocked();
-                    return SerializedInvocationOutcome.error("Worker returned extra IPC lines");
-                }
                 if (line == null) {
                     respawnLocked();
                     return SerializedInvocationOutcome.error("Worker stopped");
@@ -137,12 +131,11 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     return SerializedInvocationOutcome.error("Malformed IPC JSON");
                 }
                 return parsed;
-            } catch (WorkerSpawnException e) {
-                boolean timeout = e.getMessage() != null && e.getMessage().contains("Timed out");
+            } catch (WorkerTimeoutException e) {
                 respawnLocked();
-                if (timeout) {
-                    return SerializedInvocationOutcome.timedOut("", false);
-                }
+                return SerializedInvocationOutcome.timedOut("", false);
+            } catch (WorkerSpawnException e) {
+                respawnLocked();
                 return SerializedInvocationOutcome.error("Worker IPC failure");
             } catch (Exception e) {
                 respawnLocked();
@@ -154,12 +147,17 @@ public final class WorkerSessionHandle implements AutoCloseable {
     private void respawnLocked() {
         if (session != null) {
             session.close();
+            session = null;
         }
         try {
             session = restartCommand != null ? client.startCommand(restartCommand) : client.start();
+            spawnFailure = null;
             respawns.incrementAndGet();
         } catch (RuntimeException e) {
             session = null;
+            if (spawnFailure == null || spawnFailure.isBlank()) {
+                spawnFailure = e.getMessage();
+            }
         }
     }
 

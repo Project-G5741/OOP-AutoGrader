@@ -124,9 +124,7 @@ public class TestcaseDryRunService {
                 Thread.currentThread().interrupt();
                 throw unprocessable("Interrupted waiting for isolated worker slot");
             }
-            WorkerSessionHandle workerSession = null;
-            try {
-                workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds);
+            try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
                 ChallengeGradingContext context = ChallengeGradingContext.of(
                         stubRubric,
                         classesDir,
@@ -138,9 +136,6 @@ public class TestcaseDryRunService {
                 PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
                 return testcaseResultMapper.mapDryRunResult(rubric, pending);
             } finally {
-                if (workerSession != null) {
-                    workerSession.close();
-                }
                 workerJvmSlot.release();
             }
         } catch (ResponseStatusException ex) {

@@ -8,14 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class WorkerProcessClient {
 
-    public static final int STDERR_CAP_BYTES = 65536;
-    public static final int IPC_LINE_CAP_BYTES = 524288;
+    public static final int STDERR_CAP_BYTES = WorkerIpc.DEFAULT_STDOUT_CAP;
+    public static final int IPC_LINE_CAP_BYTES = WorkerIpc.MAX_LINE_BYTES;
     public static final String HEAP_FLAG = "-Xmx64m";
     public static final String METASPACE_FLAG = "-XX:MaxMetaspaceSize=48m";
     public static final String EXIT_ON_OOM_FLAG = "-XX:+ExitOnOutOfMemoryError";
@@ -69,23 +70,6 @@ public class WorkerProcessClient {
         drain.setDaemon(true);
         drain.start();
         return new WorkerSession(process, drain, stderrKept);
-    }
-
-    /**
-     * Kill the current JVM tree and start a replacement without touching the host slot.
-     */
-    public WorkerSession killAndRespawn(WorkerSession session, String... workerArgs) {
-        if (session != null) {
-            session.close();
-        }
-        WorkerSession next = start(workerArgs);
-        next.incrementRespawnCount();
-        if (session != null) {
-            for (int i = 0; i < session.respawnCount(); i++) {
-                next.incrementRespawnCount();
-            }
-        }
-        return next;
     }
 
     public WorkerSession killAndRespawnCommand(WorkerSession session, List<String> command) {

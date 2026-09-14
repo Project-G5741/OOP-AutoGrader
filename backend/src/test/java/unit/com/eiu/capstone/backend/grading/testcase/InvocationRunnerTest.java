@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,8 +20,9 @@ import org.junit.jupiter.api.io.TempDir;
 import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
-import com.eiu.capstone.backend.grading.testcase.worker.WorkerMain;
 import com.eiu.capstone.backend.model.InvocationKind;
+
+import support.com.eiu.capstone.backend.grading.testcase.WorkerTestSupport;
 
 class InvocationRunnerTest {
 
@@ -67,9 +67,9 @@ class InvocationRunnerTest {
         String compileOutput = new String(compile.getInputStream().readAllBytes());
         assertEquals(0, exitCode, () -> "javac failed: " + compileOutput);
 
-        runner = new InvocationRunner(new JsonValueCoercer(), 5);
+        runner = new InvocationRunner(new JsonValueCoercer());
         WorkerProcessClient client = new WorkerProcessClient("java", "missing-worker.jar");
-        handle = WorkerSessionHandle.startCommand(client, 5, javaCommand());
+        handle = WorkerSessionHandle.startCommand(client, 5, WorkerTestSupport.javaCommand());
     }
 
     @AfterEach
@@ -143,17 +143,5 @@ class InvocationRunnerTest {
                 "Car",
                 List.of("int", "String"),
                 "[2020, \"Toyota\"]");
-    }
-
-    private static List<String> javaCommand() {
-        List<String> command = new ArrayList<>();
-        command.add(ProcessHandle.current().info().command().orElse("java"));
-        command.add(WorkerProcessClient.HEAP_FLAG);
-        command.add(WorkerProcessClient.METASPACE_FLAG);
-        command.add(WorkerProcessClient.EXIT_ON_OOM_FLAG);
-        command.add("-cp");
-        command.add(System.getProperty("java.class.path"));
-        command.add(WorkerMain.class.getName());
-        return command;
     }
 }

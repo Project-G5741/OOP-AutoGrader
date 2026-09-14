@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
@@ -22,7 +21,8 @@ import com.eiu.capstone.backend.grading.testcase.WorkerEnvironment;
 import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
 import com.eiu.capstone.backend.grading.testcase.WorkerSession;
 import com.eiu.capstone.backend.grading.testcase.WorkerSpawnException;
-import com.eiu.capstone.backend.grading.testcase.worker.WorkerMain;
+
+import support.com.eiu.capstone.backend.grading.testcase.WorkerTestSupport;
 
 class WorkerProcessClientTest {
 
@@ -64,7 +64,7 @@ class WorkerProcessClientTest {
 
     @Test
     void ae6WorkerDoesNotInheritNamedSecrets() throws Exception {
-        List<String> command = javaCommand("--dump-env", "JWT_SECRET", "DB_PASSWORD");
+        List<String> command = WorkerTestSupport.javaCommand("--dump-env", "JWT_SECRET", "DB_PASSWORD");
         try (WorkerSession session = client.startCommand(command)) {
             String line = session.readLine(Duration.ofSeconds(15), WorkerProcessClient.IPC_LINE_CAP_BYTES);
             assertTrue(line.contains("\"JWT_SECRET\":false"), line);
@@ -74,7 +74,7 @@ class WorkerProcessClientTest {
 
     @Test
     void stderrFloodIsCapped() throws Exception {
-        List<String> command = javaCommand("--stderr-flood");
+        List<String> command = WorkerTestSupport.javaCommand("--stderr-flood");
         try (WorkerSession session = client.startCommand(command)) {
             long deadline = System.currentTimeMillis() + 10_000;
             while (session.stderrBytesKept() < WorkerProcessClient.STDERR_CAP_BYTES
@@ -91,13 +91,13 @@ class WorkerProcessClientTest {
     void hangTimeoutKillsWorkerAndLaterCommandStillRuns() throws Exception {
         Semaphore slot = new Semaphore(1);
         assertTrue(slot.tryAcquire());
-        WorkerSession hung = client.startCommand(javaCommand("--hang"));
+        WorkerSession hung = client.startCommand(WorkerTestSupport.javaCommand("--hang"));
         try {
             assertTrue(hung.isAlive());
             assertFalse(slot.tryAcquire());
             assertTrue(client.waitThenKillOnTimeout(hung, Duration.ofSeconds(2)));
             assertTrue(slot.availablePermits() == 0, "slot stays held across kill");
-            WorkerSession next = client.killAndRespawnCommand(hung, javaCommand("--self-check"));
+            WorkerSession next = client.killAndRespawnCommand(hung, WorkerTestSupport.javaCommand("--self-check"));
             try {
                 String line = next.readLine(Duration.ofSeconds(15), WorkerProcessClient.IPC_LINE_CAP_BYTES);
                 assertEquals("{\"ok\":true}", line);
@@ -114,7 +114,7 @@ class WorkerProcessClientTest {
     @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})
     void ae3TimeoutKillsChildOsProcess() throws Exception {
-        WorkerSession session = client.startCommand(javaCommand("--child-hang"));
+        WorkerSession session = client.startCommand(WorkerTestSupport.javaCommand("--child-hang"));
         try {
             String line = session.readLine(Duration.ofSeconds(15), WorkerProcessClient.IPC_LINE_CAP_BYTES);
             assertTrue(line.contains("childPid"), line);
@@ -127,22 +127,22 @@ class WorkerProcessClientTest {
             session.close();
         }
     }
-
-    private static List<String> javaCommand(String... workerArgs) {
-        List<String> command = new ArrayList<>();
-        command.add(ProcessHandle.current().info().command().orElse("java"));
-        command.add(WorkerProcessClient.HEAP_FLAG);
-        command.add(WorkerProcessClient.METASPACE_FLAG);
-        command.add(WorkerProcessClient.EXIT_ON_OOM_FLAG);
-        command.add("-cp");
-        command.add(System.getProperty("java.class.path"));
-        command.add(WorkerMain.class.getName());
-        command.addAll(List.of(workerArgs));
-        return command;
-    }
 }
 
 class ProcessTreeKillerTest {
+
+    @Test
+    void killReturnsPromptlyWhenProcessAlreadyExited() throws Exception {
+        Process process = new ProcessBuilder(
+                ProcessHandle.current().info().command().orElse("java"), "-version")
+                .redirectErrorStream(true)
+                .start();
+        assertTrue(process.waitFor(10, TimeUnit.SECONDS));
+        long started = System.nanoTime();
+        ProcessTreeKiller.kill(process);
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        assertTrue(elapsedMs < 400, "kill waited " + elapsedMs + "ms on an exited process");
+    }
 
     @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})

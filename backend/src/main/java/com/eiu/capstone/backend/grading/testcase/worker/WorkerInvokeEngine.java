@@ -13,10 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
-import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.kernel.JavaTypeResolver;
 import com.eiu.capstone.backend.grading.testcase.kernel.JsonValueCoercer;
@@ -37,9 +34,8 @@ public final class WorkerInvokeEngine {
         if (spec == null || spec.className() == null || spec.className().isBlank()) {
             return SerializedInvocationOutcome.error("Missing invocation rubric");
         }
-        InvocationRubric invocation = toInvocation(spec);
         try (URLClassLoader loader = studentLoader(classesDir)) {
-            return invokeSingleInternal(loader, invocation, snapshotFieldNames, stdoutCap);
+            return invokeSingleInternal(loader, spec, snapshotFieldNames, stdoutCap);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
@@ -72,15 +68,16 @@ public final class WorkerInvokeEngine {
             Object result = method == TestcaseComparisonMethod.EQUALS
                     ? Boolean.valueOf(instanceA.equals(instanceB))
                     : Integer.valueOf(((Comparable<Object>) instanceA).compareTo(instanceB));
+            String resultJson = coercer.toJson(result);
             return new SerializedInvocationOutcome(
-                    "NORMAL",
-                    coercer.toJson(result),
+                    SerializedInvocationOutcome.KIND_NORMAL,
+                    resultJson,
                     stdout.text(),
                     stdout.truncated(),
                     Map.of(),
                     null,
                     List.of(),
-                    coercer.toJson(result),
+                    resultJson,
                     null);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -94,28 +91,29 @@ public final class WorkerInvokeEngine {
     }
 
     private SerializedInvocationOutcome invokeSingleInternal(URLClassLoader loader,
-                                                            InvocationRubric invocation,
+                                                            WorkerIpc.InvokeSpec spec,
                                                             List<String> snapshotFieldNames,
                                                             int stdoutCap)
             throws Exception {
-        Class<?> clazz = findClass(loader, invocation.className());
-        Object[] args = coercer.coerceParams(invocation.paramsJson(), invocation.parameterTypes());
+        Class<?> clazz = findClass(loader, spec.className());
+        List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
+        Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes);
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(loader);
         BoundedStdout stdout = new BoundedStdout(stdoutCap);
         java.io.PrintStream originalOut = System.out;
         try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
             System.setOut(captured);
-            if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
-                Constructor<?> constructor = findConstructor(clazz, invocation.parameterTypes());
+            if (kind(spec) == InvocationKind.CONSTRUCTOR) {
+                Constructor<?> constructor = findConstructor(clazz, parameterTypes);
                 Object instance = constructor.newInstance(args);
                 return normal(instance, instance, stdout, snapshotFieldNames);
             }
-            Method method = findMethod(clazz, invocation.methodName(), invocation.parameterTypes());
+            Method method = findMethod(clazz, spec.methodName(), parameterTypes);
             Object receiver = null;
             if (!Modifier.isStatic(method.getModifiers())) {
-                receiver = invocation.hasReceiver()
-                        ? instantiateReceiver(loader, invocation)
+                receiver = hasReceiver(spec)
+                        ? instantiateReceiver(loader, spec)
                         : instantiateDefault(clazz);
             }
             Object returnValue = method.invoke(receiver, args);
@@ -135,7 +133,7 @@ public final class WorkerInvokeEngine {
                                                List<String> snapshotFieldNames) {
         Object snapshotTarget = instance != null ? instance : returnValue;
         return new SerializedInvocationOutcome(
-                "NORMAL",
+                SerializedInvocationOutcome.KIND_NORMAL,
                 coercer.toJson(returnValue),
                 stdout.text(),
                 stdout.truncated(),
@@ -156,7 +154,7 @@ public final class WorkerInvokeEngine {
         }
         Object snapshotTarget = instance;
         return new SerializedInvocationOutcome(
-                "THREW",
+                SerializedInvocationOutcome.KIND_THREW,
                 null,
                 stdout.text(),
                 stdout.truncated(),
@@ -203,12 +201,12 @@ public final class WorkerInvokeEngine {
         return instantiateWithConstructor(loader, spec.className(), spec.parameterTypes(), spec.paramsJson());
     }
 
-    private Object instantiateReceiver(URLClassLoader loader, InvocationRubric invocation) throws Exception {
+    private Object instantiateReceiver(URLClassLoader loader, WorkerIpc.InvokeSpec spec) throws Exception {
         return instantiateWithConstructor(
                 loader,
-                invocation.receiverClassName(),
-                invocation.receiverParameterTypes(),
-                invocation.receiverParamsJson());
+                spec.receiverClassName(),
+                spec.receiverParameterTypes() != null ? spec.receiverParameterTypes() : List.of(),
+                spec.receiverParamsJson());
     }
 
     private Object instantiateWithConstructor(URLClassLoader loader,
@@ -304,31 +302,16 @@ public final class WorkerInvokeEngine {
         return type;
     }
 
-    private static InvocationRubric toInvocation(WorkerIpc.InvokeSpec spec) {
-        InvocationKind kind;
+    private static InvocationKind kind(WorkerIpc.InvokeSpec spec) {
         try {
-            kind = InvocationKind.valueOf(spec.kind());
+            return InvocationKind.valueOf(spec.kind());
         } catch (Exception e) {
-            kind = InvocationKind.METHOD;
+            return InvocationKind.METHOD;
         }
-        List<String> params = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
-        List<String> receiverParams = spec.receiverParameterTypes() != null
-                ? spec.receiverParameterTypes() : List.of();
-        UUID receiverId = spec.receiverClassName() != null && !spec.receiverClassName().isBlank()
-                ? UUID.randomUUID() : null;
-        return new InvocationRubric(
-                UUID.randomUUID(),
-                kind,
-                null,
-                UUID.randomUUID(),
-                spec.className(),
-                spec.methodName(),
-                params,
-                spec.paramsJson(),
-                receiverId,
-                spec.receiverClassName(),
-                receiverParams,
-                spec.receiverParamsJson());
+    }
+
+    private static boolean hasReceiver(WorkerIpc.InvokeSpec spec) {
+        return spec.receiverClassName() != null && !spec.receiverClassName().isBlank();
     }
 
     private static String messageOrSimpleName(Throwable throwable) {

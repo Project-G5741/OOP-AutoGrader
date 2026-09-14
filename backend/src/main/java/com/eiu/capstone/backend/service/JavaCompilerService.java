@@ -86,7 +86,8 @@ public class JavaCompilerService {
         }
 
         resetFileManager();
-        if (!hasAnyClassFile(outputDir)) {
+        int classFiles = countClassFiles(outputDir);
+        if (classFiles == 0) {
             List<JavaFileObject> remainder = remainderSources(sources, firstPass);
             if (!remainder.isEmpty()) {
                 DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
@@ -99,10 +100,11 @@ public class JavaCompilerService {
                     resetFileManager();
                     throw e;
                 }
+                classFiles = countClassFiles(outputDir);
             }
         }
 
-        return new CompileOutcome(false, firstPass, countClassFiles(outputDir));
+        return new CompileOutcome(false, firstPass, classFiles);
     }
 
     private boolean runTask(List<JavaFileObject> sources,
@@ -190,18 +192,6 @@ public class JavaCompilerService {
             }
         }
         return remainder;
-    }
-
-    private static boolean hasAnyClassFile(Path outputDir) {
-        if (!Files.isDirectory(outputDir)) {
-            return false;
-        }
-        try (var stream = Files.walk(outputDir)) {
-            return stream.anyMatch(path -> Files.isRegularFile(path)
-                    && path.getFileName().toString().endsWith(".class"));
-        } catch (IOException e) {
-            return false;
-        }
     }
 
     private static int countClassFiles(Path outputDir) {

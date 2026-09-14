@@ -16,6 +16,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - `--self-check` prints `{"ok":true}` and exits (packaging probe).
 - Probe flags `--dump-env`, `--hang`, `--child-hang`, `--stderr-flood` skip the IPC loop.
 - Default path is the NDJSON IPC loop (`WorkerIpc` → `WorkerInvokeEngine`). Student classes load only in this JVM.
+- IPC stdout is UTF-8 NDJSON; one request line in, one response line out. The API must decode those bytes as UTF-8.
 - Worker JAR must not contain `org.springframework` types.
 
 ## Work Guidance
