@@ -405,7 +405,7 @@ Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Gradin
 | Tier | Platform | Notes |
 |------|----------|-------|
 | Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend |
-| Backend | **Render** (Docker) | Multi-stage `Dockerfile`; needs JDK |
+| Backend | **Render** (Docker) | Multi-stage `Dockerfile`; API `JAVA_OPTS` default `-Xmx256m`; needs JDK |
 | Database | **Neon PostgreSQL** | Use pooler hostname (`-pooler`) for JVM |
 
 CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the request `Origin` when it matches an allowed frontend.

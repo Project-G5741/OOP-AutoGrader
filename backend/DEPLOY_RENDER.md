@@ -10,6 +10,7 @@ Render deployment steps (Docker)
    - `JWT_SECRET` = <your-jwt-secret, at least 32 bytes; generate with `openssl rand -base64 32`. Changing this invalidates all existing sessions.>
    - `GOOGLE_CLIENT_ID` = <google client id>
    - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
+   - `JAVA_OPTS` = `-Xmx256m` (image default; the Dockerfile entrypoint expands this. Do **not** set `-Xmx512m`.)
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
@@ -21,7 +22,7 @@ Render deployment steps (Docker)
    **Local dev** keeps `MAIL_PROVIDER=smtp` with `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
 
    Password-reset links use the browser `Origin` when allowed (localhost or Vercel); otherwise `FRONTEND_URL` is the fallback base. Link shape: `https://oop-autograder.vercel.app?resetToken=...`
-4. Memory: the API JVM and the isolated testcase worker share one cgroup. Do **not** set `JAVA_OPTS=-Xmx512m` on the worker-enabled image — that leaves no room for the worker (`-Xmx64m -XX:MaxMetaspaceSize=48m -XX:+ExitOnOutOfMemoryError`). Pair a lower API heap (start with `-Xmx256m`, then measure peak RSS on a representative lab) with those worker flags. On 512MB hosts set `app.compile.parallelism=2` and `app.grading.parallelism=2`. The image contains `/app/app.jar` and `/app/worker.jar`; override worker path with `WORKER_JAR` only if you move the file. At most one worker JVM runs at a time.
+4. Memory: the API JVM and the isolated testcase worker share one cgroup. The image starts the API as `exec java $JAVA_OPTS -jar app.jar` with default `JAVA_OPTS=-Xmx256m`. Do **not** set `JAVA_OPTS=-Xmx512m` — that leaves no room for the worker (`-Xmx64m -XX:MaxMetaspaceSize=48m -XX:+ExitOnOutOfMemoryError`). Measure peak RSS on a representative lab before raising the API heap. On 512MB hosts set `app.compile.parallelism=2` and `app.grading.parallelism=2`. The image contains `/app/app.jar` and `/app/worker.jar`; override worker path with `WORKER_JAR` only if you move the file. At most one worker JVM runs at a time. `JAVA_OPTS` does not apply to the worker.
 5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `30`), `app.grading.timing-log` (`true` to log upload phase timings including `compile_timing` per challenge). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
 6. **Health check:** In the Render service **Settings** → **Health Checks**, set **Health Check Path** to `/` (not `/api/health`). The backend answers `GET /` with `200 ok`. Unknown paths return `404` without ERROR logs.
 7. Deploy. Check logs for successful startup.

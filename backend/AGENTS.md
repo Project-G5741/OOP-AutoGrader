@@ -17,7 +17,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default)
 - Root orchestration: `npm run backend` from repository root
-- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; see `DEPLOY_RENDER.md` for Render deploy
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
 - Operational testcase invoke runs in the thin worker JAR (one JVM per upload/dry-run; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
@@ -41,6 +41,7 @@ Password-reset emails use the request `Origin` when it matches an allowed fronte
 | `SUBMISSION_BASE_DIR` | Upload temp root (default `submissions/`) |
 | `SPRINGDOC_ENABLED` | OpenAPI/Swagger. Default `true` locally. Set `false` in production so `/v3/api-docs` and `/swagger-ui/**` are not registered. |
 | `PORT` | Server port (default `8002`) |
+| `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx256m`). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
 
 Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path).
 

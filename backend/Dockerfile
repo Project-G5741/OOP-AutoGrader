@@ -18,4 +18,6 @@ COPY --from=build /build/target/backend-1.0.0.jar app.jar
 COPY --from=build /build/target/backend-1.0.0-worker.jar worker.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# API heap only. The testcase worker is spawned with hardcoded -Xmx64m and does not inherit JAVA_OPTS.
+ENV JAVA_OPTS="-Xmx256m"
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
