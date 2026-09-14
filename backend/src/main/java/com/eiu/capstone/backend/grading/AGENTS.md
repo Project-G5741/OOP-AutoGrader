@@ -14,6 +14,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
+| `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
+| `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
 | `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
@@ -120,9 +122,12 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Verification
 
-- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
+- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `WorkerJarIsolationTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index
 
-No child docs. All grading code lives in this package.
+| Path | Scope |
+|---|---|
+| `testcase/kernel/AGENTS.md` | Spring-free coerce/compare types on the worker JAR |
+| `testcase/worker/AGENTS.md` | Isolated worker process entry |

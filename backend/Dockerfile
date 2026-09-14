@@ -13,8 +13,9 @@ RUN mvn -B test package
 FROM eclipse-temurin:21-jdk
 WORKDIR /app
 
-# Copy JAR từ stage build
-COPY --from=build /build/target/*.jar app.jar
+# Copy API fat JAR and thin worker JAR by explicit names (glob would be unsafe with two artifacts).
+COPY --from=build /build/target/backend-1.0.0.jar app.jar
+COPY --from=build /build/target/backend-1.0.0-worker.jar worker.jar
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

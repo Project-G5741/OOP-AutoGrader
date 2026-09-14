@@ -17,7 +17,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default)
 - Root orchestration: `npm run backend` from repository root
-- Docker: multi-stage `Dockerfile`; see `DEPLOY_RENDER.md` for Render deploy
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; see `DEPLOY_RENDER.md` for Render deploy
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
 ### Environment
@@ -111,6 +111,8 @@ Grading tuning properties (`application.properties`):
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases |
+| `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`) |
+| `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
 | `testcaseInvokeExecutor` bean | single thread | Serializes student code invocation and stdout capture |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
