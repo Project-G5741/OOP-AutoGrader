@@ -34,11 +34,19 @@ This learning captures the layered shape and the non-obvious failures hit during
 |-------|------|
 | `LabRubricService` | Batch-load invocation, instance, and assertion graph into immutable rubric records (`TestcaseRubric`, `InvocationRubric`, `AssertionRubric`). Resolve names and param types from pre-fetched maps — never traverse lazy associations after the repository session closes. |
 | `TestcaseGrader` | Per-testcase orchestrator: compile-error short-circuit, run invocation or comparison once, evaluate every assertion, pick primary display via `PrimaryAssertionSelector`, emit `PendingTestcaseResult`. |
-| `InvocationRunner` | `URLClassLoader` + reflection invoke, stdout capture, configurable timeout, comparison (`equals` / `compareTo`). |
-| `AssertionEvaluator` | One evaluator per `AssertionKind`; guards null/error/timeout invocation outcomes before reading return values or fields. |
+| `InvocationRunner` | IPC facade: send one NDJSON request to the isolated worker JVM and decode snapshots. Does not `Class.forName` student types in the API. |
+| `AssertionEvaluator` | One evaluator per `AssertionKind`; FIELD_STATE and EXCEPTION use serialized snapshots, not live student objects. |
 | `GradingService.buildTestcaseResult` | Upsert `submission_testcase_result` and child `submission_testcase_assertion_result` rows by natural keys (testcase id, assertion id). |
 
-Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`; invocations themselves serialize on a separate single-thread `testcaseInvokeExecutor` bean.
+Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`. The host allows at most one worker JVM; `GradingService` / `TestcaseDryRunService` acquire that slot on the HTTP request thread. Invokes of one request share that JVM under a per-session mutex.
+
+### Invocation runner — isolated worker
+
+**Pattern:** Operational invoke runs in a thin worker JAR. The API kills the process tree on timeout and respawns without releasing the slot. Student `URLClassLoader` parent is the platform loader. Stdout is capped at 65536 bytes. Worker env is allowlisted (not a `/proc` or filesystem jail).
+
+**Anti-pattern:** Invoking student methods in the API JVM, launching the worker with `PropertiesLauncher` / the API fat JAR, or treating env allowlist as host secret safety.
+
+**Instance methods:** When `testcase_invocation.receiver_constructor_id` is set, the worker constructs the receiver via that rubric constructor and `receiver_params` JSON. When receiver columns are null, it falls back to a no-arg constructor. See `docs/solutions/logic-errors/method-invocation-receiver-constructor.md`.
 
 ### Rubric loading — avoid LazyInitializationException
 
@@ -46,20 +54,10 @@ Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`; invoca
 
 **Symptom:** `LazyInitializationException: could not initialize proxy … ClassEntity` on upload when `LabRubricService.loadForLab` touches unloaded associations.
 
-### Invocation runner — classloader and timeout
-
-**Pattern:** Create and close `URLClassLoader` **inside** the task submitted to `testcaseInvokeExecutor`, not around `future.get()`. On timeout, call `future.cancel(true)` so the worker thread is interrupted before the loader is closed.
-
-**Anti-pattern:** Opening the classloader in the caller thread and closing it when `future.get` times out — the worker may still be running and can throw obscure errors or leak loaders.
-
-**Stdout:** `System.setOut` is mutated during invoke. The single-thread invoke executor serializes all invocations app-wide so parallel challenge grading does not interleave stdout capture.
-
-**Instance methods:** Non-static methods need a receiver object. When `testcase_invocation.receiver_constructor_id` is set, `InvocationRunner` constructs the receiver via that rubric constructor and `receiver_params` JSON before calling the method. When receiver columns are null, the runner falls back to a no-arg constructor (`instantiateDefault`); missing no-arg ctor surfaces `Instance method requires a no-argument constructor on …`. See `docs/solutions/logic-errors/method-invocation-receiver-constructor.md`.
-
 ### Assertion evaluation edge cases
 
 - **Null invocation outcome:** COMPARISON testcases pass `invocationOutcome == null`. Non-comparison assertions must fail with feedback (`Invocation not available for this assertion`), not NPE.
-- **Exception matching:** Walk the thrown type's superclass chain so subclasses match the expected simple name (e.g. `NumberFormatException` vs expected `IllegalArgumentException`). Plan R10 asked for simple-name match; subclass tolerance is deliberate.
+- **Exception matching:** Walk serialized exception simple names (thrown type plus superclasses) so subclasses match (e.g. `NumberFormatException` vs expected `IllegalArgumentException`).
 - **Numeric equality:** `ValueComparator` compares `Number` values via `doubleValue()` so `5` and `5.0` match under EXACT mode.
 - **Primary assertion tie-break:** Within the same priority kind, pick the lowest `orderIndex`.
 - **Empty assertion list:** Treat as infrastructure `ERROR` (`No assertions configured`), not silent `FAILED`.
@@ -76,12 +74,12 @@ Scores include the testcase pillar; `LabResultAssembler` maps operational testca
 
 ## Why This Matters
 
-Operational grading executes untrusted student bytecode in-process. Correct layering keeps reflection, timeout, and stdout concerns out of the orchestrator; rubric loading bugs surface at upload time; persistence bugs corrupt re-upload history. Skipping these patterns reproduces production failures that unit tests on empty rubrics will not catch.
+Operational invoke runs in an isolated worker JVM. Class-tab load still uses `Class.forName(..., false, ...)` in the API and does not initialize student classes. Remaining stage-3 gaps: filesystem, network, same-UID `/proc`, and cgroup jail. Env allowlist is not host secret safety.
 
 **Known limitations (document, do not "fix" in-JVM):**
 
-- `Future.cancel(true)` cannot stop CPU-bound infinite loops; one hung thread blocks all testcase invocations until it finishes or times out.
-- No sandbox — full JVM privileges for student code (acceptable for campus autograder scope).
+- Timeout tree-kills the worker JVM (and Linux children) and respawns without releasing the host slot. `Future.cancel` is not the invoke timeout path.
+- Remaining stage-3 gaps: filesystem, network, same-UID `/proc`, and cgroup jail. Env allowlist is not host secret safety.
 - Timeout currently maps to testcase-level `ERROR` before per-assertion evaluation; plan AE6-style per-assertion timeout rows are not fully implemented.
 
 ## When to Apply
@@ -101,14 +99,11 @@ context.classNameByMethodId().get(methodId)
 context.methodById().get(methodId).getName()
 ```
 
-### Classloader inside timeout task (correct)
+### Isolated worker invoke (correct)
 
 ```java
-return runWithTimeout(() -> {
-    try (URLClassLoader loader = classLoader(classesDir)) {
-        return invokeSingleInternal(loader, invocation);
-    }
-});
+// GradingService / TestcaseDryRunService acquire workerJvmSlot on the HTTP thread
+SerializedInvocationOutcome facts = workerSession.invoke(classesDir, invocation, snapshotFields);
 ```
 
 ### Assertion upsert on re-upload (correct)

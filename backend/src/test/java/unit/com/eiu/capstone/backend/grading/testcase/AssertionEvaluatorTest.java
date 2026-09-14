@@ -33,9 +33,30 @@ class AssertionEvaluatorTest {
     void exceptionAssertionMatchesSubclass() {
         AssertionRubric assertion = assertion(AssertionKind.EXCEPTION, "\"IllegalArgumentException\"");
         InvocationOutcome outcome = InvocationOutcome.threw(
+                "",
+                false,
+                "NumberFormatException",
+                List.of("IllegalArgumentException", "RuntimeException", "Exception", "Object"));
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+    }
+
+    @Test
+    void fieldStateUsesSerializedSnapshot() {
+        AssertionRubric assertion = new AssertionRubric(
+                UUID.randomUUID(),
+                AssertionKind.FIELD_STATE,
                 null,
-                new NumberFormatException("bad"),
-                "");
+                null,
+                "speed",
+                "int",
+                "5",
+                ComparisonMode.EXACT,
+                0);
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null, "", false, java.util.Map.of("speed", 5));
 
         AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
 

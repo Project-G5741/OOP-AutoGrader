@@ -47,10 +47,22 @@ public class GradingPipeline {
         this.timingLog = timingLog;
     }
 
+    /**
+     * Class/MMD-only entry. Challenges with testcases must use the four-arg overload
+     * and pass a live {@code WorkerSessionHandle}.
+     */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
             List<MultipartFile> mmdFiles) {
+        return gradeChallenge(rubric, folderResult, mmdFiles, null);
+    }
+
+    public ChallengePipelineResult gradeChallenge(
+            LabRubricSnapshot rubric,
+            SubmissionStorageService.ChallengeResult folderResult,
+            List<MultipartFile> mmdFiles,
+            com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle workerSession) {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
@@ -63,6 +75,13 @@ public class GradingPipeline {
 
         long challengeStart = System.currentTimeMillis();
         String challengeKey = folderResult.challengeName;
+
+        boolean mmdApplicable = challengeRubric.hasMmd();
+        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
+        if (testcaseApplicable && workerSession == null) {
+            throw new IllegalStateException(
+                    "Worker session required when challenge " + challengeKey + " has testcases");
+        }
 
         Path classesDir = folderResult.folder.resolve("classes");
         long parseStart = System.currentTimeMillis();
@@ -77,14 +96,12 @@ public class GradingPipeline {
                 folderResult.compileError,
                 parsedClasses,
                 folderResult.failedClassNames,
-                folderResult.compileErrorsByClassName);
+                folderResult.compileErrorsByClassName,
+                workerSession);
 
         long classStart = System.currentTimeMillis();
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);
         long classMs = System.currentTimeMillis() - classStart;
-
-        boolean mmdApplicable = challengeRubric.hasMmd();
-        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
 
         long[] mmdMs = {0};
         long[] testcaseMs = {0};

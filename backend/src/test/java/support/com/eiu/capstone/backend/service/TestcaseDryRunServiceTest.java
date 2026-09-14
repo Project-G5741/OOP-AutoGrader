@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
@@ -115,7 +117,10 @@ class TestcaseDryRunServiceTest {
                 testcaseRubricAssembler,
                 realCompiler,
                 graderSpy,
-                new TestcaseResultMapper(displayFormatter, primaryAssertionSelector));
+                new TestcaseResultMapper(displayFormatter, primaryAssertionSelector),
+                new Semaphore(1),
+                new WorkerProcessClient("java", "missing-worker.jar"),
+                5);
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
         assertEquals("PASS", result.getResult());
@@ -173,7 +178,10 @@ class TestcaseDryRunServiceTest {
                 testcaseRubricAssembler,
                 javaCompilerService,
                 grader,
-                mapper);
+                mapper,
+                new Semaphore(1),
+                new WorkerProcessClient("java", "missing-worker.jar"),
+                5);
     }
 
     private TestcaseRubric minimalRubric() {

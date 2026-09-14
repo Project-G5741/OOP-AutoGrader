@@ -17,7 +17,8 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default)
 - Root orchestration: `npm run backend` from repository root
-- Docker: multi-stage `Dockerfile`; see `DEPLOY_RENDER.md` for Render deploy
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
+- Operational testcase invoke runs in the thin worker JAR (one JVM per upload/dry-run; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
 ### Environment
@@ -40,6 +41,7 @@ Password-reset emails use the request `Origin` when it matches an allowed fronte
 | `SUBMISSION_BASE_DIR` | Upload temp root (default `submissions/`) |
 | `SPRINGDOC_ENABLED` | OpenAPI/Swagger. Default `true` locally. Set `false` in production so `/v3/api-docs` and `/swagger-ui/**` are not registered. |
 | `PORT` | Server port (default `8002`) |
+| `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx256m`). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
 
 Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path).
 
@@ -110,8 +112,10 @@ Grading tuning properties (`application.properties`):
 |---|---|---|
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
-| `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases |
-| `testcaseInvokeExecutor` bean | single thread | Serializes student code invocation and stdout capture |
+| `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
+| `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`) |
+| `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
+| `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `GradingService` / `TestcaseDryRunService` |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
@@ -171,6 +175,6 @@ Grading tuning properties (`application.properties`):
 
 | Path | Scope |
 |---|---|
-| `src/main/java/com/eiu/capstone/backend/grading/AGENTS.md` | Reflection parser, rubric comparison, scoring |
+| `src/main/java/com/eiu/capstone/backend/grading/AGENTS.md` | Reflection parser, isolated testcase worker, rubric comparison, scoring |
 | `src/main/java/com/eiu/capstone/backend/plagiarism/AGENTS.md` | Git / metadata / file-hash plagiarism checks |
 | `src/main/java/com/eiu/capstone/backend/service/AGENTS.md` | Submission storage, Java compilation, auth, user services |

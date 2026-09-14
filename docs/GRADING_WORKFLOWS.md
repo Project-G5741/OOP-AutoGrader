@@ -52,7 +52,7 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
   │    │         ├─ ReflectionClassParser.parseClasses()   ← load .class via URLClassLoader
   │    │         ├─ ClassReflectionGrader.grade()            ← sync
   │    │         ├─ MmdPillarGrader.grade()                  ← async on pillarExecutor
-  │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor; invokes serialize on testcaseInvokeExecutor
+  │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor; invokes via isolated worker JVM
   │    └─ LabResultAssembler.assemble()             ← in-memory lab_result bundle
   ├─ UploadPersistService.persist()               ← one SQL: insert MAX+1, challenge UPSERT, progress
   │    └─ persistExecutor after that statement: detail UPSERT
@@ -593,17 +593,17 @@ For each testcase:
 4. Every assertion is evaluated; the testcase **passes only when all assertions pass** (binary 0/1 × weight).
 5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT) fills collapsed I/O card display strings.
 
-### 9.3 `InvocationRunner` (the wall-clock cost)
+### 9.3 Isolated testcase worker
 
 Each invoke:
 
-1. Submits work to the **single-thread** `testcaseInvokeExecutor`.
-2. `future.get(timeoutSeconds)` — default **5s** (`app.grading.testcase-invoke-timeout-seconds`).
-3. Opens a new `URLClassLoader` on `classes/`, redirects `System.out`, reflects `Constructor.newInstance` / `Method.invoke`.
+1. Reuses the request's worker JVM (one process per upload/dry-run). Parallel challenges share it under a mutex.
+2. Sends one NDJSON request; the worker loads student classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots.
+3. The API waits up to `app.grading.testcase-invoke-timeout-seconds` (default **5s**), then tree-kills and respawns without releasing the host slot.
 
-Because the invoke pool has one worker, **all testcases in the JVM queue behind each other**, including those from parallel challenge workers. Wall-clock for this pillar is the sum of invocation times, not `max` across challenges. Timeout or hang costs up to τ per testcase.
+At most one worker JVM runs on the host. Other uploads wait for that slot on the HTTP thread (`worker_slot_wait_ms`). This is extra latency, not a deadlock. Class-tab grading still uses `Class.forName(..., initialize=false)` in the API.
 
-Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir (no persistence).
+Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir (no persistence) on the same isolated path.
 
 ---
 
@@ -713,9 +713,11 @@ Allows student UI to render results immediately without follow-up API calls.
 | `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
 | (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge (not CPU-capped) |
-| (fixed) | 1 | `testcaseInvokeExecutor` | Serializes student `System.out` capture and invoke timeouts |
+| (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM (acquire on HTTP thread) |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, temp delete |
-| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout |
+| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout (process kill) |
+| `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
+| `app.grading.worker-java` | `java` | — | Java binary used to spawn the worker |
 | `app.grading.rubric-cache-ttl-minutes` | 30 | `LabRubricCache` | Rubric cache TTL |
 | `app.upload.access-cache-ttl-seconds` | 30 | `StudentTermAccessService` | Successful upload-access cache; denials not cached |
 | `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), compile, challenge, grade submission |
@@ -740,7 +742,9 @@ Allows student UI to render results immediately without follow-up API calls.
 | `grading/pipeline/ClassReflectionGrader.java` | Java/.class pillar |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar orchestration |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase pillar |
-| `grading/testcase/InvocationRunner.java` | Timed reflect invoke + stdout capture |
+| `grading/testcase/InvocationRunner.java` | IPC facade to the isolated worker JVM |
+| `grading/testcase/WorkerProcessClient.java` | Spawn, env allowlist, stderr cap, respawn |
+| `grading/testcase/worker/WorkerMain.java` | Worker process entry |
 | `grading/ReflectionClassParser.java` | URLClassLoader + reflection extraction |
 | `grading/MmdParser.java` | Mermaid `.mmd` text parser |
 | `grading/MmdComparisonService.java` | Rubric vs parsed diagram comparison |
@@ -765,13 +769,13 @@ Allows student UI to render results immediately without follow-up API calls.
 
 ## 14. Wall-clock cost and time complexity
 
-Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
+Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
-Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes.
+Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Concurrent uploads also wait on the one-worker slot (`worker_slot_wait_ms`).
 
 | Rank | Stage | Typical dominance | Work | Request-thread wall |
 |------|-------|-------------------|------|---------------------|
-| 1 | Operational testcases | Large *T*, slow or hanging student code | *Θ(T)* invokes; new `URLClassLoader` per invoke | **Σ invoke times across the whole lab** — `testcaseInvokeExecutor` is 1 thread, so *P* does not help. Worst case *O(T · τ)* |
+| 1 | Operational testcases | Large *T*, slow or hanging student code | *Θ(T)* invokes on one worker JVM per request | **Σ invoke times across the lab**, plus `worker_slot_wait_ms` under concurrent uploads. Worst case *O(T · τ)* plus respawn |
 | 2 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
 | 3 | Plagiarism inspect | Busy lab (many prior attempts) | SHA-256 *O(B)*; reconstruct `.git`; pairwise *O(A)* with Jaccard *O(F)*; **O(U) DB round-trips** for peer best scores; then re-evaluate all lab matches | On the upload thread after grading (exceptions swallowed) |
 | 4 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
@@ -782,7 +786,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 | — | Detail UPSERT | Large *E* | *O(E)* JDBC | **Off-request** (`persistExecutor`); GET tabs wait up to 60s |
 | — | Multipart + `.git` | Fat folders | *O(upload bytes)* | Before compile; Spring reads every part including `.git` |
 
-**Why testcases beat compile on wall-clock even when `javac` is “heavier” CPU:** compile parallelizes across challenges; invokes do not. Four challenges with 10 testcases each still run ~40 serial `future.get` calls on one worker.
+**Why testcases beat compile on wall-clock even when `javac` is “heavier” CPU:** compile parallelizes across challenges; invokes of one request share one worker JVM and stay serial. Concurrent uploads wait for the one-process slot.
 
 **Why plagiarism can overtake compile on a large roster:** `inspectUpload` compares the new fingerprint to **every other fingerprint** in the lab (every prior attempt of every other student), then `bestScoresForLabUsers` issues one query per other user.
 

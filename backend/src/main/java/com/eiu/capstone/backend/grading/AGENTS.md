@@ -14,7 +14,12 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
-| `grading/testcase/InvocationRunner.java` | Load student classes, invoke constructors/methods with timeout + stdout capture |
+| `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
+| `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
+| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR, env allowlist, stderr cap, respawn without releasing the host slot |
+| `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
+| `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
+| `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
@@ -79,7 +84,11 @@ SubmissionController
 - Rubric tables: `testcase`, `testcase_invocation` (optional `receiver_constructor_id` + `receiver_params` for METHOD invocations), `testcase_instance`, `testcase_assertion`
 - SINGLE_INVOCATION: one invocation + one or more assertions; instance methods may seed the receiver via constructor params instead of a no-arg constructor
 - COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); invocations run on single-thread `testcaseInvokeExecutor`
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
+- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
+- IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
+- `GradingPipeline.gradeChallenge(...)` without a worker is class/MMD-only; a challenge with testcases and a null session fails fast
+- Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives
 
@@ -120,9 +129,12 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Verification
 
-- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
+- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index
 
-No child docs. All grading code lives in this package.
+| Path | Scope |
+|---|---|
+| `testcase/kernel/AGENTS.md` | Spring-free coerce/compare types on the worker JAR |
+| `testcase/worker/AGENTS.md` | Isolated worker process entry |

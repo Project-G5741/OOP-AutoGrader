@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 
 import javax.tools.JavaFileObject;
 
@@ -25,6 +26,8 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
@@ -45,17 +48,26 @@ public class TestcaseDryRunService {
     private final JavaCompilerService javaCompilerService;
     private final TestcaseGrader testcaseGrader;
     private final TestcaseResultMapper testcaseResultMapper;
+    private final Semaphore workerJvmSlot;
+    private final WorkerProcessClient workerProcessClient;
+    private final int invokeTimeoutSeconds;
 
     public TestcaseDryRunService(TestcaseRubricService testcaseRubricService,
                                  TestcaseRubricAssembler testcaseRubricAssembler,
                                  JavaCompilerService javaCompilerService,
                                  TestcaseGrader testcaseGrader,
-                                 TestcaseResultMapper testcaseResultMapper) {
+                                 TestcaseResultMapper testcaseResultMapper,
+                                 @org.springframework.beans.factory.annotation.Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
+                                 WorkerProcessClient workerProcessClient,
+                                 @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
         this.testcaseRubricService = testcaseRubricService;
         this.testcaseRubricAssembler = testcaseRubricAssembler;
         this.javaCompilerService = javaCompilerService;
         this.testcaseGrader = testcaseGrader;
         this.testcaseResultMapper = testcaseResultMapper;
+        this.workerJvmSlot = workerJvmSlot;
+        this.workerProcessClient = workerProcessClient;
+        this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
     public TestcaseResultDTO dryRun(UUID labId, UUID challengeId, TestcaseDryRunRequest request) {
@@ -106,16 +118,26 @@ public class TestcaseDryRunService {
                     List.of(),
                     List.of(rubric),
                     true);
-            ChallengeGradingContext context = ChallengeGradingContext.of(
-                    stubRubric,
-                    classesDir,
-                    null,
-                    List.of(),
-                    attributed.failedClassNames(),
-                    attributed.compileErrorsByClassName());
-
-            PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
-            return testcaseResultMapper.mapDryRunResult(rubric, pending);
+            try {
+                workerJvmSlot.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw unprocessable("Interrupted waiting for isolated worker slot");
+            }
+            try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
+                ChallengeGradingContext context = ChallengeGradingContext.of(
+                        stubRubric,
+                        classesDir,
+                        null,
+                        List.of(),
+                        attributed.failedClassNames(),
+                        attributed.compileErrorsByClassName(),
+                        workerSession);
+                PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
+                return testcaseResultMapper.mapDryRunResult(rubric, pending);
+            } finally {
+                workerJvmSlot.release();
+            }
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {

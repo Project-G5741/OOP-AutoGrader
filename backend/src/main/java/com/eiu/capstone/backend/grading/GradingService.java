@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -50,6 +51,8 @@ import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
+import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -72,6 +75,9 @@ public class GradingService {
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final boolean timingLog;
+    private final Semaphore workerJvmSlot;
+    private final WorkerProcessClient workerProcessClient;
+    private final int invokeTimeoutSeconds;
 
     public GradingService(ChallengeRepository challengeRepository,
                           FieldRepository fieldRepository,
@@ -85,7 +91,10 @@ public class GradingService {
                           TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
-                          @Value("${app.grading.timing-log:false}") boolean timingLog) {
+                          @Value("${app.grading.timing-log:false}") boolean timingLog,
+                          @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
+                          WorkerProcessClient workerProcessClient,
+                          @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
@@ -99,6 +108,9 @@ public class GradingService {
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.timingLog = timingLog;
+        this.workerJvmSlot = workerJvmSlot;
+        this.workerProcessClient = workerProcessClient;
+        this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
     public GradingOutcome gradeSubmission(LabSubmission submission,
@@ -113,8 +125,25 @@ public class GradingService {
         long loadMs = System.currentTimeMillis() - loadStart;
 
         long computeStart = System.currentTimeMillis();
-        GradingComputationResult computed = computeAgainstSnapshot(
-                rubric, challengeFolderResults, mmdByChallenge, submission, existing);
+        long slotWaitStart = System.currentTimeMillis();
+        try {
+            workerJvmSlot.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted waiting for isolated worker slot", e);
+        }
+        long slotWaitMs = System.currentTimeMillis() - slotWaitStart;
+        GradingComputationResult computed;
+        long workerSpawnMs = 0;
+        int workerRespawnCount = 0;
+        try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
+            computed = computeAgainstSnapshot(
+                    rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+            workerSpawnMs = workerSession.spawnMs();
+            workerRespawnCount = workerSession.respawnCount();
+        } finally {
+            workerJvmSlot.release();
+        }
         long computeMs = System.currentTimeMillis() - computeStart;
 
         long assembleStart = System.currentTimeMillis();
@@ -127,6 +156,9 @@ public class GradingService {
         TimingLog.block(timingLog, "Grade submission",
                 "load existing", loadMs,
                 "compute", computeMs,
+                "worker_slot_wait_ms", slotWaitMs,
+                "worker_spawn_ms", workerSpawnMs,
+                "worker_respawn_count", workerRespawnCount,
                 "assemble", System.currentTimeMillis() - assembleStart,
                 "total", System.currentTimeMillis() - totalStart);
         return new GradingOutcome(
@@ -153,12 +185,14 @@ public class GradingService {
             List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
             Map<String, List<MultipartFile>> mmdByChallenge,
             LabSubmission submission,
-            ExistingResults existing) {
+            ExistingResults existing,
+            WorkerSessionHandle workerSession) {
 
         List<CompletableFuture<ChallengeComputation>> futures = challengeFolderResults.stream()
                 .map(folderResult -> CompletableFuture.supplyAsync(
                         () -> gradeChallengeFolder(rubric, folderResult,
-                                mmdByChallenge.getOrDefault(folderResult.challengeName, List.of())),
+                                mmdByChallenge.getOrDefault(folderResult.challengeName, List.of()),
+                                workerSession),
                         gradingExecutor))
                 .collect(Collectors.toList());
 
@@ -254,9 +288,11 @@ public class GradingService {
     private ChallengeComputation gradeChallengeFolder(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
-            List<MultipartFile> mmdFiles) {
+            List<MultipartFile> mmdFiles,
+            WorkerSessionHandle workerSession) {
 
-        ChallengePipelineResult pipelineResult = gradingPipeline.gradeChallenge(rubric, folderResult, mmdFiles);
+        ChallengePipelineResult pipelineResult = gradingPipeline.gradeChallenge(
+                rubric, folderResult, mmdFiles, workerSession);
         if (pipelineResult == null) {
             return null;
         }

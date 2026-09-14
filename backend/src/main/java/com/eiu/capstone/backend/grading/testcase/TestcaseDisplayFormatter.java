@@ -63,9 +63,15 @@ public class TestcaseDisplayFormatter {
             case RETURN_VALUE -> TestcaseLiteralFormatter.format(parseActual(evaluation.actualValueJson()));
             case FIELD_STATE -> assertion.fieldName() + " = "
                     + TestcaseLiteralFormatter.format(parseActual(evaluation.actualValueJson()));
-            case STDOUT -> evaluation.actualValueJson() != null
-                    ? stripQuotes(evaluation.actualValueJson())
-                    : "";
+            case STDOUT -> {
+                String stdout = evaluation.actualValueJson() != null
+                        ? stripQuotes(evaluation.actualValueJson())
+                        : "";
+                if (invocationOutcome != null && invocationOutcome.stdoutTruncated()) {
+                    stdout = stdout + " [truncated]";
+                }
+                yield stdout;
+            }
             case EXCEPTION -> formatExceptionActual(evaluation, invocationOutcome);
             case COMPARISON_RESULT -> TestcaseLiteralFormatter.format(
                     comparisonOutcome != null ? comparisonOutcome.comparisonResult()

@@ -3,6 +3,7 @@ package integration.com.eiu.capstone.backend.pipeline;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -34,6 +35,8 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
+import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.JavaCompilerService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 
@@ -142,6 +145,41 @@ class SubmissionPipelineIntegrationTest {
                     .gradeChallenge(mixedSnapshot(), folder, List.of());
             assertNotNull(graded);
             assertTrue(graded.classResult().pillarPercentage().compareTo(java.math.BigDecimal.ZERO) > 0);
+        }
+    }
+
+    @Test
+    void testcasesWithoutWorkerFailFast() throws IOException {
+        try (UploadHarness harness = newHarness(tempDir)) {
+            SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
+                    "irn1",
+                    "req-worker-required",
+                    List.of(classpathFile("integration/happy/" + UPLOAD_ANIMAL, UPLOAD_ANIMAL)));
+            SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
+            UUID classId = UUID.randomUUID();
+            ChallengeRubric challenge = new ChallengeRubric(
+                    UUID.randomUUID(),
+                    1,
+                    "Animals",
+                    List.of(new ClassRubric(
+                            classId, "Animal", "public", "CLASS", false, List.of(), List.of(), List.of())),
+                    List.of(),
+                    List.of(new TestcaseRubric(
+                            UUID.randomUUID(),
+                            "needs-worker",
+                            TestcaseType.SINGLE_INVOCATION,
+                            null,
+                            1,
+                            0,
+                            false,
+                            null,
+                            List.of(),
+                            List.of())),
+                    false);
+            IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
+                    pipeline().gradeChallenge(new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                            folder, List.of()));
+            assertTrue(thrown.getMessage().contains("Worker session required"), thrown.getMessage());
         }
     }
 

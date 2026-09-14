@@ -9,6 +9,7 @@ import com.eiu.capstone.backend.grading.ParsedClass;
 import com.eiu.capstone.backend.grading.ParsedClassIndex;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 
 public record ChallengeGradingContext(
         ChallengeRubric challengeRubric,
@@ -18,7 +19,8 @@ public record ChallengeGradingContext(
         Map<String, ParsedClass> parsedByName,
         Map<String, ParsedClass> parsedByQualifiedName,
         Set<String> failedClassNames,
-        Map<String, String> compileErrorsByClassName) {
+        Map<String, String> compileErrorsByClassName,
+        WorkerSessionHandle workerSession) {
 
     public static ChallengeGradingContext of(ChallengeRubric rubric,
                                              Path classesDir,
@@ -34,6 +36,17 @@ public record ChallengeGradingContext(
                                              Set<String> failedClassNames,
                                              Map<String, String> compileErrorsByClassName) {
         ParsedClassIndex index = ParsedClassIndex.of(parsedClasses);
+        return of(rubric, classesDir, compileError, parsedClasses, failedClassNames, compileErrorsByClassName, null);
+    }
+
+    public static ChallengeGradingContext of(ChallengeRubric rubric,
+                                             Path classesDir,
+                                             String compileError,
+                                             List<ParsedClass> parsedClasses,
+                                             Set<String> failedClassNames,
+                                             Map<String, String> compileErrorsByClassName,
+                                             WorkerSessionHandle workerSession) {
+        ParsedClassIndex index = ParsedClassIndex.of(parsedClasses);
         return new ChallengeGradingContext(
                 rubric,
                 classesDir,
@@ -42,7 +55,8 @@ public record ChallengeGradingContext(
                 index.byName(),
                 index.byQualifiedName(),
                 failedClassNames == null ? Set.of() : Set.copyOf(failedClassNames),
-                compileErrorsByClassName == null ? Map.of() : Map.copyOf(compileErrorsByClassName));
+                compileErrorsByClassName == null ? Map.of() : Map.copyOf(compileErrorsByClassName),
+                workerSession);
     }
 
     public ParsedClass resolve(ClassRubric expectedClass) {

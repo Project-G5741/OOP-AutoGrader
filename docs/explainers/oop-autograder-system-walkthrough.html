@@ -361,7 +361,7 @@ my-submission/
     </table>
 
     <div class="callout">
-      <strong>Executor split matters:</strong> <code>compileExecutor</code> compiles challenges in parallel; <code>gradingExecutor</code> grades challenges in parallel; <code>pillarExecutor</code> runs MMD + testcase pillars inside a challenge; <code>testcaseInvokeExecutor</code> is single-threaded so student <code>System.out</code> capture stays clean.
+      <strong>Executor split matters:</strong> <code>compileExecutor</code> compiles challenges in parallel; <code>gradingExecutor</code> grades challenges in parallel; <code>pillarExecutor</code> runs MMD + testcase pillars inside a challenge; operational testcase invokes run in one isolated worker JVM per upload (host slot of 1).
     </div>
 
     <h3>What persists vs what disappears</h3>

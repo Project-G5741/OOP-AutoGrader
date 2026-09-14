@@ -1,6 +1,6 @@
 package com.eiu.capstone.backend.grading.testcase;
 
-import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -37,8 +37,8 @@ public class AssertionEvaluator {
             return precondition.get();
         }
         if (outcome.kind() == InvocationOutcomeKind.THREW) {
-            return failure(assertion, outcome.caughtException().getClass().getSimpleName(),
-                    "Unexpected exception: " + outcome.caughtException().getClass().getSimpleName());
+            return failure(assertion, outcome.exceptionSimpleName(),
+                    "Unexpected exception: " + outcome.exceptionSimpleName());
         }
         Object expected = jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null);
         boolean passed = ValueComparator.matches(outcome.returnValue(), expected, assertion.comparisonMode());
@@ -52,21 +52,19 @@ public class AssertionEvaluator {
         if (precondition.isPresent()) {
             return precondition.get();
         }
-        Object target = outcome.instance() != null ? outcome.instance() : outcome.returnValue();
-        if (target == null) {
-            return failure(assertion, null, "No instance available for field check");
-        }
-        try {
-            Object actual = readField(target, assertion.fieldName());
-            Object expected = jsonValueCoercer.coerceExpectedValue(
-                    assertion.expectedValueJson(), assertion.fieldDataType());
-            boolean passed = ValueComparator.matches(actual, expected, assertion.comparisonMode());
-            return passed
-                    ? success(assertion, actual, assertion.fieldName() + " matches")
-                    : failure(assertion, actual, assertion.fieldName() + " mismatch");
-        } catch (ReflectiveOperationException e) {
+        Object actual = outcome.fieldSnapshots() != null
+                ? outcome.fieldSnapshots().get(assertion.fieldName())
+                : null;
+        if (actual == null && (outcome.fieldSnapshots() == null
+                || !outcome.fieldSnapshots().containsKey(assertion.fieldName()))) {
             return failure(assertion, null, "Could not read field: " + assertion.fieldName());
         }
+        Object expected = jsonValueCoercer.coerceExpectedValue(
+                assertion.expectedValueJson(), assertion.fieldDataType());
+        boolean passed = ValueComparator.matches(actual, expected, assertion.comparisonMode());
+        return passed
+                ? success(assertion, actual, assertion.fieldName() + " matches")
+                : failure(assertion, actual, assertion.fieldName() + " mismatch");
     }
 
     private AssertionEvaluation evaluateStdout(AssertionRubric assertion, InvocationOutcome outcome) {
@@ -94,8 +92,8 @@ public class AssertionEvaluator {
                     : "no exception thrown";
             return failure(assertion, null, secondary);
         }
-        String actualType = outcome.caughtException().getClass().getSimpleName();
-        boolean passed = matchesExceptionType(outcome.caughtException(), expectedType);
+        String actualType = outcome.exceptionSimpleName();
+        boolean passed = matchesExceptionType(actualType, outcome.exceptionSuperclassSimpleNames(), expectedType);
         return passed
                 ? success(assertion, actualType, "Exception matches")
                 : failure(assertion, actualType, "Expected " + expectedType + " but got " + actualType);
@@ -129,27 +127,14 @@ public class AssertionEvaluator {
         return Optional.empty();
     }
 
-    static boolean matchesExceptionType(Throwable thrown, String expectedSimpleName) {
-        for (Class<?> type = thrown.getClass(); type != null; type = type.getSuperclass()) {
-            if (expectedSimpleName.equals(type.getSimpleName())) {
-                return true;
-            }
+    static boolean matchesExceptionType(String simpleName, List<String> superNames, String expectedSimpleName) {
+        if (expectedSimpleName == null) {
+            return false;
         }
-        return false;
-    }
-
-    private Object readField(Object target, String fieldName) throws ReflectiveOperationException {
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(fieldName);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-                type = type.getSuperclass();
-            }
+        if (expectedSimpleName.equals(simpleName)) {
+            return true;
         }
-        throw new NoSuchFieldException(fieldName);
+        return superNames != null && superNames.contains(expectedSimpleName);
     }
 
     private AssertionEvaluation success(AssertionRubric assertion, Object actual, String feedback) {

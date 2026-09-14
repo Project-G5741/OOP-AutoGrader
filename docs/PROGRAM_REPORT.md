@@ -377,7 +377,7 @@ OOP-AutoGrader/
 2. **Ephemeral upload storage** — Temp folders are deleted after grading; durable state lives in PostgreSQL.
 3. **Upload-time result bundle** — `lab_result` JSON is returned on upload so the student UI renders immediately without extra API calls.
 4. **Latest attempt wins** — Student dashboard shows the most recent attempt, not necessarily the highest score.
-5. **Parallel compile and grade** — Challenges compile on `compileExecutor` and grade on `gradingExecutor` (both CPU-capped). Operational testcase invokes stay serial on `testcaseInvokeExecutor`. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity).
+5. **Parallel compile and grade** — Challenges compile on `compileExecutor` and grade on `gradingExecutor` (both CPU-capped). Operational testcase invokes run in one isolated worker JVM per upload. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity).
 6. **Backend tests in five aspect homes** — `mvn test` from `backend/` and the Docker image build run `unit`, `integration`, `authorization`, `regression`, and `support` under `backend/src/test/java/`. Frontend has no automated tests yet.
 
 ---

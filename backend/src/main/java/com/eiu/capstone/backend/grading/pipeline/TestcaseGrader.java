@@ -86,14 +86,18 @@ public class TestcaseGrader {
 
         if (testcase.testcaseType() == TestcaseType.COMPARISON) {
             comparisonOutcome = invocationRunner.invokeComparison(
-                    context.classesDir(), testcase.comparisonMethod(), testcase.instances());
+                    context, testcase.comparisonMethod(), testcase.instances());
             if (comparisonOutcome.kind() == InvocationOutcomeKind.ERROR) {
                 return infrastructureError(testcase, comparisonOutcome.errorMessage());
             }
         } else if (testcase.invocation() == null) {
             return infrastructureError(testcase, "Missing invocation rubric");
         } else {
-            invocationOutcome = invocationRunner.invokeSingle(context.classesDir(), testcase.invocation());
+            List<String> snapshotFields = testcase.assertions().stream()
+                    .filter(assertion -> assertion.kind() == com.eiu.capstone.backend.model.AssertionKind.FIELD_STATE)
+                    .map(AssertionRubric::fieldName)
+                    .toList();
+            invocationOutcome = invocationRunner.invokeSingle(context, testcase.invocation(), snapshotFields);
             if (invocationOutcome.kind() == InvocationOutcomeKind.TIMED_OUT
                     || invocationOutcome.kind() == InvocationOutcomeKind.ERROR) {
                 return infrastructureError(testcase,

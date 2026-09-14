@@ -11,7 +11,7 @@ In-memory javac of student sources, per-class error attribution, and the Class-c
 | `CompileClassAttribution` | Map ERROR diagnostics to declared types, file stems, and dependents |
 | `CompileErrorMessage` | One short student-facing line per failed type |
 | `StudentSourceNormalizer` | Strip `package` and same-challenge imports before compile |
-| `JavaCompilerService` (parent package) | Group javac via `javax.tools`; mixed failure may remainder-compile |
+| `JavaCompilerService` (parent package) | Group javac via `javax.tools`; empty `CLASS_PATH`; `-proc:none`; mixed failure may remainder-compile |
 
 ## Local Contracts
 
@@ -42,6 +42,7 @@ Class tab `ClassDetailDTO.error` and testcase ERROR feedback use `CompileErrorMe
 
 - `support` `CompileErrorMessageTest`
 - `support` `CompileClassAttributionTest`
+- `support` `JavaCompilerServiceTest` (JDK types compile; Spring classpath types do not)
 
 ## Child DOX Index
 

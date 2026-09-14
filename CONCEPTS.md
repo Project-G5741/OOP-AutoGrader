@@ -71,10 +71,10 @@ The persisted testcase authoring shape: one `testcase` row plus its invocation (
 The lecturer testcase PUT contract: testcase ids omitted from the payload are deleted from the challenge; ids present are upserted. Child invocation and assertion rows must be updated in place by client UUID — not delete-all-then-reinsert — because graded submissions reference `testcase_assertion.id` with `ON DELETE CASCADE`.
 
 ### Testcase invoke executor
-Dedicated single-worker executor for operational testcase reflection. All student-code invocations and stdout capture run through this queue so parallel challenge grading does not interleave `System.out` or race on timeout cancellation.
+Retired name for serializing student invoke in the API JVM. Operational invoke now runs in the isolated testcase worker; the host allows one worker JVM via `workerJvmSlot` on the HTTP thread.
 
 ### Isolated testcase worker
-A separate JVM process that loads and invokes student classes for operational testcases, including lecturer dry-run, so a crash or unkillable loop cannot terminate the API JVM. The worker does not inherit API secrets, does not load the grading-harness classpath, and caps captured stdout. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from later container sandboxing.
+A separate JVM process that executes operational testcase target classes (student submission or lecturer dry-run reference), including comparison and live-instance scoring, so a crash or unkillable loop cannot terminate the API JVM. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from later container sandboxing.
 
 ### Assertion kind
 The category of check applied to an invoke or comparison outcome: return value, field state, stdout, exception type, or comparison result. A testcase passes only when every configured assertion kind passes.
