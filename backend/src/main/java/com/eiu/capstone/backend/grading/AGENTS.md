@@ -16,7 +16,10 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
 | `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
-| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR, env allowlist, stderr cap, respawn without releasing the host slot |
+| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR locally, env allowlist, stderr cap, respawn without releasing the host slot |
+| `grading/testcase/WorkerSessionFactory.java` | `app.grading.sandbox.enabled` — local `WorkerProcessClient` or `RemoteWorkerSessionClient` |
+| `grading/testcase/RemoteWorkerSessionClient.java` | Tar submission root, `POST /sessions` to sandbox-runner |
+| `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON) or `HttpWorkerTransport` (remote REST invoke) |
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |

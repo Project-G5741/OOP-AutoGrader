@@ -1,0 +1,26 @@
+# Local sandbox stack: sandbox-runner + Docker socket (dev only).
+# Build worker JAR first: mvn -f backend/pom.xml package -DskipTests
+# Copy worker JAR: cp backend/target/backend-1.0.0-worker.jar sandbox-image/
+# Then: docker compose -f docker-compose.sandbox.yml up --build
+services:
+  sandbox-runner:
+    build:
+      context: ./sandbox-runner
+    ports:
+      - "8090:8090"
+    environment:
+      SANDBOX_RUNNER_TOKEN: ${SANDBOX_RUNNER_TOKEN:-dev-sandbox-token}
+      SANDBOX_IMAGE: oop-autograder-sandbox-worker:latest
+      SANDBOX_POOL_MIN: 1
+      SANDBOX_POOL_MAX: 2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      sandbox-image:
+        condition: service_completed_successfully
+
+  sandbox-image:
+    build:
+      context: ./sandbox-image
+    image: oop-autograder-sandbox-worker:latest
+    entrypoint: ["true"]

@@ -26,7 +26,7 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
-import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
@@ -49,7 +49,7 @@ public class TestcaseDryRunService {
     private final TestcaseGrader testcaseGrader;
     private final TestcaseResultMapper testcaseResultMapper;
     private final Semaphore workerJvmSlot;
-    private final WorkerProcessClient workerProcessClient;
+    private final WorkerSessionFactory workerSessionFactory;
     private final int invokeTimeoutSeconds;
 
     public TestcaseDryRunService(TestcaseRubricService testcaseRubricService,
@@ -58,7 +58,7 @@ public class TestcaseDryRunService {
                                  TestcaseGrader testcaseGrader,
                                  TestcaseResultMapper testcaseResultMapper,
                                  @org.springframework.beans.factory.annotation.Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
-                                 WorkerProcessClient workerProcessClient,
+                                 WorkerSessionFactory workerSessionFactory,
                                  @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
         this.testcaseRubricService = testcaseRubricService;
         this.testcaseRubricAssembler = testcaseRubricAssembler;
@@ -66,7 +66,7 @@ public class TestcaseDryRunService {
         this.testcaseGrader = testcaseGrader;
         this.testcaseResultMapper = testcaseResultMapper;
         this.workerJvmSlot = workerJvmSlot;
-        this.workerProcessClient = workerProcessClient;
+        this.workerSessionFactory = workerSessionFactory;
         this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
@@ -118,23 +118,22 @@ public class TestcaseDryRunService {
                     List.of(),
                     List.of(rubric),
                     true);
-            try {
-                workerJvmSlot.acquire();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw unprocessable("Interrupted waiting for isolated worker slot");
+            if (workerSessionFactory.isSandboxEnabled()) {
+                WorkerSessionHandle workerSession = workerSessionFactory.open(tempRoot, invokeTimeoutSeconds);
+                try {
+                    acquireWorkerSlot();
+                    try {
+                        return gradeDryRun(stubRubric, classesDir, attributed, rubric, workerSession);
+                    } finally {
+                        workerJvmSlot.release();
+                    }
+                } finally {
+                    workerSession.close();
+                }
             }
-            try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
-                ChallengeGradingContext context = ChallengeGradingContext.of(
-                        stubRubric,
-                        classesDir,
-                        null,
-                        List.of(),
-                        attributed.failedClassNames(),
-                        attributed.compileErrorsByClassName(),
-                        workerSession);
-                PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
-                return testcaseResultMapper.mapDryRunResult(rubric, pending);
+            acquireWorkerSlot();
+            try (WorkerSessionHandle workerSession = workerSessionFactory.open(tempRoot, invokeTimeoutSeconds)) {
+                return gradeDryRun(stubRubric, classesDir, attributed, rubric, workerSession);
             } finally {
                 workerJvmSlot.release();
             }
@@ -171,6 +170,32 @@ public class TestcaseDryRunService {
         }
         if (totalBytes > MAX_TOTAL_BYTES) {
             throw unprocessable("Reference sources exceed total size limit (" + MAX_TOTAL_BYTES + " bytes)");
+        }
+    }
+
+    private TestcaseResultDTO gradeDryRun(ChallengeRubric stubRubric,
+                                          Path classesDir,
+                                          CompileClassAttribution.Result attributed,
+                                          TestcaseRubric rubric,
+                                          WorkerSessionHandle workerSession) {
+        ChallengeGradingContext context = ChallengeGradingContext.of(
+                stubRubric,
+                classesDir,
+                null,
+                List.of(),
+                attributed.failedClassNames(),
+                attributed.compileErrorsByClassName(),
+                workerSession);
+        PendingTestcaseResult pending = testcaseGrader.gradeSingle(rubric, context);
+        return testcaseResultMapper.mapDryRunResult(rubric, pending);
+    }
+
+    private void acquireWorkerSlot() {
+        try {
+            workerJvmSlot.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw unprocessable("Interrupted waiting for isolated worker slot");
         }
     }
 

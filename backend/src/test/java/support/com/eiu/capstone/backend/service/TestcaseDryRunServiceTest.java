@@ -39,7 +39,9 @@ import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.grading.testcase.RemoteWorkerSessionClient;
 import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
@@ -119,7 +121,9 @@ class TestcaseDryRunServiceTest {
                 graderSpy,
                 new TestcaseResultMapper(displayFormatter, primaryAssertionSelector),
                 new Semaphore(1),
-                new WorkerProcessClient("java", "missing-worker.jar"),
+                new WorkerSessionFactory(false,
+                        new WorkerProcessClient("java", "missing-worker.jar"),
+                        org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
                 5);
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
@@ -180,7 +184,9 @@ class TestcaseDryRunServiceTest {
                 grader,
                 mapper,
                 new Semaphore(1),
-                new WorkerProcessClient("java", "missing-worker.jar"),
+                new WorkerSessionFactory(false,
+                        new WorkerProcessClient("java", "missing-worker.jar"),
+                        org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
                 5);
     }
 

@@ -44,6 +44,8 @@ Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`. The ho
 
 **Pattern:** Operational invoke runs in a thin worker JAR. The API kills the process tree on timeout and respawns without releasing the slot. Student `URLClassLoader` parent is the platform loader. Stdout is capped at 65536 bytes. Worker env is allowlisted (not a `/proc` or filesystem jail).
 
+**Stage 3 (optional):** When `app.grading.sandbox.enabled=true`, `WorkerSessionFactory` tars the submission root and opens a remote session on `sandbox-runner`, which runs `worker.jar` inside a hardened Docker container (`network none`, read-only root, tmpfs `/work`, cgroup limits). See `docs/SANDBOX_RUNNER_DEPLOY.md`. No Docker socket on the Render API image.
+
 **Anti-pattern:** Invoking student methods in the API JVM, launching the worker with `PropertiesLauncher` / the API fat JAR, or treating env allowlist as host secret safety.
 
 **Instance methods:** When `testcase_invocation.receiver_constructor_id` is set, the worker constructs the receiver via that rubric constructor and `receiver_params` JSON. When receiver columns are null, it falls back to a no-arg constructor. See `docs/solutions/logic-errors/method-invocation-receiver-constructor.md`.
@@ -74,7 +76,7 @@ Scores include the testcase pillar; `LabResultAssembler` maps operational testca
 
 ## Why This Matters
 
-Operational invoke runs in an isolated worker JVM. Class-tab load still uses `Class.forName(..., false, ...)` in the API and does not initialize student classes. Remaining stage-3 gaps: filesystem, network, same-UID `/proc`, and cgroup jail. Env allowlist is not host secret safety.
+Operational invoke runs in an isolated worker JVM (local stage 2) or container sandbox (stage 3 when enabled). Class-tab load still uses `Class.forName(..., false, ...)` in the API and does not initialize student classes. With sandbox disabled, remaining gaps are filesystem, network, same-UID `/proc`, and cgroup jail. Env allowlist is not host secret safety.
 
 **Known limitations (document, do not "fix" in-JVM):**
 

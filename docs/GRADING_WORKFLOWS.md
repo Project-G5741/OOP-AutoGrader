@@ -602,7 +602,7 @@ Each invoke:
 2. Sends one NDJSON request; the worker loads student classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots.
 3. The API waits up to `app.grading.testcase-invoke-timeout-seconds` (default **5s**), then tree-kills and respawns without releasing the host slot.
 
-At most one worker JVM runs on the host. Other uploads wait for that slot on the HTTP thread (`worker_slot_wait_ms`). This is extra latency, not a deadlock. Class-tab grading still uses `Class.forName(..., initialize=false)` in the API.
+At most one worker session runs on the host slot (local JVM or remote sandbox session when `app.grading.sandbox.enabled=true`). Other uploads wait for that slot on the HTTP thread (`worker_slot_wait_ms`). This is extra latency, not a deadlock. Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
 Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir (no persistence) on the same isolated path.
 

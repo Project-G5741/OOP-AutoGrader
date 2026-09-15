@@ -115,6 +115,9 @@ Grading tuning properties (`application.properties`):
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
 | `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`) |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
+| `app.grading.sandbox.enabled` | `false` | Route testcase invoke/dry-run through remote `sandbox-runner` (`SANDBOX_ENABLED`) |
+| `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
+| `app.grading.sandbox.runner-token` | _(empty)_ | Bearer token shared with runner (`SANDBOX_RUNNER_TOKEN`) |
 | `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `GradingService` / `TestcaseDryRunService` |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
