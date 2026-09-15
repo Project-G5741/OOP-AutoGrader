@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -51,7 +52,7 @@ import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
-import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 import com.eiu.capstone.backend.utility.TimingLog;
@@ -76,7 +77,7 @@ public class GradingService {
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final boolean timingLog;
     private final Semaphore workerJvmSlot;
-    private final WorkerProcessClient workerProcessClient;
+    private final WorkerSessionFactory workerSessionFactory;
     private final int invokeTimeoutSeconds;
 
     public GradingService(ChallengeRepository challengeRepository,
@@ -93,7 +94,7 @@ public class GradingService {
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
                           @Value("${app.grading.timing-log:false}") boolean timingLog,
                           @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
-                          WorkerProcessClient workerProcessClient,
+                          WorkerSessionFactory workerSessionFactory,
                           @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
@@ -109,7 +110,7 @@ public class GradingService {
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.timingLog = timingLog;
         this.workerJvmSlot = workerJvmSlot;
-        this.workerProcessClient = workerProcessClient;
+        this.workerSessionFactory = workerSessionFactory;
         this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
@@ -125,24 +126,40 @@ public class GradingService {
         long loadMs = System.currentTimeMillis() - loadStart;
 
         long computeStart = System.currentTimeMillis();
-        long slotWaitStart = System.currentTimeMillis();
-        try {
-            workerJvmSlot.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted waiting for isolated worker slot", e);
-        }
-        long slotWaitMs = System.currentTimeMillis() - slotWaitStart;
+        long slotWaitMs;
         GradingComputationResult computed;
         long workerSpawnMs = 0;
         int workerRespawnCount = 0;
-        try (WorkerSessionHandle workerSession = WorkerSessionHandle.start(workerProcessClient, invokeTimeoutSeconds)) {
-            computed = computeAgainstSnapshot(
-                    rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
-            workerSpawnMs = workerSession.spawnMs();
-            workerRespawnCount = workerSession.respawnCount();
-        } finally {
-            workerJvmSlot.release();
+        Path submissionRoot = submissionRoot(challengeFolderResults);
+        if (workerSessionFactory.isSandboxEnabled()) {
+            WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds);
+            try {
+                long slotWaitStart = System.currentTimeMillis();
+                acquireWorkerSlot();
+                slotWaitMs = System.currentTimeMillis() - slotWaitStart;
+                try {
+                    computed = computeAgainstSnapshot(
+                            rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+                    workerSpawnMs = workerSession.spawnMs();
+                    workerRespawnCount = workerSession.respawnCount();
+                } finally {
+                    workerJvmSlot.release();
+                }
+            } finally {
+                workerSession.close();
+            }
+        } else {
+            long slotWaitStart = System.currentTimeMillis();
+            acquireWorkerSlot();
+            slotWaitMs = System.currentTimeMillis() - slotWaitStart;
+            try (WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds)) {
+                computed = computeAgainstSnapshot(
+                        rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+                workerSpawnMs = workerSession.spawnMs();
+                workerRespawnCount = workerSession.respawnCount();
+            } finally {
+                workerJvmSlot.release();
+            }
         }
         long computeMs = System.currentTimeMillis() - computeStart;
 
@@ -178,6 +195,23 @@ public class GradingService {
         existing.challengeResults = Map.of();
         existing.testcaseResults = Map.of();
         return existing;
+    }
+
+    private void acquireWorkerSlot() {
+        try {
+            workerJvmSlot.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted waiting for isolated worker slot", e);
+        }
+    }
+
+    private static Path submissionRoot(List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+        if (challengeFolderResults == null || challengeFolderResults.isEmpty()) {
+            return null;
+        }
+        Path folder = challengeFolderResults.get(0).folder;
+        return folder == null ? null : folder.getParent();
     }
 
     private GradingComputationResult computeAgainstSnapshot(

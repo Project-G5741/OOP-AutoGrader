@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.eiu.capstone.backend.grading.testcase.transport.ProcessWorkerTransport;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -69,7 +70,7 @@ public class WorkerProcessClient {
         Thread drain = new Thread(() -> drainStderr(process, stderrKept), "worker-stderr-drain");
         drain.setDaemon(true);
         drain.start();
-        return new WorkerSession(process, drain, stderrKept);
+        return new WorkerSession(new ProcessWorkerTransport(process, drain, stderrKept));
     }
 
     public WorkerSession killAndRespawnCommand(WorkerSession session, List<String> command) {

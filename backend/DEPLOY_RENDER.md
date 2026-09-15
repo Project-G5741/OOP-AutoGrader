@@ -25,7 +25,12 @@ Render deployment steps (Docker)
 4. Memory: the API JVM and the isolated testcase worker share one cgroup. The image starts the API as `exec java $JAVA_OPTS -jar app.jar` with default `JAVA_OPTS=-Xmx256m`. Do **not** set `JAVA_OPTS=-Xmx512m` — that leaves no room for the worker (`-Xmx64m -XX:MaxMetaspaceSize=48m -XX:+ExitOnOutOfMemoryError`). Measure peak RSS on a representative lab before raising the API heap. On 512MB hosts set `app.compile.parallelism=2` and `app.grading.parallelism=2`. The image contains `/app/app.jar` and `/app/worker.jar`; override worker path with `WORKER_JAR` only if you move the file. At most one worker JVM runs at a time. `JAVA_OPTS` does not apply to the worker.
 5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `30`), `app.grading.timing-log` (`true` to log upload phase timings including `compile_timing` per challenge). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
 6. **Health check:** In the Render service **Settings** → **Health Checks**, set **Health Check Path** to `/` (not `/api/health`). The backend answers `GET /` with `200 ok`. Unknown paths return `404` without ERROR logs.
-7. Deploy. Check logs for successful startup.
+7. **Optional — container sandbox (stage 3):** Deploy `sandbox-runner` on a Docker-capable VM (see `docs/SANDBOX_RUNNER_DEPLOY.md`). On Render API add:
+   - `SANDBOX_ENABLED` = `true`
+   - `SANDBOX_RUNNER_URL` = `https://<runner-host>`
+   - `SANDBOX_RUNNER_TOKEN` = shared secret (same as runner VM)
+   When enabled, testcase invoke and dry-run use remote containers; the API image still has **no** Docker socket. Runner outages surface as testcase infrastructure errors (no silent fallback to local worker).
+8. Deploy. Check logs for successful startup.
 
 Local build & test (image build runs `mvn test`; no database env vars are required for that step):
 ```

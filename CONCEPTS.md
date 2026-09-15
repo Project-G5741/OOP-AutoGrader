@@ -74,7 +74,13 @@ The lecturer testcase PUT contract: testcase ids omitted from the payload are de
 Retired name for serializing student invoke in the API JVM. Operational invoke now runs in the isolated testcase worker; the host allows one worker JVM via `workerJvmSlot` on the HTTP thread.
 
 ### Isolated testcase worker
-A separate JVM process that executes operational testcase target classes (student submission or lecturer dry-run reference), including comparison and live-instance scoring, so a crash or unkillable loop cannot terminate the API JVM. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from later container sandboxing.
+A separate JVM process that executes operational testcase target classes (student submission or lecturer dry-run reference), including comparison and live-instance scoring, so a crash or unkillable loop cannot terminate the API JVM. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from container sandbox invoke.
+
+### Container sandbox invoke
+Ephemeral container execution of the isolated testcase worker: network disabled, read-only root filesystem with a scoped writable temp area for student classes, and cgroup CPU/memory limits. A dedicated sandbox runner (not the Render API process) maintains a warm pool and accepts authenticated invoke delegation from the API. Thesis stage 3; invoke-only — Class-tab reflection and javac compile stay in the API.
+
+### Serialized invocation outcome
+Untrusted facts returned from the isolated testcase worker over IPC (local process or remote container): return value JSON, stdout, field snapshots, exception names, comparison JSON, and an error message. The API treats this payload as data only — scoring keys such as `passed` are ignored if present. Kind is a wire-level string (normal, threw, timed out, error) that the grading layer maps to trusted outcome semantics before assertion evaluation.
 
 ### Assertion kind
 The category of check applied to an invoke or comparison outcome: return value, field state, stdout, exception type, or comparison result. A testcase passes only when every configured assertion kind passes.
