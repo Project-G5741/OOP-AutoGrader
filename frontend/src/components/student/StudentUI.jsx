@@ -720,6 +720,11 @@ export default function StudentUI({
                                   <div className="flex items-center gap-3">
                                     <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
                                     <span className="text-sm font-medium text-foreground-secondary">{tc.name}</span>
+                                    {tc.oopPrincipleTag && (
+                                      <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">
+                                        {tc.oopPrincipleTag}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
                                     <span className={`text-xs font-semibold ${testcaseStatusClass(tc)}`}>

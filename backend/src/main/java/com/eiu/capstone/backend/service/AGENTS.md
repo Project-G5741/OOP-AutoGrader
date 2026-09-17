@@ -28,6 +28,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 | `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
+| `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan |
 
 ## Local Contracts
 
@@ -90,6 +91,16 @@ Per upload request (unique `requestId` prevents collisions):
 - `DELETE /api/lecturer/terms/{termId}` removes enrollments then the quarter; blocked when the quarter is current or still has labs
 - Lecturer grade overview (`GET /api/lecturer/grade-overview`) scopes to the current quarter: active enrolled students and that quarter's labs only
 
+### Operational testcase save
+
+- `PUT .../testcases` upserts by client UUID (testcase, invocation steps, assertions). Delete only omitted child ids — never delete-all-reinsert
+- `SINGLE_INVOCATION` may have 1–20 ordered steps (`invocations` list canonical; singular `invocation` is legacy one-step). `COMPARISON` still has two instances and no invocation steps
+- Omitted `oopPrincipleTag` stores `Unit`. Polymorphism save requires at least one **METHOD** step with `dispatchClassId`; a dispatch id on a constructor step does not count. `validatePayload` (dry-run assemble) skips that guardrail
+- Invocation `order_index` is unique per testcase. Save parks kept steps at `MAX_STEPS + i`, deletes omitted rows, then writes final `0..n-1` so removing or reordering earlier steps cannot collide on `UNIQUE (testcase_id, order_index)`
+- `$instance` args must name a construct from an earlier step and match the rubric parameter type (class simple name). Caps: 20 steps, 10 named construct instances. Failures are HTTP 422
+- GET returns `oopPrincipleTag` plus ordered `invocations`; singular `invocation` is the first step so the current UI can round-trip
+- `LabStructureService.deleteClassCascade` blocks when a class is a dispatch target (`RubricMemberKind.CLASS`)
+
 ## Work Guidance
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
@@ -120,6 +131,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Operational testcase save: `support` `TestcaseRubricServiceTest` (scenario guardrails, upsert-by-id, Unit default tag)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 
 ## Child DOX Index

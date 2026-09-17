@@ -19,6 +19,8 @@ const COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
 
 const COMPARISON_RESULT_EQUALS_OPTIONS = ['true', 'false'];
 const COMPARISON_RESULT_COMPARE_TO_OPTIONS = ['-1', '0', '1'];
+const OOP_PRINCIPLE_TAGS = ['Unit', 'Polymorphism', 'Encapsulation', 'Composition', 'Inheritance'];
+const MAX_STEPS = 20;
 
 function comparisonResultSelectValue(expectedValue, comparisonMethod) {
   if (comparisonMethod === 'COMPARE_TO') {
@@ -32,28 +34,37 @@ function comparisonResultSelectValue(expectedValue, comparisonMethod) {
   return 'true';
 }
 
+function emptyInvocation() {
+  return {
+    id: crypto.randomUUID(),
+    invocationKind: 'CONSTRUCTOR',
+    constructorId: null,
+    methodId: null,
+    params: '[]',
+    receiverConstructorId: null,
+    receiverParams: '[]',
+    instanceName: '',
+    dispatchClassId: null,
+  };
+}
+
 function emptyTestcase(orderIndex = 0) {
+  const invocation = emptyInvocation();
   return {
     id: crypto.randomUUID(),
     name: 'New testcase',
     testcaseType: 'SINGLE_INVOCATION',
     comparisonMethod: null,
+    oopPrincipleTag: 'Unit',
     weight: 1,
     orderIndex,
     hidden: false,
-    invocation: {
-      id: crypto.randomUUID(),
-      invocationKind: 'CONSTRUCTOR',
-      constructorId: null,
-      methodId: null,
-      params: '[]',
-      receiverConstructorId: null,
-      receiverParams: '[]',
-    },
+    invocation,
+    invocations: [invocation],
     instances: [],
     assertions: [{
       id: crypto.randomUUID(),
-      invocationId: null,
+      invocationId: invocation.id,
       assertionKind: 'FIELD_STATE',
       fieldId: null,
       expectedValue: '0',
@@ -63,19 +74,95 @@ function emptyTestcase(orderIndex = 0) {
   };
 }
 
+function hydrateInvocation(inv) {
+  return {
+    ...emptyInvocation(),
+    ...inv,
+    instanceName: inv?.instanceName ?? '',
+    dispatchClassId: inv?.dispatchClassId ?? null,
+    params: inv?.params || '[]',
+    receiverParams: inv?.receiverParams || '[]',
+  };
+}
+
+function resolvedInvocations(tc) {
+  if (Array.isArray(tc?.invocations) && tc.invocations.length > 0) {
+    return tc.invocations.map(hydrateInvocation);
+  }
+  if (tc?.invocation) return [hydrateInvocation(tc.invocation)];
+  return [];
+}
+
+function hydrateTestcase(tc) {
+  if (!tc) return tc;
+  if (tc.testcaseType === 'COMPARISON') {
+    return { ...tc, oopPrincipleTag: tc.oopPrincipleTag || 'Unit', invocations: [] };
+  }
+  const invocations = resolvedInvocations(tc);
+  const firstId = invocations[0]?.id ?? null;
+  return {
+    ...tc,
+    oopPrincipleTag: tc.oopPrincipleTag || 'Unit',
+    invocations,
+    invocation: invocations[0] || null,
+    assertions: (tc.assertions || []).map((a) => ({
+      ...a,
+      invocationId: a.invocationId || firstId,
+    })),
+  };
+}
+
+function namedInstanceNames(invocations) {
+  const names = [];
+  (invocations || []).forEach((step) => {
+    if (step.invocationKind === 'CONSTRUCTOR' && step.instanceName?.trim()) {
+      names.push(step.instanceName.trim());
+    }
+  });
+  return names;
+}
+
+function appendInstanceRef(paramsJson, name) {
+  let parsed;
+  try {
+    parsed = JSON.parse(paramsJson || '[]');
+  } catch {
+    parsed = [];
+  }
+  if (!Array.isArray(parsed)) parsed = [];
+  parsed.push({ $instance: name });
+  return JSON.stringify(parsed);
+}
+
+function polymorphismMissingDispatch(tc) {
+  if ((tc.oopPrincipleTag || 'Unit') !== 'Polymorphism') return false;
+  if (tc.testcaseType !== 'SINGLE_INVOCATION') return false;
+  return !resolvedInvocations(tc).some(
+    (step) => step.invocationKind === 'METHOD' && step.dispatchClassId,
+  );
+}
+
 function refStorageKey(labId, challengeId) {
   return `ref-java:${labId}:${challengeId}`;
 }
 
 function normalizeTestcaseForApi(tc) {
+  const hydrated = hydrateTestcase(tc);
+  const invocations = hydrated.testcaseType === 'SINGLE_INVOCATION' ? resolvedInvocations(hydrated) : [];
   return {
-    ...tc,
-    assertions: (tc.assertions || []).map((a, idx) => ({
+    ...hydrated,
+    oopPrincipleTag: hydrated.oopPrincipleTag || 'Unit',
+    invocations: hydrated.testcaseType === 'SINGLE_INVOCATION' ? invocations : null,
+    invocation: hydrated.testcaseType === 'SINGLE_INVOCATION' ? (invocations[0] || null) : null,
+    assertions: (hydrated.assertions || []).map((a, idx) => ({
       ...a,
       assertionKind: a.assertionKind,
+      invocationId: hydrated.testcaseType === 'SINGLE_INVOCATION'
+        ? (a.invocationId || invocations[0]?.id || null)
+        : null,
       fieldId: a.assertionKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
-      expectedValue: a.assertionKind === 'COMPARISON_RESULT' && tc.testcaseType === 'COMPARISON'
-        ? comparisonResultSelectValue(a.expectedValue, tc.comparisonMethod)
+      expectedValue: a.assertionKind === 'COMPARISON_RESULT' && hydrated.testcaseType === 'COMPARISON'
+        ? comparisonResultSelectValue(a.expectedValue, hydrated.comparisonMethod)
         : (a.expectedValue?.trim() ? a.expectedValue.trim() : 'null'),
       comparisonMode: a.comparisonMode || 'EXACT',
       orderIndex: a.orderIndex ?? idx,
@@ -87,6 +174,7 @@ function comparisonTestcaseDefaults() {
   return {
     comparisonMethod: 'EQUALS',
     invocation: null,
+    invocations: [],
     instances: [
       { id: crypto.randomUUID(), label: 'A', constructorId: null, params: '[]' },
       { id: crypto.randomUUID(), label: 'B', constructorId: null, params: '[]' },
@@ -109,6 +197,7 @@ function invocationForKindChange(invocation, kind) {
     next.methodId = null;
     next.receiverConstructorId = null;
     next.receiverParams = '[]';
+    next.dispatchClassId = null;
   } else {
     next.constructorId = null;
   }
@@ -123,6 +212,10 @@ function dryRunSummaryText(result) {
   if (failed > 0) return `${failed} assertion${failed === 1 ? '' : 's'} failed`;
   if (assertions.length > 0) return 'All assertions passed';
   return result.result === 'PASS' ? 'Passed' : 'Failed';
+}
+
+function principleTagLabel(result) {
+  return result?.oop_principle_tag ?? result?.oopPrincipleTag ?? null;
 }
 
 function DryRunStatusIcon({ result, running }) {
@@ -162,6 +255,11 @@ function DryRunResultCard({ result }) {
         <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shrink-0 text-xs font-semibold">{result.result}</span>
+            {principleTagLabel(result) && (
+              <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                {principleTagLabel(result)}
+              </span>
+            )}
             <span className="truncate text-xs">{summary}</span>
           </div>
           <button
@@ -181,6 +279,11 @@ function DryRunResultCard({ result }) {
       <div className={`flex items-center justify-between gap-3 px-3 py-2 ${headerBarClass}`}>
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 text-xs font-semibold">{result.result}</span>
+          {principleTagLabel(result) && (
+            <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              {principleTagLabel(result)}
+            </span>
+          )}
           <span className="truncate text-xs">{summary}</span>
         </div>
         <button
@@ -268,15 +371,186 @@ function DryRunResultCard({ result }) {
   );
 }
 
+function updateInvocations(nextInvocations, extra = {}) {
+  return {
+    invocations: nextInvocations,
+    invocation: nextInvocations[0] || null,
+    ...extra,
+  };
+}
+
+function ScenarioStepEditor({
+  step,
+  index,
+  steps,
+  memberOptions,
+  onChange,
+  onRemove,
+  canRemove,
+}) {
+  const namedBefore = namedInstanceNames(steps.slice(0, index));
+  const insertName = namedBefore[namedBefore.length - 1] || namedBefore[0] || '';
+
+  return (
+    <div className="space-y-3 rounded border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
+          Step {index + 1}
+        </span>
+        {canRemove && (
+          <button
+            type="button"
+            className="text-xs text-error hover:underline"
+            onClick={onRemove}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs text-foreground-muted">
+          Invocation kind
+          <select
+            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+            value={step.invocationKind}
+            onChange={(e) => onChange(invocationForKindChange(step, e.target.value))}
+          >
+            <option value="CONSTRUCTOR">CONSTRUCTOR</option>
+            <option value="METHOD">METHOD</option>
+          </select>
+        </label>
+        {step.invocationKind === 'CONSTRUCTOR' ? (
+          <>
+            <label className="block text-xs text-foreground-muted">
+              Constructor
+              <select
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+                value={step.constructorId || ''}
+                onChange={(e) => onChange({ ...step, constructorId: e.target.value || null })}
+              >
+                <option value="">Select constructor</option>
+                {memberOptions.constructors.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-foreground-muted sm:col-span-2">
+              Instance name
+              <input
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
+                value={step.instanceName || ''}
+                onChange={(e) => onChange({ ...step, instanceName: e.target.value })}
+                placeholder="e.g. account"
+              />
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="block text-xs text-foreground-muted">
+              Method
+              <select
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+                value={step.methodId || ''}
+                onChange={(e) => onChange({ ...step, methodId: e.target.value || null })}
+              >
+                <option value="">Select method</option>
+                {memberOptions.methods.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-foreground-muted">
+              Receiver constructor (optional)
+              <select
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+                value={step.receiverConstructorId || ''}
+                onChange={(e) => onChange({ ...step, receiverConstructorId: e.target.value || null })}
+              >
+                <option value="">No-arg ctor on class</option>
+                {memberOptions.constructors.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-foreground-muted">
+              Receiver params (JSON array)
+              <input
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
+                value={step.receiverParams || '[]'}
+                onChange={(e) => onChange({ ...step, receiverParams: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs text-foreground-muted">
+              Dispatch class
+              <select
+                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+                value={step.dispatchClassId || ''}
+                onChange={(e) => onChange({ ...step, dispatchClassId: e.target.value || null })}
+              >
+                <option value="">Concrete class</option>
+                {(memberOptions.classes || []).map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+        <label className="block text-xs text-foreground-muted sm:col-span-2">
+          Params (JSON array)
+          <div className="mt-1 flex gap-2">
+            <input
+              className="w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
+              value={step.params || '[]'}
+              onChange={(e) => onChange({ ...step, params: e.target.value })}
+            />
+            {namedBefore.length > 0 && (
+              <button
+                type="button"
+                className="shrink-0 rounded border border-border px-2 py-1 text-xs text-primary"
+                onClick={() => onChange({ ...step, params: appendInstanceRef(step.params, insertName) })}
+                title={`Insert {"$instance":"${insertName}"}`}
+              >
+                $instance
+              </button>
+            )}
+          </div>
+          {namedBefore.length > 1 && (
+            <select
+              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1 text-xs dark:text-white"
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onChange({ ...step, params: appendInstanceRef(step.params, e.target.value) });
+              }}
+            >
+              <option value="">Insert named instance…</option>
+              {namedBefore.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          )}
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function TestcaseEditor({
   tc,
   memberOptions,
   onUpdate,
 }) {
+  const steps = resolvedInvocations(tc);
+  const missingDispatch = polymorphismMissingDispatch(tc);
+
+  const patchSteps = (nextSteps, extra) => {
+    onUpdate(updateInvocations(nextSteps, extra));
+  };
+
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-foreground-muted sm:col-span-2">
+        <label className="block text-xs text-foreground-muted">
           Type
           <select
             className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
@@ -284,14 +558,17 @@ function TestcaseEditor({
             onChange={(e) => {
               const type = e.target.value;
               if (type === 'SINGLE_INVOCATION') {
+                const fallback = emptyTestcase();
+                const invocations = steps.length ? steps : fallback.invocations;
                 onUpdate({
                   testcaseType: type,
                   comparisonMethod: null,
-                  invocation: tc.invocation || emptyTestcase().invocation,
                   instances: [],
-                  assertions: (tc.assertions?.length && tc.testcaseType === 'SINGLE_INVOCATION')
-                    ? tc.assertions
-                    : emptyTestcase().assertions,
+                  ...updateInvocations(invocations, {
+                    assertions: (tc.assertions?.length && tc.testcaseType === 'SINGLE_INVOCATION')
+                      ? tc.assertions
+                      : fallback.assertions,
+                  }),
                 });
               } else {
                 onUpdate({
@@ -305,93 +582,61 @@ function TestcaseEditor({
             <option value="COMPARISON">COMPARISON</option>
           </select>
         </label>
+        <label className="block text-xs text-foreground-muted">
+          OOP principle
+          <select
+            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
+            value={tc.oopPrincipleTag || 'Unit'}
+            onChange={(e) => onUpdate({ oopPrincipleTag: e.target.value })}
+          >
+            {OOP_PRINCIPLE_TAGS.map((tag) => (
+              <option key={tag} value={tag}>{tag}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {tc.testcaseType === 'SINGLE_INVOCATION' && tc.invocation && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs text-foreground-muted">
-            Invocation kind
-            <select
-              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-              value={tc.invocation.invocationKind}
-              onChange={(e) => onUpdate({
-                invocation: invocationForKindChange(tc.invocation, e.target.value),
-              })}
-            >
-              <option value="CONSTRUCTOR">CONSTRUCTOR</option>
-              <option value="METHOD">METHOD</option>
-            </select>
-          </label>
-          {tc.invocation.invocationKind === 'CONSTRUCTOR' ? (
-            <label className="block text-xs text-foreground-muted">
-              Constructor
-              <select
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={tc.invocation.constructorId || ''}
-                onChange={(e) => onUpdate({
-                  invocation: { ...tc.invocation, constructorId: e.target.value || null },
-                })}
-              >
-                <option value="">Select constructor</option>
-                {memberOptions.constructors.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <>
-              <label className="block text-xs text-foreground-muted">
-                Method
-                <select
-                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                  value={tc.invocation.methodId || ''}
-                  onChange={(e) => onUpdate({
-                    invocation: { ...tc.invocation, methodId: e.target.value || null },
-                  })}
-                >
-                  <option value="">Select method</option>
-                  {memberOptions.methods.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-xs text-foreground-muted">
-                Receiver constructor (optional)
-                <select
-                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                  value={tc.invocation.receiverConstructorId || ''}
-                  onChange={(e) => onUpdate({
-                    invocation: { ...tc.invocation, receiverConstructorId: e.target.value || null },
-                  })}
-                >
-                  <option value="">No-arg ctor on class</option>
-                  {memberOptions.constructors.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-xs text-foreground-muted sm:col-span-2">
-                Receiver params (JSON array)
-                <input
-                  className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-                  value={tc.invocation.receiverParams || '[]'}
-                  onChange={(e) => onUpdate({
-                    invocation: { ...tc.invocation, receiverParams: e.target.value },
-                  })}
-                />
-              </label>
-            </>
-          )}
-          <label className="block text-xs text-foreground-muted sm:col-span-2">
-            Params (JSON array)
-            <input
-              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-              value={tc.invocation.params || '[]'}
-              onChange={(e) => onUpdate({
-                invocation: { ...tc.invocation, params: e.target.value },
-              })}
+      {missingDispatch && (
+        <p className="rounded border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-text">
+          Polymorphism tests need a dispatch class on at least one method step before save.
+        </p>
+      )}
+
+      {tc.testcaseType === 'SINGLE_INVOCATION' && (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-foreground-secondary">Scenario steps</div>
+          {steps.map((step, idx) => (
+            <ScenarioStepEditor
+              key={step.id || idx}
+              step={step}
+              index={idx}
+              steps={steps}
+              memberOptions={memberOptions}
+              onChange={(next) => {
+                const nextSteps = steps.map((s, i) => (i === idx ? next : s));
+                patchSteps(nextSteps);
+              }}
+              onRemove={() => {
+                const nextSteps = steps.filter((_, i) => i !== idx);
+                const remainingIds = new Set(nextSteps.map((s) => s.id));
+                const fallbackId = nextSteps[0]?.id ?? null;
+                patchSteps(nextSteps, {
+                  assertions: (tc.assertions || []).map((a) => (
+                    remainingIds.has(a.invocationId) ? a : { ...a, invocationId: fallbackId }
+                  )),
+                });
+              }}
+              canRemove={steps.length > 1}
             />
-          </label>
+          ))}
+          <button
+            type="button"
+            className="text-xs text-primary disabled:opacity-50"
+            disabled={steps.length >= MAX_STEPS}
+            onClick={() => patchSteps([...steps, emptyInvocation()])}
+          >
+            + Add step
+          </button>
         </div>
       )}
 
@@ -451,6 +696,25 @@ function TestcaseEditor({
         <div className="text-xs font-semibold text-foreground-secondary">Assertions</div>
         {(tc.assertions || []).map((a, idx) => (
           <div key={a.id || idx} className="grid gap-2 rounded border border-border p-2 sm:grid-cols-3">
+            {tc.testcaseType === 'SINGLE_INVOCATION' && steps.length > 0 && (
+              <select
+                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white sm:col-span-3"
+                value={a.invocationId || steps[0]?.id || ''}
+                onChange={(e) => {
+                  const assertions = [...(tc.assertions || [])];
+                  assertions[idx] = { ...a, invocationId: e.target.value || steps[0]?.id || null };
+                  onUpdate({ assertions });
+                }}
+              >
+                {steps.map((step, stepIdx) => (
+                  <option key={step.id || stepIdx} value={step.id}>
+                    Step {stepIdx + 1}
+                    {step.instanceName ? ` (${step.instanceName})` : ''}
+                    {step.invocationKind === 'METHOD' ? ' method' : ' constructor'}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
               value={a.assertionKind}
@@ -536,6 +800,7 @@ function TestcaseEditor({
               ...(tc.assertions || []),
               {
                 id: crypto.randomUUID(),
+                invocationId: steps[steps.length - 1]?.id || steps[0]?.id || null,
                 assertionKind: 'RETURN_VALUE',
                 expectedValue: 'null',
                 comparisonMode: 'EXACT',
@@ -581,6 +846,11 @@ export default function TestcasesPanel({
     [testcases, snapshot],
   );
 
+  const polymorphismSaveBlocked = useMemo(
+    () => testcases.some(polymorphismMissingDispatch),
+    [testcases],
+  );
+
   const dryRunSummary = useMemo(() => {
     let pass = 0;
     let fail = 0;
@@ -620,7 +890,7 @@ export default function TestcasesPanel({
       );
       if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
       const data = await res.json();
-      const rows = data.testcases || [];
+      const rows = (data.testcases || []).map(hydrateTestcase);
       setTestcases(rows);
       setSnapshot(JSON.stringify(rows));
       setSelectedId((prev) => {
@@ -666,7 +936,9 @@ export default function TestcasesPanel({
     const constructors = [];
     const methods = [];
     const fields = [];
+    const classOptions = [];
     classes.forEach((cls) => {
+      classOptions.push({ id: cls.id, label: cls.name });
       (cls.constructors || []).forEach((c) => {
         constructors.push({ id: c.id, label: `${cls.name}.<init>(...)` });
       });
@@ -677,7 +949,7 @@ export default function TestcasesPanel({
         fields.push({ id: f.id, label: `${cls.name}.${f.name}` });
       });
     });
-    return { constructors, methods, fields };
+    return { constructors, methods, fields, classes: classOptions };
   }, [challenge]);
 
   const updateTestcase = (id, patch) => {
@@ -697,6 +969,13 @@ export default function TestcasesPanel({
 
   const handleSave = async () => {
     if (!labId || !challenge?.id) return;
+    if (testcases.some(polymorphismMissingDispatch)) {
+      onToast?.({
+        type: 'error',
+        message: 'Polymorphism tests need a dispatch class on at least one method step.',
+      });
+      return;
+    }
     if (structureDirty) setWarnStructure(true);
     setSaving(true);
     try {
@@ -711,7 +990,7 @@ export default function TestcasesPanel({
       );
       if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
       const data = await res.json();
-      const rows = data.testcases || [];
+      const rows = (data.testcases || []).map(hydrateTestcase);
       setTestcases(rows);
       setSnapshot(JSON.stringify(rows));
       onToast?.({ type: 'success', message: 'Testcases saved' });
@@ -902,6 +1181,11 @@ export default function TestcasesPanel({
                       >
                         <DryRunStatusIcon result={tcResult} running={isRunning} />
                         <span className="min-w-0 flex-1 truncate font-medium">{tc.name}</span>
+                        {tc.oopPrincipleTag && tc.oopPrincipleTag !== 'Unit' && (
+                          <span className="shrink-0 rounded bg-surface-secondary px-1.5 text-[10px] uppercase tracking-wide text-foreground-muted">
+                            {tc.oopPrincipleTag}
+                          </span>
+                        )}
                         {tc.hidden && (
                           <span className="shrink-0 rounded bg-foreground-muted/80 px-1.5 text-[10px] uppercase tracking-wide text-foreground">
                             hidden
@@ -982,8 +1266,11 @@ export default function TestcasesPanel({
       <div className="flex justify-end">
         <button
           type="button"
-          disabled={!isDirty || saving}
+          disabled={!isDirty || saving || polymorphismSaveBlocked}
           onClick={handleSave}
+          title={polymorphismSaveBlocked
+            ? 'Polymorphism tests need a dispatch class on at least one method step'
+            : undefined}
           className="inline-flex items-center gap-2 rounded-full bg-success px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-success-hover disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

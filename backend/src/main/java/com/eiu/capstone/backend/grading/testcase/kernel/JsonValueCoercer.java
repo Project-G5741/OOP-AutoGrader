@@ -2,15 +2,24 @@ package com.eiu.capstone.backend.grading.testcase.kernel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class JsonValueCoercer {
 
+    private static final String INSTANCE_REF_KEY = "$instance";
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Object[] coerceParams(String paramsJson, List<String> parameterTypes) {
+        return coerceParams(paramsJson, parameterTypes, null);
+    }
+
+    public Object[] coerceParams(String paramsJson,
+                                 List<String> parameterTypes,
+                                 Function<String, Object> namedInstances) {
         JsonNode array = parseArray(paramsJson);
         if (array.size() != parameterTypes.size()) {
             throw new IllegalArgumentException("Parameter count mismatch: expected "
@@ -18,7 +27,7 @@ public class JsonValueCoercer {
         }
         Object[] values = new Object[parameterTypes.size()];
         for (int i = 0; i < parameterTypes.size(); i++) {
-            values[i] = coerceValue(array.get(i), parameterTypes.get(i));
+            values[i] = coerceValue(array.get(i), parameterTypes.get(i), namedInstances);
         }
         return values;
     }
@@ -81,11 +90,21 @@ public class JsonValueCoercer {
     }
 
     private Object coerceValue(JsonNode node, String typeName) {
+        return coerceValue(node, typeName, null);
+    }
+
+    private Object coerceValue(JsonNode node, String typeName, Function<String, Object> namedInstances) {
+        if (isInstanceRef(node)) {
+            if (namedInstances == null) {
+                throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
+            }
+            return namedInstances.apply(node.get(INSTANCE_REF_KEY).asText());
+        }
         if (node.isNull()) {
             return null;
         }
         if (typeName.endsWith("[]")) {
-            return coerceArray(node, typeName.substring(0, typeName.length() - 2));
+            return coerceArray(node, typeName.substring(0, typeName.length() - 2), namedInstances);
         }
         return switch (typeName) {
             case "int", "Integer" -> node.isNumber() ? node.intValue() : Integer.parseInt(node.asText());
@@ -101,13 +120,21 @@ public class JsonValueCoercer {
         };
     }
 
+    private boolean isInstanceRef(JsonNode node) {
+        return node != null && node.isObject() && node.has(INSTANCE_REF_KEY) && node.get(INSTANCE_REF_KEY).isTextual();
+    }
+
     private Object coerceArray(JsonNode node, String elementType) {
+        return coerceArray(node, elementType, null);
+    }
+
+    private Object coerceArray(JsonNode node, String elementType, Function<String, Object> namedInstances) {
         if (!node.isArray()) {
             throw new IllegalArgumentException("Expected JSON array for type " + elementType + "[]");
         }
         List<Object> elements = new ArrayList<>();
         for (JsonNode child : node) {
-            elements.add(coerceValue(child, elementType));
+            elements.add(coerceValue(child, elementType, namedInstances));
         }
         return switch (elementType) {
             case "int", "Integer" -> elements.stream().mapToInt(v -> (Integer) v).toArray();

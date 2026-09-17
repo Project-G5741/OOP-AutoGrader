@@ -11,10 +11,12 @@ import org.springframework.stereotype.Component;
 import com.eiu.capstone.backend.DTO.TestcaseAssertionResultDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.grading.LabResultAssembler;
+import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseResult;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
+import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.SubmissionTestcaseAssertionResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
@@ -57,6 +59,7 @@ public class TestcaseResultMapper {
                     null,
                     null,
                     null,
+                    null,
                     null);
         }
 
@@ -76,7 +79,8 @@ public class TestcaseResultMapper {
                 input,
                 expectedOutput,
                 actualOutput,
-                assertions.isEmpty() ? null : assertions);
+                assertions.isEmpty() ? null : assertions,
+                visibleTag(testcase));
     }
 
     public TestcaseResultDTO mapDryRunResult(TestcaseRubric rubric, PendingTestcaseResult pending) {
@@ -98,7 +102,12 @@ public class TestcaseResultMapper {
                 pending.inputDisplay(),
                 pending.expectedDisplay(),
                 pending.actualDisplay(),
-                assertions.isEmpty() ? null : assertions);
+                assertions.isEmpty() ? null : assertions,
+                visibleTag(rubric));
+    }
+
+    private static OopPrincipleTag visibleTag(TestcaseRubric testcase) {
+        return testcase.oopPrincipleTag() != null ? testcase.oopPrincipleTag() : OopPrincipleTag.Unit;
     }
 
     private List<TestcaseAssertionResultDTO> mapAssertions(TestcaseRubric testcase,
@@ -117,7 +126,10 @@ public class TestcaseResultMapper {
                                 (left, right) -> left))
                 : Map.of();
 
-        AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
+        AssertionRubric primary = primaryAssertionSelector.selectScenarioPrimary(
+                TestcaseGrader.resolveSteps(testcase),
+                testcase.assertions(),
+                persistedStatusById(assertionResultsById));
 
         return mapAssertionRows(
                 testcase.assertions(),
@@ -153,7 +165,10 @@ public class TestcaseResultMapper {
             return List.of();
         }
 
-        AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
+        AssertionRubric primary = primaryAssertionSelector.selectScenarioPrimary(
+                TestcaseGrader.resolveSteps(testcase),
+                testcase.assertions(),
+                pendingStatusById(assertionResultsById));
 
         return mapAssertionRows(
                 testcase.assertions(),
@@ -187,5 +202,25 @@ public class TestcaseResultMapper {
                 .sorted(Comparator.comparingInt(AssertionRubric::orderIndex))
                 .map(rowMapper)
                 .toList();
+    }
+
+    private static Map<UUID, TestcaseResultStatus> persistedStatusById(
+            Map<UUID, SubmissionTestcaseAssertionResult> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        return rows.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue().getResult() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getResult()));
+    }
+
+    private static Map<UUID, TestcaseResultStatus> pendingStatusById(
+            Map<UUID, PendingAssertionResult> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        return rows.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue().status() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().status()));
     }
 }

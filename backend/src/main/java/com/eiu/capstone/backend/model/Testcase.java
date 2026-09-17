@@ -35,6 +35,10 @@ public class Testcase {
     @Column(name = "comparison_method", columnDefinition = "testcase_comparison_method")
     private TestcaseComparisonMethod comparisonMethod;
 
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "oop_principle_tag", nullable = false, columnDefinition = "oop_principle_tag")
+    private OopPrincipleTag oopPrincipleTag = OopPrincipleTag.Unit;
+
     @Column(name = "name", nullable = false)
     private String name;
 
@@ -64,6 +68,11 @@ public class Testcase {
     public TestcaseComparisonMethod getComparisonMethod() { return comparisonMethod; }
     public void setComparisonMethod(TestcaseComparisonMethod comparisonMethod) {
         this.comparisonMethod = comparisonMethod;
+    }
+
+    public OopPrincipleTag getOopPrincipleTag() { return oopPrincipleTag; }
+    public void setOopPrincipleTag(OopPrincipleTag oopPrincipleTag) {
+        this.oopPrincipleTag = oopPrincipleTag;
     }
 
     public String getName() { return name; }

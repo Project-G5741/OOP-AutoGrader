@@ -38,4 +38,28 @@ class WorkerSessionHandleRemoteTest {
         assertEquals(SerializedInvocationOutcome.KIND_ERROR, outcome.kind());
         assertEquals(SandboxInfraErrors.STUDENT_MESSAGE, outcome.errorMessage());
     }
+
+    @Test
+    void failedRemoteReturnsGenericInfraErrorOnScenario() {
+        WorkerSessionHandle handle = WorkerSessionHandle.failedRemote(
+                SandboxInfraErrors.STUDENT_MESSAGE, 1);
+        SerializedInvocationOutcome outcome = handle.scenario(
+                "/tmp/classes",
+                List.of(new InvocationRubric(
+                        UUID.randomUUID(),
+                        InvocationKind.METHOD,
+                        null,
+                        UUID.randomUUID(),
+                        "Foo",
+                        "bar",
+                        List.of(),
+                        "[]",
+                        null,
+                        null,
+                        List.of(),
+                        null)),
+                List.of());
+        assertEquals(SerializedInvocationOutcome.KIND_ERROR, outcome.kind());
+        assertEquals(SandboxInfraErrors.STUDENT_MESSAGE, outcome.errorMessage());
+    }
 }

@@ -10,9 +10,12 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.kernel.JavaTypeResolver;
@@ -35,7 +38,44 @@ public final class WorkerInvokeEngine {
             return SerializedInvocationOutcome.error("Missing invocation rubric");
         }
         try (URLClassLoader loader = studentLoader(classesDir)) {
-            return invokeSingleInternal(loader, spec, snapshotFieldNames, stdoutCap);
+            return executeStep(loader, toStep(spec), snapshotFieldNames, stdoutCap, new LinkedHashMap<>());
+        } catch (Exception e) {
+            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
+        }
+    }
+
+    public SerializedInvocationOutcome scenario(Path classesDir,
+                                                List<WorkerIpc.ScenarioStepSpec> steps,
+                                                List<String> snapshotFieldNames,
+                                                int stdoutCap) {
+        if (!Files.isDirectory(classesDir)) {
+            return SerializedInvocationOutcome.error("Missing compiled classes directory");
+        }
+        if (steps == null || steps.isEmpty()) {
+            return SerializedInvocationOutcome.error("Missing scenario steps");
+        }
+        try (URLClassLoader loader = studentLoader(classesDir)) {
+            Map<String, Object> registry = new LinkedHashMap<>();
+            List<SerializedInvocationOutcome> outcomes = new ArrayList<>();
+            for (WorkerIpc.ScenarioStepSpec step : steps) {
+                SerializedInvocationOutcome outcome = executeStep(
+                        loader, step, snapshotFieldNames, stdoutCap, registry);
+                outcomes.add(outcome);
+                if (shouldStopScenario(step, outcome)) {
+                    break;
+                }
+            }
+            return new SerializedInvocationOutcome(
+                    SerializedInvocationOutcome.KIND_NORMAL,
+                    null,
+                    "",
+                    false,
+                    Map.of(),
+                    null,
+                    List.of(),
+                    null,
+                    null,
+                    List.copyOf(outcomes));
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
@@ -90,41 +130,94 @@ public final class WorkerInvokeEngine {
         }
     }
 
-    private SerializedInvocationOutcome invokeSingleInternal(URLClassLoader loader,
-                                                            WorkerIpc.InvokeSpec spec,
-                                                            List<String> snapshotFieldNames,
-                                                            int stdoutCap)
-            throws Exception {
-        Class<?> clazz = findClass(loader, spec.className());
-        List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
-        Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes);
+    private SerializedInvocationOutcome executeStep(URLClassLoader loader,
+                                                    WorkerIpc.ScenarioStepSpec spec,
+                                                    List<String> snapshotFieldNames,
+                                                    int stdoutCap,
+                                                    Map<String, Object> registry) {
+        if (spec == null || spec.className() == null || spec.className().isBlank()) {
+            return SerializedInvocationOutcome.error("Missing invocation rubric");
+        }
+        Function<String, Object> namedInstances = name -> {
+            if (!registry.containsKey(name)) {
+                throw new IllegalArgumentException("Unknown named instance: " + name);
+            }
+            return registry.get(name);
+        };
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(loader);
         BoundedStdout stdout = new BoundedStdout(stdoutCap);
         java.io.PrintStream originalOut = System.out;
-        try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
-            System.setOut(captured);
-            if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                Constructor<?> constructor = findConstructor(clazz, parameterTypes);
-                Object instance = constructor.newInstance(args);
-                return normal(instance, instance, stdout, snapshotFieldNames);
+        Object receiver = null;
+        try {
+            Class<?> clazz = findClass(loader, spec.className());
+            List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
+            Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances);
+            try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
+                System.setOut(captured);
+                if (kind(spec) == InvocationKind.CONSTRUCTOR) {
+                    Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
+                    Object instance = constructor.newInstance(args);
+                    register(registry, spec.instanceName(), instance);
+                    return normal(instance, instance, stdout, snapshotFieldNames);
+                }
+                Method method = resolveMethod(loader, spec, clazz, parameterTypes);
+                if (!Modifier.isStatic(method.getModifiers())) {
+                    receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
+                }
+                Object returnValue = method.invoke(receiver, args);
+                return normal(receiver, returnValue, stdout, snapshotFieldNames);
             }
-            Method method = findMethod(clazz, spec.methodName(), parameterTypes);
-            Object receiver = null;
-            if (!Modifier.isStatic(method.getModifiers())) {
-                receiver = hasReceiver(spec)
-                        ? instantiateReceiver(loader, spec)
-                        : instantiateDefault(clazz);
-            }
-            Object returnValue = method.invoke(receiver, args);
-            return normal(receiver, returnValue, stdout, snapshotFieldNames);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return threw(null, cause, stdout, snapshotFieldNames);
+            return threw(receiver, cause, stdout, snapshotFieldNames);
+        } catch (Exception e) {
+            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
             System.setOut(originalOut);
             Thread.currentThread().setContextClassLoader(previous);
         }
+    }
+
+    private static boolean shouldStopScenario(WorkerIpc.ScenarioStepSpec step, SerializedInvocationOutcome outcome) {
+        if (outcome == null || outcome.kind() == null) {
+            return true;
+        }
+        if (SerializedInvocationOutcome.KIND_ERROR.equals(outcome.kind())
+                || SerializedInvocationOutcome.KIND_TIMED_OUT.equals(outcome.kind())) {
+            return true;
+        }
+        return SerializedInvocationOutcome.KIND_THREW.equals(outcome.kind())
+                && kind(step) == InvocationKind.CONSTRUCTOR;
+    }
+
+    private Object resolveReceiver(URLClassLoader loader,
+                                   WorkerIpc.ScenarioStepSpec spec,
+                                   Class<?> clazz,
+                                   Map<String, Object> registry,
+                                   Function<String, Object> namedInstances) throws Exception {
+        if (hasInstanceName(spec)) {
+            if (!registry.containsKey(spec.instanceName())) {
+                throw new IllegalArgumentException("Unknown named instance: " + spec.instanceName());
+            }
+            return registry.get(spec.instanceName());
+        }
+        if (hasReceiver(spec)) {
+            return instantiateReceiver(loader, spec, namedInstances);
+        }
+        return instantiateDefault(clazz);
+    }
+
+    private Method resolveMethod(URLClassLoader loader,
+                                 WorkerIpc.ScenarioStepSpec spec,
+                                 Class<?> concrete,
+                                 List<String> parameterTypes) throws NoSuchMethodException, ClassNotFoundException {
+        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes, loader);
+        if (spec.dispatchClassName() != null && !spec.dispatchClassName().isBlank()) {
+            Class<?> dispatchType = findClass(loader, spec.dispatchClassName());
+            return findDispatchMethod(dispatchType, spec.methodName(), types);
+        }
+        return findDeclaredMethod(concrete, spec.methodName(), types);
     }
 
     private SerializedInvocationOutcome normal(Object instance,
@@ -198,24 +291,29 @@ public final class WorkerInvokeEngine {
     }
 
     private Object instantiate(URLClassLoader loader, WorkerIpc.InstanceSpec spec) throws Exception {
-        return instantiateWithConstructor(loader, spec.className(), spec.parameterTypes(), spec.paramsJson());
+        return instantiateWithConstructor(
+                loader, spec.className(), spec.parameterTypes(), spec.paramsJson(), null);
     }
 
-    private Object instantiateReceiver(URLClassLoader loader, WorkerIpc.InvokeSpec spec) throws Exception {
+    private Object instantiateReceiver(URLClassLoader loader,
+                                       WorkerIpc.ScenarioStepSpec spec,
+                                       Function<String, Object> namedInstances) throws Exception {
         return instantiateWithConstructor(
                 loader,
                 spec.receiverClassName(),
                 spec.receiverParameterTypes() != null ? spec.receiverParameterTypes() : List.of(),
-                spec.receiverParamsJson());
+                spec.receiverParamsJson(),
+                namedInstances);
     }
 
     private Object instantiateWithConstructor(URLClassLoader loader,
                                             String className,
                                             List<String> parameterTypes,
-                                            String paramsJson) throws Exception {
+                                            String paramsJson,
+                                            Function<String, Object> namedInstances) throws Exception {
         Class<?> clazz = findClass(loader, className);
-        Constructor<?> constructor = findConstructor(clazz, parameterTypes);
-        Object[] args = coercer.coerceParams(paramsJson, parameterTypes);
+        Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
+        Object[] args = coercer.coerceParams(paramsJson, parameterTypes, namedInstances);
         return constructor.newInstance(args);
     }
 
@@ -239,9 +337,9 @@ public final class WorkerInvokeEngine {
         return Class.forName(className, true, loader);
     }
 
-    private Constructor<?> findConstructor(Class<?> clazz, List<String> parameterTypes)
+    private Constructor<?> findConstructor(Class<?> clazz, List<String> parameterTypes, URLClassLoader loader)
             throws NoSuchMethodException {
-        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes);
+        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes, loader);
         try {
             Constructor<?> constructor = clazz.getDeclaredConstructor(types);
             constructor.setAccessible(true);
@@ -257,9 +355,8 @@ public final class WorkerInvokeEngine {
         }
     }
 
-    private Method findMethod(Class<?> clazz, String name, List<String> parameterTypes)
+    private Method findDeclaredMethod(Class<?> clazz, String name, Class<?>[] types)
             throws NoSuchMethodException {
-        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes);
         try {
             Method method = clazz.getDeclaredMethod(name, types);
             method.setAccessible(true);
@@ -273,6 +370,44 @@ public final class WorkerInvokeEngine {
             }
             throw e;
         }
+    }
+
+    private Method findDispatchMethod(Class<?> dispatchType, String name, Class<?>[] types)
+            throws NoSuchMethodException {
+        try {
+            Method method = dispatchType.getMethod(name, types);
+            method.setAccessible(true);
+            return method;
+        } catch (NoSuchMethodException e) {
+            Method walked = walkDeclaredMethods(dispatchType, name, types, new HashSet<>());
+            if (walked != null) {
+                return walked;
+            }
+            throw e;
+        }
+    }
+
+    private Method walkDeclaredMethods(Class<?> type, String name, Class<?>[] types, Set<Class<?>> seen) {
+        if (type == null || !seen.add(type)) {
+            return null;
+        }
+        for (Method candidate : type.getDeclaredMethods()) {
+            if (candidate.getName().equals(name) && sameTypes(candidate.getParameterTypes(), types)) {
+                candidate.setAccessible(true);
+                return candidate;
+            }
+        }
+        Method fromSuper = walkDeclaredMethods(type.getSuperclass(), name, types, seen);
+        if (fromSuper != null) {
+            return fromSuper;
+        }
+        for (Class<?> iface : type.getInterfaces()) {
+            Method fromIface = walkDeclaredMethods(iface, name, types, seen);
+            if (fromIface != null) {
+                return fromIface;
+            }
+        }
+        return null;
     }
 
     private boolean sameTypes(Class<?>[] actual, Class<?>[] expected) {
@@ -302,7 +437,28 @@ public final class WorkerInvokeEngine {
         return type;
     }
 
-    private static InvocationKind kind(WorkerIpc.InvokeSpec spec) {
+    private static WorkerIpc.ScenarioStepSpec toStep(WorkerIpc.InvokeSpec spec) {
+        return new WorkerIpc.ScenarioStepSpec(
+                spec.kind(),
+                spec.className(),
+                spec.methodName(),
+                spec.parameterTypes(),
+                spec.paramsJson(),
+                spec.receiverClassName(),
+                spec.receiverParameterTypes(),
+                spec.receiverParamsJson(),
+                null,
+                null);
+    }
+
+    private static void register(Map<String, Object> registry, String instanceName, Object instance) {
+        if (instanceName == null || instanceName.isBlank()) {
+            return;
+        }
+        registry.put(instanceName, instance);
+    }
+
+    private static InvocationKind kind(WorkerIpc.ScenarioStepSpec spec) {
         try {
             return InvocationKind.valueOf(spec.kind());
         } catch (Exception e) {
@@ -310,8 +466,12 @@ public final class WorkerInvokeEngine {
         }
     }
 
-    private static boolean hasReceiver(WorkerIpc.InvokeSpec spec) {
+    private static boolean hasReceiver(WorkerIpc.ScenarioStepSpec spec) {
         return spec.receiverClassName() != null && !spec.receiverClassName().isBlank();
+    }
+
+    private static boolean hasInstanceName(WorkerIpc.ScenarioStepSpec spec) {
+        return spec.instanceName() != null && !spec.instanceName().isBlank();
     }
 
     private static String messageOrSimpleName(Throwable throwable) {

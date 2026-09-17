@@ -39,6 +39,7 @@ function mapOperationalTestcases(testcases = []) {
     expectedOutput: testcase.expected_output ?? testcase.expectedOutput ?? '',
     actualOutput: testcase.actual_output ?? testcase.actualOutput ?? '',
     assertions: testcase.assertions ?? [],
+    oopPrincipleTag: testcase.oop_principle_tag ?? testcase.oopPrincipleTag ?? null,
     feedback: testcase.feedback,
   }));
 }

@@ -121,10 +121,87 @@ class InvocationRunnerTest {
         assertEquals(5, outcome.fieldSnapshots().get("speed"));
     }
 
+    @Test
+    void invokeScenarioMapsWorkerStepsAndOmitsLaterAfterConstructThrow() throws Exception {
+        Path sourceDir = tempDir.resolve("boom-src");
+        Path boomClasses = tempDir.resolve("boom-classes");
+        Files.createDirectories(sourceDir);
+        Files.createDirectories(boomClasses);
+        Files.writeString(sourceDir.resolve("Boom.java"), """
+                public class Boom {
+                    public Boom() { throw new IllegalStateException("boom"); }
+                    public int ok() { return 7; }
+                }
+                """);
+        Process compile = new ProcessBuilder(
+                "javac", "-d", boomClasses.toString(), sourceDir.resolve("Boom.java").toString())
+                .redirectErrorStream(true)
+                .start();
+        int exit = compile.waitFor();
+        String compileOutput = new String(compile.getInputStream().readAllBytes());
+        assertEquals(0, exit, () -> "javac failed: " + compileOutput);
+
+        List<InvocationOutcome> outcomes = runner.invokeScenario(
+                contextAt(boomClasses),
+                List.of(
+                        noArgConstructor("Boom"),
+                        noArgMethod("Boom", "ok")),
+                List.of());
+
+        assertEquals(1, outcomes.size());
+        assertEquals(InvocationOutcomeKind.THREW, outcomes.get(0).kind());
+        assertEquals("IllegalStateException", outcomes.get(0).exceptionSimpleName());
+    }
+
+    @Test
+    void invokeScenarioOneStepWithoutDispatchStillWorks() {
+        InvocationRubric rubric = methodWithReceiver("accelerate", List.of(), "[]");
+        List<InvocationOutcome> outcomes = runner.invokeScenario(context(), List.of(rubric), List.of("speed"));
+        assertEquals(1, outcomes.size());
+        assertEquals(InvocationOutcomeKind.NORMAL, outcomes.get(0).kind());
+        assertEquals(5, outcomes.get(0).fieldSnapshots().get("speed"));
+    }
+
     private ChallengeGradingContext context() {
+        return contextAt(classesDir);
+    }
+
+    private ChallengeGradingContext contextAt(Path dir) {
         ChallengeRubric rubric = new ChallengeRubric(
                 UUID.randomUUID(), 1, "c1", List.of(), List.of(), List.of());
-        return ChallengeGradingContext.of(rubric, classesDir, null, List.of(), Set.of(), Map.of(), handle);
+        return ChallengeGradingContext.of(rubric, dir, null, List.of(), Set.of(), Map.of(), handle);
+    }
+
+    private static InvocationRubric noArgConstructor(String className) {
+        return new InvocationRubric(
+                UUID.randomUUID(),
+                InvocationKind.CONSTRUCTOR,
+                UUID.randomUUID(),
+                null,
+                className,
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                List.of(),
+                null);
+    }
+
+    private static InvocationRubric noArgMethod(String className, String methodName) {
+        return new InvocationRubric(
+                UUID.randomUUID(),
+                InvocationKind.METHOD,
+                null,
+                UUID.randomUUID(),
+                className,
+                methodName,
+                List.of(),
+                "[]",
+                null,
+                null,
+                List.of(),
+                null);
     }
 
     private static InvocationRubric methodWithReceiver(String methodName,

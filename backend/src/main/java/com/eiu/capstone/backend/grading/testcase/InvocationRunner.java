@@ -38,6 +38,33 @@ public class InvocationRunner {
                 invocation, snapshotFieldNames));
     }
 
+    public List<InvocationOutcome> invokeScenario(ChallengeGradingContext context,
+                                                  List<InvocationRubric> steps,
+                                                  List<String> snapshotFieldNames) {
+        if (!hasRunnableClassesDir(context)) {
+            return List.of(InvocationOutcome.error("Missing compiled classes directory"));
+        }
+        if (steps == null || steps.isEmpty()) {
+            return List.of(InvocationOutcome.error("Missing invocation rubric"));
+        }
+        WorkerSessionHandle handle = context.workerSession();
+        if (handle == null) {
+            return List.of(InvocationOutcome.error("Worker session missing"));
+        }
+        SerializedInvocationOutcome serialized = handle.scenario(
+                context.classesDir().toAbsolutePath().toString(),
+                steps,
+                snapshotFieldNames);
+        if (serialized != null && serialized.steps() != null && !serialized.steps().isEmpty()) {
+            List<InvocationOutcome> outcomes = new java.util.ArrayList<>();
+            for (SerializedInvocationOutcome step : serialized.steps()) {
+                outcomes.add(toInvocation(step));
+            }
+            return List.copyOf(outcomes);
+        }
+        return List.of(toInvocation(serialized));
+    }
+
     public ComparisonOutcome invokeComparison(ChallengeGradingContext context,
                                               TestcaseComparisonMethod comparisonMethod,
                                               List<InstanceRubric> instances) {
@@ -64,7 +91,8 @@ public class InvocationRunner {
                     serialized.stdout(),
                     serialized.stdoutTruncated(),
                     serialized.exceptionSimpleName(),
-                    serialized.exceptionSuperclassSimpleNames());
+                    serialized.exceptionSuperclassSimpleNames(),
+                    decodeSnapshots(serialized.fieldSnapshotsJson()));
             case SerializedInvocationOutcome.KIND_NORMAL -> InvocationOutcome.normal(
                     decodeJson(serialized.returnValueJson()),
                     serialized.stdout(),

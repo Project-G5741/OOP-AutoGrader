@@ -33,9 +33,34 @@ public final class JavaTypeResolver {
     }
 
     public static Class<?>[] resolveAll(List<String> parameterTypes) {
+        return resolveAll(parameterTypes, null);
+    }
+
+    public static Class<?> resolve(String typeName, ClassLoader loader) {
+        try {
+            return resolve(typeName);
+        } catch (IllegalArgumentException unsupported) {
+            if (loader == null || typeName == null || typeName.isBlank()) {
+                throw unsupported;
+            }
+            boolean array = typeName.endsWith("[]");
+            String element = array ? typeName.substring(0, typeName.length() - 2) : typeName;
+            try {
+                Class<?> clazz = Class.forName(element, true, loader);
+                return array ? clazz.arrayType() : clazz;
+            } catch (ClassNotFoundException e) {
+                throw unsupported;
+            }
+        }
+    }
+
+    public static Class<?>[] resolveAll(List<String> parameterTypes, ClassLoader loader) {
+        if (parameterTypes == null) {
+            return new Class<?>[0];
+        }
         Class<?>[] types = new Class<?>[parameterTypes.size()];
         for (int i = 0; i < parameterTypes.size(); i++) {
-            types[i] = resolve(parameterTypes.get(i));
+            types[i] = resolve(parameterTypes.get(i), loader);
         }
         return types;
     }

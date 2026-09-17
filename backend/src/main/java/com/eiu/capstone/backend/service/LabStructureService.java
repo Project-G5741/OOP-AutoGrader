@@ -1048,6 +1048,7 @@ public class LabStructureService {
         for (ClassEntity nested : nestedDependents) {
             deleteClassCascade(ctx, nested);
         }
+        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CLASS, classId);
         deleteRelationsForClass(ctx, classId);
         for (Field field : List.copyOf(ctx.fieldsByClassId.getOrDefault(classId, List.of()))) {
             deleteField(ctx, field);

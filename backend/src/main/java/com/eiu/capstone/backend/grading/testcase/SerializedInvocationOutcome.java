@@ -18,12 +18,36 @@ public record SerializedInvocationOutcome(
         String exceptionSimpleName,
         List<String> exceptionSuperclassSimpleNames,
         String comparisonResultJson,
-        String errorMessage) {
+        String errorMessage,
+        List<SerializedInvocationOutcome> steps) {
 
     public static final String KIND_ERROR = "ERROR";
     public static final String KIND_NORMAL = "NORMAL";
     public static final String KIND_THREW = "THREW";
     public static final String KIND_TIMED_OUT = "TIMED_OUT";
+
+    public SerializedInvocationOutcome(
+            String kind,
+            String returnValueJson,
+            String stdout,
+            boolean stdoutTruncated,
+            Map<String, String> fieldSnapshotsJson,
+            String exceptionSimpleName,
+            List<String> exceptionSuperclassSimpleNames,
+            String comparisonResultJson,
+            String errorMessage) {
+        this(
+                kind,
+                returnValueJson,
+                stdout,
+                stdoutTruncated,
+                fieldSnapshotsJson,
+                exceptionSimpleName,
+                exceptionSuperclassSimpleNames,
+                comparisonResultJson,
+                errorMessage,
+                null);
+    }
 
     public static SerializedInvocationOutcome error(String message) {
         return new SerializedInvocationOutcome(
