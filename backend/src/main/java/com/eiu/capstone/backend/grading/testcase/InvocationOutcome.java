@@ -32,12 +32,20 @@ public record InvocationOutcome(
                                           boolean stdoutTruncated,
                                           String exceptionSimpleName,
                                           List<String> exceptionSuperclassSimpleNames) {
+        return threw(stdout, stdoutTruncated, exceptionSimpleName, exceptionSuperclassSimpleNames, Map.of());
+    }
+
+    public static InvocationOutcome threw(String stdout,
+                                          boolean stdoutTruncated,
+                                          String exceptionSimpleName,
+                                          List<String> exceptionSuperclassSimpleNames,
+                                          Map<String, Object> fieldSnapshots) {
         return new InvocationOutcome(
                 InvocationOutcomeKind.THREW,
                 null,
                 stdout,
                 stdoutTruncated,
-                Map.of(),
+                fieldSnapshots == null ? Map.of() : fieldSnapshots,
                 exceptionSimpleName,
                 exceptionSuperclassSimpleNames == null ? List.of() : exceptionSuperclassSimpleNames,
                 null);

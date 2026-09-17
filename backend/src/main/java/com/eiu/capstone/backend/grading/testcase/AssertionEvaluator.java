@@ -22,6 +22,10 @@ public class AssertionEvaluator {
     public AssertionEvaluation evaluate(AssertionRubric assertion,
                                         InvocationOutcome invocationOutcome,
                                         ComparisonOutcome comparisonOutcome) {
+        if (assertion.kind() != com.eiu.capstone.backend.model.AssertionKind.COMPARISON_RESULT
+                && invocationOutcome == null) {
+            return skipped(assertion);
+        }
         return switch (assertion.kind()) {
             case RETURN_VALUE -> evaluateReturnValue(assertion, invocationOutcome);
             case FIELD_STATE -> evaluateFieldState(assertion, invocationOutcome);
@@ -116,7 +120,7 @@ public class AssertionEvaluator {
     private Optional<AssertionEvaluation> invocationPrecondition(AssertionRubric assertion,
                                                                  InvocationOutcome outcome) {
         if (outcome == null) {
-            return Optional.of(failure(assertion, null, "Invocation not available for this assertion"));
+            return Optional.of(skipped(assertion));
         }
         if (outcome.kind() == InvocationOutcomeKind.TIMED_OUT) {
             return Optional.of(failure(assertion, null, "Invocation timed out"));
@@ -135,6 +139,14 @@ public class AssertionEvaluator {
             return true;
         }
         return superNames != null && superNames.contains(expectedSimpleName);
+    }
+
+    private AssertionEvaluation skipped(AssertionRubric assertion) {
+        return new AssertionEvaluation(
+                assertion.id(),
+                TestcaseResultStatus.SKIPPED,
+                null,
+                "Step did not run");
     }
 
     private AssertionEvaluation success(AssertionRubric assertion, Object actual, String feedback) {

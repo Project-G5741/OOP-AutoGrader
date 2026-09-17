@@ -11,4 +11,6 @@ public record InvocationStructureDTO(
         UUID methodId,
         String params,
         UUID receiverConstructorId,
-        String receiverParams) {}
+        String receiverParams,
+        String instanceName,
+        UUID dispatchClassId) {}

@@ -10,12 +10,19 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "testcase_invocation")
+@Table(
+        name = "testcase_invocation",
+        uniqueConstraints = @UniqueConstraint(
+                name = "testcase_invocation_testcase_id_order_index_key",
+                columnNames = {"testcase_id", "order_index"}
+        )
+)
 public class TestcaseInvocation {
 
     @Id
@@ -53,6 +60,17 @@ public class TestcaseInvocation {
     @Column(name = "receiver_params", nullable = false, columnDefinition = "jsonb")
     private String receiverParams = "[]";
 
+    @Column(name = "order_index", nullable = false)
+    private int orderIndex = 0;
+
+    @Column(name = "instance_name")
+    private String instanceName;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dispatch_class_id",
+            foreignKey = @ForeignKey(name = "testcase_invocation_dispatch_class_id_fkey"))
+    private ClassEntity dispatchClass;
+
     public TestcaseInvocation() {}
 
     public UUID getId() { return id; }
@@ -80,4 +98,13 @@ public class TestcaseInvocation {
 
     public String getReceiverParams() { return receiverParams; }
     public void setReceiverParams(String receiverParams) { this.receiverParams = receiverParams; }
+
+    public int getOrderIndex() { return orderIndex; }
+    public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }
+
+    public String getInstanceName() { return instanceName; }
+    public void setInstanceName(String instanceName) { this.instanceName = instanceName; }
+
+    public ClassEntity getDispatchClass() { return dispatchClass; }
+    public void setDispatchClass(ClassEntity dispatchClass) { this.dispatchClass = dispatchClass; }
 }

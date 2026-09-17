@@ -59,16 +59,30 @@ A rubric-linked grading check that invokes student code via Java reflection (`Co
 Rubric flag on `testcase` controlling student visibility. When `false`, the testcase appears in **Example Testcases** with full I/O card expand. When `true`, it appears in **Other Testcases** as pass/fail only — input and output are withheld.
 
 ### Primary assertion
-The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). Selected at grade time by priority: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only.
+The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). For a multi-step scenario, the grader first picks the earliest invoked step that failed an assertion (or the last run step if every assertion passed), then applies kind priority on that step: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only.
 
 ### Receiver construction (testcase)
 Optional rubric configuration for METHOD invocations on classes that lack a no-arg constructor. The testcase invocation row names a rubric constructor and JSON parameter list used to build the receiver object before the method call. When absent, the runner falls back to a no-arg constructor on the method's declaring class.
 
+### Testcase scenario
+An operational testcase authored as an ordered list of steps that share **named instances**: construct, call, and assert. A single step remains a valid scenario. This is the authoring model for sequences, polymorphism, encapsulation, composition, and inheritance-behavior checks on the testcase pillar.
+
+### Named instance (testcase)
+A constructed student object in a **testcase scenario**, addressable by a lecturer-chosen name in later steps (including as an object-typed argument). Distinct from COMPARISON's unlabeled A/B instance pair.
+
+### OOP principle tag
+Lecturer-authored label on an operational testcase naming which principle the scenario checks: Unit, Polymorphism, Encapsulation, Composition, or Inheritance. Shown on Example I/O cards; not inferred by the grader. A Polymorphism tag requires at least one call through a **dispatch type**.
+
+### Dispatch type (testcase)
+Parent class or interface named on a scenario call so the invoke looks up the method on that type and dynamic dispatch runs the student's override. Required on at least one call when the test is tagged Polymorphism.
+
 ### Testcase rubric graph
-The persisted testcase authoring shape: one `testcase` row plus its invocation (SINGLE_INVOCATION), optional instance pair (COMPARISON), and assertion rows. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save.
+The persisted testcase authoring shape: one `testcase` row plus ordered invocation rows (SINGLE_INVOCATION scenario), optional instance pair (COMPARISON), and assertion rows. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save.
 
 ### Sync-by-presence (testcase save)
 The lecturer testcase PUT contract: testcase ids omitted from the payload are deleted from the challenge; ids present are upserted. Child invocation and assertion rows must be updated in place by client UUID — not delete-all-then-reinsert — because graded submissions reference `testcase_assertion.id` with `ON DELETE CASCADE`.
+
+Invocation steps also have a unique dense order per testcase. Compact that order only after kept rows occupy a range above any real step index and omitted rows are gone: uniqueness is checked immediately, so writing final indexes before extras are deleted collides even when the committed graph would be valid.
 
 ### Testcase invoke executor
 Retired name for serializing student invoke in the API JVM. Operational invoke now runs in the isolated testcase worker; the host allows one worker JVM via `workerJvmSlot` on the HTTP thread.

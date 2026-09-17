@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.DTO.rubric.testcase;
 import java.util.List;
 import java.util.UUID;
 
+import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseType;
 
@@ -16,4 +17,6 @@ public record TestcaseStructureDTO(
         boolean hidden,
         InvocationStructureDTO invocation,
         List<InstanceStructureDTO> instances,
-        List<AssertionStructureDTO> assertions) {}
+        List<AssertionStructureDTO> assertions,
+        List<InvocationStructureDTO> invocations,
+        OopPrincipleTag oopPrincipleTag) {}

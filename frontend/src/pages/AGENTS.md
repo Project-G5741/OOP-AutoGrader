@@ -15,7 +15,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
-| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history |
+| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; maps `oop_principle_tag` onto Example testcase cards |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `UserManagement.jsx` | User CRUD (live API) |

@@ -17,6 +17,9 @@ Spring-free JSON coerce and value compare used by both the API scoring path and 
 - No Spring types. This package is packaged into `backend-1.0.0-worker.jar`.
 - Student `URLClassLoader` URLs must not include this package.
 - API code may wrap `JsonValueCoercer` with a `@Component` subclass in `grading.testcase`.
+- `JavaTypeResolver.resolve(String)` still rejects unknown types (v1 scalars/wrappers/`String` and those arrays).
+- `resolve(String, ClassLoader)` / `resolveAll(types, loader)` load rubric class names such as `Engine` (and arrays of those) via `Class.forName(..., true, loader)`.
+- `JsonValueCoercer.coerceParams` resolves JSON objects `{"$instance":"<name>"}` through a `Function<String,Object>` supplied by the worker engine. Other params stay scalars. Do not JSON-encode live objects.
 
 ## Work Guidance
 

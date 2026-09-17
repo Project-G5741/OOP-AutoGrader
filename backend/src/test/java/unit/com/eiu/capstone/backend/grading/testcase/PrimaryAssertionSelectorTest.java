@@ -30,11 +30,27 @@ class PrimaryAssertionSelectorTest {
         assertEquals(1, primary.orderIndex());
     }
 
+    @Test
+    void selectByInvocationIdIgnoresLaterKindPriority() {
+        UUID firstStep = UUID.randomUUID();
+        UUID secondStep = UUID.randomUUID();
+        AssertionRubric returnValue = assertion(AssertionKind.RETURN_VALUE, 0, firstStep);
+        AssertionRubric stdout = assertion(AssertionKind.STDOUT, 1, secondStep);
+
+        AssertionRubric primary = selector.select(List.of(returnValue, stdout), firstStep);
+
+        assertEquals(AssertionKind.RETURN_VALUE, primary.kind());
+    }
+
     private AssertionRubric assertion(AssertionKind kind, int orderIndex) {
+        return assertion(kind, orderIndex, null);
+    }
+
+    private AssertionRubric assertion(AssertionKind kind, int orderIndex, UUID invocationId) {
         return new AssertionRubric(
                 UUID.randomUUID(),
                 kind,
-                null,
+                invocationId,
                 null,
                 null,
                 null,

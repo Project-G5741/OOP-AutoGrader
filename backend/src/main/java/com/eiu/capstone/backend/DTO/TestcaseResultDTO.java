@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.DTO;
 
 import java.util.List;
 
+import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -20,9 +21,11 @@ public class TestcaseResultDTO {
     @JsonProperty("actual_output")
     private final String actualOutput;
     private final List<TestcaseAssertionResultDTO> assertions;
+    @JsonProperty("oop_principle_tag")
+    private final OopPrincipleTag oopPrincipleTag;
 
     public TestcaseResultDTO(String testcaseName, String result, String feedback) {
-        this(testcaseName, result, feedback, false, null, null, null, null);
+        this(testcaseName, result, feedback, false, null, null, null, null, null);
     }
 
     public TestcaseResultDTO(String testcaseName,
@@ -33,6 +36,18 @@ public class TestcaseResultDTO {
                              String expectedOutput,
                              String actualOutput,
                              List<TestcaseAssertionResultDTO> assertions) {
+        this(testcaseName, result, feedback, hidden, input, expectedOutput, actualOutput, assertions, null);
+    }
+
+    public TestcaseResultDTO(String testcaseName,
+                             String result,
+                             String feedback,
+                             boolean hidden,
+                             String input,
+                             String expectedOutput,
+                             String actualOutput,
+                             List<TestcaseAssertionResultDTO> assertions,
+                             OopPrincipleTag oopPrincipleTag) {
         this.testcaseName = testcaseName;
         this.result = result;
         this.feedback = feedback;
@@ -41,6 +56,7 @@ public class TestcaseResultDTO {
         this.expectedOutput = expectedOutput;
         this.actualOutput = actualOutput;
         this.assertions = assertions;
+        this.oopPrincipleTag = oopPrincipleTag;
     }
 
     public String getTestcaseName() { return testcaseName; }
@@ -51,4 +67,6 @@ public class TestcaseResultDTO {
     public String getExpectedOutput() { return expectedOutput; }
     public String getActualOutput() { return actualOutput; }
     public List<TestcaseAssertionResultDTO> getAssertions() { return assertions; }
+    @JsonProperty("oop_principle_tag")
+    public OopPrincipleTag getOopPrincipleTag() { return oopPrincipleTag; }
 }

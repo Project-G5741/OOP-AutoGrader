@@ -47,7 +47,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase weights |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
-| `structure/TestcasesPanel.jsx` | Operational testcase list, editor, dry-run, separate Save Testcases |
+| `structure/TestcasesPanel.jsx` | Operational testcase list, scenario-step editor (instance name, dispatch class, `$instance` args, OOP principle tag), dry-run, separate Save Testcases; Save stays disabled when a Polymorphism tag has no METHOD dispatch class |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
@@ -128,7 +128,7 @@ LecturerDashboard
 
 User management and submission management are separate pages (`UserManagement`, `SubmissionManagement`), not in this folder.
 
-**Solution Management** (`SolutionManagement.jsx`, `/lecturer-solution`) uses `structure/*` for lab structure and operational testcase authoring. Testcase API: `GET/PUT /api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, dry-run `POST .../testcases/dry-run`. Reference Java is loaded via drag/drop or file picker (`ReferenceJavaFiles.jsx`) and kept in `sessionStorage` per lab/challenge.
+**Solution Management** (`SolutionManagement.jsx`, `/lecturer-solution`) uses `structure/*` for lab structure and operational testcase authoring. Testcase API: `GET/PUT /api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, dry-run `POST .../testcases/dry-run`. PUT body uses `invocations` (ordered scenario steps) plus `oopPrincipleTag`; a single-step test is one invocation. Reference Java is loaded via drag/drop or file picker (`ReferenceJavaFiles.jsx`) and kept in `sessionStorage` per lab/challenge.
 
 
 

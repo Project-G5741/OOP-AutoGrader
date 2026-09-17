@@ -14,6 +14,7 @@
   - [2.3 Users — User Management](#23-users--user-management)
   - [2.4 Terms — Term Management](#24-terms--term-management)
   - [2.5 Projects — Solution Management](#25-projects--solution-management)
+  - [2.5.1 Operational testcases (detailed guide)](#251-operational-testcases-detailed-guide)
   - [2.6 Reports — Analytics Dashboard](#26-reports--analytics-dashboard)
   - [2.7 Profile & Password](#27-profile--password)
 - [3. Student Guide](#3-student-guide)
@@ -264,10 +265,12 @@ Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail 
 #### Testcases
 
 1. Select a challenge in the structure tree.
-2. In the **Challenge Detail Panel**, switch to the **Testcases** tab.
-3. Click **+ Add Testcase** to define an input → expected output pair.
+2. In the **Challenge Detail Panel**, switch to the **Operational Testcases** tab.
+3. Click **+ Add testcase** to create a scenario or comparison test.
 4. Mark a testcase as **Hidden** to hide its I/O from students (they see PASS/FAIL only).
-5. Click **Save Structure** to persist all changes.
+5. Click **Save Testcases** (in that tab) to persist testcase changes. Click **Save Structure** separately when you change classes, fields, or methods.
+
+For a full walkthrough with examples (steps, assertions, OOP tags, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
 
 #### Lab Deadline
 
@@ -285,6 +288,12 @@ Toggle **Student Visible** on a lab to control whether students can see and subm
 #### Saving
 
 Click **Save Structure** (top of structure panel) to persist all challenge/class/rubric changes. A green toast notification confirms a successful save.
+
+Operational testcases use a separate **Save Testcases** button in the Operational Testcases tab.
+
+### 2.5.1 Operational testcases (detailed guide)
+
+See **[LECTURER_OPERATIONAL_TESTCASE_GUIDE.md](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)** — step-by-step setup for scenario tests, comparison tests, assertions, OOP principle tags, reference Java dry-run, and worked examples in plain English.
 
 ---
 

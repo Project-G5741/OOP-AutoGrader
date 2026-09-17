@@ -17,6 +17,7 @@ public interface TestcaseInvocationRepository extends JpaRepository<TestcaseInvo
             LEFT JOIN FETCH i.constructor
             LEFT JOIN FETCH i.method
             LEFT JOIN FETCH i.receiverConstructor
+            LEFT JOIN FETCH i.dispatchClass
             WHERE i.testcase.id IN :testcaseIds
             """)
     List<TestcaseInvocation> findByTestcase_IdIn(@Param("testcaseIds") Collection<UUID> testcaseIds);

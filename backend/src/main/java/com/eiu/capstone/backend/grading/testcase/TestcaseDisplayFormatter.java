@@ -22,16 +22,39 @@ public class TestcaseDisplayFormatter {
     }
 
     public String formatInput(TestcaseRubric testcase) {
-        if (testcase.testcaseType() == TestcaseType.COMPARISON) {
-            return testcase.instances().stream()
-                    .map(this::formatInstanceInput)
-                    .collect(Collectors.joining("\n"));
+        if (testcase != null && testcase.testcaseType() == TestcaseType.COMPARISON) {
+            return formatComparisonInput(testcase);
         }
-        InvocationRubric invocation = testcase.invocation();
+        return formatInput(testcase, firstInvocation(testcase));
+    }
+
+    public String formatInput(TestcaseRubric testcase, InvocationRubric invocation) {
+        if (testcase != null && testcase.testcaseType() == TestcaseType.COMPARISON) {
+            return formatComparisonInput(testcase);
+        }
         if (invocation == null) {
             return "";
         }
         return formatInvocationInput(invocation);
+    }
+
+    private String formatComparisonInput(TestcaseRubric testcase) {
+        if (testcase.instances() == null) {
+            return "";
+        }
+        return testcase.instances().stream()
+                .map(this::formatInstanceInput)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static InvocationRubric firstInvocation(TestcaseRubric testcase) {
+        if (testcase == null) {
+            return null;
+        }
+        if (testcase.invocations() != null && !testcase.invocations().isEmpty()) {
+            return testcase.invocations().get(0);
+        }
+        return testcase.invocation();
     }
 
     public String formatExpected(AssertionRubric assertion) {
@@ -92,7 +115,14 @@ public class TestcaseDisplayFormatter {
     private String formatInvocationInput(InvocationRubric invocation) {
         String args = formatArgs(invocation.paramsJson());
         if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
-            return "new " + invocation.className() + "(" + args + ")";
+            String constructed = "new " + invocation.className() + "(" + args + ")";
+            if (hasInstanceName(invocation)) {
+                return invocation.instanceName() + " = " + constructed;
+            }
+            return constructed;
+        }
+        if (hasInstanceName(invocation)) {
+            return invocation.instanceName() + "." + invocation.methodName() + "(" + args + ")";
         }
         if (invocation.hasReceiver()) {
             String receiverSetup = "new " + invocation.receiverClassName()
@@ -100,6 +130,10 @@ public class TestcaseDisplayFormatter {
             return receiverSetup + "\n" + invocation.className() + "." + invocation.methodName() + "(" + args + ")";
         }
         return invocation.className() + "." + invocation.methodName() + "(" + args + ")";
+    }
+
+    private static boolean hasInstanceName(InvocationRubric invocation) {
+        return invocation.instanceName() != null && !invocation.instanceName().isBlank();
     }
 
     private String formatInstanceInput(InstanceRubric instance) {

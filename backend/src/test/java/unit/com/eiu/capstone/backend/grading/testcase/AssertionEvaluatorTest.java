@@ -20,13 +20,13 @@ class AssertionEvaluatorTest {
     private final AssertionEvaluator evaluator = new AssertionEvaluator(new JsonValueCoercer());
 
     @Test
-    void nullInvocationOutcomeReturnsFailedWithoutNpe() {
+    void nullInvocationOutcomeReturnsSkippedWithoutNpe() {
         AssertionRubric assertion = assertion(AssertionKind.RETURN_VALUE, "42");
 
         AssertionEvaluation result = evaluator.evaluate(assertion, null, null);
 
-        assertEquals(TestcaseResultStatus.FAILED, result.status());
-        assertTrue(result.feedback().contains("Invocation not available"));
+        assertEquals(TestcaseResultStatus.SKIPPED, result.status());
+        assertTrue(result.feedback() == null || !result.feedback().isBlank());
     }
 
     @Test

@@ -9,15 +9,15 @@ import java.util.stream.Collectors;
 
 import com.eiu.capstone.backend.model.Parameter;
 
-final class RubricParameterMaps {
+public final class RubricParameterMaps {
 
     private RubricParameterMaps() {}
 
-    static Map<UUID, List<String>> byMethod(List<Parameter> params) {
+    public static Map<UUID, List<String>> byMethod(List<Parameter> params) {
         return groupByOwner(params, p -> p.getMethod().getId());
     }
 
-    static Map<UUID, List<String>> byConstructor(List<Parameter> params) {
+    public static Map<UUID, List<String>> byConstructor(List<Parameter> params) {
         return groupByOwner(params, p -> p.getConstructorEntity().getId());
     }
 

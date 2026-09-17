@@ -46,6 +46,7 @@ import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.InvocationKind;
+import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 
@@ -173,6 +174,9 @@ class TestcaseDryRunServiceTest {
         assertEquals("PASS", result.getResult());
         assertEquals("expected", result.getExpectedOutput());
         assertEquals("actual", result.getActualOutput());
+        assertEquals(OopPrincipleTag.Unit, result.getOopPrincipleTag());
+        assertEquals("input", result.getInput());
+        verify(graderSpy).gradeSingle(any(TestcaseRubric.class), any(ChallengeGradingContext.class));
     }
 
     private TestcaseDryRunService newService(TestcaseGrader grader) {

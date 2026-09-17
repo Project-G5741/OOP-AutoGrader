@@ -25,7 +25,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
-| `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion priority for collapsed card |
+| `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion: kind priority, or first-failing / last-run step for scenarios |
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
 | `grading/scoring/PartialCreditEvaluator.java` | `binaryAccuracy` for Class-tab members and MMD elements; `accuracy()` matching-attribute ratio for MMD class presence vs type |
@@ -45,6 +45,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `MmdComparisonService.java` | Compare parsed MMD against rubric; resolves simple and namespace-qualified class names via `ParsedMmdDiagram.classByName` |
 | `DTO/MmdResponseDTO.java` | `/mmd` and `lab_result` MMD payload: `{ classes, parseError }` |
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
+| `grading/rubric/RubricParameterMaps.java` | Group rubric parameters by constructor/method id for assembler, lab load, and lecturer save validation |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
 | `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence) |
 
@@ -85,16 +86,26 @@ SubmissionController
 
 ### Operational testcase grading
 
-- Rubric tables: `testcase`, `testcase_invocation` (optional `receiver_constructor_id` + `receiver_params` for METHOD invocations), `testcase_instance`, `testcase_assertion`
-- SINGLE_INVOCATION: one invocation + one or more assertions; instance methods may seed the receiver via constructor params instead of a no-arg constructor
-- COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion
+- Rubric tables: `testcase` (`oop_principle_tag`), `testcase_invocation` (ordered steps, optional `instance_name`, optional `dispatch_class_id` + `receiver_constructor_id` / `receiver_params` for METHOD), `testcase_instance`, `testcase_assertion`
+- SINGLE_INVOCATION: one or more ordered invocations + assertions; instance methods may use a named earlier construct or seed the receiver via constructor params
+- COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion; not absorbed into scenario steps
+- Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, and Polymorphism without a METHOD dispatch type; dry-run `validatePayload` still allows incomplete Polymorphism for preview
+- `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies tag + `instanceName` / dispatch class onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
+- IPC ops: `invoke` (one call), `compare` (two instances), `scenario` (ordered steps + request-local named instances). `TestcaseGrader` uses `invokeScenario` for `SINGLE_INVOCATION` (one-step is a one-element list) and `invokeComparison` for `COMPARISON`
+- Whole-scenario timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget for the `scenario` op; `COMPARISON` keeps a single-op budget
+- Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
+- CONSTRUCTOR `THREW`, `ERROR`, or `TIMED_OUT` omit later steps (API `SKIPPED`, not passed). METHOD `THREW` keeps the named receiver and continues later steps so EXCEPTION plus later asserts can pass
+- Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as `SKIPPED`
+- Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
+- Example (`hidden` false) DTOs include `oop_principle_tag` (lecturer tag, not a diagnosis). Hidden rows omit I/O, assertions, feedback, and the tag
+- Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
 - `GradingPipeline.gradeChallenge(...)` without a worker is class/MMD-only; a challenge with testcases and a null session fails fast
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
-- Value types v1: primitives, `String`, null, arrays of primitives
+- Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`
 
 ### Result persistence
 
@@ -133,7 +144,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Verification
 
-- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
+- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `TestcaseRubricAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
 - Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
 
 ## Child DOX Index

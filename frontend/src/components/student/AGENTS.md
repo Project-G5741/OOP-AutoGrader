@@ -9,6 +9,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
+| `StudentUI.jsx` | Student lab upload + result tabs; Example I/O cards show the lecturer OOP principle tag |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
@@ -66,10 +67,10 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 ### Testcase tab rows (`StudentUI.jsx`)
 
 - **I/O Score** header uses backend pillar score from `lab_result.scores.testcase`.
-- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass, fail, and compile `ERROR`.
-- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL/ERROR — no I/O detail.
+- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass, fail, and compile `ERROR`. Visible rows show the lecturer **OOP principle tag** beside the name (Unit, Polymorphism, Encapsulation, Composition, or Inheritance).
+- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL/ERROR — no I/O detail and no principle tag.
 - Operational compile failures use `result === 'ERROR'` (not FAIL) and show `feedback` in Your Output.
-- Multi-assertion visible rows stack additional Expected/Your pairs under the primary three-column panel.
+- Multi-assertion visible rows stack additional Expected/Your pairs under the primary three-column panel. Collapsed primary I/O is the first failing scenario step from the API.
 
 ### Dashboard stats row (`StudentUI.jsx`)
 
