@@ -11,7 +11,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -95,7 +98,7 @@ class TestcaseSchemaMigratorTest {
 
     @Test
     void operatorSql_isAdditiveAndBackfillsUnitAtOrderZero() throws Exception {
-        String sql = Files.readString(operatorSql());
+        String sql = readOperatorSql();
 
         assertTrue(sql.contains("CREATE TYPE oop_principle_tag"));
         assertTrue(sql.contains("'Unit'"));
@@ -127,11 +130,21 @@ class TestcaseSchemaMigratorTest {
         method.invoke(new TestcaseSchemaMigrator(jdbcTemplate));
     }
 
-    private static Path operatorSql() {
+    private static String readOperatorSql() throws IOException {
+        String resource = "/sql/2026-09-17-testcase-scenario-steps.sql";
+        try (InputStream in = TestcaseSchemaMigratorTest.class.getResourceAsStream(resource)) {
+            if (in != null) {
+                return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        }
         Path fromBackend = Path.of("..", "docs", "sql", "2026-09-17-testcase-scenario-steps.sql");
         if (Files.exists(fromBackend)) {
-            return fromBackend;
+            return Files.readString(fromBackend);
         }
-        return Path.of("docs", "sql", "2026-09-17-testcase-scenario-steps.sql");
+        Path fromRoot = Path.of("docs", "sql", "2026-09-17-testcase-scenario-steps.sql");
+        if (Files.exists(fromRoot)) {
+            return Files.readString(fromRoot);
+        }
+        throw new IllegalStateException("Missing operator SQL fixture: " + resource);
     }
 }
