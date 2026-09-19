@@ -53,7 +53,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
 | `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
 | `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
-| `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN + email, `GET /{termId}/roster` (enrolled + available in one call) |
+| `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | Master data lookup by category |
 | `TermController` | `/api/terms` | Academic term list for lab creation |

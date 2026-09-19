@@ -15,6 +15,13 @@ const EMAIL_HEADERS = new Set([
   'schoolemail',
 ]);
 
+const NAME_HEADERS = new Set([
+  'fullname',
+  'name',
+  'studentname',
+  'studentfullname',
+]);
+
 function normalizeHeader(value) {
   return String(value ?? '')
     .trim()
@@ -52,6 +59,7 @@ function looksLikeStudentCode(value) {
 function findColumnIndexes(headerRow) {
   let idIndex = -1;
   let emailIndex = -1;
+  let nameIndex = -1;
   headerRow.forEach((cell, index) => {
     const header = normalizeHeader(cell);
     if (idIndex < 0 && ID_HEADERS.has(header)) {
@@ -59,6 +67,9 @@ function findColumnIndexes(headerRow) {
     }
     if (emailIndex < 0 && EMAIL_HEADERS.has(header)) {
       emailIndex = index;
+    }
+    if (nameIndex < 0 && NAME_HEADERS.has(header)) {
+      nameIndex = index;
     }
   });
   if (idIndex < 0) {
@@ -69,13 +80,13 @@ function findColumnIndexes(headerRow) {
       }
     });
   }
-  return { idIndex, emailIndex };
+  return { idIndex, emailIndex, nameIndex };
 }
 
 function guessColumnIndexes(rows) {
   const sample = rows.find((row) => Array.isArray(row) && row.some((cell) => String(cell).trim()));
   if (!sample) {
-    return { idIndex: -1, emailIndex: -1 };
+    return { idIndex: -1, emailIndex: -1, nameIndex: -1 };
   }
   let idIndex = -1;
   let emailIndex = -1;
@@ -86,10 +97,10 @@ function guessColumnIndexes(rows) {
       idIndex = index;
     }
   });
-  return { idIndex, emailIndex };
+  return { idIndex, emailIndex, nameIndex: -1 };
 }
 
-function collectRows(grid, idIndex, emailIndex, startAt) {
+function collectRows(grid, idIndex, emailIndex, nameIndex, startAt) {
   const seen = new Set();
   const rows = [];
   for (let i = startAt; i < grid.length; i += 1) {
@@ -97,11 +108,12 @@ function collectRows(grid, idIndex, emailIndex, startAt) {
     if (!Array.isArray(line)) continue;
     const studentCode = normalizeStudentCode(line[idIndex]);
     const email = normalizeEmail(line[emailIndex]);
+    const fullName = String(nameIndex >= 0 ? line[nameIndex] ?? '' : '').trim();
     if (!studentCode && !email) continue;
     const key = `${studentCode.toLowerCase()}|${email.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ studentCode, email });
+    rows.push({ studentCode, email, fullName });
   }
   return rows;
 }
@@ -114,12 +126,12 @@ export function extractStudentImportRows(grid) {
 
   const headerMatch = findColumnIndexes(lines[0]);
   if (headerMatch.idIndex >= 0 && headerMatch.emailIndex >= 0) {
-    return collectRows(lines, headerMatch.idIndex, headerMatch.emailIndex, 1);
+    return collectRows(lines, headerMatch.idIndex, headerMatch.emailIndex, headerMatch.nameIndex, 1);
   }
 
   const guessed = guessColumnIndexes(lines);
   if (guessed.idIndex >= 0 && guessed.emailIndex >= 0) {
-    return collectRows(lines, guessed.idIndex, guessed.emailIndex, 0);
+    return collectRows(lines, guessed.idIndex, guessed.emailIndex, guessed.nameIndex, 0);
   }
 
   throw new Error('Could not find Student ID (IRN) and Email columns in that file.');

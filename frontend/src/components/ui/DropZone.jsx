@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import Button from './Button';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { apiFetch } from '../../utils/apiFetch';
+import { useToast } from './Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -15,6 +16,7 @@ export default function DropZone({
   attemptNumber,
   authToken,
 }) {
+  const showToast = useToast();
   const inputRef = useRef(null);
   const uploadInFlightRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -180,7 +182,9 @@ export default function DropZone({
       }
     } catch (err) {
       console.error('Upload error:', err);
-      setUploadError(toFriendlyError(err, 'upload'));
+      const message = toFriendlyError(err, 'upload');
+      setUploadError(message);
+      showToast({ message, type: 'error' });
     } finally {
       uploadInFlightRef.current = false;
       setIsUploading(false);

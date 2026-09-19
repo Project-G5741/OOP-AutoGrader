@@ -81,8 +81,8 @@ Per upload request (unique `requestId` prevents collisions):
 - Lecturers create a term under an academic year label (reused if it exists) and optional dates
 - One term is current (`is_current`); set via `POST /api/lecturer/terms/{id}/current`
 - Enroll only active students; out-of-term active students can still log in and read history, not submit
-- Excel import matches **IRN (`student_code`) and email** to an existing user, then enrolls; extra columns ignored; unmatched rows are skipped
-- Import, enroll, and term list use batched queries (user lookup by IRN list, enrollment ids, grouped student counts, `saveAll`)
+- Excel import matches an existing user by **IRN (`student_code`) first, then email**; extra columns (including Fullname) are ignored for matching. Unmatched rows are skipped and returned for lecturer Details.
+- Import, enroll, and term list use batched queries (user lookup by IRN list and email list, enrollment ids, grouped student counts, `saveAll`)
 - Current-term membership is `existsByUser_IdAndTerm_CurrentTrue` (no extra current-term fetch)
 - `findCurrentTerm()` loads the current term row only (no academic-year join); year is fetched on term list
 - `GET /{termId}/roster` loads enrolled + available students in one enrollment fetch plus `findActiveStudents`
@@ -117,7 +117,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Compile path: upload `.java` files via frontend `DropZone`, confirm `classes/` populated before cleanup
 - Auth: `POST /api/auth/google` and `POST /api/auth/login` via Swagger or frontend login
 - Term access: `support` `StudentTermAccessServiceTest` (inactive and out-of-term submit rejected; `requireUploadAccess` 401/404/403; success reused within TTL; `rememberSuccessfulAccess` skips the query)
-- Term import: `support` `TermServiceImportTest` (IRN+email match enrolls; email mismatch skipped)
+- Term import: `support` `TermServiceImportTest` (IRN or email match enrolls; missing accounts returned as `notFoundStudents`)
 - Term current membership: `support` `TermServiceCurrentTermTest`
 - User suspend: `support` `UserServiceTest` (student inactive; lecturer/dual-role rejected; hard-delete bulk-purges grading rows)
 - Password reset: `support` `PasswordResetServiceTest` (inactive `completeReset` is 404 and does not write the hash)

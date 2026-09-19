@@ -4,6 +4,7 @@ import { getChangePasswordErrors, isFormValid } from '../../utils/validation';
 import { apiFetch } from '../../utils/apiFetch';
 import { readFriendlyAuthError, toFriendlyError } from '../../utils/apiError';
 import ModalOverlay from '../ui/ModalOverlay';
+import { useToast } from '../ui/Toast';
 
 const EMPTY_TOUCHED = {
   currentPassword: false,
@@ -12,6 +13,7 @@ const EMPTY_TOUCHED = {
 };
 
 export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
+  const showToast = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -74,7 +76,9 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
       const token = propToken || sessionStorage.getItem('accessToken');
 
       if (!token) {
-        setError('No authentication token found. Please login again.');
+        const message = 'No authentication token found. Please login again.';
+        setError(message);
+        showToast({ message, type: 'error' });
         setLoading(false);
         return;
       }
@@ -99,6 +103,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
       await response.json().catch(() => ({}));
 
       setSaved(true);
+      showToast({ message: 'Saved successfully.', type: 'success' });
       setTimeout(() => {
         setSaved(false);
         setCurrentPassword('');
@@ -109,7 +114,9 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
       }, 1500);
     } catch (saveError) {
       console.error('Change password error:', saveError);
-      setError(toFriendlyError(saveError, 'change-password'));
+      const message = toFriendlyError(saveError, 'change-password');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setLoading(false);
     }

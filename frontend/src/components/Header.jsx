@@ -12,6 +12,7 @@ export default function Header({
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  headerAddon = null,
 }) {
   const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
@@ -136,6 +137,7 @@ export default function Header({
               )}
             </div>
           )}
+          {headerAddon}
         </div>
       </div>
     </header>

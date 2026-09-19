@@ -50,6 +50,10 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     List<UserAccount> findByStudentCodeLowerIn(@Param("codes") List<String> codes);
 
     @EntityGraph(attributePaths = "roles")
+    @Query("SELECT u FROM UserAccount u WHERE LOWER(u.email) IN :emails")
+    List<UserAccount> findByEmailLowerIn(@Param("emails") List<String> emails);
+
+    @EntityGraph(attributePaths = "roles")
     @Query("SELECT u FROM UserAccount u WHERE u.id IN :ids")
     List<UserAccount> findAllWithRolesByIdIn(@Param("ids") List<UUID> ids);
 

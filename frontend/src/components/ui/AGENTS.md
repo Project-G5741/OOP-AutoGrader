@@ -14,7 +14,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `Select.jsx` | Dropdown select |
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
-| `Toast.jsx` | Fixed viewport toast (`success` / `error`), auto-dismiss (default 3s) |
+| `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
 | `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
 | `Modal.jsx` | Centered dialog shell built on `ModalOverlay` |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
@@ -35,7 +35,13 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload` — `{attemptNumber}` is a positive placeholder; the server assigns `MAX(attempt)+1`
 - After HTTP 200, `onUploadComplete` is awaited even if the JSON body fails to parse (attempt count must still advance)
 - Header: `Authorization: Bearer ${authToken || sessionStorage accessToken}`
-- Errors surfaced in-component (`uploadError`); API failures use friendly messages from `apiError.js` (never raw backend diagnostics)
+- Errors surfaced in-component (`uploadError`) and as an error **Toast** via `useToast()`; API failures use friendly messages from `apiError.js` (never raw backend diagnostics)
+
+### Toast persist feedback
+
+- `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`)
+- Persist mutations (create/update/save/delete/suspend/enroll) show success or error. Excel import warnings use `persist: true` so they stay until dismissed; **Show details** lists missing vs already-enrolled students.
+- Toast portals to `document.body` at `z-[110]` so it stays visible over modals (`z-[100]`)
 
 ### Button, Card, Select, DatePicker
 

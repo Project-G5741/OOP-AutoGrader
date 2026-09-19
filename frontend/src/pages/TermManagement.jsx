@@ -5,6 +5,8 @@ import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
 import DatePicker from '../components/ui/DatePicker';
+import Modal from '../components/ui/Modal';
+import { useToast } from '../components/ui/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -19,6 +21,33 @@ const EMPTY_FORM = {
 function matchesStudentSearch(student, query) {
   const haystack = `${student.fullName || ''} ${student.studentCode || ''} ${student.email || ''}`.toLowerCase();
   return haystack.includes(query);
+}
+
+function studentIdentity(item) {
+  if (typeof item === 'string') {
+    return { name: item, meta: '' };
+  }
+  const name = (item?.fullName || '').trim()
+    || (item?.studentCode || '').trim()
+    || (item?.email || '').trim()
+    || 'Unknown name';
+  const meta = [item?.studentCode, item?.email].filter(Boolean).join(' · ');
+  return { name, meta };
+}
+
+function formatImportNotice(result) {
+  const parts = [`Added ${result.enrolled ?? 0} student${result.enrolled === 1 ? '' : 's'}`];
+  if (result.alreadyInTerm) {
+    parts.push(`${result.alreadyInTerm} already in this quarter`);
+  }
+  if (result.notFound) {
+    parts.push(`${result.notFound} not found in the system`);
+  }
+  return `${parts.join('. ')}.`;
+}
+
+function asStudentList(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function compareTerms(a, b, order = 'desc') {
@@ -36,6 +65,7 @@ function matchesTermSearch(term, query) {
 }
 
 export default function TermManagement() {
+  const showToast = useToast();
   const [terms, setTerms] = useState([]);
   const [selectedTermId, setSelectedTermId] = useState(null);
   const [students, setStudents] = useState([]);
@@ -46,13 +76,14 @@ export default function TermManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [availableSearch, setAvailableSearch] = useState('');
   const [rosterSearch, setRosterSearch] = useState('');
   const [termSearch, setTermSearch] = useState('');
   const [termFilter, setTermFilter] = useState('all');
   const [termSortOrder, setTermSortOrder] = useState('desc');
+  const [importResult, setImportResult] = useState(null);
+  const [importDialog, setImportDialog] = useState(null);
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -158,9 +189,10 @@ export default function TermManagement() {
   const handleSelectTerm = async (termId) => {
     setSelectedTermId(termId);
     setError('');
-    setNotice('');
     setAvailableSearch('');
     setRosterSearch('');
+    setImportResult(null);
+    setImportDialog(null);
     try {
       await loadTermStudents(termId);
     } catch (err) {
@@ -170,7 +202,7 @@ export default function TermManagement() {
 
   const handleCreate = async () => {
     if (!form.yearLabel.trim()) {
-      setError('Year is required');
+      showToast({ message: 'Year is required', type: 'error' });
       return;
     }
     setSaving(true);
@@ -196,8 +228,11 @@ export default function TermManagement() {
       const nextId = created?.id ?? null;
       setSelectedTermId(nextId);
       await Promise.all([loadTerms(), loadTermStudents(nextId)]);
+      showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (err) {
-      setError(toFriendlyError(err, 'save'));
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -211,7 +246,6 @@ export default function TermManagement() {
     }
     setSaving(true);
     setError('');
-    setNotice('');
     try {
       const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}`, {
         method: 'DELETE',
@@ -230,9 +264,11 @@ export default function TermManagement() {
         setStudents([]);
         setAvailable([]);
       }
-      setNotice(`Deleted ${label}.`);
+      showToast({ message: 'Deleted successfully.', type: 'success' });
     } catch (err) {
-      setError(toFriendlyError(err, 'delete'));
+      const message = toFriendlyError(err, 'delete');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -250,8 +286,11 @@ export default function TermManagement() {
         throw new Error(await readFriendlyApiError(response, 'save'));
       }
       await loadTerms();
+      showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (err) {
-      setError(toFriendlyError(err, 'save'));
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -261,7 +300,6 @@ export default function TermManagement() {
     if (!selectedTermId || selectedStudentIds.length === 0) return;
     setSaving(true);
     setError('');
-    setNotice('');
     try {
       const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students`, {
         method: 'POST',
@@ -272,36 +310,31 @@ export default function TermManagement() {
         throw new Error(await readFriendlyApiError(response, 'save'));
       }
       await refreshSelectedTerm(selectedTermId);
+      showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (err) {
-      setError(toFriendlyError(err, 'save'));
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
-  const formatImportNotice = (result) => {
-    const parts = [`Added ${result.enrolled ?? 0} student${result.enrolled === 1 ? '' : 's'}`];
-    if (result.alreadyInTerm) {
-      parts.push(`${result.alreadyInTerm} already in this quarter`);
-    }
-    if (result.notFound) {
-      parts.push(`${result.notFound} not found`);
-    }
-    if (result.skipped) {
-      parts.push(`${result.skipped} skipped`);
-    }
-    return `${parts.join('. ')}.`;
+  const closeImportDialog = () => {
+    setImportDialog(null);
+    setImportResult(null);
   };
 
   const importExcelFile = async (file) => {
     if (!file || !selectedTermId) return;
     if (!isSpreadsheetFile(file)) {
-      setError('Please drop an Excel (.xlsx, .xls) or CSV file.');
+      const message = 'Please drop an Excel (.xlsx, .xls) or CSV file.';
+      setError(message);
+      showToast({ message, type: 'error' });
       return;
     }
     setSaving(true);
     setError('');
-    setNotice('');
     try {
       const rows = await parseStudentImportFile(file);
       const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/students/import`, {
@@ -314,12 +347,38 @@ export default function TermManagement() {
       }
       const result = await response.json();
       await refreshSelectedTerm(selectedTermId);
-      setNotice(formatImportNotice(result));
-      if (Array.isArray(result.unmatched) && result.unmatched.length > 0) {
-        setError(`Not matched: ${result.unmatched.join('; ')}`);
+      const notFoundStudents = asStudentList(result.notFoundStudents).length > 0
+        ? asStudentList(result.notFoundStudents)
+        : asStudentList(result.unmatched);
+      const alreadyInTermStudents = asStudentList(result.alreadyInTermStudents);
+      const report = {
+        enrolled: result.enrolled ?? 0,
+        alreadyInTerm: result.alreadyInTerm ?? alreadyInTermStudents.length,
+        notFound: result.notFound ?? notFoundStudents.length,
+        notFoundStudents,
+        alreadyInTermStudents,
+      };
+      setImportResult(report);
+      if (report.notFound > 0 || report.alreadyInTerm > 0) {
+        setImportDialog(null);
+        showToast({
+          message: formatImportNotice(report),
+          type: 'warning',
+          persist: true,
+          actionLabel: 'Show details',
+          onAction: () => setImportDialog('details'),
+        });
+      } else {
+        setImportDialog(null);
+        showToast({
+          message: formatImportNotice(report),
+          type: 'success',
+        });
       }
     } catch (err) {
-      setError(toFriendlyError(err, 'save'));
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -357,7 +416,6 @@ export default function TermManagement() {
     const suspending = student.isActive !== false;
     setSaving(true);
     setError('');
-    setNotice('');
     try {
       const path = suspending ? 'suspend' : 'unsuspend';
       const response = await apiFetch(`${API_BASE}/api/users/${student.id}/${path}`, {
@@ -368,11 +426,16 @@ export default function TermManagement() {
         throw new Error(await readFriendlyApiError(response, 'save'));
       }
       await refreshSelectedTerm(selectedTermId);
-      setNotice(suspending
-        ? `${student.fullName} is suspended and cannot log in.`
-        : `${student.fullName} can log in again.`);
+      showToast({
+        message: suspending
+          ? `${student.fullName} is suspended and cannot log in.`
+          : `${student.fullName} can log in again.`,
+        type: 'success',
+      });
     } catch (err) {
-      setError(toFriendlyError(err, 'save'));
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -391,8 +454,11 @@ export default function TermManagement() {
         throw new Error(await readFriendlyApiError(response, 'delete'));
       }
       await refreshSelectedTerm(selectedTermId);
+      showToast({ message: 'Deleted successfully.', type: 'success' });
     } catch (err) {
-      setError(toFriendlyError(err, 'delete'));
+      const message = toFriendlyError(err, 'delete');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -419,9 +485,6 @@ export default function TermManagement() {
 
       {error && (
         <p className="rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-warning-text">{error}</p>
-      )}
-      {notice && (
-        <p className="rounded-lg border border-success/40 bg-success-bg px-3 py-2 text-sm text-success-text">{notice}</p>
       )}
 
       {showCreate && (
@@ -795,6 +858,66 @@ export default function TermManagement() {
           )}
         </div>
       </div>
+      {importDialog === 'details' && importResult && (
+        <Modal onClose={closeImportDialog} className="max-w-lg">
+          <h3 className="mb-1 text-lg font-semibold text-foreground">Import details</h3>
+          <p className="mb-4 text-sm text-foreground-muted">
+            Students not in the system must be created in Users first. Students already in this quarter were skipped.
+          </p>
+          <div className="max-h-80 space-y-4 overflow-y-auto">
+            <section>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-error">
+                Not in the system ({importResult.notFoundStudents.length})
+              </h4>
+              {importResult.notFoundStudents.length === 0 ? (
+                <p className="text-sm text-foreground-muted">Every imported name matched an account.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {importResult.notFoundStudents.map((item, index) => {
+                    const identity = studentIdentity(item);
+                    return (
+                      <li key={`missing-${identity.name}-${index}`} className="rounded-lg border border-error/30 bg-error-bg/40 px-3 py-2">
+                        <p className="text-sm font-medium text-foreground">{identity.name}</p>
+                        {identity.meta ? (
+                          <p className="mt-0.5 text-xs text-foreground-muted">{identity.meta}</p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-error-text">
+                          {typeof item === 'string' ? item : (item.reason || 'No matching student account was found.')}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+            <section>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-warning-text">
+                Already in this quarter ({importResult.alreadyInTermStudents.length})
+              </h4>
+              {importResult.alreadyInTermStudents.length === 0 ? (
+                <p className="text-sm text-foreground-muted">No imported students were already enrolled.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {importResult.alreadyInTermStudents.map((item, index) => {
+                    const identity = studentIdentity(item);
+                    return (
+                      <li key={`enrolled-${identity.name}-${index}`} className="rounded-lg border border-warning/30 bg-warning-bg/50 px-3 py-2">
+                        <p className="text-sm font-medium text-foreground">{identity.name}</p>
+                        {identity.meta ? (
+                          <p className="mt-0.5 text-xs text-foreground-muted">{identity.meta}</p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-warning-text">
+                          {item.reason || 'Already enrolled in this quarter.'}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

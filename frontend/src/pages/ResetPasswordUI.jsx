@@ -5,9 +5,10 @@ import LoginBackground from '../components/ui/LoginBackground';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
-import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { useToast } from '../components/ui/Toast';
 
 export default function ResetPasswordUI({ token, onComplete }) {
+  const showToast = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -58,11 +59,14 @@ export default function ResetPasswordUI({ token, onComplete }) {
       }
 
       setSuccess(true);
+      showToast({ message: 'Saved successfully.', type: 'success' });
       setTimeout(() => {
         onComplete?.();
       }, 2000);
     } catch (err) {
-      setFormError(toFriendlyError(err, 'reset-password'));
+      const message = toFriendlyError(err, 'reset-password');
+      setFormError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setIsLoading(false);
     }

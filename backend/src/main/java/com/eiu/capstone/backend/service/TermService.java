@@ -21,6 +21,7 @@ import com.eiu.capstone.backend.DTO.CreateTermRequest;
 import com.eiu.capstone.backend.DTO.ImportStudentRow;
 import com.eiu.capstone.backend.DTO.ImportStudentsRequest;
 import com.eiu.capstone.backend.DTO.ImportStudentsResult;
+import com.eiu.capstone.backend.DTO.ImportUnmatchedStudent;
 import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
@@ -189,46 +190,66 @@ public class TermService {
         int notFound = 0;
         int skipped = 0;
         List<String> unmatched = new ArrayList<>();
+        List<ImportUnmatchedStudent> notFoundStudents = new ArrayList<>();
+        List<ImportUnmatchedStudent> alreadyInTermStudents = new ArrayList<>();
         Set<UUID> seenUsers = new HashSet<>();
         Set<String> codes = new HashSet<>();
+        Set<String> emails = new HashSet<>();
         for (ImportStudentRow row : request.rows()) {
             String studentCode = normalizeStudentCode(row == null ? null : row.studentCode());
+            String email = normalizeEmail(row == null ? null : row.email());
             if (!studentCode.isEmpty()) {
                 codes.add(studentCode.toLowerCase(Locale.ROOT));
             }
-        }
-        Map<String, UserAccount> byCode = new HashMap<>();
-        if (!codes.isEmpty()) {
-            for (UserAccount user : userAccountRepository.findByStudentCodeLowerIn(List.copyOf(codes))) {
-                if (user.getStudentCode() != null) {
-                    byCode.put(user.getStudentCode().toLowerCase(Locale.ROOT), user);
-                }
+            if (!email.isEmpty()) {
+                emails.add(email.toLowerCase(Locale.ROOT));
             }
         }
+        Map<String, UserAccount> byCode = loadUsersByStudentCode(codes);
+        Map<String, UserAccount> byEmail = loadUsersByEmail(emails);
         Set<UUID> alreadyEnrolled = new HashSet<>(termEnrollmentRepository.findUserIdsByTermId(term.getId()));
         List<TermEnrollment> toSave = new ArrayList<>();
 
         for (ImportStudentRow row : request.rows()) {
             String studentCode = normalizeStudentCode(row == null ? null : row.studentCode());
             String email = normalizeEmail(row == null ? null : row.email());
-            if (studentCode.isEmpty() || email.isEmpty()) {
+            String fullName = normalizeFullName(row == null ? null : row.fullName());
+            if (studentCode.isEmpty() && email.isEmpty()) {
                 skipped++;
                 continue;
             }
-            UserAccount user = byCode.get(studentCode.toLowerCase(Locale.ROOT));
-            if (user == null || !email.equalsIgnoreCase(normalizeEmail(user.getEmail()))) {
+            UserAccount user = resolveExistingStudent(studentCode, email, byCode, byEmail);
+            if (user == null) {
                 notFound++;
-                if (unmatched.size() < 25) {
-                    unmatched.add(studentCode + " / " + email);
-                }
+                recordNotice(
+                        notFoundStudents,
+                        unmatched,
+                        fullName,
+                        studentCode,
+                        email,
+                        "Not in the system — no matching student account was found.");
                 continue;
             }
             if (!user.getIsActive() || !isStudent(user)) {
-                skipped++;
+                notFound++;
+                recordNotice(
+                        notFoundStudents,
+                        unmatched,
+                        firstNonBlank(fullName, user.getFullName()),
+                        firstNonBlank(studentCode, user.getStudentCode()),
+                        firstNonBlank(email, user.getEmail()),
+                        "Could not be added because the account is inactive or is not a student.");
                 continue;
             }
             if (!seenUsers.add(user.getId()) || alreadyEnrolled.contains(user.getId())) {
                 alreadyInTerm++;
+                recordNotice(
+                        alreadyInTermStudents,
+                        null,
+                        firstNonBlank(fullName, user.getFullName()),
+                        firstNonBlank(studentCode, user.getStudentCode()),
+                        firstNonBlank(email, user.getEmail()),
+                        "Already enrolled in this quarter.");
                 continue;
             }
             TermEnrollment enrollment = new TermEnrollment();
@@ -248,6 +269,8 @@ public class TermService {
                 notFound,
                 skipped,
                 unmatched,
+                notFoundStudents,
+                alreadyInTermStudents,
                 enrolledSnapshot(termId));
     }
 
@@ -389,6 +412,84 @@ public class TermService {
 
     private String normalizeEmail(String raw) {
         return raw == null ? "" : raw.trim();
+    }
+
+    private String normalizeFullName(String raw) {
+        return raw == null ? "" : raw.trim();
+    }
+
+    private Map<String, UserAccount> loadUsersByStudentCode(Set<String> codes) {
+        Map<String, UserAccount> byCode = new HashMap<>();
+        if (codes.isEmpty()) {
+            return byCode;
+        }
+        for (UserAccount user : userAccountRepository.findByStudentCodeLowerIn(List.copyOf(codes))) {
+            if (user.getStudentCode() != null) {
+                byCode.put(user.getStudentCode().toLowerCase(Locale.ROOT), user);
+            }
+        }
+        return byCode;
+    }
+
+    private Map<String, UserAccount> loadUsersByEmail(Set<String> emails) {
+        Map<String, UserAccount> byEmail = new HashMap<>();
+        if (emails.isEmpty()) {
+            return byEmail;
+        }
+        for (UserAccount user : userAccountRepository.findByEmailLowerIn(List.copyOf(emails))) {
+            if (user.getEmail() != null) {
+                byEmail.put(user.getEmail().toLowerCase(Locale.ROOT), user);
+            }
+        }
+        return byEmail;
+    }
+
+    private UserAccount resolveExistingStudent(
+            String studentCode,
+            String email,
+            Map<String, UserAccount> byCode,
+            Map<String, UserAccount> byEmail) {
+        if (!studentCode.isEmpty()) {
+            UserAccount byIrn = byCode.get(studentCode.toLowerCase(Locale.ROOT));
+            if (byIrn != null) {
+                return byIrn;
+            }
+        }
+        if (!email.isEmpty()) {
+            return byEmail.get(email.toLowerCase(Locale.ROOT));
+        }
+        return null;
+    }
+
+    private void recordNotice(
+            List<ImportUnmatchedStudent> target,
+            List<String> unmatched,
+            String fullName,
+            String studentCode,
+            String email,
+            String reason) {
+        if (target.size() >= 25) {
+            return;
+        }
+        String codeValue = studentCode == null ? "" : studentCode.trim();
+        String emailValue = email == null ? "" : email.trim();
+        String nameValue = fullName == null ? "" : fullName.trim();
+        String displayName = firstNonBlank(nameValue, firstNonBlank(codeValue, firstNonBlank(emailValue, "Unknown name")));
+        target.add(new ImportUnmatchedStudent(
+                nameValue.isBlank() ? displayName : nameValue,
+                codeValue.isBlank() ? null : codeValue,
+                emailValue.isBlank() ? null : emailValue,
+                reason));
+        if (unmatched != null) {
+            unmatched.add(displayName + " — " + reason);
+        }
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback == null ? "" : fallback;
     }
 
     private boolean isStudent(UserAccount user) {

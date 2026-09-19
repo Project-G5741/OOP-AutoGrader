@@ -5,7 +5,8 @@ import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
-import Toast from '../components/ui/Toast';
+import StudentFoxMascot from '../components/student/StudentFoxMascot';
+import { useToast } from '../components/ui/Toast';
 import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
@@ -158,6 +159,7 @@ function firstChallengeId(challenges) {
 }
 
 export default function StudentDashboard({ user, onLogout, view = 'dashboard' }) {
+  const showToast = useToast();
   const navigate = useNavigate();
   const showHistory = view === 'history';
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
@@ -193,7 +195,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [isRefreshingResults, setIsRefreshingResults] = useState(false);
   const [revealedLabIds, setRevealedLabIds] = useState([]);
   const [sessionResultsByLab, setSessionResultsByLab] = useState({});
-  const [toast, setToast] = useState(null);
 
   const classDataCacheRef = useRef({});
   const classNoticeCacheRef = useRef({});
@@ -677,7 +678,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const score = uploadResponse?.score != null
       ? Math.floor(Number(uploadResponse.score))
       : null;
-    setToast({
+    showToast({
       message: score != null
         ? `Grading complete. Your score: ${score}/100`
         : 'Grading completed successfully.',
@@ -801,7 +802,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   return (
     <>
-      <AppShell user={user} onLogout={onLogout} onCommand={handleCommand} hideHome={!inCurrentTerm} className="!mt-0">
+      <AppShell
+        user={user}
+        onLogout={onLogout}
+        onCommand={handleCommand}
+        hideHome={!inCurrentTerm}
+        className="!mt-0"
+        headerAddon={!showHistory ? (
+          <div className="-my-2">
+            <StudentFoxMascot size={96} />
+          </div>
+        ) : null}
+      >
         <div className="w-full">
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
@@ -853,14 +865,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           isOpen={showChangePassword}
           onClose={() => setShowChangePassword(false)}
           user={user}
-        />
-      )}
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onDismiss={() => setToast(null)}
         />
       )}
     </>

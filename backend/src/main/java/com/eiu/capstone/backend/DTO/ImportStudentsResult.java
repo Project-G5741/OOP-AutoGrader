@@ -8,5 +8,7 @@ public record ImportStudentsResult(
         int notFound,
         int skipped,
         List<String> unmatched,
+        List<ImportUnmatchedStudent> notFoundStudents,
+        List<ImportUnmatchedStudent> alreadyInTermStudents,
         List<TermStudentDTO> students) {
 }

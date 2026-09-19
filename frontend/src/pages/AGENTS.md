@@ -15,7 +15,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
-| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; maps `oop_principle_tag` onto Example testcase cards |
+| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; maps `oop_principle_tag` onto Example testcase cards; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on the submit view |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `UserManagement.jsx` | User CRUD (live API) |
@@ -84,7 +84,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
 | `GET /api/lecturer/terms` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
-| `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email }] }` parsed from Excel |
+| `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/labs/{labId}/challenges?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
@@ -108,10 +108,11 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Pages compose `AppShell` (layout), child components, and local state
 - `LoginUI.jsx` shows field validation after a Sign In attempt or after a field loses focus (`touchedFields`); auth API failures use `readFriendlyAuthError` from `frontend/src/utils/apiError.js` (never raw backend `detail` text). Google 403 opens first-time setup; Google 423 is inactive and stays on the login form.
 - `ForgotPasswordUI.jsx` and `ResetPasswordUI.jsx` use the same touched/submit gating as `LoginUI.jsx` for inline field errors
+- Persist actions (users, terms, lab structure, testcases, deadline, student access, change password, first-time setup, forgot/reset password) show a shared **Toast** via `useToast()`: success (`Saved successfully.` or a specific save line) or fail (friendly `toFriendlyError`). Do not use `window.alert` for these.
 - `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt; Lecturer or dual-role users collect Lecturer ID only (no Student IRN field)
 - When replacing mock data, update the relevant page and its child component docs
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
-- Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD and Email columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util
+- Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD, Email, and optional Fullname columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util; import results that skip unknown students keep a **Details** list on the Terms page
 - Lecturer suspend/restore: `POST /api/users/{id}/suspend` and `POST /api/users/{id}/unsuspend` from `UserManagement.jsx` (student-only row action) and `TermManagement.jsx` roster
 
 ## Verification
@@ -119,7 +120,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN + email (drag/drop or click); search available and enrolled rosters; suspend/restore student-only accounts from the roster
+- Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 

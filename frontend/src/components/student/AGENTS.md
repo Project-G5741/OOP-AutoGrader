@@ -12,6 +12,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentUI.jsx` | Student lab upload + result tabs; Example I/O cards show the lecturer OOP principle tag |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
+| `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right on the submit dashboard only |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -31,6 +32,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - Opened via `Header` `editProfile` command
 - Shared across `StudentDashboard` and `LecturerDashboard`
 - Client validation via `frontend/src/utils/validation.js` (password length, confirm match, new ≠ current)
+- Save success/fail uses the shared **Toast** (`Saved successfully.` / friendly change-password error)
 
 ### Upload inputs (from parent page)
 

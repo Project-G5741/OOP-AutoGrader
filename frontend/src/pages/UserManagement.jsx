@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../components/ui/Toast';
 import AppShell from '../components/layout/AppShell';
 import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
@@ -65,6 +66,7 @@ function readIsActive(user) {
 
 export default function UserManagement({ hideNav = false, user, onLogout, noShell = false }) {
   const { isDark } = useTheme();
+  const showToast = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -308,9 +310,12 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       }
       setModal(null);
       setFormError('');
+      showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (error) {
       console.error('Failed to save user', error);
-      setFormError(toFriendlyError(error, 'save'));
+      const message = toFriendlyError(error, 'save');
+      setFormError(message);
+      showToast({ message, type: 'error' });
     }
   };
 
@@ -331,9 +336,10 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           ? { ...item, isActive: readIsActive(updated) }
           : item
       )));
+      showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (error) {
       console.error('Failed to update student access', error);
-      alert(toFriendlyError(error, 'save'));
+      showToast({ message: toFriendlyError(error, 'save'), type: 'error' });
     } finally {
       setModal(null);
     }
@@ -349,9 +355,10 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       });
       if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'delete'));
       setUsers((prev) => prev.filter((item) => item.id !== selected.id));
+      showToast({ message: 'Deleted successfully.', type: 'success' });
     } catch (error) {
       console.error('Failed to delete user', error);
-      alert(toFriendlyError(error, 'delete'));
+      showToast({ message: toFriendlyError(error, 'delete'), type: 'error' });
     } finally {
       setModal(null);
     }

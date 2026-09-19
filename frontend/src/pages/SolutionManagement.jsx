@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
-import Toast from '../components/ui/Toast';
+import { useToast } from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
 import ChallengeDetailPanel from '../components/lecturer/structure/ChallengeDetailPanel';
 import SolutionLabSidebar from '../components/lecturer/structure/SolutionLabSidebar';
@@ -61,6 +61,7 @@ function collectNestedDependents(classes, outerClassId, acc = new Set()) {
 }
 
 export default function SolutionManagement() {
+  const showToast = useToast();
   const [labs, setLabs] = useState([]);
   const [scopeOptions, setScopeOptions] = useState([]);
   const [declaringTypeOptions, setDeclaringTypeOptions] = useState([]);
@@ -76,7 +77,6 @@ export default function SolutionManagement() {
   const [structureLoading, setStructureLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [toast, setToast] = useState(null);
   const [showCreateLab, setShowCreateLab] = useState(false);
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
@@ -270,7 +270,7 @@ export default function SolutionManagement() {
     if (!draft || !selectedLabId || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    setToast(null);
+    showToast(null);
     try {
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
@@ -295,9 +295,9 @@ export default function SolutionManagement() {
       setLabs((prev) => prev.map((lab) => (
         lab.id === saved.id ? { ...lab, name: saved.name ?? lab.name } : lab
       )));
-      setToast({ message: 'Lab structure saved.', type: 'success' });
+      showToast({ message: 'Lab structure saved.', type: 'success' });
     } catch (e) {
-      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -308,19 +308,24 @@ export default function SolutionManagement() {
     if (!newLabName.trim() || !newLabTermId) return;
     const body = { name: newLabName.trim(), termId: newLabTermId };
     if (newLabDeadline) body.deadlineDate = newLabDeadline;
-    const res = await apiFetch(`${API_BASE}/api/lecturer/labs`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
-    const created = await res.json();
-    setLabs((prev) => [...prev, { id: created.id, name: created.name }]);
-    setShowCreateLab(false);
-    setNewLabName('');
-    setNewLabTermId('');
-    setNewLabDeadline('');
-    await selectLab(created.id, true);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const created = await res.json();
+      setLabs((prev) => [...prev, { id: created.id, name: created.name }]);
+      setShowCreateLab(false);
+      setNewLabName('');
+      setNewLabTermId('');
+      setNewLabDeadline('');
+      await selectLab(created.id, true);
+      showToast({ message: 'Saved successfully.', type: 'success' });
+    } catch (e) {
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    }
   };
 
   const applyDeadlineToSelectedLab = (labId, deadlineDate) => {
@@ -356,14 +361,14 @@ export default function SolutionManagement() {
     if (!selectedLabId || studentAccessSaving) return;
     const nextRelease = toDateInputValue(releaseDateInput) || null;
     if (releaseDateInput && !nextRelease) {
-      setToast({
+      showToast({
         message: 'Pick a valid release date from the calendar, then click Save student access.',
         type: 'error',
       });
       return;
     }
     if (nextRelease && !isValidCalendarDate(nextRelease)) {
-      setToast({
+      showToast({
         message: 'That day does not exist. Pick a valid release date from the calendar.',
         type: 'error',
       });
@@ -388,7 +393,7 @@ export default function SolutionManagement() {
       );
       setStudentVisibleInput(updated.studentVisible !== false);
       setReleaseDateInput(toDateInputValue(updated.releaseDate));
-      setToast({
+      showToast({
         message: studentVisibleInput
           ? `${draft?.name || 'Lab'} is visible to students.`
           : `${draft?.name || 'Lab'} is hidden from students.`,
@@ -398,7 +403,7 @@ export default function SolutionManagement() {
       applyStudentAccessToSelectedLab(selectedLabId, previousVisible, previousRelease);
       setStudentVisibleInput(previousVisible);
       setReleaseDateInput(previousRelease ?? '');
-      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
       setStudentAccessSaving(false);
     }
@@ -408,14 +413,14 @@ export default function SolutionManagement() {
     if (!selectedLabId || deadlineSaving) return;
     const nextDeadline = toDateInputValue(deadlineDate) || null;
     if (nextDeadline && !isValidCalendarDate(nextDeadline)) {
-      setToast({
+      showToast({
         message: 'That day does not exist. Pick a valid date from the calendar, then save.',
         type: 'error',
       });
       return;
     }
     if (deadlineDate !== null && !nextDeadline) {
-      setToast({
+      showToast({
         message: 'Pick a valid date from the calendar, then click Save deadline.',
         type: 'error',
       });
@@ -436,7 +441,7 @@ export default function SolutionManagement() {
       const savedDeadline = updated.deadlineDate ?? null;
       applyDeadlineToSelectedLab(selectedLabId, savedDeadline);
       setDeadlineInput(savedDeadline ?? '');
-      setToast({
+      showToast({
         message: savedDeadline
           ? `${draft?.name || 'Lab'} deadline saved.`
           : `${draft?.name || 'Lab'} deadline cleared.`,
@@ -445,7 +450,7 @@ export default function SolutionManagement() {
     } catch (e) {
       applyDeadlineToSelectedLab(selectedLabId, previousDeadline);
       setDeadlineInput(previousDeadline ?? '');
-      setToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
       setDeadlineSaving(false);
     }
@@ -454,45 +459,52 @@ export default function SolutionManagement() {
   const runDelete = async () => {
     if (!confirmDelete) return;
     const { type, labId, challengeId, classId } = confirmDelete;
-    if (type === 'lab') {
-      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
-      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'delete'));
-      const remaining = labs.filter((l) => l.id !== labId);
-      setLabs(remaining);
-      if (selectedLabId === labId) {
-        setDraft(null);
-        setSavedSnapshot(null);
-        setSelectedLabId(null);
-        if (remaining[0]) await selectLab(remaining[0].id, true);
+    try {
+      if (type === 'lab') {
+        const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${labId}`, { method: 'DELETE', headers: authHeaders() });
+        if (!res.ok) throw new Error(await readFriendlyApiError(res, 'delete'));
+        const remaining = labs.filter((l) => l.id !== labId);
+        setLabs(remaining);
+        if (selectedLabId === labId) {
+          setDraft(null);
+          setSavedSnapshot(null);
+          setSelectedLabId(null);
+          if (remaining[0]) await selectLab(remaining[0].id, true);
+        }
+        showToast({ message: 'Deleted successfully.', type: 'success' });
+      } else if (type === 'challenge') {
+        setDraft({
+          ...draft,
+          challenges: draft.challenges.filter((c) => c.id !== challengeId),
+        });
+        if (selectedClassRef?.challengeId === challengeId) setSelectedClassRef(null);
+        if (selectedChallengeId === challengeId) setSelectedChallengeId(null);
+        showToast({ message: 'Removed. Save lab structure to keep this change.', type: 'success' });
+      } else if (type === 'class') {
+        const challenge = draft.challenges.find((c) => c.id === challengeId);
+        const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
+        nestedIds.add(classId);
+        setDraft({
+          ...draft,
+          challenges: draft.challenges.map((c) => (
+            c.id === challengeId
+              ? {
+                  ...c,
+                  classes: c.classes.filter((cls) => !nestedIds.has(cls.id)),
+                  relations: (c.relations || []).filter(
+                    (rel) => !nestedIds.has(rel.sourceClassId) && !nestedIds.has(rel.targetClassId),
+                  ),
+                }
+              : c
+          )),
+        });
+        if (selectedClassRef?.classId && nestedIds.has(selectedClassRef.classId)) setSelectedClassRef(null);
+        showToast({ message: 'Removed. Save lab structure to keep this change.', type: 'success' });
       }
-    } else if (type === 'challenge') {
-      setDraft({
-        ...draft,
-        challenges: draft.challenges.filter((c) => c.id !== challengeId),
-      });
-      if (selectedClassRef?.challengeId === challengeId) setSelectedClassRef(null);
-      if (selectedChallengeId === challengeId) setSelectedChallengeId(null);
-    } else if (type === 'class') {
-      const challenge = draft.challenges.find((c) => c.id === challengeId);
-      const nestedIds = collectNestedDependents(challenge?.classes || [], classId);
-      nestedIds.add(classId);
-      setDraft({
-        ...draft,
-        challenges: draft.challenges.map((c) => (
-          c.id === challengeId
-            ? {
-                ...c,
-                classes: c.classes.filter((cls) => !nestedIds.has(cls.id)),
-                relations: (c.relations || []).filter(
-                  (rel) => !nestedIds.has(rel.sourceClassId) && !nestedIds.has(rel.targetClassId),
-                ),
-              }
-            : c
-        )),
-      });
-      if (selectedClassRef?.classId && nestedIds.has(selectedClassRef.classId)) setSelectedClassRef(null);
+      setConfirmDelete(null);
+    } catch (e) {
+      showToast({ message: toFriendlyError(e, 'delete'), type: 'error' });
     }
-    setConfirmDelete(null);
   };
 
   if (loading) {
@@ -681,7 +693,7 @@ export default function SolutionManagement() {
                   }}
                   labId={selectedLabId}
                   structureDirty={isDirty}
-                  onToast={setToast}
+                  onToast={showToast}
                 />
               )}
             </div>
@@ -746,14 +758,6 @@ export default function SolutionManagement() {
             </div>
           </div>
         </Modal>
-      )}
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onDismiss={() => setToast(null)}
-        />
       )}
 
       {confirmDelete && (

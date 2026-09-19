@@ -68,6 +68,7 @@ class TermServiceImportTest {
         when(termRepository.findById(termId)).thenReturn(Optional.of(term));
         when(termEnrollmentRepository.findByTermIdWithUser(termId)).thenReturn(List.of());
         when(termEnrollmentRepository.findUserIdsByTermId(termId)).thenReturn(List.of());
+        when(userAccountRepository.findByEmailLowerIn(anyList())).thenReturn(List.of());
     }
 
     @Test
@@ -83,14 +84,45 @@ class TermServiceImportTest {
     }
 
     @Test
-    void importStudents_skipsWhenEmailDoesNotMatchIrn() {
+    void importStudents_enrollsWhenIrnMatchesEvenIfEmailDiffers() {
         UserAccount user = activeStudent("2331200082", "student@eiu.edu.vn");
         when(userAccountRepository.findByStudentCodeLowerIn(anyList())).thenReturn(List.of(user));
 
         ImportStudentsResult result = termService.importStudents(termId, request("2331200082", "other@eiu.edu.vn"));
 
+        assertEquals(1, result.enrolled());
+        assertEquals(0, result.notFound());
+        verify(termEnrollmentRepository).saveAll(any());
+    }
+
+    @Test
+    void importStudents_enrollsWhenEmailMatchesUnknownIrn() {
+        UserAccount user = activeStudent("2331200082", "student@eiu.edu.vn");
+        when(userAccountRepository.findByStudentCodeLowerIn(anyList())).thenReturn(List.of());
+        when(userAccountRepository.findByEmailLowerIn(anyList())).thenReturn(List.of(user));
+
+        ImportStudentsResult result = termService.importStudents(termId, request("9999999999", "student@eiu.edu.vn"));
+
+        assertEquals(1, result.enrolled());
+        assertEquals(0, result.notFound());
+        verify(termEnrollmentRepository).saveAll(any());
+    }
+
+    @Test
+    void importStudents_reportsMissingAccountWithName() {
+        when(userAccountRepository.findByStudentCodeLowerIn(anyList())).thenReturn(List.of());
+
+        ImportStudentsResult result = termService.importStudents(
+                termId,
+                new ImportStudentsRequest(List.of(
+                        new ImportStudentRow("2331200099", "test.test.cit23@eiu.edu.vn", "TEST"))));
+
         assertEquals(0, result.enrolled());
         assertEquals(1, result.notFound());
+        assertEquals(1, result.notFoundStudents().size());
+        assertEquals("TEST", result.notFoundStudents().get(0).fullName());
+        assertEquals("Not in the system — no matching student account was found.",
+                result.notFoundStudents().get(0).reason());
         verify(termEnrollmentRepository, never()).saveAll(any());
     }
 
@@ -104,6 +136,8 @@ class TermServiceImportTest {
 
         assertEquals(0, result.enrolled());
         assertEquals(1, result.alreadyInTerm());
+        assertEquals(1, result.alreadyInTermStudents().size());
+        assertEquals("Test Student", result.alreadyInTermStudents().get(0).fullName());
         verify(termEnrollmentRepository, never()).saveAll(any());
     }
 

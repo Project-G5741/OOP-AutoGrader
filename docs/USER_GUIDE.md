@@ -207,12 +207,12 @@ After selecting a term, the right panel shows two lists:
 
 #### Importing Students via Excel
 
-1. Prepare a spreadsheet with columns for **Student ID / IRN** and **Email** (column names are flexible — the importer finds them automatically).
-2. Drag the file onto the **drop zone** at the top of the term panel, or click **Browse** to select the file.
-3. The system parses the file and shows a preview of rows to import.
-4. Confirm to enroll all parsed students into the selected term.
+1. Prepare a spreadsheet with columns for **Student ID / IRN** and **Email**. An optional **Fullname** column is used only when showing who could not be added.
+2. Drag the file onto the **drop zone** in the term panel, or click the zone to select the file.
+3. Students who already have an account are enrolled immediately. Names that are not in the system stay out of the quarter.
+4. If anyone is skipped, a warning popup appears. Click **Show details** to see who is not in the system and who is already in the quarter.
 
-> Accepted file types: `.xlsx`, `.xls`, `.csv`.
+> Accepted file types: `.xlsx`, `.xls`, `.csv`. Only existing active student accounts can be enrolled; import does not create new users.
 
 #### Suspending / Restoring from Roster
 
@@ -514,7 +514,7 @@ A: Lecturers can export from:
 ---
 
 **Q: How do I import students into a term?**  
-A: Go to **Terms**, select the term, and drag an Excel/CSV file onto the drop zone. The file must have columns for Student ID (or IRN) and Email. See [Section 2.4](#24-terms--term-management) for details.
+A: Go to **Terms**, select the term, and drag an Excel/CSV file onto the drop zone. The file must have columns for Student ID (or IRN) and Email. Existing accounts are enrolled; click **Details** if some rows are missing from the system. See [Section 2.4](#24-terms--term-management) for details.
 
 ---
 

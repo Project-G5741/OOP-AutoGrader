@@ -6,8 +6,10 @@ import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { validateEmail } from '../utils/validation';
 import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { useToast } from '../components/ui/Toast';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
+  const showToast = useToast();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,9 +49,12 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
       }
 
       setSent(true);
+      showToast({ message: 'Saved successfully.', type: 'success' });
       onSuccess?.();
     } catch (err) {
-      setError(toFriendlyError(err, 'forgot-password'));
+      const message = toFriendlyError(err, 'forgot-password');
+      setError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setIsLoading(false);
     }

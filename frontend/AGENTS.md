@@ -61,6 +61,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css`, `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
 - Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
+- Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
@@ -81,7 +82,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, Excel import by IRN + email; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
@@ -94,6 +95,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy")
 - Default `Footer` (AppShell) polls `GET /api/presence` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence` so the count drops; count is far-left, course title stays centered
+- `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard uses it for the fox mascot.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 

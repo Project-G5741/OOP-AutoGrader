@@ -5,9 +5,10 @@ import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
 import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
-import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { useToast } from '../components/ui/Toast';
 
 export default function FirstTimeSetupUI({ token, profile = {}, onClose, onComplete }) {
+  const showToast = useToast();
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -42,10 +43,13 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
       }
       const data = await resp.json();
       setDone(true);
+      showToast({ message: 'Saved successfully.', type: 'success' });
       onComplete?.(data);
     } catch (err) {
       console.error('Upsert failed', err);
-      setFormError(toFriendlyError(err, 'setup'));
+      const message = toFriendlyError(err, 'setup');
+      setFormError(message);
+      showToast({ message, type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
