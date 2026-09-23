@@ -15,7 +15,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
-| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; maps `oop_principle_tag` onto Example testcase cards; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on the submit view |
+| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test tab stays hidden while `scoreApplicability.testcase` is not true; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on the submit view |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `UserManagement.jsx` | User CRUD (live API) |

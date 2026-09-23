@@ -318,7 +318,7 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
-    void scenarioContinuesLaterStepsAfterMethodThrew() throws Exception {
+    void scenarioStopsLaterStepsAfterMethodThrew() throws Exception {
         Path dir = compileSources(Map.of(
                 "Person.java", """
                         public class Person {
@@ -338,12 +338,96 @@ class WorkerInvokeEngineTest {
 
         assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
         JsonNode steps = stepsJson(outcome);
-        assertEquals(3, steps.size());
+        assertEquals(2, steps.size());
         assertEquals("NORMAL", steps.get(0).get("kind").asText());
         assertEquals("THREW", steps.get(1).get("kind").asText());
         assertEquals("IllegalArgumentException", steps.get(1).get("exceptionSimpleName").asText());
+    }
+
+    @Test
+    void staticFactoryReturnRegistersNamedInstanceForLaterArgument() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Money.java", """
+                        public class Money {
+                            private final int amount;
+                            private Money(int amount) { this.amount = amount; }
+                            public static Money of(int amount) { return new Money(amount); }
+                            public int getAmount() { return amount; }
+                        }
+                        """,
+                "Wallet.java", """
+                        public class Wallet {
+                            private final Money money;
+                            public Wallet(Money money) { this.money = money; }
+                            public int read() { return money.getAmount(); }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                methodStep("Money", "of", List.of("int"), "[50]", "cash", null),
+                constructorStep("Wallet", List.of("Money"), "[{\"$instance\":\"cash\"}]", "wallet"),
+                methodStep("Wallet", "read", List.of(), "[]", "wallet", null)), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(3, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("NORMAL", steps.get(1).get("kind").asText());
         assertEquals("NORMAL", steps.get(2).get("kind").asText());
-        assertEquals("30", steps.get(2).get("returnValueJson").asText());
+        assertEquals("50", steps.get(2).get("returnValueJson").asText());
+    }
+
+    @Test
+    void compositionEqualsNamedFactBetweenTwoInstances() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Coin.java", """
+                        public class Coin {
+                            private final int value;
+                            public Coin(int value) { this.value = value; }
+                            @Override public boolean equals(Object other) {
+                                return other instanceof Coin coin && coin.value == value;
+                            }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Coin", List.of("int"), "[5]", "left"),
+                constructorStep("Coin", List.of("int"), "[5]", "right")), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(2, steps.size());
+        assertEquals("Coin", steps.get(1).get("objectTypeSimpleName").asText());
+        assertTrue(steps.get(1).get("equalsNamed").get("left").asBoolean());
+    }
+
+    @Test
+    void unitHiddenNoArgReceiverSnapshotsFieldState() throws Exception {
+        Path dir = compileSources(Map.of(
+                "BankAccount.java", """
+                        public class BankAccount {
+                            private int balance;
+                            public BankAccount() { this.balance = 0; }
+                            public void deposit(int amount) { this.balance += amount; }
+                        }
+                        """));
+        Map<String, Object> deposit = methodStep("BankAccount", "deposit", List.of("int"), "[100]", null, null);
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(deposit), List.of("balance"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("100", steps.get(0).get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void compareIpcOpIsUnknown() throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "compare");
+        request.put("classesDir", classesDir.toAbsolutePath().toString());
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+        assertEquals("ERROR", outcome.kind());
+        assertTrue(outcome.errorMessage() != null && outcome.errorMessage().toLowerCase().contains("unknown"),
+                outcome.errorMessage());
     }
 
     @Test

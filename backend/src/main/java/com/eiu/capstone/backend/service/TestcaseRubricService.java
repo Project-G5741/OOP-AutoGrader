@@ -33,7 +33,6 @@ import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Method;
-import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.Parameter;
 import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.model.TestcaseAssertion;
@@ -47,7 +46,6 @@ import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
-import com.eiu.capstone.backend.repository.TestcaseInstanceRepository;
 import com.eiu.capstone.backend.repository.TestcaseInvocationRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 
@@ -61,14 +59,14 @@ public class TestcaseRubricService {
         METHOD, CONSTRUCTOR, FIELD, CLASS
     }
 
-    enum GuardrailMode {
-        SAVE, PREVIEW
-    }
-
     static final int MAX_STEPS = 20;
     static final int MAX_NAMED_INSTANCES = 10;
     private static final int ORDER_INDEX_PARK = MAX_STEPS;
     private static final String INSTANCE_REF_KEY = "$instance";
+    private static final String OBJECT_CHECK_KEY = "$objectCheck";
+    private static final String OBJECT_CHECK_TYPE = "TYPE";
+    private static final String OBJECT_CHECK_FIELDS = "FIELDS";
+    private static final String OBJECT_CHECK_EQUALS = "EQUALS";
 
     private final ChallengeRepository challengeRepository;
     private final ClassEntityRepository classEntityRepository;
@@ -78,7 +76,6 @@ public class TestcaseRubricService {
     private final ParameterRepository parameterRepository;
     private final TestcaseRepository testcaseRepository;
     private final TestcaseInvocationRepository testcaseInvocationRepository;
-    private final TestcaseInstanceRepository testcaseInstanceRepository;
     private final TestcaseAssertionRepository testcaseAssertionRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -92,7 +89,6 @@ public class TestcaseRubricService {
                                    ParameterRepository parameterRepository,
                                    TestcaseRepository testcaseRepository,
                                    TestcaseInvocationRepository testcaseInvocationRepository,
-                                   TestcaseInstanceRepository testcaseInstanceRepository,
                                    TestcaseAssertionRepository testcaseAssertionRepository,
                                    RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
                                    EntityManager entityManager) {
@@ -104,7 +100,6 @@ public class TestcaseRubricService {
         this.parameterRepository = parameterRepository;
         this.testcaseRepository = testcaseRepository;
         this.testcaseInvocationRepository = testcaseInvocationRepository;
-        this.testcaseInstanceRepository = testcaseInstanceRepository;
         this.testcaseAssertionRepository = testcaseAssertionRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
         this.entityManager = entityManager;
@@ -118,7 +113,7 @@ public class TestcaseRubricService {
     }
 
     public void validatePayload(UUID challengeId, TestcaseStructureDTO dto) {
-        validateTestcaseDto(dto, loadChallengeMemberIds(challengeId), GuardrailMode.PREVIEW);
+        validateTestcaseDto(dto, loadChallengeMemberIds(challengeId));
     }
 
     public static List<InvocationStructureDTO> resolvedInvocations(TestcaseStructureDTO dto) {
@@ -160,7 +155,7 @@ public class TestcaseRubricService {
         }
 
         for (TestcaseStructureDTO dto : testcasePayloads) {
-            validateTestcaseDto(dto, memberIds, GuardrailMode.SAVE);
+            validateTestcaseDto(dto, memberIds);
             Testcase testcase = upsertTestcase(challenge, dto);
             Map<UUID, TestcaseInvocation> invocations = syncInvocations(
                     testcase, resolvedInvocations(dto), memberIds);
@@ -198,9 +193,6 @@ public class TestcaseRubricService {
                             || (inv.getReceiverConstructor() != null
                             && memberId.equals(inv.getReceiverConstructor().getId())))
                     .forEach(inv -> referenced.add(inv.getTestcase().getId()));
-            testcaseInstanceRepository.findByTestcase_IdIn(testcaseIds).stream()
-                    .filter(inst -> inst.getConstructor() != null && memberId.equals(inst.getConstructor().getId()))
-                    .forEach(inst -> referenced.add(inst.getTestcase().getId()));
         } else if (kind == RubricMemberKind.FIELD) {
             testcaseAssertionRepository.findByTestcase_IdInOrderByOrderIndexAsc(testcaseIds).stream()
                     .filter(a -> a.getField() != null && memberId.equals(a.getField().getId()))
@@ -239,9 +231,7 @@ public class TestcaseRubricService {
                 .findByTestcase_IdIn(testcaseIds).stream()
                 .collect(Collectors.groupingBy(inv -> inv.getTestcase().getId()));
 
-        Map<UUID, List<TestcaseInstance>> instancesByTestcaseId = testcaseInstanceRepository
-                .findByTestcase_IdIn(testcaseIds).stream()
-                .collect(Collectors.groupingBy(inst -> inst.getTestcase().getId()));
+        Map<UUID, List<TestcaseInstance>> instancesByTestcaseId = Map.of();
 
         Map<UUID, List<TestcaseAssertion>> assertionsByTestcaseId = testcaseAssertionRepository
                 .findByTestcase_IdInOrderByOrderIndexAsc(testcaseIds).stream()
@@ -291,15 +281,15 @@ public class TestcaseRubricService {
                 testcase.getId(),
                 testcase.getName(),
                 testcase.getTestcaseType(),
-                testcase.getComparisonMethod(),
-                testcase.getWeight(),
+                null,
+                1,
                 testcase.getOrderIndex(),
                 testcase.isHidden(),
                 singular,
-                instanceDtos,
+                instanceDtos.isEmpty() ? List.of() : instanceDtos,
                 assertionDtos,
                 invocationDtos,
-                testcase.getOopPrincipleTag() != null ? testcase.getOopPrincipleTag() : OopPrincipleTag.Unit);
+                null);
     }
 
     private InvocationStructureDTO toInvocationDto(TestcaseInvocation invocation) {
@@ -316,63 +306,143 @@ public class TestcaseRubricService {
                 invocation.getDispatchClass() != null ? invocation.getDispatchClass().getId() : null);
     }
 
-    private void validateTestcaseDto(TestcaseStructureDTO dto,
-                                     ChallengeMemberIds memberIds,
-                                     GuardrailMode mode) {
+    private void validateTestcaseDto(TestcaseStructureDTO dto, ChallengeMemberIds memberIds) {
         if (dto.name() == null || dto.name().isBlank()) {
             throw unprocessable("Testcase name is required");
         }
         if (dto.testcaseType() == null) {
             throw unprocessable("Testcase type is required");
         }
+        if (dto.testcaseType() != TestcaseType.UNIT && dto.testcaseType() != TestcaseType.COMPOSITION) {
+            throw unprocessable("Testcase type must be UNIT or COMPOSITION");
+        }
         List<InvocationStructureDTO> steps = resolvedInvocations(dto);
-        if (dto.testcaseType() == TestcaseType.SINGLE_INVOCATION) {
-            if (steps.isEmpty()) {
-                throw unprocessable("SINGLE_INVOCATION requires an invocation");
-            }
-            if (dto.instances() != null && !dto.instances().isEmpty()) {
-                throw unprocessable("SINGLE_INVOCATION must not have instances");
-            }
-            validateScenarioSteps(steps, memberIds);
-            if (mode == GuardrailMode.SAVE
-                    && resolveTag(dto) == OopPrincipleTag.Polymorphism
-                    && steps.stream().noneMatch(TestcaseRubricService::isMethodDispatchStep)) {
-                throw unprocessable(
-                        "Polymorphism testcases require at least one call with a dispatch type");
-            }
-        } else if (dto.testcaseType() == TestcaseType.COMPARISON) {
-            if (dto.comparisonMethod() == null) {
-                throw unprocessable("COMPARISON requires comparisonMethod");
-            }
-            if (dto.instances() == null || dto.instances().size() != 2) {
-                throw unprocessable("COMPARISON requires exactly two instances");
-            }
-            for (InstanceStructureDTO inst : dto.instances()) {
-                validateConstructorRef(inst.constructorId(), memberIds);
-            }
-            if (dto.invocation() != null || !steps.isEmpty()) {
-                throw unprocessable("COMPARISON must not have an invocation row");
-            }
-            boolean hasComparisonAssertion = dto.assertions() != null && dto.assertions().stream()
-                    .anyMatch(a -> a.assertionKind() == AssertionKind.COMPARISON_RESULT);
-            if (!hasComparisonAssertion) {
-                throw unprocessable("COMPARISON requires a COMPARISON_RESULT assertion");
-            }
+        if (dto.instances() != null && !dto.instances().isEmpty()) {
+            throw unprocessable("UNIT and COMPOSITION must not have instances");
         }
         if (dto.assertions() == null || dto.assertions().isEmpty()) {
             throw unprocessable("At least one assertion is required");
         }
-        Set<UUID> stepIds = steps.stream()
-                .map(InvocationStructureDTO::id)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        for (AssertionStructureDTO assertion : dto.assertions()) {
-            if (dto.testcaseType() == TestcaseType.SINGLE_INVOCATION
-                    && assertion.assertionKind() == AssertionKind.COMPARISON_RESULT) {
-                throw unprocessable("COMPARISON_RESULT is only valid for COMPARISON testcases");
+        Map<String, String> namedInstances;
+        if (dto.testcaseType() == TestcaseType.UNIT) {
+            namedInstances = validateUnitSteps(steps, memberIds);
+        } else {
+            namedInstances = validateCompositionSteps(steps, memberIds);
+        }
+        validateAssertions(dto, steps, memberIds, namedInstances);
+    }
+
+    private Map<String, String> validateUnitSteps(List<InvocationStructureDTO> steps,
+                                                  ChallengeMemberIds memberIds) {
+        if (steps.size() != 1) {
+            throw unprocessable("UNIT requires exactly one invocation");
+        }
+        InvocationStructureDTO step = steps.get(0);
+        validateInvocation(step, memberIds, true);
+        if (blankToNull(step.instanceName()) != null) {
+            throw unprocessable("UNIT cannot name instances");
+        }
+        if (step.receiverConstructorId() != null) {
+            throw unprocessable("UNIT cannot set receiver_constructor_id");
+        }
+        if (containsInstanceRef(step.params()) || containsInstanceRef(step.receiverParams())) {
+            throw unprocessable("UNIT cannot pass named instances as arguments");
+        }
+        List<String> paramTypes = paramTypesFor(step, memberIds);
+        if (hasRubricClassArgument(paramTypes, memberIds)) {
+            throw unprocessable("UNIT cannot pass a rubric-class object as an argument");
+        }
+        rejectObjectArrayArgs(step.params(), paramTypes, memberIds, "Invocation params");
+        if (step.invocationKind() == InvocationKind.METHOD && !isStaticMethod(step.methodId(), memberIds)) {
+            UUID classId = memberIds.classIdByMethodId().get(step.methodId());
+            if (classId == null || !memberIds.noArgConstructorClassIds().contains(classId)) {
+                throw unprocessable("UNIT instance method requires a no-arg constructor on the declaring class");
             }
-            if (dto.testcaseType() == TestcaseType.SINGLE_INVOCATION
-                    && (assertion.invocationId() == null || !stepIds.contains(assertion.invocationId()))) {
+        }
+        return Map.of();
+    }
+
+    private Map<String, String> validateCompositionSteps(List<InvocationStructureDTO> steps,
+                                                         ChallengeMemberIds memberIds) {
+        if (steps.isEmpty()) {
+            throw unprocessable("COMPOSITION requires at least one invocation");
+        }
+        if (steps.size() > MAX_STEPS) {
+            throw unprocessable("A testcase may have at most " + MAX_STEPS + " steps");
+        }
+        Map<String, String> named = new LinkedHashMap<>();
+        Set<String> usedNames = new HashSet<>();
+        int namedCount = 0;
+        for (InvocationStructureDTO step : steps) {
+            validateInvocation(step, memberIds, false);
+            if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
+                String name = blankToNull(step.instanceName());
+                if (name == null) {
+                    throw unprocessable("COMPOSITION constructor steps require an instance name");
+                }
+                namedCount = registerName(name, usedNames, namedCount);
+                validateArgs(
+                        step.params(),
+                        memberIds.paramTypesByConstructorId().getOrDefault(step.constructorId(), List.of()),
+                        named,
+                        true,
+                        memberIds,
+                        "Invocation params");
+                named.put(name, memberIds.classNameByConstructorId().get(step.constructorId()));
+            } else if (step.invocationKind() == InvocationKind.METHOD) {
+                boolean isStatic = isStaticMethod(step.methodId(), memberIds);
+                String name = blankToNull(step.instanceName());
+                String returnType = memberIds.methodReturnTypeById().get(step.methodId());
+                if (!isStatic) {
+                    if (name == null || !named.containsKey(name)) {
+                        throw unprocessable(
+                                "Method receiver instance '" + (name == null ? "" : name)
+                                        + "' is not constructed earlier");
+                    }
+                }
+                validateArgs(
+                        step.params(),
+                        memberIds.paramTypesByMethodId().getOrDefault(step.methodId(), List.of()),
+                        named,
+                        true,
+                        memberIds,
+                        "Invocation params");
+                if (step.receiverConstructorId() != null) {
+                    validateArgs(
+                            step.receiverParams(),
+                            memberIds.paramTypesByConstructorId()
+                                    .getOrDefault(step.receiverConstructorId(), List.of()),
+                            named,
+                            true,
+                            memberIds,
+                            "Receiver params");
+                }
+                if (isStatic && name != null) {
+                    String producedType = coreTypeName(returnType);
+                    if (!memberIds.rubricClassNames().contains(producedType)) {
+                        throw unprocessable("Only rubric-class method returns may be named");
+                    }
+                    namedCount = registerName(name, usedNames, namedCount);
+                    named.put(name, producedType);
+                }
+            }
+        }
+        return named;
+    }
+
+    private void validateAssertions(TestcaseStructureDTO dto,
+                                    List<InvocationStructureDTO> steps,
+                                    ChallengeMemberIds memberIds,
+                                    Map<String, String> namedInstances) {
+        Map<UUID, InvocationStructureDTO> stepsById = new HashMap<>();
+        for (InvocationStructureDTO step : steps) {
+            if (step.id() != null) {
+                stepsById.put(step.id(), step);
+            }
+        }
+        Set<UUID> stepIds = stepsById.keySet();
+        for (AssertionStructureDTO assertion : dto.assertions()) {
+            if (assertion.invocationId() == null || !stepIds.contains(assertion.invocationId())) {
                 throw unprocessable("Assertion must reference a step in this testcase");
             }
             if (assertion.assertionKind() == AssertionKind.FIELD_STATE) {
@@ -382,65 +452,88 @@ public class TestcaseRubricService {
             } else if (assertion.fieldId() != null) {
                 throw unprocessable("Only FIELD_STATE assertions may reference a field");
             }
+            InvocationStructureDTO step = stepsById.get(assertion.invocationId());
+            validateAssertionKind(assertion.assertionKind(), step, memberIds);
+            validateExpectedValue(dto.testcaseType(), assertion, namedInstances);
         }
     }
 
-    private void validateScenarioSteps(List<InvocationStructureDTO> steps, ChallengeMemberIds memberIds) {
-        if (steps.size() > MAX_STEPS) {
-            throw unprocessable("A testcase may have at most " + MAX_STEPS + " steps");
+    private void validateAssertionKind(AssertionKind kind,
+                                       InvocationStructureDTO step,
+                                       ChallengeMemberIds memberIds) {
+        if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
+            if (kind == AssertionKind.STDOUT) {
+                throw unprocessable("Constructor steps cannot assert stdout");
+            }
+            return;
         }
-        Map<String, String> constructed = new LinkedHashMap<>();
-        Set<String> constructNames = new HashSet<>();
-        int namedCount = 0;
-        for (InvocationStructureDTO step : steps) {
-            validateInvocation(step, memberIds);
-            if (step.dispatchClassId() != null && !memberIds.classIds().contains(step.dispatchClassId())) {
-                throw unprocessable("Dispatch class does not belong to this challenge");
-            }
-            if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
-                String name = blankToNull(step.instanceName());
-                if (name != null) {
-                    if (!constructNames.add(name)) {
-                        throw unprocessable("Duplicate instance name: " + name);
-                    }
-                    namedCount++;
-                    if (namedCount > MAX_NAMED_INSTANCES) {
-                        throw unprocessable(
-                                "A testcase may have at most " + MAX_NAMED_INSTANCES + " named instances");
-                    }
-                }
-                validateInstanceRefs(
-                        step.params(),
-                        memberIds.paramTypesByConstructorId().getOrDefault(step.constructorId(), List.of()),
-                        constructed,
-                        "Invocation params");
-                if (name != null) {
-                    constructed.put(name, memberIds.classNameByConstructorId().get(step.constructorId()));
-                }
-            } else if (step.invocationKind() == InvocationKind.METHOD) {
-                String receiverName = blankToNull(step.instanceName());
-                if (receiverName != null && !constructed.containsKey(receiverName)) {
-                    throw unprocessable(
-                            "Method receiver instance '" + receiverName + "' is not constructed earlier");
-                }
-                validateInstanceRefs(
-                        step.params(),
-                        memberIds.paramTypesByMethodId().getOrDefault(step.methodId(), List.of()),
-                        constructed,
-                        "Invocation params");
-                if (step.receiverConstructorId() != null) {
-                    validateInstanceRefs(
-                            step.receiverParams(),
-                            memberIds.paramTypesByConstructorId()
-                                    .getOrDefault(step.receiverConstructorId(), List.of()),
-                            constructed,
-                            "Receiver params");
-                }
-            }
+        String returnType = memberIds.methodReturnTypeById().get(step.methodId());
+        boolean isVoid = returnType == null || "void".equalsIgnoreCase(returnType);
+        if (isVoid && kind == AssertionKind.RETURN_VALUE) {
+            throw unprocessable("Void methods cannot assert a return value");
         }
     }
 
-    private void validateInvocation(InvocationStructureDTO invocation, ChallengeMemberIds memberIds) {
+    private void validateExpectedValue(TestcaseType testcaseType,
+                                       AssertionStructureDTO assertion,
+                                       Map<String, String> namedInstances) {
+        String raw = assertion.expectedValue();
+        if (raw == null || raw.isBlank()) {
+            return;
+        }
+        JsonNode node = parseJsonNode(raw.trim(), "Expected value", false);
+        if (assertion.assertionKind() == AssertionKind.EXCEPTION) {
+            if (!node.isTextual() || node.asText().isBlank()) {
+                throw unprocessable("Exception assertion expected value must be the exception type");
+            }
+            return;
+        }
+        if (node.isObject() && node.has(OBJECT_CHECK_KEY)) {
+            validateObjectCheck(testcaseType, node, namedInstances);
+            return;
+        }
+        if (assertion.assertionKind() == AssertionKind.FIELD_STATE
+                && node.isObject()
+                && node.has(INSTANCE_REF_KEY)) {
+            if (testcaseType == TestcaseType.UNIT) {
+                throw unprocessable("UNIT field-state cannot name an instance");
+            }
+            requireNamedInstance(node.get(INSTANCE_REF_KEY), namedInstances, "Field-state");
+        }
+    }
+
+    private void validateObjectCheck(TestcaseType testcaseType,
+                                     JsonNode node,
+                                     Map<String, String> namedInstances) {
+        JsonNode kindNode = node.get(OBJECT_CHECK_KEY);
+        if (kindNode == null || !kindNode.isTextual()) {
+            throw unprocessable("Object check $objectCheck must be a string");
+        }
+        String kind = kindNode.asText();
+        if (OBJECT_CHECK_TYPE.equals(kind)) {
+            return;
+        }
+        if (OBJECT_CHECK_FIELDS.equals(kind)) {
+            JsonNode fields = node.get("fields");
+            if (fields == null || !fields.isObject()) {
+                throw unprocessable("Object field map requires a fields object");
+            }
+            fields.fields().forEachRemaining(entry -> validateLiteralNode(entry.getValue(), "Object field map"));
+            return;
+        }
+        if (OBJECT_CHECK_EQUALS.equals(kind)) {
+            if (testcaseType != TestcaseType.COMPOSITION) {
+                throw unprocessable("equals() object checks are Composition-only");
+            }
+            requireNamedInstance(node.get(INSTANCE_REF_KEY), namedInstances, "equals() object check");
+            return;
+        }
+        throw unprocessable("Unknown object check: " + kind);
+    }
+
+    private void validateInvocation(InvocationStructureDTO invocation,
+                                    ChallengeMemberIds memberIds,
+                                    boolean unit) {
         if (invocation.invocationKind() == InvocationKind.CONSTRUCTOR) {
             validateConstructorRef(invocation.constructorId(), memberIds);
             if (invocation.methodId() != null) {
@@ -450,46 +543,204 @@ public class TestcaseRubricService {
             if (invocation.methodId() == null || !memberIds.methodIds().contains(invocation.methodId())) {
                 throw unprocessable("METHOD invocation requires a method in this challenge");
             }
-            if (invocation.receiverConstructorId() != null) {
+            if (!unit && invocation.receiverConstructorId() != null) {
                 validateConstructorRef(invocation.receiverConstructorId(), memberIds);
             }
         } else {
             throw unprocessable("Unknown invocation kind");
         }
+        if (invocation.dispatchClassId() != null && !memberIds.classIds().contains(invocation.dispatchClassId())) {
+            throw unprocessable("Dispatch class does not belong to this challenge");
+        }
         validateJsonArray(invocation.params(), "Invocation params");
         validateJsonArray(invocation.receiverParams(), "Receiver params");
     }
 
-    private void validateInstanceRefs(String raw,
-                                      List<String> paramTypes,
-                                      Map<String, String> constructedEarlier,
-                                      String label) {
+    private void validateArgs(String raw,
+                              List<String> paramTypes,
+                              Map<String, String> namedEarlier,
+                              boolean allowInstanceRefs,
+                              ChallengeMemberIds memberIds,
+                              String label) {
+        if (raw == null || raw.isBlank()) {
+            return;
+        }
+        JsonNode node = parseJsonNode(raw, label, true);
+        rejectObjectArrayArgs(raw, paramTypes, memberIds, label);
+        for (int i = 0; i < node.size(); i++) {
+            JsonNode element = node.get(i);
+            String paramType = i < paramTypes.size() ? paramTypes.get(i) : null;
+            if (element != null && element.isObject() && element.has(INSTANCE_REF_KEY)) {
+                if (!allowInstanceRefs) {
+                    throw unprocessable("UNIT cannot pass named instances as arguments");
+                }
+                String name = requireNamedInstance(element.get(INSTANCE_REF_KEY), namedEarlier, label);
+                if (paramType == null) {
+                    throw unprocessable(label + " $instance does not match a rubric parameter");
+                }
+                String expectedType = coreTypeName(paramType);
+                String actualType = namedEarlier.get(name);
+                if (expectedType == null || actualType == null || !expectedType.equals(actualType)) {
+                    throw unprocessable("Named instance '" + name + "' type does not match parameter type");
+                }
+            } else if (paramType != null
+                    && memberIds.rubricClassNames().contains(coreTypeName(paramType))
+                    && !isArrayOrListType(paramType)) {
+                throw unprocessable("Rubric-class arguments must be named instances");
+            }
+        }
+    }
+
+    private void rejectObjectArrayArgs(String raw,
+                                       List<String> paramTypes,
+                                       ChallengeMemberIds memberIds,
+                                       String label) {
+        for (String paramType : paramTypes) {
+            if (isArrayOrListType(paramType)
+                    && memberIds.rubricClassNames().contains(coreTypeName(paramType))) {
+                throw unprocessable("Arrays or lists of named objects are not valid as one argument");
+            }
+        }
         if (raw == null || raw.isBlank()) {
             return;
         }
         JsonNode node = parseJsonNode(raw, label, true);
         for (int i = 0; i < node.size(); i++) {
             JsonNode element = node.get(i);
-            if (element == null || !element.isObject() || !element.has(INSTANCE_REF_KEY)) {
-                continue;
-            }
-            JsonNode nameNode = element.get(INSTANCE_REF_KEY);
-            if (nameNode == null || !nameNode.isTextual() || nameNode.asText().isBlank()) {
-                throw unprocessable(label + " $instance must be a non-blank name");
-            }
-            String name = nameNode.asText();
-            if (!constructedEarlier.containsKey(name)) {
-                throw unprocessable("Named instance '" + name + "' is not constructed earlier");
-            }
-            if (i >= paramTypes.size()) {
-                throw unprocessable(label + " $instance does not match a rubric parameter");
-            }
-            String expectedType = paramTypes.get(i);
-            String actualType = constructedEarlier.get(name);
-            if (expectedType == null || actualType == null || !expectedType.equals(actualType)) {
-                throw unprocessable("Named instance '" + name + "' type does not match parameter type");
+            if (element != null && element.isArray() && containsInstanceRef(element)) {
+                throw unprocessable("Arrays or lists of named objects are not valid as one argument");
             }
         }
+    }
+
+    private int registerName(String name, Set<String> usedNames, int namedCount) {
+        if (!usedNames.add(name)) {
+            throw unprocessable("Duplicate instance name: " + name);
+        }
+        int next = namedCount + 1;
+        if (next > MAX_NAMED_INSTANCES) {
+            throw unprocessable("A testcase may have at most " + MAX_NAMED_INSTANCES + " named instances");
+        }
+        return next;
+    }
+
+    private String requireNamedInstance(JsonNode nameNode,
+                                        Map<String, String> namedInstances,
+                                        String label) {
+        if (nameNode == null || !nameNode.isTextual() || nameNode.asText().isBlank()) {
+            throw unprocessable(label + " $instance must be a non-blank name");
+        }
+        String name = nameNode.asText();
+        if (!namedInstances.containsKey(name)) {
+            throw unprocessable("Named instance '" + name + "' is not constructed earlier");
+        }
+        return name;
+    }
+
+    private boolean containsInstanceRef(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        try {
+            return containsInstanceRef(objectMapper.readTree(raw));
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean containsInstanceRef(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        if (node.isObject()) {
+            if (node.has(INSTANCE_REF_KEY)) {
+                return true;
+            }
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                if (containsInstanceRef(fields.next().getValue())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (containsInstanceRef(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void validateLiteralNode(JsonNode node, String label) {
+        if (node == null || node.isNull() || node.isNumber() || node.isTextual() || node.isBoolean()) {
+            return;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                validateLiteralNode(child, label);
+            }
+            return;
+        }
+        throw unprocessable(label + " values must be literals");
+    }
+
+    private boolean hasRubricClassArgument(List<String> paramTypes, ChallengeMemberIds memberIds) {
+        for (String paramType : paramTypes) {
+            if (memberIds.rubricClassNames().contains(coreTypeName(paramType))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> paramTypesFor(InvocationStructureDTO step, ChallengeMemberIds memberIds) {
+        if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
+            return memberIds.paramTypesByConstructorId().getOrDefault(step.constructorId(), List.of());
+        }
+        return memberIds.paramTypesByMethodId().getOrDefault(step.methodId(), List.of());
+    }
+
+    private boolean isStaticMethod(UUID methodId, ChallengeMemberIds memberIds) {
+        return Boolean.TRUE.equals(memberIds.methodStaticById().get(methodId));
+    }
+
+    private static String coreTypeName(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return null;
+        }
+        String trimmed = typeName.trim();
+        if (trimmed.endsWith("[]")) {
+            return coreTypeName(trimmed.substring(0, trimmed.length() - 2));
+        }
+        int genericStart = trimmed.indexOf('<');
+        int genericEnd = trimmed.lastIndexOf('>');
+        if (genericStart > 0 && genericEnd > genericStart) {
+            return coreTypeName(trimmed.substring(genericStart + 1, genericEnd));
+        }
+        int dot = trimmed.lastIndexOf('.');
+        return dot < 0 ? trimmed : trimmed.substring(dot + 1);
+    }
+
+    private static boolean isArrayOrListType(String typeName) {
+        if (typeName == null || typeName.isBlank()) {
+            return false;
+        }
+        String trimmed = typeName.trim();
+        if (trimmed.endsWith("[]")) {
+            return true;
+        }
+        String raw = trimmed.contains("<") ? trimmed.substring(0, trimmed.indexOf('<')).trim() : trimmed;
+        int dot = raw.lastIndexOf('.');
+        String simple = dot < 0 ? raw : raw.substring(dot + 1);
+        return simple.equals("List")
+                || simple.equals("ArrayList")
+                || simple.equals("LinkedList")
+                || simple.equals("Collection")
+                || simple.equals("Set")
+                || simple.equals("HashSet");
     }
 
     private void validateJsonArray(String raw, String label) {
@@ -528,9 +779,6 @@ public class TestcaseRubricService {
         }
         testcase.setName(dto.name().trim());
         testcase.setTestcaseType(dto.testcaseType());
-        testcase.setComparisonMethod(dto.comparisonMethod());
-        testcase.setOopPrincipleTag(resolveTag(dto));
-        testcase.setWeight(Math.max(1, dto.weight()));
         testcase.setOrderIndex(dto.orderIndex());
         testcase.setHidden(dto.hidden());
         if (isNew) {
@@ -540,10 +788,6 @@ public class TestcaseRubricService {
         }
         entityManager.flush();
         return testcase;
-    }
-
-    private static OopPrincipleTag resolveTag(TestcaseStructureDTO dto) {
-        return dto.oopPrincipleTag() != null ? dto.oopPrincipleTag() : OopPrincipleTag.Unit;
     }
 
     private Map<UUID, TestcaseInvocation> syncInvocations(Testcase testcase,
@@ -637,19 +881,7 @@ public class TestcaseRubricService {
     private void syncInstances(Testcase testcase,
                                List<InstanceStructureDTO> dtos,
                                ChallengeMemberIds memberIds) {
-        List<TestcaseInstance> existing = testcaseInstanceRepository.findByTestcase_IdIn(List.of(testcase.getId()));
-        testcaseInstanceRepository.deleteAll(existing);
-        if (dtos == null) {
-            return;
-        }
-        for (InstanceStructureDTO dto : dtos) {
-            TestcaseInstance instance = new TestcaseInstance();
-            instance.setTestcase(testcase);
-            instance.setLabel(dto.label());
-            instance.setConstructor(requireConstructor(dto.constructorId(), memberIds));
-            instance.setParams(normalizeJsonArray(dto.params()));
-            testcaseInstanceRepository.save(instance);
-        }
+        // testcase_instance was dropped in the UNIT/COMPOSITION wipe.
     }
 
     private void syncAssertions(Testcase testcase,
@@ -713,8 +945,6 @@ public class TestcaseRubricService {
     private void deleteTestcaseGraph(UUID testcaseId) {
         deleteAssertionsForTestcase(testcaseId);
         deleteInvocationsForTestcase(testcaseId);
-        List<TestcaseInstance> instances = testcaseInstanceRepository.findByTestcase_IdIn(List.of(testcaseId));
-        testcaseInstanceRepository.deleteAll(instances);
     }
 
     private void deleteAssertionsForTestcase(UUID testcaseId) {
@@ -731,15 +961,22 @@ public class TestcaseRubricService {
     private ChallengeMemberIds loadChallengeMemberIds(UUID challengeId) {
         List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
         Set<UUID> classIds = new HashSet<>();
+        Set<String> rubricClassNames = new HashSet<>();
         Map<UUID, String> classNameByClassId = new HashMap<>();
         for (ClassEntity cls : classes) {
             classIds.add(cls.getId());
             classNameByClassId.put(cls.getId(), cls.getName());
+            if (cls.getName() != null && !cls.getName().isBlank()) {
+                rubricClassNames.add(cls.getName());
+            }
         }
         Set<UUID> constructorIds = new HashSet<>();
         Set<UUID> methodIds = new HashSet<>();
         Set<UUID> fieldIds = new HashSet<>();
         Map<UUID, String> classNameByConstructorId = new HashMap<>();
+        Map<UUID, UUID> classIdByMethodId = new HashMap<>();
+        Map<UUID, Boolean> methodStaticById = new HashMap<>();
+        Map<UUID, String> methodReturnTypeById = new HashMap<>();
         List<Constructor> constructors = List.of();
         List<Method> methods = List.of();
         if (!classes.isEmpty()) {
@@ -753,6 +990,11 @@ public class TestcaseRubricService {
             methods = methodRepository.findByClassEntityInWithDeclaration(classes);
             for (Method method : methods) {
                 methodIds.add(method.getId());
+                classIdByMethodId.put(method.getId(), method.getClassEntity().getId());
+                if (method.getMethodDeclaration() != null) {
+                    methodStaticById.put(method.getId(), method.getMethodDeclaration().isStatic());
+                    methodReturnTypeById.put(method.getId(), method.getMethodDeclaration().getReturnType());
+                }
             }
             for (Field field : fieldRepository.findByClassEntityInWithDeclaration(classes)) {
                 fieldIds.add(field.getId());
@@ -762,13 +1004,26 @@ public class TestcaseRubricService {
                 : parameterRepository.findByConstructorEntityIn(constructors);
         List<Parameter> methodParams = methods.isEmpty() ? List.of()
                 : parameterRepository.findByMethodIn(methods);
+        Map<UUID, List<String>> paramTypesByConstructorId = RubricParameterMaps.byConstructor(constructorParams);
+        Set<UUID> noArgConstructorClassIds = new HashSet<>();
+        for (Constructor ctor : constructors) {
+            List<String> types = paramTypesByConstructorId.getOrDefault(ctor.getId(), List.of());
+            if (types.isEmpty()) {
+                noArgConstructorClassIds.add(ctor.getClassEntity().getId());
+            }
+        }
         return new ChallengeMemberIds(
                 constructorIds,
                 methodIds,
                 fieldIds,
                 classIds,
+                rubricClassNames,
                 classNameByConstructorId,
-                RubricParameterMaps.byConstructor(constructorParams),
+                classIdByMethodId,
+                methodStaticById,
+                methodReturnTypeById,
+                noArgConstructorClassIds,
+                paramTypesByConstructorId,
                 RubricParameterMaps.byMethod(methodParams));
     }
 
@@ -805,10 +1060,6 @@ public class TestcaseRubricService {
         }
         return classEntityRepository.findById(id)
                 .orElseThrow(() -> unprocessable("Dispatch class not found"));
-    }
-
-    private static boolean isMethodDispatchStep(InvocationStructureDTO step) {
-        return step.invocationKind() == InvocationKind.METHOD && step.dispatchClassId() != null;
     }
 
     private static String blankToNull(String value) {
@@ -859,7 +1110,12 @@ public class TestcaseRubricService {
             Set<UUID> methodIds,
             Set<UUID> fieldIds,
             Set<UUID> classIds,
+            Set<String> rubricClassNames,
             Map<UUID, String> classNameByConstructorId,
+            Map<UUID, UUID> classIdByMethodId,
+            Map<UUID, Boolean> methodStaticById,
+            Map<UUID, String> methodReturnTypeById,
+            Set<UUID> noArgConstructorClassIds,
             Map<UUID, List<String>> paramTypesByConstructorId,
             Map<UUID, List<String>> paramTypesByMethodId) {}
 }

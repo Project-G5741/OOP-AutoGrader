@@ -16,7 +16,6 @@ public final class WorkerIpc {
     public static final int DEFAULT_STDOUT_CAP = 65536;
     public static final int MAX_NESTING_DEPTH = 8;
     public static final String OP_INVOKE = "invoke";
-    public static final String OP_COMPARE = "compare";
     public static final String OP_SCENARIO = "scenario";
 
     private static final ObjectMapper MAPPER = createMapper();
@@ -49,7 +48,6 @@ public final class WorkerIpc {
         try {
             return switch (request.op()) {
                 case OP_INVOKE -> ENGINE.invoke(classesDir, request.invoke(), request.snapshotFieldNames(), stdoutCap);
-                case OP_COMPARE -> ENGINE.compare(classesDir, request.compare(), stdoutCap);
                 case OP_SCENARIO -> ENGINE.scenario(classesDir, request.steps(), request.snapshotFieldNames(), stdoutCap);
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
             };

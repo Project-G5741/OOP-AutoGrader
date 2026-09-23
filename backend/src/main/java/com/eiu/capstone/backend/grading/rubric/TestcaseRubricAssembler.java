@@ -82,7 +82,7 @@ public class TestcaseRubricAssembler {
                 .map(a -> toAssertionRubric(a, maps, singular, invocationById))
                 .toList();
 
-        OopPrincipleTag tag = dto.oopPrincipleTag() != null ? dto.oopPrincipleTag() : OopPrincipleTag.Unit;
+        OopPrincipleTag tag = dto.oopPrincipleTag();
         return new TestcaseRubric(
                 testcaseId,
                 dto.name(),

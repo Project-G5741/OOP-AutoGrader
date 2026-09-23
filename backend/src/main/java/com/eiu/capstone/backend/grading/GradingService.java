@@ -7,11 +7,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -52,7 +50,6 @@ import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
-import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 import com.eiu.capstone.backend.utility.TimingLog;
@@ -76,9 +73,6 @@ public class GradingService {
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final boolean timingLog;
-    private final Semaphore workerJvmSlot;
-    private final WorkerSessionFactory workerSessionFactory;
-    private final int invokeTimeoutSeconds;
 
     public GradingService(ChallengeRepository challengeRepository,
                           FieldRepository fieldRepository,
@@ -92,10 +86,7 @@ public class GradingService {
                           TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
-                          @Value("${app.grading.timing-log:false}") boolean timingLog,
-                          @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
-                          WorkerSessionFactory workerSessionFactory,
-                          @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
+                          @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
         this.methodRepository = methodRepository;
@@ -109,9 +100,6 @@ public class GradingService {
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.timingLog = timingLog;
-        this.workerJvmSlot = workerJvmSlot;
-        this.workerSessionFactory = workerSessionFactory;
-        this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
     public GradingOutcome gradeSubmission(LabSubmission submission,
@@ -126,41 +114,13 @@ public class GradingService {
         long loadMs = System.currentTimeMillis() - loadStart;
 
         long computeStart = System.currentTimeMillis();
-        long slotWaitMs;
-        GradingComputationResult computed;
+        // Student upload does not invoke operational tests, so it must not acquire
+        // workerJvmSlot or open a worker JVM (KTD2). Lecturer dry-run still does.
+        long slotWaitMs = 0;
         long workerSpawnMs = 0;
         int workerRespawnCount = 0;
-        Path submissionRoot = submissionRoot(challengeFolderResults);
-        if (workerSessionFactory.isSandboxEnabled()) {
-            WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds);
-            try {
-                long slotWaitStart = System.currentTimeMillis();
-                acquireWorkerSlot();
-                slotWaitMs = System.currentTimeMillis() - slotWaitStart;
-                try {
-                    computed = computeAgainstSnapshot(
-                            rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
-                    workerSpawnMs = workerSession.spawnMs();
-                    workerRespawnCount = workerSession.respawnCount();
-                } finally {
-                    workerJvmSlot.release();
-                }
-            } finally {
-                workerSession.close();
-            }
-        } else {
-            long slotWaitStart = System.currentTimeMillis();
-            acquireWorkerSlot();
-            slotWaitMs = System.currentTimeMillis() - slotWaitStart;
-            try (WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds)) {
-                computed = computeAgainstSnapshot(
-                        rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
-                workerSpawnMs = workerSession.spawnMs();
-                workerRespawnCount = workerSession.respawnCount();
-            } finally {
-                workerJvmSlot.release();
-            }
-        }
+        GradingComputationResult computed = computeAgainstSnapshot(
+                rubric, challengeFolderResults, mmdByChallenge, submission, existing, null);
         long computeMs = System.currentTimeMillis() - computeStart;
 
         long assembleStart = System.currentTimeMillis();
@@ -195,23 +155,6 @@ public class GradingService {
         existing.challengeResults = Map.of();
         existing.testcaseResults = Map.of();
         return existing;
-    }
-
-    private void acquireWorkerSlot() {
-        try {
-            workerJvmSlot.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted waiting for isolated worker slot", e);
-        }
-    }
-
-    private static Path submissionRoot(List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
-        if (challengeFolderResults == null || challengeFolderResults.isEmpty()) {
-            return null;
-        }
-        Path folder = challengeFolderResults.get(0).folder;
-        return folder == null ? null : folder.getParent();
     }
 
     private GradingComputationResult computeAgainstSnapshot(

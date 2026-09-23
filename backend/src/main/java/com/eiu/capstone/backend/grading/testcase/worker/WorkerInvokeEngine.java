@@ -21,7 +21,6 @@ import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.kernel.JavaTypeResolver;
 import com.eiu.capstone.backend.grading.testcase.kernel.JsonValueCoercer;
 import com.eiu.capstone.backend.model.InvocationKind;
-import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 
 public final class WorkerInvokeEngine {
 
@@ -61,7 +60,7 @@ public final class WorkerInvokeEngine {
                 SerializedInvocationOutcome outcome = executeStep(
                         loader, step, snapshotFieldNames, stdoutCap, registry);
                 outcomes.add(outcome);
-                if (shouldStopScenario(step, outcome)) {
+                if (shouldStopScenario(outcome)) {
                     break;
                 }
             }
@@ -78,55 +77,6 @@ public final class WorkerInvokeEngine {
                     List.copyOf(outcomes));
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
-        }
-    }
-
-    public SerializedInvocationOutcome compare(Path classesDir,
-                                               WorkerIpc.CompareSpec spec,
-                                               int stdoutCap) {
-        if (!Files.isDirectory(classesDir)) {
-            return SerializedInvocationOutcome.error("Missing compiled classes directory");
-        }
-        if (spec == null || spec.a() == null || spec.b() == null) {
-            return SerializedInvocationOutcome.error("Comparison testcase requires two instances");
-        }
-        TestcaseComparisonMethod method;
-        try {
-            method = TestcaseComparisonMethod.valueOf(spec.comparisonMethod());
-        } catch (Exception e) {
-            return SerializedInvocationOutcome.error("Unknown comparison method");
-        }
-        BoundedStdout stdout = new BoundedStdout(stdoutCap);
-        java.io.PrintStream originalOut = System.out;
-        ClassLoader previous = Thread.currentThread().getContextClassLoader();
-        try (URLClassLoader loader = studentLoader(classesDir);
-             java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
-            Thread.currentThread().setContextClassLoader(loader);
-            System.setOut(captured);
-            Object instanceA = instantiate(loader, spec.a());
-            Object instanceB = instantiate(loader, spec.b());
-            Object result = method == TestcaseComparisonMethod.EQUALS
-                    ? Boolean.valueOf(instanceA.equals(instanceB))
-                    : Integer.valueOf(((Comparable<Object>) instanceA).compareTo(instanceB));
-            String resultJson = coercer.toJson(result);
-            return new SerializedInvocationOutcome(
-                    SerializedInvocationOutcome.KIND_NORMAL,
-                    resultJson,
-                    stdout.text(),
-                    stdout.truncated(),
-                    Map.of(),
-                    null,
-                    List.of(),
-                    resultJson,
-                    null);
-        } catch (InvocationTargetException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return threw(null, cause, stdout, List.of());
-        } catch (Exception e) {
-            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
-        } finally {
-            System.setOut(originalOut);
-            Thread.currentThread().setContextClassLoader(previous);
         }
     }
 
@@ -158,15 +108,18 @@ public final class WorkerInvokeEngine {
                 if (kind(spec) == InvocationKind.CONSTRUCTOR) {
                     Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
                     Object instance = constructor.newInstance(args);
+                    ObjectFacts facts = describeObject(loader, instance, registry);
                     register(registry, spec.instanceName(), instance);
-                    return normal(instance, instance, stdout, snapshotFieldNames);
+                    return normal(instance, instance, stdout, snapshotFieldNames, facts);
                 }
                 Method method = resolveMethod(loader, spec, clazz, parameterTypes);
                 if (!Modifier.isStatic(method.getModifiers())) {
                     receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
                 }
                 Object returnValue = method.invoke(receiver, args);
-                return normal(receiver, returnValue, stdout, snapshotFieldNames);
+                ObjectFacts facts = describeObject(loader, returnValue, registry);
+                maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
+                return normal(receiver, returnValue, stdout, snapshotFieldNames, facts);
             }
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -179,7 +132,7 @@ public final class WorkerInvokeEngine {
         }
     }
 
-    private static boolean shouldStopScenario(WorkerIpc.ScenarioStepSpec step, SerializedInvocationOutcome outcome) {
+    private static boolean shouldStopScenario(SerializedInvocationOutcome outcome) {
         if (outcome == null || outcome.kind() == null) {
             return true;
         }
@@ -187,8 +140,7 @@ public final class WorkerInvokeEngine {
                 || SerializedInvocationOutcome.KIND_TIMED_OUT.equals(outcome.kind())) {
             return true;
         }
-        return SerializedInvocationOutcome.KIND_THREW.equals(outcome.kind())
-                && kind(step) == InvocationKind.CONSTRUCTOR;
+        return SerializedInvocationOutcome.KIND_THREW.equals(outcome.kind());
     }
 
     private Object resolveReceiver(URLClassLoader loader,
@@ -223,7 +175,8 @@ public final class WorkerInvokeEngine {
     private SerializedInvocationOutcome normal(Object instance,
                                                Object returnValue,
                                                BoundedStdout stdout,
-                                               List<String> snapshotFieldNames) {
+                                               List<String> snapshotFieldNames,
+                                               ObjectFacts facts) {
         Object snapshotTarget = instance != null ? instance : returnValue;
         return new SerializedInvocationOutcome(
                 SerializedInvocationOutcome.KIND_NORMAL,
@@ -234,6 +187,10 @@ public final class WorkerInvokeEngine {
                 null,
                 List.of(),
                 null,
+                null,
+                facts.typeName(),
+                facts.fields(),
+                facts.equalsNamed(),
                 null);
     }
 
@@ -288,11 +245,6 @@ public final class WorkerInvokeEngine {
             }
         }
         throw new NoSuchFieldException(fieldName);
-    }
-
-    private Object instantiate(URLClassLoader loader, WorkerIpc.InstanceSpec spec) throws Exception {
-        return instantiateWithConstructor(
-                loader, spec.className(), spec.parameterTypes(), spec.paramsJson(), null);
     }
 
     private Object instantiateReceiver(URLClassLoader loader,
@@ -451,6 +403,109 @@ public final class WorkerInvokeEngine {
                 null);
     }
 
+    private ObjectFacts describeObject(URLClassLoader loader, Object object, Map<String, Object> registry) {
+        if (!isStudentObject(loader, object)) {
+            return ObjectFacts.none();
+        }
+        Map<String, Boolean> equalsNamed = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : registry.entrySet()) {
+            if (entry.getValue() == object) {
+                continue;
+            }
+            try {
+                equalsNamed.put(entry.getKey(), Boolean.valueOf(object.equals(entry.getValue())));
+            } catch (Exception ignored) {
+                equalsNamed.put(entry.getKey(), Boolean.FALSE);
+            }
+        }
+        return new ObjectFacts(
+                object.getClass().getSimpleName(),
+                snapshotAllLiteralFields(object),
+                equalsNamed);
+    }
+
+    private void maybeRegisterMethodProduct(URLClassLoader loader,
+                                            Method method,
+                                            WorkerIpc.ScenarioStepSpec spec,
+                                            Object receiver,
+                                            Object returnValue,
+                                            Map<String, Object> registry) {
+        if (!isStudentObject(loader, returnValue) || !hasInstanceName(spec)) {
+            return;
+        }
+        if (Modifier.isStatic(method.getModifiers())) {
+            register(registry, spec.instanceName(), returnValue);
+            return;
+        }
+        if (receiver != null && registry.get(spec.instanceName()) == receiver) {
+            return;
+        }
+        register(registry, spec.instanceName(), returnValue);
+    }
+
+    private Map<String, String> snapshotAllLiteralFields(Object target) {
+        Map<String, String> snapshots = new LinkedHashMap<>();
+        if (target == null) {
+            return snapshots;
+        }
+        Class<?> type = target.getClass();
+        while (type != null && type.getClassLoader() != null) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || snapshots.containsKey(field.getName())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                try {
+                    Object value = field.get(target);
+                    if (isLiteralValue(value)) {
+                        snapshots.put(field.getName(), coercer.toJson(value));
+                    }
+                } catch (IllegalAccessException ignored) {
+                    // skip unreadable fields
+                }
+            }
+            type = type.getSuperclass();
+        }
+        return snapshots;
+    }
+
+    private static boolean isLiteralValue(Object value) {
+        if (value == null) {
+            return true;
+        }
+        Class<?> type = value.getClass();
+        if (type.isArray()) {
+            return isLiteralArray(value);
+        }
+        return type == String.class
+                || type == Integer.class
+                || type == Long.class
+                || type == Double.class
+                || type == Float.class
+                || type == Boolean.class
+                || type == Byte.class
+                || type == Short.class
+                || type == Character.class;
+    }
+
+    private static boolean isLiteralArray(Object value) {
+        Class<?> component = value.getClass().getComponentType();
+        if (component == null) {
+            return false;
+        }
+        if (component.isPrimitive() || component == String.class
+                || Number.class.isAssignableFrom(component)
+                || component == Boolean.class
+                || component == Character.class) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isStudentObject(URLClassLoader loader, Object value) {
+        return value != null && value.getClass().getClassLoader() == loader;
+    }
+
     private static void register(Map<String, Object> registry, String instanceName, Object instance) {
         if (instanceName == null || instanceName.isBlank()) {
             return;
@@ -477,5 +532,15 @@ public final class WorkerInvokeEngine {
     private static String messageOrSimpleName(Throwable throwable) {
         String message = throwable.getMessage();
         return message != null ? message : throwable.getClass().getSimpleName();
+    }
+
+    private record ObjectFacts(
+            String typeName,
+            Map<String, String> fields,
+            Map<String, Boolean> equalsNamed) {
+
+        static ObjectFacts none() {
+            return new ObjectFacts(null, Map.of(), Map.of());
+        }
     }
 }

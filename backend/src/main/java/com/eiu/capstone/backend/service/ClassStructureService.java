@@ -695,44 +695,21 @@ public class ClassStructureService {
         return getClassData(labId, challengeId, studentId, submissionId, DisclosureMode.LECTURER);
     }
 
-    /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet. */
+    /**
+     * Student revisit GET for the Operation Test tab. Empty while student operational
+     * tests are dark (KTD2 / R13), even when the rubric has Unit/Composition rows.
+     */
     public List<TestcaseResultDTO> getTestcaseData(UUID labId,
                                                    UUID challengeId,
                                                    UUID studentId,
                                                    UUID submissionId) {
-        long start = System.currentTimeMillis();
-        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
-        if (resolvedSubmissionId == null) {
-            return List.of();
-        }
-        detailPersistGate.await(resolvedSubmissionId);
-        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(labId, resolvedSubmissionId, challengeId);
-        TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
-        return result;
+        return List.of();
     }
 
     public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
                                                                   UUID submissionId,
                                                                   UUID challengeId) {
-        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
-        if (challengeRubric == null) {
-            return List.of();
-        }
-
-        Map<UUID, SubmissionTestcaseResult> resultsByTestcaseId = submissionTestcaseResultRepository
-                .findBySubmission_IdWithTestcase(submissionId)
-                .stream()
-                .filter(result -> result.getTestcase() != null
-                        && challengeId.equals(result.getTestcase().getChallenge().getId()))
-                .collect(Collectors.toMap(
-                        result -> result.getTestcase().getId(),
-                        result -> result,
-                        (left, right) -> left,
-                        LinkedHashMap::new));
-
-        return testcaseResultMapper.mapChallengeTestcases(
-                challengeRubric.testcases(),
-                resultsByTestcaseId);
+        return List.of();
     }
 
     public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {

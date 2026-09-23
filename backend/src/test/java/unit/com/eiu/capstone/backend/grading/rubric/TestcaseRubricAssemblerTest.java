@@ -29,7 +29,6 @@ import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Method;
-import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
@@ -64,7 +63,7 @@ class TestcaseRubricAssemblerTest {
     }
 
     @Test
-    void assemble_twoOrderedSteps_mapsInstanceNameDispatchAndTag() {
+    void assemble_compositionSteps_mapsInstanceNames() {
         UUID challengeId = UUID.randomUUID();
         UUID carClassId = UUID.randomUUID();
         UUID shapeClassId = UUID.randomUUID();
@@ -104,7 +103,7 @@ class TestcaseRubricAssemblerTest {
         TestcaseStructureDTO dto = new TestcaseStructureDTO(
                 UUID.randomUUID(),
                 "sequence",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.COMPOSITION,
                 null,
                 1,
                 0,
@@ -114,11 +113,11 @@ class TestcaseRubricAssemblerTest {
                 List.of(new AssertionStructureDTO(
                         assertionId, methodStepId, AssertionKind.RETURN_VALUE, null, "0", ComparisonMode.EXACT, 0)),
                 List.of(construct, call),
-                OopPrincipleTag.Polymorphism);
+                null);
 
         TestcaseRubric rubric = assembler.assemble(challengeId, dto);
 
-        assertEquals(OopPrincipleTag.Polymorphism, rubric.oopPrincipleTag());
+        assertEquals(TestcaseType.COMPOSITION, rubric.testcaseType());
         assertEquals(2, rubric.invocations().size());
         InvocationRubric first = rubric.invocations().get(0);
         InvocationRubric second = rubric.invocations().get(1);

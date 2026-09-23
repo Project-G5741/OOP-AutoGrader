@@ -103,7 +103,7 @@ public class TestcaseResultMapper {
                 pending.expectedDisplay(),
                 pending.actualDisplay(),
                 assertions.isEmpty() ? null : assertions,
-                visibleTag(rubric));
+                null);
     }
 
     private static OopPrincipleTag visibleTag(TestcaseRubric testcase) {

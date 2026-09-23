@@ -58,7 +58,7 @@ class TestcaseGraderTest {
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "new student",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -115,7 +115,7 @@ class TestcaseGraderTest {
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "deposit",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -172,7 +172,7 @@ class TestcaseGraderTest {
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "new good",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -311,7 +311,7 @@ class TestcaseGraderTest {
     }
 
     @Test
-    void ae3RejectedSetterThenGetAgePasses() {
+    void acceptedThrowStillStopsLaterAssertions() {
         UUID constructId = UUID.randomUUID();
         UUID setAgeId = UUID.randomUUID();
         UUID getAgeId = UUID.randomUUID();
@@ -324,37 +324,20 @@ class TestcaseGraderTest {
         TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
                 .gradeSingle(testcase, context(testcase));
 
-        assertEquals(TestcaseResultStatus.PASSED, result.status());
-        assertEquals(TestcaseResultStatus.PASSED, result.assertions().get(0).status());
-        assertEquals(TestcaseResultStatus.PASSED, result.assertions().get(1).status());
-    }
-
-    @Test
-    void ae3SetterThatWritesStillFailsLaterGetAge() {
-        UUID constructId = UUID.randomUUID();
-        UUID setAgeId = UUID.randomUUID();
-        UUID getAgeId = UUID.randomUUID();
-        TestcaseRubric testcase = personAgeScenario(constructId, setAgeId, getAgeId);
-        InvocationRunner runner = scenarioRunner(List.of(
-                InvocationOutcome.normal(null, "", false, Map.of()),
-                InvocationOutcome.threw("", false, "IllegalArgumentException", List.of("RuntimeException")),
-                InvocationOutcome.normal(-5, "", false, Map.of())));
-
-        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
-                .gradeSingle(testcase, context(testcase));
-
         assertEquals(TestcaseResultStatus.FAILED, result.status());
         assertEquals(TestcaseResultStatus.PASSED, result.assertions().get(0).status());
         assertEquals(TestcaseResultStatus.FAILED, result.assertions().get(1).status());
+        assertTrue(result.assertions().get(1).feedback().toLowerCase().contains("not executed"),
+                result.assertions().get(1).feedback());
     }
 
     @Test
-    void constructFailSkipsLaterAssertions() {
+    void constructFailMarksLaterAssertionsNotExecuted() {
         UUID constructId = UUID.randomUUID();
         UUID getAgeId = UUID.randomUUID();
         InvocationRubric construct = constructorStep(constructId, "Person", "[30]", "person");
         InvocationRubric getAge = methodStep(getAgeId, "Person", "getAge", "[]", "person", null);
-        TestcaseRubric testcase = scenario(
+        TestcaseRubric testcase = composition(
                 "boom construct",
                 List.of(construct, getAge),
                 List.of(returnValue(getAgeId, "30", 0)));
@@ -366,7 +349,9 @@ class TestcaseGraderTest {
 
         assertEquals(TestcaseResultStatus.FAILED, result.status());
         assertEquals(1, result.assertions().size());
-        assertEquals(TestcaseResultStatus.SKIPPED, result.assertions().get(0).status());
+        assertEquals(TestcaseResultStatus.FAILED, result.assertions().get(0).status());
+        assertTrue(result.assertions().get(0).feedback().toLowerCase().contains("not executed"),
+                result.assertions().get(0).feedback());
         assertTrue(result.inputDisplay() != null && result.inputDisplay().contains("Person"));
     }
 
@@ -447,7 +432,7 @@ class TestcaseGraderTest {
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "legacy",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -466,6 +451,198 @@ class TestcaseGraderTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void ae1UnitDepositInjectsHiddenNoArgReceiverAndPassesFieldState() {
+        UUID invocationId = UUID.randomUUID();
+        InvocationRubric deposit = new InvocationRubric(
+                invocationId,
+                InvocationKind.METHOD,
+                null,
+                UUID.randomUUID(),
+                "BankAccount",
+                "deposit",
+                List.of("int"),
+                "[100]",
+                null,
+                null,
+                List.of(),
+                null);
+        AssertionRubric fieldState = new AssertionRubric(
+                UUID.randomUUID(),
+                AssertionKind.FIELD_STATE,
+                invocationId,
+                null,
+                "balance",
+                "int",
+                "100",
+                ComparisonMode.EXACT,
+                0);
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "deposit",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                deposit,
+                List.of(),
+                List.of(fieldState));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of("balance", 100))));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        org.mockito.ArgumentCaptor<List<InvocationRubric>> stepsCaptor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(runner).invokeScenario(
+                org.mockito.ArgumentMatchers.any(),
+                stepsCaptor.capture(),
+                org.mockito.ArgumentMatchers.any());
+        InvocationRubric sent = stepsCaptor.getValue().get(0);
+        assertEquals("BankAccount", sent.receiverClassName());
+        assertEquals(List.of(), sent.receiverParameterTypes());
+        assertEquals("[]", sent.receiverParamsJson());
+    }
+
+    @Test
+    void ae4CompositionPassesNamedEngineIntoCarConstructor() {
+        UUID engineId = UUID.randomUUID();
+        UUID carId = UUID.randomUUID();
+        InvocationRubric engine = constructorStep(engineId, "Engine", "[200]", "eng");
+        InvocationRubric car = constructorStep(carId, "Car", "[{\"$instance\":\"eng\"}]", "car");
+        TestcaseRubric testcase = composition(
+                "car engine",
+                List.of(engine, car),
+                List.of(returnValue(carId, "{\"$objectCheck\":\"TYPE\"}", 0)));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of(), "Engine", Map.of(), Map.of()),
+                InvocationOutcome.normal(null, "", false, Map.of(), "Car", Map.of(), Map.of())));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        org.mockito.ArgumentCaptor<List<InvocationRubric>> stepsCaptor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(runner).invokeScenario(
+                org.mockito.ArgumentMatchers.any(),
+                stepsCaptor.capture(),
+                org.mockito.ArgumentMatchers.any());
+        assertTrue(stepsCaptor.getValue().get(1).paramsJson().contains("$instance"));
+        assertTrue(stepsCaptor.getValue().get(1).paramsJson().contains("eng"));
+    }
+
+    @Test
+    void ae6UnacceptedThrowFailsLaterAssertionsAsNotExecuted() {
+        UUID firstId = UUID.randomUUID();
+        UUID boomId = UUID.randomUUID();
+        UUID laterId = UUID.randomUUID();
+        TestcaseRubric testcase = composition(
+                "mid throw",
+                List.of(
+                        constructorStep(firstId, "Actor", "[]", "actor"),
+                        methodStep(boomId, "Actor", "boom", "[]", "actor", null),
+                        methodStep(laterId, "Actor", "ok", "[]", "actor", null)),
+                List.of(returnValue(laterId, "7", 0)));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of()),
+                InvocationOutcome.threw("", false, "IllegalStateException", List.of("RuntimeException"))));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertEquals(TestcaseResultStatus.FAILED, result.assertions().get(0).status());
+        assertTrue(result.assertions().get(0).feedback().toLowerCase().contains("not executed"),
+                result.assertions().get(0).feedback());
+    }
+
+    @Test
+    void ae7ExceptionStdoutAndFieldStateOnSameInvocation() {
+        UUID constructId = UUID.randomUUID();
+        UUID callId = UUID.randomUUID();
+        InvocationRubric construct = constructorStep(constructId, "Probe", "[]", "probe");
+        InvocationRubric call = methodStep(callId, "Probe", "shout", "[]", "probe", null);
+        AssertionRubric exception = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.EXCEPTION, callId, null, null, null,
+                "\"IllegalArgumentException\"", ComparisonMode.EXACT, 0);
+        AssertionRubric stdout = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.STDOUT, callId, null, null, null,
+                "\"hi\"", ComparisonMode.EXACT, 1);
+        AssertionRubric field = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.FIELD_STATE, callId, null, "flag", "int",
+                "1", ComparisonMode.EXACT, 2);
+        TestcaseRubric testcase = composition(
+                "mixed",
+                List.of(construct, call),
+                List.of(exception, stdout, field));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of()),
+                InvocationOutcome.threw("hi", false, "IllegalArgumentException",
+                        List.of("RuntimeException"), Map.of("flag", 1))));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(3, result.assertions().size());
+        assertTrue(result.assertions().stream()
+                .allMatch(row -> row.status() == TestcaseResultStatus.PASSED));
+    }
+
+    @Test
+    void ae10ConstructorStdoutIsNotEvaluated() {
+        UUID invocationId = UUID.randomUUID();
+        InvocationRubric construct = constructorStep(invocationId, "Printer", "[]", null);
+        AssertionRubric stdout = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.STDOUT, invocationId, null, null, null,
+                "\"hello\"", ComparisonMode.EXACT, 0);
+        AssertionRubric typeCheck = returnValue(invocationId, "{\"$objectCheck\":\"TYPE\"}", 1);
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "ctor stdout",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                construct,
+                List.of(),
+                List.of(stdout, typeCheck));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "noise", false, Map.of(), "Printer", Map.of(), Map.of())));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(TestcaseResultStatus.PASSED, result.assertions().get(1).status());
+    }
+
+    @Test
+    void compositionEqualsUsesWorkerNamedFacts() {
+        UUID leftId = UUID.randomUUID();
+        UUID rightId = UUID.randomUUID();
+        TestcaseRubric testcase = composition(
+                "equals coins",
+                List.of(
+                        constructorStep(leftId, "Coin", "[5]", "left"),
+                        constructorStep(rightId, "Coin", "[5]", "right")),
+                List.of(returnValue(rightId, "{\"$objectCheck\":\"EQUALS\",\"$instance\":\"left\"}", 0)));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of(), "Coin", Map.of(), Map.of()),
+                InvocationOutcome.normal(null, "", false, Map.of(), "Coin", Map.of(), Map.of("left", true))));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(TestcaseResultStatus.PASSED, result.assertions().get(0).status());
     }
 
     private static TestcaseGrader realGrader(InvocationRunner runner) {
@@ -522,10 +699,28 @@ class TestcaseGraderTest {
                 "\"IllegalArgumentException\"",
                 ComparisonMode.EXACT,
                 0);
-        return scenario(
+        return composition(
                 "rejected age",
                 List.of(construct, setAge, getAge),
                 List.of(exception, returnValue(getAgeId, "30", 1)));
+    }
+
+    private static TestcaseRubric composition(String name,
+                                              List<InvocationRubric> steps,
+                                              List<AssertionRubric> assertions) {
+        return new TestcaseRubric(
+                UUID.randomUUID(),
+                name,
+                TestcaseType.COMPOSITION,
+                null,
+                1,
+                0,
+                false,
+                steps.get(0),
+                List.of(),
+                assertions,
+                steps,
+                OopPrincipleTag.Composition);
     }
 
     private static TestcaseRubric scenario(String name,
@@ -534,7 +729,7 @@ class TestcaseGraderTest {
         return new TestcaseRubric(
                 UUID.randomUUID(),
                 name,
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,

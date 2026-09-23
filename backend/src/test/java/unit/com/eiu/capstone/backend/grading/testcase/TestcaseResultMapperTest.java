@@ -138,7 +138,7 @@ class TestcaseResultMapperTest {
         return new TestcaseRubric(
                 id,
                 name,
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,

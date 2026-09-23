@@ -23,7 +23,7 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
-| `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT) |
+| `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE including object checks, FIELD_STATE, STDOUT, EXCEPTION) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
 | `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion: kind priority, or first-failing / last-run step for scenarios |
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
@@ -59,12 +59,13 @@ SubmissionController
   → LabRubricCache.get(lab)                         (overlaps compile)
   → SubmissionStorageService.processUpload()
   → assign lab_submission.id in memory
-  → GradingService.gradeSubmission()   (compute + assemble only)
-      → GradingPipeline.gradeChallenge() per folder
-          → ClassReflectionGrader (sync)
-          → MmdPillarGrader + TestcaseGrader (parallel on `pillarExecutor`, not `gradingExecutor`)
-      → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
-          → skip MMD/testcase trees when pillar not applicable
+      → GradingService.gradeSubmission()   (compute + assemble only)
+          → GradingPipeline.gradeChallenge() per folder
+              → ClassReflectionGrader (sync)
+              → MmdPillarGrader on `pillarExecutor` (testcase pillar is dark on student upload)
+          → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
+              → skip MMD/testcase trees when pillar not applicable
+              → testcase pillar is not applicable even when rubric Unit/Composition rows exist
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
       → persistExecutor after that statement: GradingResultJdbcWriter detail UPSERT
   → compile/package/mmd sidecars off-thread
@@ -77,32 +78,35 @@ SubmissionController
 ### Scoring
 
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
-- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Student upload treats the testcase pillar as not applicable, so `testcase_weight` has no student effect (column/editor stay).
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
 - Challenges with zero testcase rows score 0% on the testcase pillar
+- Student upload does not run `TestcaseGrader` and does not acquire `workerJvmSlot`; lecturer dry-run still does
 - Compile errors short-circuit testcase grading only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
 ### Operational testcase grading
 
-- Rubric tables: `testcase` (`oop_principle_tag`), `testcase_invocation` (ordered steps, optional `instance_name`, optional `dispatch_class_id` + `receiver_constructor_id` / `receiver_params` for METHOD), `testcase_instance`, `testcase_assertion`
-- SINGLE_INVOCATION: one or more ordered invocations + assertions; instance methods may use a named earlier construct or seed the receiver via constructor params
-- COMPARISON: two `testcase_instance` rows + COMPARISON_RESULT assertion; not absorbed into scenario steps
-- Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, and Polymorphism without a METHOD dispatch type; dry-run `validatePayload` still allows incomplete Polymorphism for preview
-- `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies tag + `instanceName` / dispatch class onto `InvocationRubric` / `TestcaseRubric`
+- Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
+- UNIT: one invocation. Instance methods inject a hidden no-arg receiver at grade/dry-run (`receiverClassName` = declaring class). COMPOSITION: ordered named-instance steps
+- Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
+- `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
-- IPC ops: `invoke` (one call), `compare` (two instances), `scenario` (ordered steps + request-local named instances). `TestcaseGrader` uses `invokeScenario` for `SINGLE_INVOCATION` (one-step is a one-element list) and `invokeComparison` for `COMPARISON`
-- Whole-scenario timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget for the `scenario` op; `COMPARISON` keeps a single-op budget
+- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances). `compare` is not used. `TestcaseGrader` uses `invokeScenario` for UNIT and COMPOSITION
+- Whole-scenario timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget for the `scenario` op
 - Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
-- CONSTRUCTOR `THREW`, `ERROR`, or `TIMED_OUT` omit later steps (API `SKIPPED`, not passed). METHOD `THREW` keeps the named receiver and continues later steps so EXCEPTION plus later asserts can pass
-- Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as `SKIPPED`
+- Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step
+- Constructor stdout is not evaluated (save already 422s it)
+- After a METHOD that returns a student-loader object, static factories register `instanceName` as the product. Instance methods do not overwrite the named receiver with the return (no distinct return-name column this ship)
+- Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
+- Object checks in `expected_value`: `{ "$objectCheck": "TYPE" }`, `{ "$objectCheck": "FIELDS", "fields": { ... } }`, Composition `{ "$objectCheck": "EQUALS", "$instance": "name" }`. Evaluated in the API from worker facts (`objectTypeSimpleName`, `objectFieldSnapshots`, `equalsNamed`)
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
-- Example (`hidden` false) DTOs include `oop_principle_tag` (lecturer tag, not a diagnosis). Hidden rows omit I/O, assertions, feedback, and the tag
+- Dry-run I/O cards omit OOP principle tags
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
-- `GradingPipeline.gradeChallenge(...)` without a worker is class/MMD-only; a challenge with testcases and a null session fails fast
+- `GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Operational tests are not invoked even when rubric testcases exist. Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and still acquires `workerJvmSlot`.
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`
@@ -120,7 +124,7 @@ Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.per
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` use the same from-rubric mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Student GET and upload `lab_result` pass `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. Student upload always sets `testcaseApplicable` false (operational tests not executed or shown). GET `/class` `/mmd` `/testcases` use the same from-rubric mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Student GET `/testcases` returns `[]` while the pillar is dark. Student GET and upload `lab_result` pass `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
 
 ## Work Guidance
 
@@ -145,7 +149,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 ## Verification
 
 - Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `TestcaseRubricAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
-- Manual: upload lab folder; confirm populated `testcases` in `lab_result` and on revisit `/testcases` endpoint
+- Manual: upload lab folder; confirm Class/MMD in `lab_result`, `scoreApplicability.testcase` false, and empty `/testcases`
 
 ## Child DOX Index
 

@@ -31,19 +31,8 @@ public class Testcase {
     @Column(name = "testcase_type", nullable = false, columnDefinition = "testcase_type")
     private TestcaseType testcaseType;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "comparison_method", columnDefinition = "testcase_comparison_method")
-    private TestcaseComparisonMethod comparisonMethod;
-
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "oop_principle_tag", nullable = false, columnDefinition = "oop_principle_tag")
-    private OopPrincipleTag oopPrincipleTag = OopPrincipleTag.Unit;
-
     @Column(name = "name", nullable = false)
     private String name;
-
-    @Column(name = "weight", nullable = false)
-    private int weight = 1;
 
     @Column(name = "order_index", nullable = false)
     private int orderIndex = 0;
@@ -65,21 +54,8 @@ public class Testcase {
     public TestcaseType getTestcaseType() { return testcaseType; }
     public void setTestcaseType(TestcaseType testcaseType) { this.testcaseType = testcaseType; }
 
-    public TestcaseComparisonMethod getComparisonMethod() { return comparisonMethod; }
-    public void setComparisonMethod(TestcaseComparisonMethod comparisonMethod) {
-        this.comparisonMethod = comparisonMethod;
-    }
-
-    public OopPrincipleTag getOopPrincipleTag() { return oopPrincipleTag; }
-    public void setOopPrincipleTag(OopPrincipleTag oopPrincipleTag) {
-        this.oopPrincipleTag = oopPrincipleTag;
-    }
-
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-
-    public int getWeight() { return weight; }
-    public void setWeight(int weight) { this.weight = weight; }
 
     public int getOrderIndex() { return orderIndex; }
     public void setOrderIndex(int orderIndex) { this.orderIndex = orderIndex; }

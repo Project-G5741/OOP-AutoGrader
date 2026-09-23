@@ -4,6 +4,5 @@ public enum AssertionKind {
     RETURN_VALUE,
     FIELD_STATE,
     STDOUT,
-    EXCEPTION,
-    COMPARISON_RESULT
+    EXCEPTION
 }

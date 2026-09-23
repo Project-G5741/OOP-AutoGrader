@@ -219,7 +219,12 @@ export default function StudentUI({
   const visibleTabs = useMemo(
     () => {
       if (!resultsRevealed) return [];
-      return TAB_ORDER.filter((t) => !isPillarNotApplicable(currentBundle, t));
+      return TAB_ORDER.filter((t) => {
+        if (t === 'testcase') {
+          return currentBundle?.scoreApplicability?.testcase === true;
+        }
+        return !isPillarNotApplicable(currentBundle, t);
+      });
     },
     [resultsRevealed, currentBundle],
   );

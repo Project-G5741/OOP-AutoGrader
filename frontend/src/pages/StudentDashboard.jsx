@@ -68,11 +68,13 @@ function applyChallengeBundle(bundle) {
     return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
   }
   const mmd = mmdFromChallengeBundle(bundle);
+  const testcaseApplicable = bundle.scoreApplicability?.testcase === true
+    || bundle.score_applicability?.testcase === true;
   return {
     classData: normalizeClassData(bundle.class ?? []),
     mmdData: mmd.classes,
     mmdParseError: mmd.parseError,
-    testCases: mapOperationalTestcases(bundle.testcases),
+    testCases: testcaseApplicable ? mapOperationalTestcases(bundle.testcases) : [],
     normalizationNotice: bundle.normalizationNotice ?? bundle.normalization_notice ?? null,
   };
 }
@@ -348,7 +350,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         query.set('submissionId', submissionId);
       }
       const qs = `?${query.toString()}`;
-      const [classRes, mmdRes, testcaseRes] = await Promise.all([
+      const [classRes, mmdRes] = await Promise.all([
         cachedClass
           ? Promise.resolve({
               ok: true,
@@ -361,16 +363,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         cachedMmd
           ? Promise.resolve({ ok: true, json: async () => cachedMmd })
           : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
-        cachedTestcases
-          ? Promise.resolve({ ok: true, json: async () => cachedTestcases })
-          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
       ]);
 
       const classJson = classRes.ok ? await classRes.json() : [];
       const parsedClass = parseClassTabResponse(classJson);
       const mmdJson = mmdRes.ok ? await mmdRes.json() : { classes: [], parseError: null };
       const parsedMmd = parseMmdResponse(mmdJson);
-      const testcaseJson = testcaseRes.ok ? await testcaseRes.json() : [];
+      const testcaseJson = [];
 
       if (!cachedClass) {
         classDataCacheRef.current[challengeId] = parsedClass.classData;

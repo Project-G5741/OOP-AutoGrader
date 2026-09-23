@@ -69,6 +69,11 @@ public class LabRubricCache {
         loadLocks.remove(labId);
     }
 
+    public void invalidateAll() {
+        cache.clear();
+        loadLocks.clear();
+    }
+
     private record CachedEntry(LabRubricSnapshot snapshot, Instant expiresAt) {
         boolean isExpired() {
             return Instant.now().isAfter(expiresAt);

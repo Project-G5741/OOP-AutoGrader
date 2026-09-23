@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -20,13 +21,13 @@ class AssertionEvaluatorTest {
     private final AssertionEvaluator evaluator = new AssertionEvaluator(new JsonValueCoercer());
 
     @Test
-    void nullInvocationOutcomeReturnsSkippedWithoutNpe() {
+    void nullInvocationOutcomeFailsAsNotExecutedWithoutNpe() {
         AssertionRubric assertion = assertion(AssertionKind.RETURN_VALUE, "42");
 
         AssertionEvaluation result = evaluator.evaluate(assertion, null, null);
 
-        assertEquals(TestcaseResultStatus.SKIPPED, result.status());
-        assertTrue(result.feedback() == null || !result.feedback().isBlank());
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertTrue(result.feedback().toLowerCase().contains("not executed"), result.feedback());
     }
 
     @Test
@@ -64,13 +65,73 @@ class AssertionEvaluatorTest {
     }
 
     @Test
-    void comparisonAssertionHandlesNullOutcome() {
-        AssertionRubric assertion = assertion(AssertionKind.COMPARISON_RESULT, "true");
+    void objectCheckTypePassesWhenWorkerReportsMatchingType() {
+        AssertionRubric assertion = assertion(
+                AssertionKind.RETURN_VALUE, "{\"$objectCheck\":\"TYPE\"}");
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null, "", false, Map.of(), "Money", Map.of(), Map.of());
 
-        AssertionEvaluation result = evaluator.evaluate(assertion, null, null);
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
 
-        assertEquals(TestcaseResultStatus.FAILED, result.status());
-        assertTrue(result.feedback().contains("Comparison not available"));
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+    }
+
+    @Test
+    void objectCheckFieldsPassesWhenWorkerReportsMatchingLiterals() {
+        AssertionRubric assertion = assertion(
+                AssertionKind.RETURN_VALUE,
+                "{\"$objectCheck\":\"FIELDS\",\"fields\":{\"amount\":10}}");
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null, "", false, Map.of(), "Money", Map.of("amount", 10), Map.of());
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+    }
+
+    @Test
+    void objectCheckEqualsPassesWhenWorkerReportsNamedMatch() {
+        AssertionRubric assertion = assertion(
+                AssertionKind.RETURN_VALUE,
+                "{\"$objectCheck\":\"EQUALS\",\"$instance\":\"other\"}");
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null, "", false, Map.of(), "Coin", Map.of(), Map.of("other", true));
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+    }
+
+    @Test
+    void ae7ExceptionStdoutAndFieldStateEvaluateIndependently() {
+        InvocationOutcome outcome = InvocationOutcome.threw(
+                "printed",
+                false,
+                "IllegalArgumentException",
+                List.of("RuntimeException"),
+                Map.of("age", 30));
+
+        AssertionEvaluation exception = evaluator.evaluate(
+                assertion(AssertionKind.EXCEPTION, "\"IllegalArgumentException\""), outcome, null);
+        AssertionEvaluation stdout = evaluator.evaluate(
+                assertion(AssertionKind.STDOUT, "\"printed\""), outcome, null);
+        AssertionEvaluation field = evaluator.evaluate(
+                new AssertionRubric(
+                        UUID.randomUUID(),
+                        AssertionKind.FIELD_STATE,
+                        null,
+                        null,
+                        "age",
+                        "int",
+                        "30",
+                        ComparisonMode.EXACT,
+                        2),
+                outcome,
+                null);
+
+        assertEquals(TestcaseResultStatus.PASSED, exception.status());
+        assertEquals(TestcaseResultStatus.PASSED, stdout.status());
+        assertEquals(TestcaseResultStatus.PASSED, field.status());
     }
 
     private AssertionRubric assertion(AssertionKind kind, String expectedJson) {

@@ -1,26 +1,43 @@
 package com.eiu.capstone.backend.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 
 import jakarta.annotation.PostConstruct;
 
 /**
- * Ensures optional operational-testcase columns exist on older databases.
+ * Ensures receiver columns exist, then wipes leftover COMPARISON / tag / per-testcase
+ * weight schema and rewrites testcase types to UNIT / COMPOSITION.
  */
 @Component
 public class TestcaseSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;
+    private final LabRubricCache labRubricCache;
 
     public TestcaseSchemaMigrator(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, null);
+    }
+
+    @Autowired
+    public TestcaseSchemaMigrator(JdbcTemplate jdbcTemplate, LabRubricCache labRubricCache) {
         this.jdbcTemplate = jdbcTemplate;
+        this.labRubricCache = labRubricCache;
     }
 
     @PostConstruct
     void ensureSchema() {
         ensureReceiverColumns();
-        ensureScenarioColumns();
+        if (needsUnitCompositionWipe()) {
+            applyUnitCompositionWipe();
+            if (labRubricCache != null) {
+                labRubricCache.invalidateAll();
+            }
+        }
+        ensureKeptScenarioColumns();
     }
 
     private void ensureReceiverColumns() {
@@ -47,25 +64,69 @@ public class TestcaseSchemaMigrator {
         }
     }
 
-    private void ensureScenarioColumns() {
+    private boolean needsUnitCompositionWipe() {
+        return enumHasLabel("testcase_type", "SINGLE_INVOCATION")
+                || enumHasLabel("testcase_type", "COMPARISON")
+                || enumHasLabel("assertion_kind", "COMPARISON_RESULT")
+                || columnExists("testcase", "oop_principle_tag")
+                || columnExists("testcase", "weight")
+                || columnExists("testcase", "comparison_method")
+                || tableExists("testcase_instance");
+    }
+
+    private void applyUnitCompositionWipe() {
+        jdbcTemplate.execute("TRUNCATE TABLE submission_testcase_assertion_result CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE submission_testcase_result CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE testcase CASCADE");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS testcase_instance CASCADE");
+        jdbcTemplate.execute("ALTER TABLE testcase DROP CONSTRAINT IF EXISTS testcase_comparison_method_check");
+        jdbcTemplate.execute("ALTER TABLE testcase DROP COLUMN IF EXISTS comparison_method");
+        jdbcTemplate.execute("ALTER TABLE testcase DROP COLUMN IF EXISTS oop_principle_tag");
+        jdbcTemplate.execute("ALTER TABLE testcase DROP COLUMN IF EXISTS weight");
+        jdbcTemplate.execute("DROP TYPE IF EXISTS oop_principle_tag");
+        jdbcTemplate.execute("DROP TYPE IF EXISTS testcase_comparison_method");
         jdbcTemplate.execute("""
                 DO $$ BEGIN
-                    CREATE TYPE oop_principle_tag AS ENUM (
-                        'Unit',
-                        'Polymorphism',
-                        'Encapsulation',
-                        'Composition',
-                        'Inheritance'
+                    CREATE TYPE testcase_type_new AS ENUM ('UNIT', 'COMPOSITION');
+                EXCEPTION WHEN duplicate_object THEN NULL;
+                END $$
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase ALTER COLUMN testcase_type DROP DEFAULT
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase
+                    ALTER COLUMN testcase_type TYPE testcase_type_new
+                    USING 'UNIT'::testcase_type_new
+                """);
+        jdbcTemplate.execute("DROP TYPE testcase_type");
+        jdbcTemplate.execute("ALTER TYPE testcase_type_new RENAME TO testcase_type");
+        jdbcTemplate.execute("""
+                DO $$ BEGIN
+                    CREATE TYPE assertion_kind_new AS ENUM (
+                        'RETURN_VALUE', 'FIELD_STATE', 'STDOUT', 'EXCEPTION'
                     );
                 EXCEPTION WHEN duplicate_object THEN NULL;
                 END $$
                 """);
-        if (!columnExists("testcase", "oop_principle_tag")) {
-            jdbcTemplate.execute("""
-                    ALTER TABLE testcase
-                        ADD COLUMN oop_principle_tag oop_principle_tag NOT NULL DEFAULT 'Unit'
-                    """);
-        }
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase_assertion
+                    ALTER COLUMN assertion_kind TYPE assertion_kind_new
+                    USING (
+                        CASE
+                            WHEN assertion_kind::text = 'COMPARISON_RESULT' THEN 'RETURN_VALUE'
+                            ELSE assertion_kind::text
+                        END
+                    )::assertion_kind_new
+                """);
+        jdbcTemplate.execute("DROP TYPE assertion_kind");
+        jdbcTemplate.execute("ALTER TYPE assertion_kind_new RENAME TO assertion_kind");
+    }
+
+    private void ensureKeptScenarioColumns() {
         if (!columnExists("testcase_invocation", "order_index")) {
             jdbcTemplate.execute("""
                     ALTER TABLE testcase_invocation
@@ -101,6 +162,30 @@ public class TestcaseSchemaMigrator {
                         UNIQUE (testcase_id, order_index)
                     """);
         }
+    }
+
+    private boolean enumHasLabel(String typeName, String label) {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_type t
+                    JOIN pg_catalog.pg_enum e ON e.enumtypid = t.oid
+                    WHERE t.typname = ?
+                      AND e.enumlabel = ?
+                )
+                """, Boolean.class, typeName, label);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    private boolean tableExists(String table) {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = current_schema()
+                      AND table_name = ?
+                )
+                """, Boolean.class, table);
+        return Boolean.TRUE.equals(exists);
     }
 
     private boolean columnExists(String table, String column) {

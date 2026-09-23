@@ -2,6 +2,7 @@ package support.com.eiu.capstone.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Set;
@@ -164,5 +165,13 @@ class ClassStructureServiceDisclosureTest {
         assertEquals(StudentDisplayMessages.PLACEHOLDER, relationDto.to());
         assertEquals(StudentDisplayMessages.PLACEHOLDER, relationDto.relType());
         assertEquals(StudentDisplayMessages.REQUIRED_RELATIONSHIP, relationDto.error());
+    }
+
+    @Test
+    void getTestcaseData_returnsEmptyWhileStudentOperationalTestsAreDark() {
+        assertTrue(service.getTestcaseData(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()).isEmpty());
+        assertTrue(service.buildTestcaseDataForSubmission(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()).isEmpty());
     }
 }

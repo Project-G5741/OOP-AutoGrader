@@ -96,7 +96,7 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             true,
-                            true));
+                            false));
 
             MmdResponseDTO mmdResponse;
             if (pillarScores.mmdApplicable()) {

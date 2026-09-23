@@ -48,8 +48,9 @@ public class GradingPipeline {
     }
 
     /**
-     * Class/MMD-only entry. Challenges with testcases must use the four-arg overload
-     * and pass a live {@code WorkerSessionHandle}.
+     * Student-upload entry. Class and MMD still grade; operational tests are not invoked
+     * even when the rubric has Unit/Composition rows (KTD2 / R13). Lecturer dry-run uses
+     * {@code TestcaseGrader} directly and still acquires {@code workerJvmSlot}.
      */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
@@ -77,11 +78,9 @@ public class GradingPipeline {
         String challengeKey = folderResult.challengeName;
 
         boolean mmdApplicable = challengeRubric.hasMmd();
-        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
-        if (testcaseApplicable && workerSession == null) {
-            throw new IllegalStateException(
-                    "Worker session required when challenge " + challengeKey + " has testcases");
-        }
+        // Student upload keeps the testcase pillar dark even when rubric rows exist.
+        // challenge.testcase_weight stays on the lecturer editor (KTD9) but is unused here.
+        boolean testcaseApplicable = false;
 
         Path classesDir = folderResult.folder.resolve("classes");
         long parseStart = System.currentTimeMillis();

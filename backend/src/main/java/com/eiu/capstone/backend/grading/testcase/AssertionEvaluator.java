@@ -1,17 +1,24 @@
 package com.eiu.capstone.backend.grading.testcase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
+import com.fasterxml.jackson.databind.JsonNode;
 
 @Component
 public class AssertionEvaluator {
 
     static final String STRING_TYPE = "String";
+    static final String OBJECT_CHECK_KEY = "$objectCheck";
+    static final String OBJECT_CHECK_TYPE = "TYPE";
+    static final String OBJECT_CHECK_FIELDS = "FIELDS";
+    static final String OBJECT_CHECK_EQUALS = "EQUALS";
+    static final String INSTANCE_REF_KEY = "$instance";
 
     private final JsonValueCoercer jsonValueCoercer;
 
@@ -22,16 +29,14 @@ public class AssertionEvaluator {
     public AssertionEvaluation evaluate(AssertionRubric assertion,
                                         InvocationOutcome invocationOutcome,
                                         ComparisonOutcome comparisonOutcome) {
-        if (assertion.kind() != com.eiu.capstone.backend.model.AssertionKind.COMPARISON_RESULT
-                && invocationOutcome == null) {
-            return skipped(assertion);
+        if (invocationOutcome == null) {
+            return notExecuted(assertion);
         }
         return switch (assertion.kind()) {
             case RETURN_VALUE -> evaluateReturnValue(assertion, invocationOutcome);
             case FIELD_STATE -> evaluateFieldState(assertion, invocationOutcome);
             case STDOUT -> evaluateStdout(assertion, invocationOutcome);
             case EXCEPTION -> evaluateException(assertion, invocationOutcome);
-            case COMPARISON_RESULT -> evaluateComparison(assertion, comparisonOutcome);
         };
     }
 
@@ -44,11 +49,69 @@ public class AssertionEvaluator {
             return failure(assertion, outcome.exceptionSimpleName(),
                     "Unexpected exception: " + outcome.exceptionSimpleName());
         }
+        if (isObjectCheck(assertion.expectedValueJson())) {
+            return evaluateObjectCheck(assertion, outcome);
+        }
         Object expected = jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null);
         boolean passed = ValueComparator.matches(outcome.returnValue(), expected, assertion.comparisonMode());
         return passed
                 ? success(assertion, outcome.returnValue(), "Return value matches")
                 : failure(assertion, outcome.returnValue(), "Return value mismatch");
+    }
+
+    private AssertionEvaluation evaluateObjectCheck(AssertionRubric assertion, InvocationOutcome outcome) {
+        JsonNode node = jsonValueCoercer.parseTree(assertion.expectedValueJson());
+        String kind = node.get(OBJECT_CHECK_KEY).asText();
+        if (OBJECT_CHECK_TYPE.equals(kind)) {
+            if (outcome.objectTypeSimpleName() == null || outcome.objectTypeSimpleName().isBlank()) {
+                return failure(assertion, null, "Expected object type but value was null");
+            }
+            return success(assertion, outcome.objectTypeSimpleName(), "Object type matches");
+        }
+        if (OBJECT_CHECK_FIELDS.equals(kind)) {
+            JsonNode fields = node.get("fields");
+            if (fields == null || !fields.isObject()) {
+                return failure(assertion, outcome.objectFieldSnapshots(), "Object field map missing fields");
+            }
+            Map<String, Object> actualFields = outcome.objectFieldSnapshots();
+            java.util.Iterator<Map.Entry<String, JsonNode>> entries = fields.fields();
+            while (entries.hasNext()) {
+                Map.Entry<String, JsonNode> entry = entries.next();
+                Object actual = actualFields != null ? actualFields.get(entry.getKey()) : null;
+                Object expected = jsonValueCoercer.coerceFromNode(entry.getValue(), null);
+                if (actual == null && (actualFields == null || !actualFields.containsKey(entry.getKey()))) {
+                    return failure(assertion, actualFields, "Could not read field: " + entry.getKey());
+                }
+                if (!ValueComparator.matches(actual, expected, assertion.comparisonMode())) {
+                    return failure(assertion, actual, entry.getKey() + " mismatch");
+                }
+            }
+            return success(assertion, actualFields, "Object fields match");
+        }
+        if (OBJECT_CHECK_EQUALS.equals(kind)) {
+            JsonNode instanceNode = node.get(INSTANCE_REF_KEY);
+            String name = instanceNode != null && instanceNode.isTextual() ? instanceNode.asText() : null;
+            Boolean matched = name != null && outcome.equalsNamed() != null
+                    ? outcome.equalsNamed().get(name)
+                    : null;
+            if (Boolean.TRUE.equals(matched)) {
+                return success(assertion, true, "equals() matches");
+            }
+            return failure(assertion, matched, "equals() mismatch");
+        }
+        return failure(assertion, null, "Unknown object check: " + kind);
+    }
+
+    private boolean isObjectCheck(String expectedJson) {
+        if (expectedJson == null || expectedJson.isBlank()) {
+            return false;
+        }
+        try {
+            JsonNode node = jsonValueCoercer.parseTree(expectedJson);
+            return node != null && node.isObject() && node.has(OBJECT_CHECK_KEY);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private AssertionEvaluation evaluateFieldState(AssertionRubric assertion, InvocationOutcome outcome) {
@@ -103,24 +166,10 @@ public class AssertionEvaluator {
                 : failure(assertion, actualType, "Expected " + expectedType + " but got " + actualType);
     }
 
-    private AssertionEvaluation evaluateComparison(AssertionRubric assertion, ComparisonOutcome outcome) {
-        if (outcome == null) {
-            return failure(assertion, null, "Comparison not available for this assertion");
-        }
-        if (outcome.kind() == InvocationOutcomeKind.ERROR) {
-            return failure(assertion, null, outcome.errorMessage());
-        }
-        Object expected = jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null);
-        boolean passed = ValueComparator.matches(outcome.comparisonResult(), expected, assertion.comparisonMode());
-        return passed
-                ? success(assertion, outcome.comparisonResult(), "Comparison matches")
-                : failure(assertion, outcome.comparisonResult(), "Comparison mismatch");
-    }
-
     private Optional<AssertionEvaluation> invocationPrecondition(AssertionRubric assertion,
                                                                  InvocationOutcome outcome) {
         if (outcome == null) {
-            return Optional.of(skipped(assertion));
+            return Optional.of(notExecuted(assertion));
         }
         if (outcome.kind() == InvocationOutcomeKind.TIMED_OUT) {
             return Optional.of(failure(assertion, null, "Invocation timed out"));
@@ -141,12 +190,12 @@ public class AssertionEvaluator {
         return superNames != null && superNames.contains(expectedSimpleName);
     }
 
-    private AssertionEvaluation skipped(AssertionRubric assertion) {
+    private AssertionEvaluation notExecuted(AssertionRubric assertion) {
         return new AssertionEvaluation(
                 assertion.id(),
-                TestcaseResultStatus.SKIPPED,
+                TestcaseResultStatus.FAILED,
                 null,
-                "Step did not run");
+                "Not executed");
     }
 
     private AssertionEvaluation success(AssertionRubric assertion, Object actual, String feedback) {

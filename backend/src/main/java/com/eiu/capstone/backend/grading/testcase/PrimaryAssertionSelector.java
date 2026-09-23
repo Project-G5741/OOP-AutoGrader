@@ -20,8 +20,7 @@ public class PrimaryAssertionSelector {
             AssertionKind.STDOUT,
             AssertionKind.RETURN_VALUE,
             AssertionKind.FIELD_STATE,
-            AssertionKind.EXCEPTION,
-            AssertionKind.COMPARISON_RESULT);
+            AssertionKind.EXCEPTION);
 
     public AssertionRubric select(List<AssertionRubric> assertions) {
         if (assertions == null || assertions.isEmpty()) {
