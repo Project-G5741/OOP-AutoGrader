@@ -47,7 +47,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase weights |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
-| `structure/TestcasesPanel.jsx` | Operational testcase list, scenario-step editor (instance name, dispatch class, `$instance` args, OOP principle tag), dry-run, separate Save Testcases; Save stays disabled when a Polymorphism tag has no METHOD dispatch class |
+| `structure/TestcasesPanel.jsx` | Operational testcase list, scenario-step editor (instance name, dispatch class, `$instance` args, OOP principle tag), dry-run, separate Save Testcases; Save stays disabled when a Polymorphism tag has no METHOD dispatch class; dry-run error/result cards wrap long diagnostics and the editor column uses `minmax(0,1fr)` so the panel cannot overflow the viewport |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 

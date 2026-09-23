@@ -242,25 +242,26 @@ function DryRunResultCard({ result }) {
   const headerBarClass = passed
     ? 'bg-[var(--success-panel)] text-[var(--success-panel-text)]'
     : 'bg-[var(--error-bg)] text-[var(--error-text)]';
-  const bodyCardClass = 'overflow-hidden rounded-lg border border-border-subtle bg-surface-secondary';
+  const bodyCardClass = 'min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-surface-secondary';
   const sectionDividerClass = 'border-t border-border-subtle';
   const sectionLabelClass = 'mb-1 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted';
-  const codeBlockClass = 'whitespace-pre-wrap rounded-md bg-surface px-2 py-1.5 font-mono text-xs text-foreground-secondary';
+  const codeBlockClass = 'min-w-0 whitespace-pre-wrap break-words rounded-md bg-surface px-2 py-1.5 font-mono text-xs text-foreground-secondary [overflow-wrap:anywhere]';
+  const summaryClass = 'min-w-0 flex-1 break-words text-xs [overflow-wrap:anywhere]';
 
   const summary = dryRunSummaryText(result);
 
   if (!expanded) {
     return (
-      <div className={`animate-panel-in overflow-hidden rounded-lg ${headerBarClass}`}>
-        <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-          <div className="flex min-w-0 items-center gap-2">
+      <div className={`animate-panel-in min-w-0 overflow-hidden rounded-lg ${headerBarClass}`}>
+        <div className="flex items-start justify-between gap-2 px-3 py-2 text-sm">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
             <span className="shrink-0 text-xs font-semibold">{result.result}</span>
             {principleTagLabel(result) && (
               <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 {principleTagLabel(result)}
               </span>
             )}
-            <span className="truncate text-xs">{summary}</span>
+            <span className={summaryClass}>{summary}</span>
           </div>
           <button
             type="button"
@@ -276,15 +277,15 @@ function DryRunResultCard({ result }) {
 
   return (
     <div className={`animate-panel-in text-sm ${bodyCardClass}`}>
-      <div className={`flex items-center justify-between gap-3 px-3 py-2 ${headerBarClass}`}>
-        <div className="flex min-w-0 items-center gap-2">
+      <div className={`flex items-start justify-between gap-3 px-3 py-2 ${headerBarClass}`}>
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <span className="shrink-0 text-xs font-semibold">{result.result}</span>
           {principleTagLabel(result) && (
             <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
               {principleTagLabel(result)}
             </span>
           )}
-          <span className="truncate text-xs">{summary}</span>
+          <span className={summaryClass}>{summary}</span>
         </div>
         <button
           type="button"
@@ -329,14 +330,14 @@ function DryRunResultCard({ result }) {
                     {assertion.result}
                   </span>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
+                <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="min-w-0">
                     <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Expected</div>
                     <pre className={codeBlockClass}>{expected}</pre>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Actual</div>
-                    <pre className={`whitespace-pre-wrap rounded-md px-2 py-1.5 font-mono text-xs ${
+                    <pre className={`min-w-0 whitespace-pre-wrap break-words rounded-md px-2 py-1.5 font-mono text-xs [overflow-wrap:anywhere] ${
                       aPassed
                         ? 'bg-surface text-foreground-secondary'
                         : 'bg-error-bg text-error-text'
@@ -351,15 +352,15 @@ function DryRunResultCard({ result }) {
           })}
         </div>
       ) : (
-        <div className={`grid gap-3 sm:grid-cols-2 ${result.input != null ? `${sectionDividerClass} pt-3` : ''}`}>
+        <div className={`grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] ${result.input != null ? `${sectionDividerClass} pt-3` : ''}`}>
           {result.expected_output != null && (
-            <div>
+            <div className="min-w-0">
               <div className={sectionLabelClass}>Expected</div>
               <pre className={codeBlockClass}>{result.expected_output}</pre>
             </div>
           )}
           {result.actual_output != null && (
-            <div>
+            <div className="min-w-0">
               <div className={sectionLabelClass}>Actual</div>
               <pre className={codeBlockClass}>{result.actual_output}</pre>
             </div>
@@ -548,7 +549,7 @@ function TestcaseEditor({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-xs text-foreground-muted">
           Type
@@ -1095,7 +1096,7 @@ export default function TestcasesPanel({
   }
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="min-w-0 space-y-4 pb-4">
       {warnStructure && (
         <div className="rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-warning-text">
           Lab structure has unsaved changes. Save structure first so new methods and fields can be referenced.
@@ -1113,7 +1114,7 @@ export default function TestcasesPanel({
         />
       </div>
 
-      <div className="rounded-xl bg-surface">
+      <div className="min-w-0 rounded-xl bg-surface">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-chart-green" />
@@ -1148,7 +1149,7 @@ export default function TestcasesPanel({
         ) : testcases.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-foreground-secondary">No testcases yet.</p>
         ) : (
-          <div className="grid min-h-[22rem] lg:grid-cols-[minmax(200px,260px)_1fr]">
+          <div className="grid min-h-[22rem] min-w-0 lg:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]">
             <aside className="border-b border-border-subtle p-2 lg:border-b-0 lg:border-r lg:border-border-subtle">
               {(dryRunSummary.pass > 0 || dryRunSummary.fail > 0) && (
                 <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 px-2 text-[11px] text-foreground-muted">
@@ -1198,10 +1199,10 @@ export default function TestcasesPanel({
               </ul>
             </aside>
 
-            <div className="flex max-h-[min(70vh,42rem)] flex-col p-4">
+            <div className="flex min-w-0 max-h-[min(70vh,42rem)] flex-col p-4">
               {selectedTestcase ? (
-                <div key={selectedTestcase.id} className="flex min-h-0 flex-1 flex-col animate-panel-in">
-                  <div className="shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
+                <div key={selectedTestcase.id} className="flex min-h-0 min-w-0 flex-1 flex-col animate-panel-in">
+                  <div className="min-w-0 shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">

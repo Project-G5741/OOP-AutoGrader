@@ -22,7 +22,7 @@ export default function ChallengeDetailPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 xl:grid-cols-4">
         <WeightInput
           id={`challenge-weight-${challenge.id}`}
