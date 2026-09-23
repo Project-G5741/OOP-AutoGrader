@@ -94,12 +94,12 @@ Per upload request (unique `requestId` prevents collisions):
 ### Operational testcase save
 
 - `PUT .../testcases` upserts by client UUID (testcase, invocation steps, assertions). Delete only omitted child ids — never delete-all-reinsert
-- `SINGLE_INVOCATION` may have 1–20 ordered steps (`invocations` list canonical; singular `invocation` is legacy one-step). `COMPARISON` still has two instances and no invocation steps
-- Omitted `oopPrincipleTag` stores `Unit`. Polymorphism save requires at least one **METHOD** step with `dispatchClassId`; a dispatch id on a constructor step does not count. `validatePayload` (dry-run assemble) skips that guardrail
+- Types are `UNIT` and `COMPOSITION` only. UNIT: exactly one invocation; no `instanceName`, `$instance` args, rubric-class object args, lecturer-set `receiver_constructor_id`, or equals() object checks. Instance methods require a no-arg constructor on the declaring class (hidden receiver at dry-run)
+- COMPOSITION: 1–20 ordered steps. Constructor steps and static named rubric-class returns require `instanceName` (product name). Instance-method `instanceName` is the receiver already constructed; the return does not overwrite that name. Caps: 20 steps, 10 named instances
 - Invocation `order_index` is unique per testcase. Save parks kept steps at `MAX_STEPS + i`, deletes omitted rows, then writes final `0..n-1` so removing or reordering earlier steps cannot collide on `UNIQUE (testcase_id, order_index)`
-- `$instance` args must name a construct from an earlier step and match the rubric parameter type (class simple name). Caps: 20 steps, 10 named construct instances. Failures are HTTP 422
-- GET returns `oopPrincipleTag` plus ordered `invocations`; singular `invocation` is the first step so the current UI can round-trip
-- `LabStructureService.deleteClassCascade` blocks when a class is a dispatch target (`RubricMemberKind.CLASS`)
+- `$instance` args (Composition only) must name an earlier constructor or named static return and match the rubric parameter type (class simple name). Failures are HTTP 422
+- GET returns `testcaseType` plus ordered `invocations`. No `oopPrincipleTag`, COMPARISON instances, or per-testcase weight
+- `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 
 ## Work Guidance
 
@@ -131,7 +131,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
-- Operational testcase save: `support` `TestcaseRubricServiceTest` (scenario guardrails, upsert-by-id, Unit default tag)
+- Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 
 ## Child DOX Index

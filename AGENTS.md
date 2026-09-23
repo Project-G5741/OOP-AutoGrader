@@ -92,7 +92,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`) — search before debugging in documented areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes) — relevant when orienting to grading or submission flows |
 | `docs/USER_GUIDE.md` | End-user guide for lecturers and students: all features, navigation, upload workflow, results interpretation |
-| `docs/LECTURER_OPERATIONAL_TESTCASE_GUIDE.md` | Lecturer-focused operational testcase authoring: scenario steps, assertions, OOP tags, comparison tests, dry-run |
+| `docs/LECTURER_OPERATIONAL_TESTCASE_GUIDE.md` | Lecturer-focused operational testcase authoring: Unit worksheet, Composition script, assertions, object checks, dry-run; student OT pillar dark |
 
 ### Project facts
 

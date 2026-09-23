@@ -42,12 +42,14 @@ export default function ChallengeDetailPanel({
           value={challenge.mmdWeight}
           onChange={(mmdWeight) => onMmdChange({ ...challenge, mmdWeight })}
         />
-        <WeightInput
-          id={`challenge-testcase-weight-${challenge.id}`}
-          label="Operational testcase weight"
-          value={challenge.testcaseWeight}
-          onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
-        />
+        <div title="Challenge-level pillar weight. Individual testcases have no scoring weight.">
+          <WeightInput
+            id={`challenge-testcase-weight-${challenge.id}`}
+            label="Operational testcase weight"
+            value={challenge.testcaseWeight}
+            onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
+          />
+        </div>
       </div>
       <div className="flex gap-1 border-b border-border">
         <button

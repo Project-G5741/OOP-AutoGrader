@@ -259,8 +259,8 @@ For each challenge folder, **in parallel** on `gradingExecutor`:
 
 1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
 2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
-3. **Testcase pillar** (if the challenge has operational testcases): `TestcaseGrader` on `pillarExecutor`; student invokes run in one isolated worker JVM per upload (5s timeout each; host slot of 1).
-4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
+3. **Testcase pillar:** skipped on student upload even when Unit/Composition rows exist. Lecturer dry-run still uses `TestcaseGrader` and one isolated worker JVM (5s timeout; host slot of 1). Challenge `testcase_weight` has no student effect while the pillar is dark.
+4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight`; `testcase_weight` omitted on upload); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
 5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 
 After grading, plagiarism signals are snapshotted and inspect runs on `persistExecutor`; the temp folder is deleted in `finally`. Durable state is PostgreSQL plus JSON sidecars under `SUBMISSION_BASE_DIR` (`_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot`). Lecturer flags typically appear within ~1–3s.
@@ -361,7 +361,7 @@ erDiagram
 5. GET /api/labs → student picks "Lab 1"
 6. GET /api/labs/{id}/stats → shows prior grade if any
 7. Student drops folder → DropZone POST /api/submissions/{labId}/1/upload
-8. Backend: access check → compile → class/MMD/testcase pillars → one persist SQL → snapshot plagiarism signals → return scores + `lab_result` (inspect continues on persistExecutor)
+8. Backend: access check → compile → class/MMD pillars (operational tests not invoked) → one persist SQL → snapshot plagiarism signals → return scores + `lab_result` (inspect continues on persistExecutor)
 9. Frontend updates challenge sidebar, class tab, stats cards
 10. Data persists in PostgreSQL; temp files deleted
 ```
@@ -390,13 +390,13 @@ erDiagram
 
 | Cache | TTL | Invalidation |
 |-------|-----|--------------|
-| `LabRubricCache` | 30 min | Manual (`RubricCacheInvalidationSupport`) or TTL |
+| `LabRubricCache` | 30 min | `invalidateLab` on rubric save; `invalidateAll` after OT schema wipe (`TestcaseSchemaMigrator`) or TTL |
 | `MasterDataCache` | 60 min | TTL |
 | `LecturerOverviewCache` | 90 sec | On upload |
 | `LabStatisticsCache` | 120 sec | On upload for that lab |
 | `AnalyticsDashboardCache` | 180 sec | TTL |
 
-Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD + testcase pillars use `pillarExecutor`. Student-code invokes run in one isolated worker JVM per request (host slot of 1). See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
+Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD uses `pillarExecutor`. Lecturer dry-run acquires one isolated worker JVM (host slot of 1). Student upload does not. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
 
 ---
 
@@ -420,4 +420,4 @@ CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the 
 | **Backend** | Spring Boot 3.2 + Java 17 | JVM `:8002` | PostgreSQL + temp `submissions/` |
 | **Database** | PostgreSQL (Neon) | Cloud | All users, rubrics, grades, progress |
 
-The **critical path** is: **browser upload → Spring controller → one-query access check → in-memory compile → reflection + MMD + operational testcases → one persist SQL → snapshot plagiarism signals → JSON response → React UI update**. Detail UPSERT and plagiarism inspect continue off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.
+The **critical path** is: **browser upload → Spring controller → one-query access check → in-memory compile → reflection + MMD → one persist SQL → snapshot plagiarism signals → JSON response → React UI update**. Operational tests are not on that path this ship. Detail UPSERT and plagiarism inspect continue off-thread. Durable state lives in PostgreSQL; disk during upload is ephemeral.

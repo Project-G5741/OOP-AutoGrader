@@ -1,7 +1,8 @@
 # Lecturer guide — operational testcases
 
-> **Who this is for:** Lecturers setting up **operational testcases** in Solution Management for the first time.  
-> **What operational testcases do:** They run the student’s compiled Java code (construct objects, call methods) and check whether the results match what you expect — separate from the Class tab (signatures) and the MMD tab (diagram).
+> **Who this is for:** Lecturers setting up **operational testcases** in Solution Management.  
+> **What operational testcases are:** Checks that construct objects and call methods on compiled Java, separate from the Class tab (signatures) and the MMD tab (diagram).  
+> **This ship:** You author **Unit** and **Composition** tests and dry-run them against reference Java. Student upload still grades Class and MMD only. Students do not run operational tests and do not see an Operation Test tab.
 
 ---
 
@@ -11,15 +12,16 @@
 2. [Before you write your first testcase](#2-before-you-write-your-first-testcase)
 3. [How the editor is laid out](#3-how-the-editor-is-laid-out)
 4. [The two testcase types](#4-the-two-testcase-types)
-5. [Type A — scenario test (`SINGLE_INVOCATION`)](#5-type-a--scenario-test-single_invocation)
-6. [Assertions — what you can check](#6-assertions--what-you-can-check)
-7. [OOP principle tags (what students see)](#7-oop-principle-tags-what-students-see)
-8. [Recipes by principle](#8-recipes-by-principle)
-9. [Type B — comparison test (`COMPARISON`)](#9-type-b--comparison-test-comparison)
-10. [Example vs hidden testcases](#10-example-vs-hidden-testcases)
-11. [Dry-run — test before students submit](#11-dry-run--test-before-students-submit)
-12. [Saving and common mistakes](#12-saving-and-common-mistakes)
-13. [Quick reference](#13-quick-reference)
+5. [Unit — closed worksheet](#5-unit--closed-worksheet)
+6. [Composition — named-object script](#6-composition--named-object-script)
+7. [Assertions — what you can check](#7-assertions--what-you-can-check)
+8. [Object checks](#8-object-checks)
+9. [Example vs hidden](#9-example-vs-hidden)
+10. [Dry-run — test against reference Java](#10-dry-run--test-against-reference-java)
+11. [Saving and common mistakes](#11-saving-and-common-mistakes)
+12. [Wipe and re-author (operators)](#12-wipe-and-re-author-operators)
+13. [What students see this ship](#13-what-students-see-this-ship)
+14. [Quick reference](#14-quick-reference)
 
 ---
 
@@ -28,7 +30,7 @@
 1. Sign in as a lecturer and open **Projects → Solution Management**.
 2. Select a **lab** in the left sidebar, then a **challenge** in the structure tree.
 3. In the challenge panel on the right, open the **Operational Testcases** tab.
-4. Click **+ Add testcase** to create one, or select an existing testcase in the list on the left.
+4. Click **Add Unit** or **Add Composition**, or select an existing testcase in the list on the left.
 
 Operational testcases are saved with **Save Testcases** at the bottom of this tab. That is **separate** from **Save Structure** (classes, fields, methods, MMD). You need both when you change rubric members and testcases in the same session.
 
@@ -41,9 +43,7 @@ Operational testcases are saved with **Save Testcases** at the bottom of this ta
 | Define **classes, fields, constructors, and methods** in the structure tree | Dropdowns in the testcase editor only list rubric members you already saved |
 | Click **Save Structure** after adding members | Unsaved structure shows a warning; new methods will not appear in testcase dropdowns |
 | Prepare a **reference solution** (correct `.java` files) | Dry-run compiles and runs your testcase against this code — not against student uploads |
-| Set **Operational testcase weight** on the challenge (if needed) | Controls how much testcase results contribute vs Class and MMD |
-
-You can author up to **20 steps** per scenario testcase. Each testcase can have many assertions.
+| Set **Operational testcase weight** on the challenge if you want it later | The field stays on the challenge editor. It has **no student score effect** while the student Operation Test tab is hidden |
 
 ---
 
@@ -53,16 +53,17 @@ You can author up to **20 steps** per scenario testcase. Each testcase can have 
 ┌─────────────────────────────────────────────────────────────┐
 │  Reference Java (dry-run)     ← upload your solution .java    │
 ├─────────────────────────────────────────────────────────────┤
-│  Testcase list │  Name, Run, Delete                         │
-│  (left)        │  Dry-run result card                       │
-│                │  Type, OOP principle, steps, assertions    │
+│  Testcase list │  Name, Type, Run, Delete                    │
+│  (left)        │  Dry-run result card                        │
+│                │  Unit worksheet  or  Composition steps      │
 ├─────────────────────────────────────────────────────────────┤
 │                              [ Save Testcases ]             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Left list:** All testcases for this challenge. Icons show dry-run pass/fail. Tags like `Polymorphism` or `hidden` appear as small labels.
-- **Name:** A short label for you (e.g. `deposit increases balance`). Students see this on example testcases.
+- **Left list:** All testcases for this challenge. Icons show dry-run pass/fail. A small **Unit** or **Composition** label marks the type.
+- **Name:** A short label for you (e.g. `deposit increases balance`). Students do not see operational tests this ship.
+- **Type:** Switch between Unit and Composition. Switching **replaces** the other flow’s graph (worksheet vs script).
 - **Run:** Dry-run **only this** testcase against the reference Java you uploaded.
 - **Run all:** Dry-run every testcase in the list (needs reference Java).
 
@@ -72,115 +73,108 @@ You can author up to **20 steps** per scenario testcase. Each testcase can have 
 
 | Type | Plain English | Use when |
 |------|---------------|----------|
-| **SINGLE_INVOCATION** | A **scenario**: one or more ordered steps that build and use named objects | Most tests — one call, a sequence, encapsulation, composition, inheritance behaviour, polymorphism |
-| **COMPARISON** | Build **two objects** (A and B) and check whether they are equal or how `compareTo` behaves | `equals` / `compareTo` contracts, symmetry, consistency |
+| **Unit** | Closed worksheet: one constructor or method, then assertions | A single call. No named objects, no object-typed arguments |
+| **Composition** | Named-object script: ordered steps that share named objects | Sequences, object arguments, equals() against another live object |
 
-You pick the type in the **Type** dropdown. Switching to **COMPARISON** replaces scenario steps with two instance builders. Switching back to **SINGLE_INVOCATION** gives you scenario steps again.
+You choose the type when you click **Add Unit** or **Add Composition**. These are two different canvases, not one scenario with a lock.
+
+There is no two-instance comparison type. For equality, write a Composition that constructs two named objects and assert **equals()** on one of them.
 
 ---
 
-## 5. Type A — scenario test (`SINGLE_INVOCATION`)
+## 5. Unit — closed worksheet
 
-A scenario is a **script** that runs top to bottom. Each **step** is either:
+A Unit test is **exactly one** constructor or method, then at least one assertion. You cannot add a second invocation.
 
-- **CONSTRUCTOR** — create an object and optionally give it a **name**
-- **METHOD** — call a method (on a receiver you build in that step, or via a named instance in params)
+### 5.1 Constructor
 
-Later steps can use objects created in earlier steps.
+**Goal:** Call `new BankAccount(100)` and check that `balance` is `100`.
 
-### 5.1 Single-step test (simplest case)
+1. **Member:** pick the `BankAccount` constructor.
+2. **Arguments:** `100`.
+3. **Assertion:** FIELD_STATE on `balance`, expected `100`. Or a type-only / field-map object check on the constructed instance.
 
-**Goal:** Call `new BankAccount(100)` and check that balance is `100`.
+The constructed instance is **not named**.
 
-| Field | Value |
-|-------|--------|
-| Step 1 — Kind | CONSTRUCTOR |
-| Constructor | `BankAccount.<init>(...)` |
-| Instance name | `account` (optional for one step, but good habit) |
-| Params | `[100]` |
-| Assertion | FIELD_STATE on `BankAccount.balance`, expected `100` |
+### 5.2 Instance method
 
-This is the same as the old “one invocation” style — one step is a valid scenario.
+**Goal:** Call `withdraw(30)` on a `BankAccount` and check `balance`.
 
-### 5.2 Multi-step test (sequence)
+1. **Member:** pick `withdraw`.
+2. Dry-run builds a **hidden no-arg receiver**. That construct is not a step and is not named.
+3. **Arguments:** scalars only (e.g. `30`). You cannot pass another rubric-class object.
+4. **Assertions:** return value, stdout, field state on the hidden receiver, and/or exception.
 
-**Goal:** Create an account, deposit, then check balance.
+If the class has **no no-arg constructor**, that instance method is disabled in the member list. Use Composition instead (construct the receiver yourself).
+
+### 5.3 Static method
+
+Pick a static method as the one invocation. There is no receiver.
+
+### 5.4 What Unit cannot do
+
+- A second invocation
+- Named instances or `$instance` arguments
+- Rubric-class objects as arguments (those belong in Composition)
+- equals() against another live object
+- Lecturer-chosen receiver constructor
+
+---
+
+## 6. Composition — named-object script
+
+A Composition test is an ordered list of constructor and/or method steps (1–20) that share **named objects**. A step may have zero assertions. The testcase as a whole must have at least one.
+
+### 6.1 Naming objects
+
+| Step | What you name |
+|------|----------------|
+| **Constructor** | Required **instance name** for the constructed object (e.g. `acct`) |
+| **Static factory** that returns a rubric-class object | Required **product name** (same `instanceName` field; that name is the product) |
+| **Instance method** | **Receiver** — pick an earlier name of matching class. That name stays the receiver; the return does **not** overwrite it |
+
+Later steps pass named objects as arguments with `{"$instance":"acct"}` (use the **$instance** control next to a rubric-class parameter).
+
+Literal arguments are primitives, wrappers, String, null, and arrays of those. Arrays or lists of named objects are not valid as one argument.
+
+### 6.2 Example — deposit then check balance
 
 | Step | Kind | What to set |
 |------|------|-------------|
 | 1 | CONSTRUCTOR | `BankAccount`, instance name `acct`, params `[0]` |
-| 2 | METHOD | `deposit`, params `[50]` — pass the receiver by putting `{"$instance":"acct"}` in params (use the **$instance** button) |
-| Assertion on step 2 | FIELD_STATE | `balance` = `50` |
+| 2 | METHOD | `deposit`, receiver `acct`, params `[50]` |
+| Assertion on step 2 | FIELD_STATE | `balance` = `50` (field on `acct`, or another named object already created) |
 
-**Rule:** A **named instance** must be created in an **earlier** CONSTRUCTOR step before you reference it with `{"$instance":"name"}`.
+**Rule:** A name must exist from an **earlier** constructor or named static return before you use it as a receiver, `$instance` argument, or equals() target.
 
-### 5.3 Step fields explained
+### 6.3 Example — two objects equal
 
-#### CONSTRUCTOR step
+1. CONSTRUCTOR `Point` → name `a`, params `[3, 4]`
+2. CONSTRUCTOR `Point` → name `b`, params `[3, 4]`
+3. On step 1 or 2, RETURN_VALUE (or the constructed object) object check **equals()**, `$instance` = the other name
 
-| Field | Meaning |
-|-------|---------|
-| **Constructor** | Which rubric constructor to call |
-| **Instance name** | A label you choose (e.g. `car`, `parent`, `wallet`). Used in later steps. |
-| **Params (JSON array)** | Arguments in order, e.g. `[10, "Alice"]`, `[null]`, `[]` |
+Or call `equals` as a method on one named object and assert RETURN_VALUE `true`.
 
-#### METHOD step
+### 6.4 Unexpected throws
 
-| Field | Meaning |
-|-------|---------|
-| **Method** | Which rubric method to call |
-| **Receiver constructor (optional)** | If the class has **no** no-arg constructor, pick the constructor that builds the object you call the method on |
-| **Receiver params (JSON array)** | Arguments for that receiver constructor |
-| **Dispatch class** | Parent class or interface to invoke **through** (for polymorphism — see below). Leave as **Concrete class** for normal calls. |
-| **Params (JSON array)** | Method arguments. Use scalars or `{"$instance":"name"}` for object arguments. |
+If a step throws and that throw is **not** an accepted EXCEPTION assertion, the sequence **stops**. Later steps do not run. Their assertions fail as not executed.
 
-**Receiver vs params:** The **receiver** is the object you call the method **on** (`account.deposit(50)` → receiver is `account`). **Params** are the method’s parameters (`50`).
-
-If the class has a no-arg constructor, leave **Receiver constructor** as “No-arg ctor on class” and receiver params as `[]`.
-
-### 5.4 Passing a named object as an argument
-
-Params are a **JSON array**. For a rubric object type, insert a reference:
-
-```json
-[{"$instance": "acct"}]
-```
-
-Or mix scalars and instances:
-
-```json
-[100, {"$instance": "other"}]
-```
-
-In the UI, click **$instance** next to Params to append a reference to a name from earlier constructor steps.
-
-### 5.5 Dispatch class (polymorphism)
-
-When students should use **dynamic dispatch** (override on a subclass, not `instanceof` chains):
-
-1. Set **OOP principle** to **Polymorphism**.
-2. On at least one **METHOD** step, set **Dispatch class** to the **parent class or interface** from the rubric (not only the concrete class).
-3. The grader looks up the method on that type and runs the student’s override.
-
-**Save is blocked** until a Polymorphism testcase has at least one METHOD step with a dispatch class. Constructor steps do not count.
-
-**Example:** Rubric has `Shape` (interface) and `Circle` (implements Shape). Step calls `draw()` with dispatch class `Shape` on a `Circle` instance — student must override `draw`, not switch on type.
+Cap: **20** steps and **10** named instances per testcase.
 
 ---
 
-## 6. Assertions — what you can check
+## 7. Assertions — what you can check
 
-Each assertion belongs to a **step** (for scenario tests) and has a **kind**, **expected value**, and **comparison mode**.
+Assertions belong to a **step**. The testcase passes only when every configured assertion passes.
 
-### Assertion kinds
+A value-returning method may assert return value, stdout, field state, and thrown exception. A void method may assert stdout, field state, and thrown exception (no return value). A constructor may assert the returned object, field state, and thrown exception (no stdout). An invocation expected to throw may still carry other allowed kinds for that target.
 
 | Kind | Checks | Expected value examples |
 |------|--------|-------------------------|
-| **RETURN_VALUE** | What the call returned | `42`, `"hello"`, `true`, `null` |
-| **FIELD_STATE** | A field on the object after the step | Pick **Field** from dropdown; expected e.g. `100` or `"open"` |
+| **RETURN_VALUE** | What the call returned | `42`, `"hello"`, `true`, `null`, or an [object check](#8-object-checks) |
+| **FIELD_STATE** | A field after the step | Pick **Field**; expected e.g. `100`. Composition may inspect any named object already created. Unit instance methods inspect the hidden no-arg receiver; Unit constructors inspect the constructed instance |
 | **STDOUT** | Text printed to standard output | `"Account opened\n"` (string JSON) |
-| **EXCEPTION** | That the call threw a specific exception | `"IllegalArgumentException"` or `{"type":"IllegalArgumentException"}` |
-| **COMPARISON_RESULT** | Only for **COMPARISON** testcases | `true`/`false` (equals) or `-1`/`0`/`1` (compareTo) |
+| **EXCEPTION** | That the call threw a specific exception type (not the message) | `"IllegalArgumentException"` |
 
 ### Comparison modes (for text-like expected values)
 
@@ -192,14 +186,12 @@ Each assertion belongs to a **step** (for scenario tests) and has a **kind**, **
 
 ### Tips
 
-- You can add **multiple assertions** on the same step (e.g. return value **and** a field).
-- **FIELD_STATE** must reference a field from the dropdown — only field assertions may set a field.
+- You can add **multiple assertions** on the same step.
+- **FIELD_STATE** must reference a field from the dropdown.
 - For **EXCEPTION**, use the simple name (`NullPointerException`), not the full package.
 - Empty expected values are treated as `null` when you save.
 
 ### JSON in expected values
-
-Use JSON literals:
 
 - Numbers: `0`, `3.14`
 - Strings: `"paid"`
@@ -208,117 +200,29 @@ Use JSON literals:
 
 ---
 
-## 7. OOP principle tags (what students see)
+## 8. Object checks
 
-Every testcase has one **OOP principle** tag. It is a **label you choose** — the system does not guess the student’s design.
+For a non-primitive return value or constructor result, pick **one**:
 
-| Tag | Typical use | Extra rule |
-|-----|-------------|------------|
-| **Unit** | Default; single behaviour or simple call | None |
-| **Polymorphism** | Override + call through parent/interface | Must set **dispatch class** on at least one METHOD step before save |
-| **Encapsulation** | Illegal update rejected; defensive copies; getters do not leak internals | None |
-| **Composition** | Object owns another; state follows “has-a” | None |
-| **Inheritance** | Subclass behaviour beyond empty override | None |
+| Check | JSON in `expectedValue` | When |
+|-------|-------------------------|------|
+| Type only | `{ "$objectCheck": "TYPE" }` | Right class, not null |
+| Field map | `{ "$objectCheck": "FIELDS", "fields": { "balance": 100 } }` | One-level literals (same allowlist as arguments) |
+| equals() | `{ "$objectCheck": "EQUALS", "$instance": "other" }` | **Composition only** — equals against another live named object |
 
-On **example** testcases (`Hidden` unchecked), students see the tag on the I/O card (e.g. a **Polymorphism** badge). It names the topic; it is not auto-generated feedback.
+Unit object checks are type-only or field map. There is no equals() on Unit (no second live instance).
 
 ---
 
-## 8. Recipes by principle
+## 9. Example vs hidden
 
-### Unit — “does the method work?”
-
-**BankAccount withdraw**
-
-1. CONSTRUCTOR `BankAccount` → name `a`, params `[100]`
-2. METHOD `withdraw` → params `[30]` with receiver built from `a` via `$instance`
-3. Assert FIELD_STATE `balance` = `70` on step 2
+Each testcase still has a **Hidden** checkbox. That flag is stored for a later student ship (example vs pass/fail-only). **Students do not see operational tests this ship**, so the checkbox does not change what they see today.
 
 ---
 
-### Polymorphism — “does override run through the parent type?”
+## 10. Dry-run — test against reference Java
 
-**Shapes**
-
-Rubric: interface `Drawable` with `draw()`, class `Square` implements `Drawable`.
-
-1. CONSTRUCTOR `Square` → name `sq`, params `[]`
-2. METHOD `draw` on `Square` → dispatch class **`Drawable`**, params use `{"$instance":"sq"}` as needed for receiver/args per your API
-3. Assert STDOUT or RETURN_VALUE as you designed
-
-Tag: **Polymorphism**. Without dispatch class on step 2, **Save Testcases** stays disabled.
-
----
-
-### Encapsulation — “bad update must not stick”
-
-**Immutable or validated setter**
-
-1. CONSTRUCTOR → name `item`, params `[10]`
-2. METHOD `setValue` with invalid arg (e.g. `[-1]`) using `$instance` receiver
-3. Assert FIELD_STATE `value` still `10` on step 2  
-4. (Optional) Assert EXCEPTION `IllegalArgumentException` on the same step
-
-Students who only check in `if` without enforcing state still fail the field assertion.
-
----
-
-### Composition — “part and whole stay in sync”
-
-**Engine inside Car**
-
-1. CONSTRUCTOR `Engine` → name `eng`, params `[200]`
-2. CONSTRUCTOR `Car` → name `car`, params with `{"$instance":"eng"}` if constructor takes an Engine
-3. METHOD on `car` that uses the engine
-4. Assert FIELD_STATE on `car` or `eng` showing composed state
-
----
-
-### Inheritance — “subclass really behaves”
-
-**Animal / Dog**
-
-1. CONSTRUCTOR `Dog` → name `d`, params `[]`
-2. METHOD `speak` on `d`
-3. Assert RETURN_VALUE or STDOUT matches what a proper override produces (not the parent default if you expect override)
-
-Tag: **Inheritance**. Declaration Test already checks that `speak` exists; this testcase checks **behaviour**.
-
----
-
-## 9. Type B — comparison test (`COMPARISON`)
-
-Use when the learning goal is **equality or ordering**, not a sequence of calls.
-
-1. Set **Type** to **COMPARISON**.
-2. Choose **EQUALS** or **COMPARE_TO**.
-3. Configure **Instance A** and **Instance B**:
-   - Pick a **constructor** for each
-   - Set **params** JSON for each (e.g. `[1, "x"]` and `[1, "x"]`)
-4. Add assertion **COMPARISON_RESULT**:
-   - For **EQUALS**: expected `true` or `false`
-   - For **COMPARE_TO**: expected `-1`, `0`, or `1`
-
-**Note:** COMPARISON testcases do **not** use scenario steps or named instances. OOP principle tag still applies for student display on example tests.
-
-**Example:** Two `Point` objects with same coordinates should be equal — both constructors `[3, 4]`, method EQUALS, assertion COMPARISON_RESULT `true`.
-
----
-
-## 10. Example vs hidden testcases
-
-| Setting | Student sees |
-|---------|----------------|
-| **Hidden** unchecked (example testcase) | Name, **OOP principle** tag, expandable **input / expected / actual** I/O |
-| **Hidden** checked | **Pass or fail only** — no inputs, outputs, or principle tag |
-
-Use **example** testcases to teach what you are checking. Use **hidden** for exam-style checks you do not want to reveal.
-
----
-
-## 11. Dry-run — test before students submit
-
-Dry-run runs your testcase against **reference Java**, not student code.
+Dry-run runs your Unit or Composition test against **reference Java**, not student code. It uses the same isolated worker `scenario` op as the grader. Student upload does **not** use that path.
 
 1. In **Reference Java (dry-run)**, add one or more `.java` files (your correct solution). Class names must match the rubric.
 2. Configure the testcase.
@@ -336,65 +240,86 @@ Dry-run results are **not saved**; they clear when you edit the testcase.
 
 ---
 
-## 12. Saving and common mistakes
+## 11. Saving and common mistakes
 
 ### Save Testcases
 
 - Enabled when you have unsaved edits and validation passes.
-- **Polymorphism** without dispatch class → save blocked; yellow warning explains why.
-- Removing a testcase from the list and saving deletes it from the challenge (sync-by-presence).
+- Removing a testcase from the list and saving deletes it from the challenge (sync-by-presence). Child steps and assertions upsert by id; they are not deleted-all and reinserted.
 
 ### Common mistakes
 
 | Mistake | What happens | Fix |
 |---------|----------------|-----|
 | Forgot **Save Structure** before testcase | Dropdowns missing new methods | Save structure, reload testcases tab |
-| Use `$instance` before constructor | Save error / dry-run error | Add constructor step with that name first |
-| Polymorphism tag, no dispatch class | Cannot save | Set dispatch class on a METHOD step |
-| Wrong JSON in params | 422 or dry-run error | Use valid JSON arrays; quote strings |
+| Unit instance method on a class with no no-arg constructor | Member disabled / save 422 | Use Composition and construct the receiver |
+| `$instance` before the name exists | Save 422 | Constructor or named static return first |
+| Unit `$instance`, named objects, or equals() | Save 422 | Use Composition |
+| Wrong JSON in params | 422 or dry-run error | Valid JSON; quote strings |
 | FIELD_STATE without picking a field | Save error | Select field in assertion row |
-| COMPARISON_RESULT on scenario test | Invalid | Use only on COMPARISON type, or use RETURN_VALUE/FIELD_STATE |
 | Expect dry-run without reference Java | Toast error | Upload reference `.java` files |
-
-### What students need
-
-Students upload their own `.java` (and `.mmd` if required). The grader runs the **same** testcase definitions you saved, against **their** compiled code. Example testcases help them understand what “good” behaviour looks like; hidden ones do not.
+| Expect students to see Operation Test results | Tab stays hidden | Class and MMD still grade; OT is lecturer + dry-run only |
 
 ---
 
-## 13. Quick reference
+## 12. Wipe and re-author (operators)
 
-### Scenario step limits
+Shipping this rebuild **deletes** existing operational tests. There is no mapping from old one-step or two-instance comparison rows. Lecturers re-author as Unit or Composition.
 
-- Max **20** steps per testcase
-- Steps run in order; if an early constructor throws, later steps may be skipped and the testcase fails
-- First failing step drives the main I/O card students see
+Operator step:
 
-### Params and instances cheat sheet
+1. Apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a database copy first, then on the live DB.
+2. Restart the API, or confirm `TestcaseSchemaMigrator` ran on startup (it applies the same wipe when leftover types/columns remain) and called `LabRubricCache.invalidateAll()`.
+3. If you applied SQL **without** restarting, invalidate all lab rubric caches. Stale cache after wipe causes FK mismatches on later dry-run.
+
+The SQL does not change Class, MMD, or challenge-level `testcase_weight`.
+
+---
+
+## 13. What students see this ship
+
+Students upload `.java` (and `.mmd` if required). **Class** and **MMD** still grade. Operational tests are **not** invoked. The **Operation Test** tab stays hidden. Students never see the names Unit or Composition.
+
+Hidden vs example remains stored for a later ship.
+
+---
+
+## 14. Quick reference
+
+### Limits
+
+- Unit: exactly one invocation
+- Composition: max **20** steps, max **10** named instances
+- Steps run in order; an unaccepted throw stops the sequence
+- Dry-run first-failing step drives the main I/O card
+
+### Params cheat sheet
 
 ```json
 []                          → no arguments
 [1, 2, 3]                   → three int arguments
 ["text"]                    → one String
 [null]                      → null argument
-[{"$instance": "myObj"}]    → pass named instance from earlier step
+[{"$instance": "myObj"}]    → Composition: named object from an earlier step
 ```
 
 ### Assertion cheat sheet
 
-| I want to check… | Assertion kind |
-|------------------|----------------|
+| I want to check… | How |
+|------------------|-----|
 | Return value | RETURN_VALUE |
 | Field after call | FIELD_STATE + pick field |
 | println output | STDOUT |
-| Exception thrown | EXCEPTION |
-| two instances equal / compareTo | COMPARISON type + COMPARISON_RESULT |
+| Exception thrown | EXCEPTION (type only) |
+| Right class, not null | Object check TYPE |
+| Object field map | Object check FIELDS |
+| Two live objects equal | Composition + object check EQUALS (or call `equals`) |
 
 ### Related docs
 
 - [USER_GUIDE.md](./USER_GUIDE.md) — full lecturer and student UI tour  
-- [CONCEPTS.md](../CONCEPTS.md) — glossary (operational testcase, scenario, dispatch type, etc.)
+- [CONCEPTS.md](../CONCEPTS.md) — glossary (Unit, Composition, named instance, object check)
 
 ---
 
-*Last updated for the scenario-step operational testcase editor (named instances, OOP principle tags, dispatch class).*
+*Last updated for Unit and Composition authoring (lecturer dry-run; student operational-test pillar dark).*

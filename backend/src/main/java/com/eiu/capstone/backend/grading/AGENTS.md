@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Grade lab submissions across three equal pillars per challenge: Java `.class` reflection, MMD diagram comparison, and operational testcase checks. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
+Grade lab submissions: Java `.class` reflection and MMD diagram comparison on student upload, plus operational testcase checks for lecturer dry-run. Student upload treats the testcase pillar as not applicable. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
 
 ## Ownership
 
@@ -32,8 +32,8 @@ Grade lab submissions across three equal pillars per challenge: Java `.class` re
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, instances, assertions) in batched DB queries |
-| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `invalidateAll()` after OT schema wipe |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
 | `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |
@@ -78,11 +78,10 @@ SubmissionController
 ### Scoring
 
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
-- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Student upload treats the testcase pillar as not applicable, so `testcase_weight` has no student effect (column/editor stay).
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Student upload treats the testcase pillar as not applicable even when Unit/Composition rows exist, so `testcase_weight` has no student effect (column/editor stay).
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
-- **Operational testcases** pass only when every assertion passes (binary 0/1 per testcase weight)
-- Challenges with zero testcase rows score 0% on the testcase pillar
+- **Operational testcases** pass only when every assertion passes (binary per testcase; there is no per-testcase weight)
 - Student upload does not run `TestcaseGrader` and does not acquire `workerJvmSlot`; lecturer dry-run still does
 - Compile errors short-circuit testcase grading only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
@@ -104,7 +103,7 @@ SubmissionController
 - Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
 - Object checks in `expected_value`: `{ "$objectCheck": "TYPE" }`, `{ "$objectCheck": "FIELDS", "fields": { ... } }`, Composition `{ "$objectCheck": "EQUALS", "$instance": "name" }`. Evaluated in the API from worker facts (`objectTypeSimpleName`, `objectFieldSnapshots`, `equalsNamed`)
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
-- Dry-run I/O cards omit OOP principle tags
+- Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
 - `GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Operational tests are not invoked even when rubric testcases exist. Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and still acquires `workerJvmSlot`.
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
@@ -140,7 +139,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` / `final` flags when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
-- Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save)
+- Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save). Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
 - Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
 - Operator-run SQL migrations live in `docs/sql/` (no Flyway)

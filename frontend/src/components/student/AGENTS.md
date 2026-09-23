@@ -9,7 +9,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
-| `StudentUI.jsx` | Student lab upload + result tabs; Operation Test is hidden while `scoreApplicability.testcase` is not true |
+| `StudentUI.jsx` | Student lab upload + result tabs; Operation Test stays hidden this ship (`scoreApplicability.testcase` is not true) |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
 | `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right on the submit dashboard only |
@@ -46,7 +46,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
 
-After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD/Testcase tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view still uses read endpoints when no cached bundle exists.
+After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view still uses read endpoints when no cached bundle exists. The Operation Test tab is not shown this ship.
 
 - **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
 
@@ -68,11 +68,8 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
-- **I/O Score** header uses backend pillar score from `lab_result.scores.testcase` when the Operation Test tab is visible.
-- **Example Testcases** (`is_hidden = false`): full-width expandable rows with Input / Expected Output / Your Output; expand on pass, fail, and compile `ERROR`. Visible rows show the lecturer **OOP principle tag** beside the name (Unit, Polymorphism, Encapsulation, Composition, or Inheritance).
-- **Other Testcases** (`is_hidden = true`): two-column grid with lock icon and PASS/FAIL/ERROR — no I/O detail and no principle tag.
-- Operational compile failures use `result === 'ERROR'` (not FAIL) and show `feedback` in Your Output.
-- Multi-assertion visible rows stack additional Expected/Your pairs under the primary three-column panel. Collapsed primary I/O is the first failing scenario step from the API.
+- The Operation Test tab is shown only when `scoreApplicability.testcase === true`. Student upload keeps that flag false, so this section does not render. `GET .../testcases` returns `[]`. Students never see Unit or Composition labels.
+- Example/Other I/O cards are not student-facing this ship. Hidden vs example remains stored on the rubric for a later ship.
 
 ### Dashboard stats row (`StudentUI.jsx`)
 
