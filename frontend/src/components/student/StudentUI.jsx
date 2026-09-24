@@ -221,7 +221,9 @@ export default function StudentUI({
       if (!resultsRevealed) return [];
       return TAB_ORDER.filter((t) => {
         if (t === 'testcase') {
-          return currentBundle?.scoreApplicability?.testcase === true;
+          return currentBundle?.scoreApplicability?.testcase === true
+            || currentBundle?.score_applicability?.testcase === true
+            || (Array.isArray(currentBundle?.testcases) && currentBundle.testcases.length > 0);
         }
         return !isPillarNotApplicable(currentBundle, t);
       });

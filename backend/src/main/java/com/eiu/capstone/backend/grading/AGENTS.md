@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Grade lab submissions: Java `.class` reflection and MMD diagram comparison on student upload, plus operational testcase checks for lecturer dry-run. Student upload treats the testcase pillar as not applicable. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
+Grade lab submissions: Java `.class` reflection and MMD diagram comparison on student upload, plus operational testcase checks when the challenge has authored rows. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
 
 ## Ownership
 
@@ -62,10 +62,9 @@ SubmissionController
       → GradingService.gradeSubmission()   (compute + assemble only)
           → GradingPipeline.gradeChallenge() per folder
               → ClassReflectionGrader (sync)
-              → MmdPillarGrader on `pillarExecutor` (testcase pillar is dark on student upload)
+              → MmdPillarGrader + TestcaseGrader on `pillarExecutor` when applicable
           → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
               → skip MMD/testcase trees when pillar not applicable
-              → testcase pillar is not applicable even when rubric Unit/Composition rows exist
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
       → persistExecutor after that statement: GradingResultJdbcWriter detail UPSERT
   → compile/package/mmd sidecars off-thread
@@ -78,11 +77,11 @@ SubmissionController
 ### Scoring
 
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
-- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Student upload treats the testcase pillar as not applicable even when Unit/Composition rows exist, so `testcase_weight` has no student effect (column/editor stay).
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight` when the rubric has operational testcase rows
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary per testcase; there is no per-testcase weight)
-- Student upload does not run `TestcaseGrader` and does not acquire `workerJvmSlot`; lecturer dry-run still does
+- Student upload runs `TestcaseGrader` for applicable challenges and acquires `workerJvmSlot` when any challenge in the batch has OT rows; lecturer dry-run still uses the same grader with slot + session
 - Compile errors short-circuit testcase grading only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
 ### Operational testcase grading
@@ -105,7 +104,7 @@ SubmissionController
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
-- `GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Operational tests are not invoked even when rubric testcases exist. Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and still acquires `workerJvmSlot`.
+- `GradingPipeline.gradeChallenge(...)` without a worker skips operational invoke (no OT rows). Student upload passes a shared `WorkerSessionHandle` when `GradingService` opened a session for the submission root. Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`.
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`
@@ -123,7 +122,7 @@ Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.per
 
 ### Upload `lab_result` bundle
 
-Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. Student upload always sets `testcaseApplicable` false (operational tests not executed or shown). GET `/class` `/mmd` `/testcases` use the same from-rubric mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Student GET `/testcases` returns `[]` while the pillar is dark. Student GET and upload `lab_result` pass `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings; no type tags on student payloads), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` use the same mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Student GET `/testcases` returns persisted OT results when present; otherwise `[]` (pre-ship attempts). Student GET and upload `lab_result` pass `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
 
 ## Work Guidance
 
@@ -148,7 +147,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 ## Verification
 
 - Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `TestcaseRubricAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
-- Manual: upload lab folder; confirm Class/MMD in `lab_result`, `scoreApplicability.testcase` false, and empty `/testcases`
+- Manual: upload lab folder; confirm Class/MMD/OT in `lab_result` when OT rows exist; `scoreApplicability.testcase` true; hidden rows omit I/O in `/testcases`
 
 ## Child DOX Index
 

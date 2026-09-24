@@ -2,7 +2,7 @@
 
 > **Who this is for:** Lecturers setting up **operational testcases** in Solution Management.  
 > **What operational testcases are:** Checks that construct objects and call methods on compiled Java, separate from the Class tab (signatures) and the MMD tab (diagram).  
-> **This ship:** You author **Unit** and **Composition** tests and dry-run them against reference Java. Student upload still grades Class and MMD only. Students do not run operational tests and do not see an Operation Test tab.
+> **This ship:** You author **Unit** and **Composition** tests and dry-run them against reference Java. On **student upload**, applicable challenges run the same grader against student compiled code; scores include `testcase_weight`. Students see an **Operation Test** tab with example I/O and hidden pass/fail-only rows (no Unit/Composition labels). Attempts graded before this ship have no OT rows until the student uploads again.
 
 ---
 
@@ -43,7 +43,7 @@ Operational testcases are saved with **Save Testcases** at the bottom of this ta
 | Define **classes, fields, constructors, and methods** in the structure tree | Dropdowns in the testcase editor only list rubric members you already saved |
 | Click **Save Structure** after adding members | Unsaved structure shows a warning; new methods will not appear in testcase dropdowns |
 | Prepare a **reference solution** (correct `.java` files) | Dry-run compiles and runs your testcase against this code — not against student uploads |
-| Set **Operational testcase weight** on the challenge if you want it later | The field stays on the challenge editor. It has **no student score effect** while the student Operation Test tab is hidden |
+| Set **Operational testcase weight** on the challenge | Scales the OT pillar in student challenge totals when the challenge has ≥1 testcase |
 
 ---
 
@@ -62,7 +62,7 @@ Operational testcases are saved with **Save Testcases** at the bottom of this ta
 ```
 
 - **Left list:** All testcases for this challenge. Icons show dry-run pass/fail. A small **Unit** or **Composition** label marks the type.
-- **Name:** A short label for you (e.g. `deposit increases balance`). Students do not see operational tests this ship.
+- **Name:** A short label (e.g. `deposit increases balance`). Shown to students on the Operation Test tab (not the Unit/Composition type).
 - **Type:** Switch between Unit and Composition. Switching **replaces** the other flow’s graph (worksheet vs script).
 - **Run:** Dry-run **only this** testcase against the reference Java you uploaded.
 - **Run all:** Dry-run every testcase in the list (needs reference Java).
@@ -256,13 +256,13 @@ Type-only and field-map object checks (`$objectCheck: TYPE` / `FIELDS`) are not 
 
 ## 9. Example vs hidden
 
-Each testcase still has a **Hidden** checkbox. That flag is stored for a later student ship (example vs pass/fail-only). **Students do not see operational tests this ship**, so the checkbox does not change what they see today.
+Each testcase has a **Hidden** checkbox. When off, students see full Input / Expected / Your Output (example testcase). When on, students see name and pass/fail only (no I/O strings).
 
 ---
 
 ## 10. Dry-run — test against reference Java
 
-Dry-run runs your Unit or Composition test against **reference Java**, not student code. It uses the same isolated worker `scenario` op as the grader. Student upload does **not** use that path.
+Dry-run runs your Unit or Composition test against **reference Java**, not student code. It uses the same isolated worker `scenario` op as student grading. Student upload runs the same `TestcaseGrader` path against compiled student classes when the challenge has testcase rows.
 
 1. In **Reference Java (dry-run)**, add one or more `.java` files (your correct solution). Class names must match the rubric.
 2. Configure the testcase.
@@ -298,7 +298,7 @@ Dry-run results are **not saved**; they clear when you edit the testcase.
 | Wrong JSON in params | 422 or dry-run error | Valid JSON; quote strings |
 | FIELD_STATE without picking a field | Save error | Select field in assertion row |
 | Expect dry-run without reference Java | Toast error | Upload reference `.java` files |
-| Expect students to see Operation Test results | Tab stays hidden | Class and MMD still grade; OT is lecturer + dry-run only |
+| Expect students to see Operation Test results | Tab appears when OT rows exist and the attempt was graded with OT | Prior attempts before ship stay Class/MMD-only until re-upload |
 | Need polymorphic override through a parent type | Concrete lookup only | Composition method step → **Call as** parent/interface; dry-run |
 | Interface Call as — no parent body | Cannot construct the interface | Call as alone, or two implementors with different expecteds |
 | Empty override still “passes” | Only one happy expected | Add parent-default or two-implementor contrast (not enforced) |
@@ -319,11 +319,11 @@ The SQL does not change Class, MMD, or challenge-level `testcase_weight`.
 
 ---
 
-## 13. What students see this ship
+## 13. What students see
 
-Students upload `.java` (and `.mmd` if required). **Class** and **MMD** still grade. Operational tests are **not** invoked. The **Operation Test** tab stays hidden. Students never see the names Unit or Composition.
+Students upload `.java` (and `.mmd` if required). **Class**, **MMD** (when applicable), and **Operation Test** (when the challenge has authored testcases) contribute to the challenge score. The Operation Test tab lists **Example** then **Other** (hidden) rows. Students never see Unit, Composition, or Call-as labels. Hidden rows never leak input, expected, or actual strings.
 
-Hidden vs example remains stored for a later ship.
+Attempts graded before operational tests shipped on upload have no persisted testcase rows — those attempts keep the old tabs/scores until the student uploads again.
 
 ---
 
@@ -363,4 +363,4 @@ Hidden vs example remains stored for a later ship.
 
 ---
 
-*Last updated for Unit and Composition authoring (lecturer dry-run; student operational-test pillar dark).*
+*Last updated for Unit and Composition authoring and student operational-test grading/disclosure.*

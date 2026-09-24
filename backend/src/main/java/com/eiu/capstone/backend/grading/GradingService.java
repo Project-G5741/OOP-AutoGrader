@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.grading;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,14 +11,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ChallengePipelineResult;
@@ -51,6 +55,7 @@ import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.utility.CompletableFutures;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -72,6 +77,9 @@ public class GradingService {
     private final TestcaseAssertionRepository testcaseAssertionRepository;
     private final LabResultAssembler labResultAssembler;
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
+    private final Semaphore workerJvmSlot;
+    private final WorkerSessionFactory workerSessionFactory;
+    private final int invokeTimeoutSeconds;
     private final boolean timingLog;
 
     public GradingService(ChallengeRepository challengeRepository,
@@ -86,6 +94,9 @@ public class GradingService {
                           TestcaseAssertionRepository testcaseAssertionRepository,
                           LabResultAssembler labResultAssembler,
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
+                          @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
+                          WorkerSessionFactory workerSessionFactory,
+                          @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds,
                           @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
@@ -99,6 +110,9 @@ public class GradingService {
         this.testcaseAssertionRepository = testcaseAssertionRepository;
         this.labResultAssembler = labResultAssembler;
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
+        this.workerJvmSlot = workerJvmSlot;
+        this.workerSessionFactory = workerSessionFactory;
+        this.invokeTimeoutSeconds = invokeTimeoutSeconds;
         this.timingLog = timingLog;
     }
 
@@ -114,13 +128,28 @@ public class GradingService {
         long loadMs = System.currentTimeMillis() - loadStart;
 
         long computeStart = System.currentTimeMillis();
-        // Student upload does not invoke operational tests, so it must not acquire
-        // workerJvmSlot or open a worker JVM (KTD2). Lecturer dry-run still does.
         long slotWaitMs = 0;
         long workerSpawnMs = 0;
         int workerRespawnCount = 0;
-        GradingComputationResult computed = computeAgainstSnapshot(
-                rubric, challengeFolderResults, mmdByChallenge, submission, existing, null);
+        Path submissionRoot = resolveSubmissionRoot(challengeFolderResults);
+        boolean needsWorkerSession = submissionRoot != null && anyChallengeNeedsOperationalTests(rubric, challengeFolderResults);
+        GradingComputationResult computed;
+        if (!needsWorkerSession) {
+            computed = computeAgainstSnapshot(
+                    rubric, challengeFolderResults, mmdByChallenge, submission, existing, null);
+        } else {
+            long slotAcquireStart = System.currentTimeMillis();
+            acquireWorkerSlot();
+            slotWaitMs = System.currentTimeMillis() - slotAcquireStart;
+            long spawnStart = System.currentTimeMillis();
+            try (WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds)) {
+                workerSpawnMs = System.currentTimeMillis() - spawnStart;
+                computed = computeAgainstSnapshot(
+                        rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+            } finally {
+                workerJvmSlot.release();
+            }
+        }
         long computeMs = System.currentTimeMillis() - computeStart;
 
         long assembleStart = System.currentTimeMillis();
@@ -486,6 +515,43 @@ public class GradingService {
         result.setCorrect(correct);
         result.setScore(score);
         return result;
+    }
+
+    private static Path resolveSubmissionRoot(List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+        if (challengeFolderResults == null || challengeFolderResults.isEmpty()) {
+            return null;
+        }
+        Path folder = challengeFolderResults.get(0).folder;
+        return folder != null ? folder.getParent() : null;
+    }
+
+    private boolean anyChallengeNeedsOperationalTests(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+        if (challengeFolderResults == null) {
+            return false;
+        }
+        for (SubmissionStorageService.ChallengeResult folderResult : challengeFolderResults) {
+            Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(folderResult.challengeName);
+            if (!matcher.matches()) {
+                continue;
+            }
+            int challengeNumber = Integer.parseInt(matcher.group(1));
+            ChallengeRubric challengeRubric = rubric.challenge(challengeNumber).orElse(null);
+            if (challengeRubric != null && !challengeRubric.testcases().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void acquireWorkerSlot() {
+        try {
+            workerJvmSlot.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Interrupted waiting for worker slot");
+        }
     }
 
     static class ExistingResults {

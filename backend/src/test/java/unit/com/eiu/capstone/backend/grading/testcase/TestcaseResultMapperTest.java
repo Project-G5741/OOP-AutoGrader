@@ -70,11 +70,11 @@ class TestcaseResultMapperTest {
         assertEquals("account.deposit(50)", dto.getInput());
         assertEquals("150", dto.getExpectedOutput());
         assertEquals("150", dto.getActualOutput());
-        assertEquals(OopPrincipleTag.Unit, dto.getOopPrincipleTag());
+        assertNull(dto.getOopPrincipleTag());
     }
 
     @Test
-    void ae6WrongTagStillEmittedOnExampleDto() throws Exception {
+    void ae6WrongTagOmittedOnExampleDto() throws Exception {
         TestcaseRubric rubric = visibleRubric(UUID.randomUUID(), "Mis-tagged", false, OopPrincipleTag.Polymorphism);
         SubmissionTestcaseResult submissionResult = resultFor(rubric.id(), TestcaseResultStatus.FAILED);
         submissionResult.setInputDisplay("new Person()");
@@ -85,10 +85,10 @@ class TestcaseResultMapperTest {
                 List.of(rubric),
                 Map.of(rubric.id(), submissionResult)).get(0);
 
-        assertEquals(OopPrincipleTag.Polymorphism, dto.getOopPrincipleTag());
+        assertNull(dto.getOopPrincipleTag());
         assertEquals("new Person()", dto.getInput());
         String json = new ObjectMapper().writeValueAsString(dto);
-        assertTrue(json.contains("\"oop_principle_tag\":\"Polymorphism\""), json);
+        assertFalse(json.contains("oop_principle_tag"), json);
     }
 
     @Test
@@ -108,7 +108,7 @@ class TestcaseResultMapperTest {
     }
 
     @Test
-    void ae8LegacyOneStepShowsUnitTag() {
+    void ae8LegacyOneStepOmitsStudentTag() {
         TestcaseRubric rubric = visibleRubric(UUID.randomUUID(), "Legacy", false);
         SubmissionTestcaseResult submissionResult = resultFor(rubric.id(), TestcaseResultStatus.PASSED);
 
@@ -116,7 +116,7 @@ class TestcaseResultMapperTest {
                 List.of(rubric),
                 Map.of(rubric.id(), submissionResult)).get(0);
 
-        assertEquals(OopPrincipleTag.Unit, dto.getOopPrincipleTag());
+        assertNull(dto.getOopPrincipleTag());
         assertEquals("PASS", dto.getResult());
     }
 

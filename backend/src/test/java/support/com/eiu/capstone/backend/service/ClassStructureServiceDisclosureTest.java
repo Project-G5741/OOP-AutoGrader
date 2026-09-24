@@ -166,12 +166,4 @@ class ClassStructureServiceDisclosureTest {
         assertEquals(StudentDisplayMessages.PLACEHOLDER, relationDto.relType());
         assertEquals(StudentDisplayMessages.REQUIRED_RELATIONSHIP, relationDto.error());
     }
-
-    @Test
-    void getTestcaseData_returnsEmptyWhileStudentOperationalTestsAreDark() {
-        assertTrue(service.getTestcaseData(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()).isEmpty());
-        assertTrue(service.buildTestcaseDataForSubmission(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()).isEmpty());
-    }
 }

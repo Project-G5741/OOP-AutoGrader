@@ -258,7 +258,7 @@ Each challenge has three weight sliders:
 |---|---|
 | MMD Weight | Score contribution from the UML/MMD diagram check |
 | Class Weight | Score contribution from declared class structure |
-| Testcase Weight | Stored on the challenge editor. No student score effect while the Operation Test tab is hidden |
+| Testcase Weight | Score contribution from operational testcases when the challenge has authored OT rows |
 
 Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail Panel**.
 
@@ -267,7 +267,7 @@ Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail 
 1. Select a challenge in the structure tree.
 2. In the **Challenge Detail Panel**, switch to the **Operational Testcases** tab.
 3. Click **Add Unit** or **Add Composition**.
-4. Mark **Hidden** if you want the flag stored for a later student ship (students do not see operational tests today).
+4. Mark **Hidden** on a testcase to hide input/expected/actual from students (they still see pass/fail). Example testcases (`Hidden` off) show full I/O on the student Operation Test tab.
 5. Click **Save Testcases** (in that tab) to persist testcase changes. Click **Save Structure** separately when you change classes, fields, or methods.
 
 For a full walkthrough (Unit worksheet, Composition script, **Call as** for override checks, assertions, object checks, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
@@ -384,7 +384,7 @@ Once a lab is selected, three stats appear above the upload zone:
 
 ### 3.2 Reading Your Results
 
-After a successful upload, result tabs appear below the stats row. **Declaration Test** is always shown. **MMD** appears when the challenge has a diagram. The **Operation Test** tab is hidden this ship — operational tests are not run or shown.
+After a successful upload, result tabs appear below the stats row. **Declaration Test** is always shown. **MMD** appears when the challenge has a diagram. **Operation Test** appears when the challenge has authored operational testcases and your attempt was graded with OT (including after upload in the same session).
 
 #### MMD Tab
 
@@ -408,7 +408,7 @@ Tests whether your Java class declarations (class names, fields, constructors, m
 
 #### Operation Test Tab (Testcases)
 
-This tab is **hidden** on student upload this ship. Class and MMD still grade. Operational tests are not executed and are not shown (including Unit/Composition labels). Lecturers still author and dry-run tests in Solution Management.
+When the challenge has operational testcases, this tab lists **Example Testcases** (full input, expected, and your output) and **Other Testcases** (hidden rows: name and pass/fail only). Unit, Composition, and Call-as type labels are never shown to students. Attempts graded before OT shipped have no persisted testcase rows — the tab stays hidden until you upload again.
 
 #### Challenge Sidebar Scores
 

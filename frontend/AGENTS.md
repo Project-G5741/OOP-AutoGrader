@@ -111,4 +111,4 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `src/pages/AGENTS.md` | Screen orchestration, navigation model, page-to-API mapping |
 | `src/components/ui/AGENTS.md` | Shared UI primitives and upload contract |
 | `src/components/lecturer/AGENTS.md` | Lecturer grading dashboard widgets |
-| `src/components/student/AGENTS.md` | Student history, profile, upload inputs, dark Operation Test tab |
+| `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Operation Test tab when OT applies |

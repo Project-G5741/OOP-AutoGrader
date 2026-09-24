@@ -27,15 +27,15 @@ This document describes every step of the OOP AutoGrader grading pipeline: how s
 
 ## 1. High-Level Architecture
 
-Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true. This ship treats the **testcase pillar as not applicable on student upload** even when Unit or Composition rows exist. Lecturer dry-run still runs `TestcaseGrader`. Challenge `testcase_weight` stays on the editor and has no student effect while the pillar is dark.
+Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true; operational testcases apply when the challenge has at least one authored Unit/Composition row. Student upload runs `TestcaseGrader` for applicable challenges (one worker session per upload when any challenge needs OT). Challenge `testcase_weight` scales the testcase pillar in student totals when applicable.
 
 | Pillar | Input | Grader class | What is compared |
 |--------|-------|--------------|------------------|
 | **Class (Java)** | Compiled `.class` files | `ClassReflectionGrader` | Rubric classes, fields, methods, constructors via reflection |
 | **MMD** | Uploaded `.mmd` bytes | `MmdPillarGrader` → `MmdParser` + `MmdComparisonService` | Same rubric elements plus UML relations |
-| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` → `InvocationRunner` (dry-run only this ship) | Runtime invoke + assertions (return, stdout, field state, exception, object check) |
+| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` → `InvocationRunner` | Runtime invoke + assertions (return, stdout, field state, exception, object check) |
 
-**Challenge score** (student upload) = weighted mean of applicable pillars (`class_weight` / `mmd_weight`). `testcase_weight` is omitted while the pillar is dark.
+**Challenge score** (student upload) = weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight` when OT rows exist).
 
 **Lab score** = weighted mean across all rubric challenges using `challenge.weight` (missing challenges count as 0%).
 
@@ -597,9 +597,9 @@ For each testcase:
 
 ### 9.3 Isolated testcase worker
 
-Each dry-run invoke:
+Each dry-run or student-upload OT batch:
 
-1. Acquires the host `workerJvmSlot` (one process). Student upload does not acquire the slot.
+1. Acquires the host `workerJvmSlot` (one process). Student upload acquires the slot when any challenge in the upload batch has operational testcases; dry-run always acquires.
 2. Sends one NDJSON `scenario` request; the worker loads target classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The API waits up to `app.grading.testcase-invoke-timeout-seconds` (default **5s**), then tree-kills and respawns without releasing the host slot.
 
@@ -630,7 +630,7 @@ pillarPercentage = (Σ weightᵢ × accuracyᵢ) / (Σ weightᵢ) × 100
 challengePercentage = Σ (pillarWeight × pillarPct) / Σ pillarWeight
 ```
 
-Only **applicable** pillars are included: class always; MMD when `has_mmd`. Student upload always omits the testcase pillar, even when Unit/Composition rows exist. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1; `testcase_weight` has no student effect while the pillar is dark.
+Only **applicable** pillars are included: class always; MMD when `has_mmd`; operational testcases when the challenge has ≥1 authored testcase row. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1.
 
 ### 10.3 Lab percentage
 

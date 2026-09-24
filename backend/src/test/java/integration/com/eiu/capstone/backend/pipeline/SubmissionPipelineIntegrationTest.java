@@ -151,11 +151,11 @@ class SubmissionPipelineIntegrationTest {
     }
 
     @Test
-    void uploadWithUnitAndCompositionRowsDoesNotInvokeOperationalTests() throws IOException {
+    void uploadWithUnitAndCompositionRowsInvokesOperationalTests() throws IOException {
         try (UploadHarness harness = newHarness(tempDir)) {
             SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
                     "irn1",
-                    "req-ot-dark",
+                    "req-ot-lit",
                     List.of(classpathFile("integration/happy/" + UPLOAD_ANIMAL, UPLOAD_ANIMAL)));
             SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
             UUID classId = UUID.randomUUID();
@@ -194,15 +194,45 @@ class SubmissionPipelineIntegrationTest {
                     1,
                     1,
                     4);
-            GradingPipeline.ChallengePipelineResult graded = pipelineThatFailsIfTestcasesRun()
-                    .gradeChallenge(new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
-                            folder, List.of());
+            java.util.concurrent.atomic.AtomicInteger invokeCount = new java.util.concurrent.atomic.AtomicInteger();
+            TestcaseGrader grader = new TestcaseGrader(null, null, null, null) {
+                @Override
+                public TestcasePillarResult grade(com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext context) {
+                    invokeCount.incrementAndGet();
+                    return TestcasePillarResult.empty();
+                }
+            };
+            GradingPipeline pipeline = new GradingPipeline(
+                    new ReflectionClassParser(),
+                    new ClassReflectionGrader(),
+                    new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
+                    grader,
+                    pillarExecutor,
+                    false);
+            GradingPipeline.ChallengePipelineResult graded = pipeline.gradeChallenge(
+                    new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                    folder,
+                    List.of(),
+                    com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle.failedRemote("test", 0));
             assertNotNull(graded);
-            assertNotNull(graded.classResult());
+            assertTrue(graded.testcaseApplicable());
+            assertEquals(1, invokeCount.get());
+        }
+    }
+
+    @Test
+    void uploadWithNoOperationalTestRowsSkipsTestcaseGrader() throws IOException {
+        try (UploadHarness harness = newHarness(tempDir)) {
+            SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
+                    "irn1",
+                    "req-ot-empty",
+                    List.of(classpathFile("integration/happy/" + UPLOAD_ANIMAL, UPLOAD_ANIMAL)));
+            SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
+            GradingPipeline.ChallengePipelineResult graded = pipelineThatFailsIfTestcasesRun()
+                    .gradeChallenge(snapshot(false), folder, List.of());
+            assertNotNull(graded);
             assertFalse(graded.testcaseApplicable());
             assertTrue(graded.testcaseResult().results().isEmpty());
-            assertEquals(0, graded.testcaseResult().pillarPercentage().compareTo(java.math.BigDecimal.ZERO));
-            assertEquals(0, graded.percentage().compareTo(graded.classResult().pillarPercentage()));
         }
     }
 

@@ -259,8 +259,8 @@ For each challenge folder, **in parallel** on `gradingExecutor`:
 
 1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
 2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
-3. **Testcase pillar:** skipped on student upload even when Unit/Composition rows exist. Lecturer dry-run still uses `TestcaseGrader` and one isolated worker JVM (5s timeout; host slot of 1). Challenge `testcase_weight` has no student effect while the pillar is dark.
-4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight`; `testcase_weight` omitted on upload); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
+3. **Testcase pillar:** runs on student upload when the challenge has authored operational testcases (shared worker session + `workerJvmSlot` when any challenge in the upload batch needs OT). Skipped when the rubric has zero testcase rows. Lecturer dry-run uses the same `TestcaseGrader` path. Per-invocation timeout 5s; host slot of 1.
+4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight` when OT applies); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
 5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 
 After grading, plagiarism signals are snapshotted and inspect runs on `persistExecutor`; the temp folder is deleted in `finally`. Durable state is PostgreSQL plus JSON sidecars under `SUBMISSION_BASE_DIR` (`_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot`). Lecturer flags typically appear within ~1–3s.

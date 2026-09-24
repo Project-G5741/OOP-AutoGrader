@@ -17,7 +17,6 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseR
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
-import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.SubmissionTestcaseAssertionResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
@@ -81,7 +80,7 @@ public class TestcaseResultMapper {
                 expectedOutput,
                 actualOutput,
                 assertions.isEmpty() ? null : assertions,
-                visibleTag(testcase));
+                null);
     }
 
     public TestcaseResultDTO mapDryRunResult(TestcaseRubric rubric, PendingTestcaseResult pending) {
@@ -105,10 +104,6 @@ public class TestcaseResultMapper {
                 pending.actualDisplay(),
                 assertions.isEmpty() ? null : assertions,
                 null);
-    }
-
-    private static OopPrincipleTag visibleTag(TestcaseRubric testcase) {
-        return testcase.oopPrincipleTag() != null ? testcase.oopPrincipleTag() : OopPrincipleTag.Unit;
     }
 
     private List<TestcaseAssertionResultDTO> mapAssertions(TestcaseRubric testcase,

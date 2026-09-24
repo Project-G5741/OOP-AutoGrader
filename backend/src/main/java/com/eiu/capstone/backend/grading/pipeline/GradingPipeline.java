@@ -47,11 +47,7 @@ public class GradingPipeline {
         this.timingLog = timingLog;
     }
 
-    /**
-     * Student-upload entry. Class and MMD still grade; operational tests are not invoked
-     * even when the rubric has Unit/Composition rows (KTD2 / R13). Lecturer dry-run uses
-     * {@code TestcaseGrader} directly and still acquires {@code workerJvmSlot}.
-     */
+    /** Grades one challenge without a shared worker session (null handle). */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
@@ -78,9 +74,7 @@ public class GradingPipeline {
         String challengeKey = folderResult.challengeName;
 
         boolean mmdApplicable = challengeRubric.hasMmd();
-        // Student upload keeps the testcase pillar dark even when rubric rows exist.
-        // challenge.testcase_weight stays on the lecturer editor (KTD9) but is unused here.
-        boolean testcaseApplicable = false;
+        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
 
         Path classesDir = folderResult.folder.resolve("classes");
         long parseStart = System.currentTimeMillis();
