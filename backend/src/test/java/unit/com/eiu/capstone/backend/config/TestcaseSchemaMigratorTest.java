@@ -234,15 +234,13 @@ class TestcaseSchemaMigratorTest {
     }
 
     private static String assertionKindCreateBlock(String sql) {
-        int returnValue = sql.indexOf("'RETURN_VALUE'");
-        if (returnValue < 0) {
-            return "";
-        }
-        int create = sql.toUpperCase(Locale.ROOT).lastIndexOf("CREATE TYPE", returnValue);
+        // Prefer CREATE TYPE assertion_kind over the earlier DEFAULT 'RETURN_VALUE' staging literal.
+        String upper = sql.toUpperCase(Locale.ROOT);
+        int create = upper.indexOf("CREATE TYPE ASSERTION_KIND");
         if (create < 0) {
             return "";
         }
-        int end = sql.indexOf(";", returnValue);
+        int end = sql.indexOf(";", create);
         return end < 0 ? sql.substring(create) : sql.substring(create, end);
     }
 
