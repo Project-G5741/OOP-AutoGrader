@@ -6,6 +6,7 @@ import WeightInput from './WeightInput';
 export default function ChallengeDetailPanel({
   challenge,
   relationTypeOptions,
+  declaringTypeOptions = [],
   onMmdChange,
   activeTab,
   onTabChange,
@@ -86,6 +87,8 @@ export default function ChallengeDetailPanel({
         <TestcasesPanel
           labId={labId}
           challenge={challenge}
+          relationTypeOptions={relationTypeOptions}
+          declaringTypeOptions={declaringTypeOptions}
           structureDirty={structureDirty}
           onToast={onToast}
         />

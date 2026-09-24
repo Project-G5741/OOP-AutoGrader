@@ -593,7 +593,7 @@ For each testcase:
 2. Mixed javac: `ERROR` only when an invoked type is in `failedClassNames`; independent targets still invoke.
 3. Worker `scenario` op: Unit is one step (hidden no-arg receiver for instance methods); Composition runs ordered named instances.
 4. Every assertion is evaluated; the testcase **passes only when all assertions pass**.
-5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION) fills collapsed I/O card display strings. Object checks: `{ "$objectCheck": "TYPE" }`, `{ "$objectCheck": "FIELDS", "fields": { ... } }`, Composition `{ "$objectCheck": "EQUALS", "$instance": "name" }`.
+5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION) fills collapsed I/O card display strings. Constructors use FIELD_STATE only (no RETURN_VALUE). Composition object-return equals: `{ "$objectCheck": "EQUALS", "$instance": "name" }`.
 
 ### 9.3 Isolated testcase worker
 

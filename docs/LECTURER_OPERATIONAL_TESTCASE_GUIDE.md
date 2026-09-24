@@ -92,7 +92,7 @@ A Unit test is **exactly one** constructor or method, then at least one assertio
 
 1. **Member:** pick the `BankAccount` constructor.
 2. **Arguments:** `100`.
-3. **Assertion:** FIELD_STATE on `balance`, expected `100`. Or a type-only / field-map object check on the constructed instance.
+3. **Assertion:** FIELD_STATE on `balance`, expected `100`. Or a field-map object check on the constructed instance.
 
 The constructed instance is **not named**.
 
@@ -101,11 +101,11 @@ The constructed instance is **not named**.
 **Goal:** Call `withdraw(30)` on a `BankAccount` and check `balance`.
 
 1. **Member:** pick `withdraw`.
-2. Dry-run builds a **hidden no-arg receiver**. That construct is not a step and is not named.
+2. Dry-run builds a **hidden receiver** (no-arg when the class has one, otherwise default constructor arguments). That construct is not a step and is not named.
 3. **Arguments:** scalars only (e.g. `30`). You cannot pass another rubric-class object.
 4. **Assertions:** return value, stdout, field state on the hidden receiver, and/or exception.
 
-If the class has **no no-arg constructor**, that instance method is disabled in the member list. Use Composition instead (construct the receiver yourself).
+Instance methods on classes that only have parameterized constructors still appear in Unit; the runner fills constructor parameters with JVM-style defaults (numeric zero, `false`, `null` for reference types including `String`). Use Composition when you need a specific receiver setup.
 
 ### 5.3 Static method
 
@@ -176,13 +176,15 @@ A value-returning method may assert return value, stdout, field state, and throw
 | **STDOUT** | Text printed to standard output | `"Account opened\n"` (string JSON) |
 | **EXCEPTION** | That the call threw a specific exception type (not the message) | `"IllegalArgumentException"` |
 
-### Comparison modes (for text-like expected values)
+### Comparison modes
 
-| Mode | Behaviour |
-|------|-----------|
-| **EXACT** | Character-for-character match |
-| **TRIMMED** | Ignores leading/trailing whitespace |
-| **NORMALIZED_WHITESPACE** | Collapses internal whitespace differences |
+| Mode | Use on | Behaviour |
+|------|--------|-----------|
+| **EXACT** | Text (stdout, strings) | Character-for-character match |
+| **TRIMMED** | Text | Ignores leading/trailing whitespace |
+| **NORMALIZED_WHITESPACE** | Text | Collapses internal whitespace differences |
+| **EXACT** | Numeric return / field | Same numeric **family**: integral (`int`, `long`, …) vs floating (`float`, `double`). `10` does **not** match `10.0`. |
+| **VALUE_ONLY** | Numeric return / field | Compares after widening to `double` (`10` matches `10.0`). |
 
 ### Tips
 
@@ -200,17 +202,19 @@ A value-returning method may assert return value, stdout, field state, and throw
 
 ---
 
-## 8. Object checks
+## 8. Object checks and constructors
 
-For a non-primitive return value or constructor result, pick **one**:
+**Constructors** do not use **RETURN_VALUE**. After a constructor step, add **FIELD_STATE** assertions (one per rubric field you care about). **EXCEPTION** is also allowed.
+
+For a **method** that returns a non-primitive rubric class on **Composition**, you may use **RETURN_VALUE** with an **equals()** check:
 
 | Check | JSON in `expectedValue` | When |
 |-------|-------------------------|------|
-| Type only | `{ "$objectCheck": "TYPE" }` | Right class, not null |
-| Field map | `{ "$objectCheck": "FIELDS", "fields": { "balance": 100 } }` | One-level literals (same allowlist as arguments) |
-| equals() | `{ "$objectCheck": "EQUALS", "$instance": "other" }` | **Composition only** — equals against another live named object |
+| equals() | `{ "$objectCheck": "EQUALS", "$instance": "other" }` | **Composition only** — return value equals another live named object |
 
-Unit object checks are type-only or field map. There is no equals() on Unit (no second live instance).
+**Unit** methods that return objects: use **RETURN_VALUE** (e.g. `null`) and/or **FIELD_STATE** on fields of the **return type** (not the hidden receiver). No equals() on Unit. Primitive returns use scalar **RETURN_VALUE** as usual. **FIELD_STATE** on void instance methods checks the receiver’s fields only.
+
+Type-only and field-map object checks (`$objectCheck: TYPE` / `FIELDS`) are not supported; use **FIELD_STATE** instead.
 
 ---
 
@@ -252,7 +256,7 @@ Dry-run results are **not saved**; they clear when you edit the testcase.
 | Mistake | What happens | Fix |
 |---------|----------------|-----|
 | Forgot **Save Structure** before testcase | Dropdowns missing new methods | Save structure, reload testcases tab |
-| Unit instance method on a class with no no-arg constructor | Member disabled / save 422 | Use Composition and construct the receiver |
+| Unit instance method needs a specific receiver state | Hidden defaults may be wrong | Use Composition and construct the receiver explicitly |
 | `$instance` before the name exists | Save 422 | Constructor or named static return first |
 | Unit `$instance`, named objects, or equals() | Save 422 | Use Composition |
 | Wrong JSON in params | 422 or dry-run error | Valid JSON; quote strings |
@@ -307,13 +311,11 @@ Hidden vs example remains stored for a later ship.
 
 | I want to check… | How |
 |------------------|-----|
-| Return value | RETURN_VALUE |
-| Field after call | FIELD_STATE + pick field |
-| println output | STDOUT |
+| Return value (method, primitive) | RETURN_VALUE |
+| Field after constructor or call | FIELD_STATE + pick field |
+| println output | STDOUT (methods only; not constructors) |
 | Exception thrown | EXCEPTION (type only) |
-| Right class, not null | Object check TYPE |
-| Object field map | Object check FIELDS |
-| Two live objects equal | Composition + object check EQUALS (or call `equals`) |
+| Two live objects equal (method return) | Composition + RETURN_VALUE with object check EQUALS |
 
 ### Related docs
 

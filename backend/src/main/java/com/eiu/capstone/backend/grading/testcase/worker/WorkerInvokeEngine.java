@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.grading.testcase.worker;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.eiu.capstone.backend.grading.testcase.AssertionEvaluator;
 import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.kernel.JavaTypeResolver;
 import com.eiu.capstone.backend.grading.testcase.kernel.JsonValueCoercer;
@@ -110,7 +112,7 @@ public final class WorkerInvokeEngine {
                     Object instance = constructor.newInstance(args);
                     ObjectFacts facts = describeObject(loader, instance, registry);
                     register(registry, spec.instanceName(), instance);
-                    return normal(instance, instance, stdout, snapshotFieldNames, facts);
+                    return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
                 }
                 Method method = resolveMethod(loader, spec, clazz, parameterTypes);
                 if (!Modifier.isStatic(method.getModifiers())) {
@@ -119,11 +121,11 @@ public final class WorkerInvokeEngine {
                 Object returnValue = method.invoke(receiver, args);
                 ObjectFacts facts = describeObject(loader, returnValue, registry);
                 maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
-                return normal(receiver, returnValue, stdout, snapshotFieldNames, facts);
+                return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
             }
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return threw(receiver, cause, stdout, snapshotFieldNames);
+            return threw(receiver, cause, stdout, snapshotFieldNames, registry);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
@@ -157,7 +159,7 @@ public final class WorkerInvokeEngine {
         if (hasReceiver(spec)) {
             return instantiateReceiver(loader, spec, namedInstances);
         }
-        return instantiateDefault(clazz);
+        return instantiateHiddenReceiver(loader, clazz);
     }
 
     private Method resolveMethod(URLClassLoader loader,
@@ -176,14 +178,15 @@ public final class WorkerInvokeEngine {
                                                Object returnValue,
                                                BoundedStdout stdout,
                                                List<String> snapshotFieldNames,
-                                               ObjectFacts facts) {
-        Object snapshotTarget = instance != null ? instance : returnValue;
+                                               ObjectFacts facts,
+                                               Map<String, Object> registry) {
+        Object snapshotTarget = fieldSnapshotTarget(instance, returnValue, facts);
         return new SerializedInvocationOutcome(
                 SerializedInvocationOutcome.KIND_NORMAL,
                 coercer.toJson(returnValue),
                 stdout.text(),
                 stdout.truncated(),
-                snapshotFields(snapshotTarget, snapshotFieldNames),
+                snapshotFields(snapshotTarget, snapshotFieldNames, registry),
                 null,
                 List.of(),
                 null,
@@ -197,7 +200,8 @@ public final class WorkerInvokeEngine {
     private SerializedInvocationOutcome threw(Object instance,
                                               Throwable cause,
                                               BoundedStdout stdout,
-                                              List<String> snapshotFieldNames) {
+                                              List<String> snapshotFieldNames,
+                                              Map<String, Object> registry) {
         List<String> supers = new ArrayList<>();
         for (Class<?> type = cause.getClass().getSuperclass(); type != null; type = type.getSuperclass()) {
             supers.add(type.getSimpleName());
@@ -208,14 +212,27 @@ public final class WorkerInvokeEngine {
                 null,
                 stdout.text(),
                 stdout.truncated(),
-                snapshotFields(snapshotTarget, snapshotFieldNames),
+                snapshotFields(snapshotTarget, snapshotFieldNames, registry),
                 cause.getClass().getSimpleName(),
                 List.copyOf(supers),
                 null,
                 null);
     }
 
-    private Map<String, String> snapshotFields(Object target, List<String> fieldNames) {
+    /**
+     * FIELD_STATE reads from the constructed instance, the method return (when it is a rubric object),
+     * or the receiver for void / primitive returns.
+     */
+    private static Object fieldSnapshotTarget(Object receiver, Object returnValue, ObjectFacts returnFacts) {
+        if (returnValue != null && returnFacts != null && returnFacts.typeName() != null) {
+            return returnValue;
+        }
+        return receiver != null ? receiver : returnValue;
+    }
+
+    private Map<String, String> snapshotFields(Object target,
+                                               List<String> fieldNames,
+                                               Map<String, Object> registry) {
         Map<String, String> snapshots = new LinkedHashMap<>();
         if (target == null || fieldNames == null) {
             return snapshots;
@@ -225,12 +242,26 @@ public final class WorkerInvokeEngine {
                 continue;
             }
             try {
-                snapshots.put(fieldName, coercer.toJson(readField(target, fieldName)));
+                snapshots.put(fieldName, encodeFieldSnapshot(readField(target, fieldName), registry));
             } catch (ReflectiveOperationException e) {
                 snapshots.put(fieldName, "null");
             }
         }
         return snapshots;
+    }
+
+    private String encodeFieldSnapshot(Object value, Map<String, Object> registry) {
+        if (value == null) {
+            return "null";
+        }
+        if (registry != null) {
+            for (Map.Entry<String, Object> entry : registry.entrySet()) {
+                if (entry.getValue() == value) {
+                    return coercer.toJson(Map.of("$sameInstance", entry.getKey()));
+                }
+            }
+        }
+        return coercer.toJson(value);
     }
 
     private Object readField(Object target, String fieldName) throws ReflectiveOperationException {
@@ -264,20 +295,122 @@ public final class WorkerInvokeEngine {
                                             String paramsJson,
                                             Function<String, Object> namedInstances) throws Exception {
         Class<?> clazz = findClass(loader, className);
+        if (parameterTypes == null || parameterTypes.isEmpty()) {
+            return instantiateHiddenReceiver(loader, clazz);
+        }
         Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
         Object[] args = coercer.coerceParams(paramsJson, parameterTypes, namedInstances);
         return constructor.newInstance(args);
     }
 
-    private Object instantiateDefault(Class<?> clazz) throws ReflectiveOperationException {
+    /**
+     * Unit OT hidden receiver: use a no-arg constructor when bytecode provides one; otherwise
+     * the shortest constructor whose parameters can be filled with JVM-style literal defaults
+     * (0, false, '\0', null reference types, empty arrays).
+     */
+    private Object instantiateHiddenReceiver(URLClassLoader loader, Class<?> clazz) throws ReflectiveOperationException {
         try {
             Constructor<?> noArg = clazz.getDeclaredConstructor();
             noArg.setAccessible(true);
             return noArg.newInstance();
-        } catch (NoSuchMethodException e) {
-            throw new NoSuchMethodException(
-                    "Instance method requires a no-argument constructor on " + clazz.getSimpleName());
+        } catch (NoSuchMethodException ignored) {
+            // fall through to default-arg constructor
         }
+        Constructor<?> chosen = chooseDefaultConstructor(clazz, loader);
+        if (chosen == null) {
+            throw new NoSuchMethodException(
+                    "Instance method requires a constructible hidden receiver on " + clazz.getSimpleName());
+        }
+        chosen.setAccessible(true);
+        Class<?>[] paramTypes = chosen.getParameterTypes();
+        Object[] args = new Object[paramTypes.length];
+        for (int i = 0; i < paramTypes.length; i++) {
+            args[i] = defaultLiteralArgument(paramTypes[i], loader);
+        }
+        try {
+            return chosen.newInstance(args);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof ReflectiveOperationException) {
+                throw (ReflectiveOperationException) cause;
+            }
+            throw e;
+        }
+    }
+
+    private static Constructor<?> chooseDefaultConstructor(Class<?> clazz, URLClassLoader loader) {
+        Constructor<?> best = null;
+        int bestArity = Integer.MAX_VALUE;
+        for (Constructor<?> candidate : clazz.getDeclaredConstructors()) {
+            Class<?>[] paramTypes = candidate.getParameterTypes();
+            if (!acceptsLiteralDefaultArgs(paramTypes, loader)) {
+                continue;
+            }
+            if (paramTypes.length < bestArity) {
+                best = candidate;
+                bestArity = paramTypes.length;
+            }
+        }
+        return best;
+    }
+
+    private static boolean acceptsLiteralDefaultArgs(Class<?>[] paramTypes, URLClassLoader loader) {
+        for (Class<?> type : paramTypes) {
+            if (!acceptsLiteralDefaultArg(type, loader)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean acceptsLiteralDefaultArg(Class<?> type, URLClassLoader loader) {
+        if (type.isPrimitive()) {
+            return true;
+        }
+        if (type == String.class) {
+            return true;
+        }
+        if (Number.class.isAssignableFrom(type) || type == Boolean.class || type == Character.class) {
+            return true;
+        }
+        if (type.isArray()) {
+            return acceptsLiteralDefaultArg(type.getComponentType(), loader);
+        }
+        if (loader != null && type.getClassLoader() == loader) {
+            return false;
+        }
+        return false;
+    }
+
+    private static Object defaultLiteralArgument(Class<?> type, URLClassLoader loader) {
+        if (type.isPrimitive()) {
+            if (type == boolean.class) {
+                return false;
+            }
+            if (type == char.class) {
+                return '\0';
+            }
+            if (type == float.class) {
+                return 0f;
+            }
+            if (type == double.class) {
+                return 0d;
+            }
+            if (type == long.class) {
+                return 0L;
+            }
+            return 0;
+        }
+        if (type == String.class) {
+            return null;
+        }
+        if (Number.class.isAssignableFrom(type) || type == Boolean.class || type == Character.class) {
+            return null;
+        }
+        if (type.isArray()) {
+            return Array.newInstance(type.getComponentType(), 0);
+        }
+        return null;
     }
 
     static URLClassLoader studentLoader(Path classesDir) throws Exception {

@@ -163,6 +163,7 @@ function CompositionStepEditor({
             assertion={assertion}
             step={step}
             catalog={catalog}
+            testcaseType="COMPOSITION"
             namedInstances={namedBefore}
             allowEquals
             allowFieldInstanceRef
@@ -178,13 +179,13 @@ function CompositionStepEditor({
           type="button"
           className="text-xs text-primary"
           onClick={() => {
-            const kinds = allowedAssertionKinds(step, catalog);
+            const kinds = allowedAssertionKinds(step, catalog, 'COMPOSITION');
             const kind = kinds[0];
             onAssertionsChange([
               ...assertions,
               {
                 ...emptyAssertion(step.id, kind),
-                expectedValue: defaultExpectedValue(kind, kind === 'RETURN_VALUE' && (step.invocationKind === 'CONSTRUCTOR' || objectReturn)),
+                expectedValue: defaultExpectedValue(kind, kind === 'RETURN_VALUE' && objectReturn),
                 orderIndex: assertions.length,
               },
             ]);

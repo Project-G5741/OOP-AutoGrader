@@ -13,10 +13,18 @@ import com.eiu.capstone.backend.model.ComparisonMode;
 class ValueComparatorTest {
 
     @Test
-    void matchesNumericValuesAcrossNumberTypes() {
-        assertTrue(ValueComparator.matches(5, 5.0, ComparisonMode.EXACT));
-        assertTrue(ValueComparator.matches(Integer.valueOf(0), Long.valueOf(0L), ComparisonMode.EXACT));
-        assertFalse(ValueComparator.matches(1, 2, ComparisonMode.EXACT));
+    void matchesNumericValuesAcrossNumberTypesWhenNumericValueMode() {
+        assertTrue(ValueComparator.matches(5, 5.0, ComparisonMode.VALUE_ONLY));
+        assertTrue(ValueComparator.matches(Integer.valueOf(0), Long.valueOf(0L), ComparisonMode.VALUE_ONLY));
+        assertFalse(ValueComparator.matches(1, 2, ComparisonMode.VALUE_ONLY));
+    }
+
+    @Test
+    void exactModeDistinguishesIntegralFromFloating() {
+        assertFalse(ValueComparator.matches(10, 10.0, ComparisonMode.EXACT));
+        assertTrue(ValueComparator.matches(10, 10, ComparisonMode.EXACT));
+        assertTrue(ValueComparator.matches(10L, 10, ComparisonMode.EXACT));
+        assertTrue(ValueComparator.matches(10.0f, 10.0, ComparisonMode.EXACT));
     }
 
     @Test

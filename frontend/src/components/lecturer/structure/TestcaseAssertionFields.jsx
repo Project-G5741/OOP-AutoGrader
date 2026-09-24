@@ -2,17 +2,22 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import {
   allowedAssertionKinds,
-  COMPARISON_MODES,
+  comparisonModeLabel,
+  comparisonModesForAssertion,
+  normalizeComparisonMode,
   defaultExpectedValue,
+  defaultFieldStateExpected,
   displayScalar,
   FIELD_CLASS_COMPACT,
-  fieldsForClass,
-  isObjectReturnStep,
+  fieldsForStepAssertion,
   isRubricClassType,
+  parseFieldStateExpected,
   parseScalarInput,
   readInstanceExpected,
+  writeFieldStateScalar,
+  isNumericAssertion,
+  isObjectReturnStep,
   readObjectCheck,
-  resultClassName,
   writeObjectCheck,
 } from './testcaseAuthoring';
 
@@ -34,109 +39,24 @@ function ExceptionField({ value, onChange }) {
   );
 }
 
-function ObjectCheckFields({
-  assertion,
-  step,
-  catalog,
-  namedInstances,
-  allowEquals,
-  onChange,
-}) {
-  const current = readObjectCheck(assertion.expectedValue) || { kind: 'TYPE', fields: {}, instance: '' };
-  const className = resultClassName(step, catalog);
-  const fieldOptions = fieldsForClass(catalog, className);
-  const fieldEntries = Object.entries(current.fields || {});
-
-  const patchCheck = (next) => {
-    onChange({
-      ...assertion,
-      expectedValue: writeObjectCheck(next.kind, next),
-    });
-  };
+function EqualsExpected({ assertion, namedInstances, onChange }) {
+  const current = readObjectCheck(assertion.expectedValue);
+  const instance = current?.instance || '';
 
   return (
-    <>
-      <select
-        className={FIELD_CLASS_COMPACT}
-        value={current.kind}
-        onChange={(e) => patchCheck({ ...current, kind: e.target.value })}
-      >
-        <option value="TYPE">Type only</option>
-        <option value="FIELDS">Field map</option>
-        {allowEquals && <option value="EQUALS">equals()</option>}
-      </select>
-      {current.kind === 'FIELDS' && (
-        <div className="space-y-2 sm:col-span-2">
-          {fieldEntries.map(([name, fieldValue], index) => (
-            <div key={`${name}-${index}`} className="grid gap-2 sm:grid-cols-2">
-              <select
-                className={FIELD_CLASS_COMPACT}
-                value={name}
-                onChange={(e) => {
-                  const nextFields = { ...current.fields };
-                  delete nextFields[name];
-                  nextFields[e.target.value] = fieldValue;
-                  patchCheck({ ...current, fields: nextFields });
-                }}
-              >
-                {!fieldOptions.some((field) => field.name === name) && name && (
-                  <option value={name}>{name}</option>
-                )}
-                {fieldOptions.map((field) => (
-                  <option key={field.id} value={field.name}>{field.label}</option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <input
-                  className={`${FIELD_CLASS_COMPACT} font-mono`}
-                  value={displayScalar(fieldValue)}
-                  onChange={(e) => patchCheck({
-                    ...current,
-                    fields: { ...current.fields, [name]: parseScalarInput(e.target.value) },
-                  })}
-                  placeholder="literal"
-                />
-                <button
-                  type="button"
-                  className="text-foreground-muted hover:text-error"
-                  onClick={() => {
-                    const nextFields = { ...current.fields };
-                    delete nextFields[name];
-                    patchCheck({ ...current, fields: nextFields });
-                  }}
-                  aria-label="Remove field"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="text-xs text-primary"
-            onClick={() => {
-              const nextName = fieldOptions.find((field) => !(field.name in (current.fields || {})))?.name
-                || `field${fieldEntries.length + 1}`;
-              patchCheck({ ...current, fields: { ...current.fields, [nextName]: 0 } });
-            }}
-          >
-            + Add field
-          </button>
-        </div>
-      )}
-      {current.kind === 'EQUALS' && allowEquals && (
-        <select
-          className={`${FIELD_CLASS_COMPACT} sm:col-span-2`}
-          value={current.instance}
-          onChange={(e) => patchCheck({ ...current, instance: e.target.value })}
-        >
-          <option value="">Named instance</option>
-          {namedInstances.map((item) => (
-            <option key={item.name} value={item.name}>{item.name}</option>
-          ))}
-        </select>
-      )}
-    </>
+    <select
+      className={`${FIELD_CLASS_COMPACT} sm:col-span-2`}
+      value={instance}
+      onChange={(e) => onChange({
+        ...assertion,
+        expectedValue: writeObjectCheck('EQUALS', { instance: e.target.value }),
+      })}
+    >
+      <option value="">Named instance</option>
+      {namedInstances.map((item) => (
+        <option key={item.name} value={item.name}>{item.name}</option>
+      ))}
+    </select>
   );
 }
 
@@ -149,50 +69,42 @@ function FieldExpected({
 }) {
   const field = catalog.fieldsById.get(assertion.fieldId);
   const objectField = field && isRubricClassType(field.dataType, catalog);
-  const instanceName = readInstanceExpected(assertion.expectedValue);
-  const useInstance = allowFieldInstanceRef && objectField && instanceName != null;
+  const showNamedInstancePicker = allowFieldInstanceRef && objectField;
+  const instanceName = readInstanceExpected(assertion.expectedValue) || '';
+
+  if (showNamedInstancePicker) {
+    return (
+      <select
+        className={FIELD_CLASS_COMPACT}
+        value={instanceName}
+        onChange={(e) => onChange({
+          ...assertion,
+          expectedValue: JSON.stringify({ $instance: e.target.value }),
+        })}
+      >
+        <option value="">Named instance</option>
+        {namedInstances.map((item) => (
+          <option key={item.name} value={item.name}>{item.name}</option>
+        ))}
+      </select>
+    );
+  }
+
+  const instanceRef = readInstanceExpected(assertion.expectedValue);
+  const scalar = instanceRef != null
+    ? JSON.parse(defaultFieldStateExpected(field))
+    : parseFieldStateExpected(assertion.expectedValue);
 
   return (
-    <>
-      {allowFieldInstanceRef && objectField && (
-        <select
-          className={FIELD_CLASS_COMPACT}
-          value={useInstance ? 'instance' : 'literal'}
-          onChange={(e) => {
-            if (e.target.value === 'instance') {
-              onChange({ ...assertion, expectedValue: JSON.stringify({ $instance: namedInstances[0]?.name || '' }) });
-            } else {
-              onChange({ ...assertion, expectedValue: '0' });
-            }
-          }}
-        >
-          <option value="literal">Literal</option>
-          <option value="instance">Named instance</option>
-        </select>
-      )}
-      {useInstance ? (
-        <select
-          className={FIELD_CLASS_COMPACT}
-          value={instanceName || ''}
-          onChange={(e) => onChange({
-            ...assertion,
-            expectedValue: JSON.stringify({ $instance: e.target.value }),
-          })}
-        >
-          <option value="">Named instance</option>
-          {namedInstances.map((item) => (
-            <option key={item.name} value={item.name}>{item.name}</option>
-          ))}
-        </select>
-      ) : (
-        <input
-          className={`${FIELD_CLASS_COMPACT} font-mono`}
-          value={assertion.expectedValue || ''}
-          onChange={(e) => onChange({ ...assertion, expectedValue: e.target.value })}
-          placeholder="Expected value JSON"
-        />
-      )}
-    </>
+    <input
+      className={`${FIELD_CLASS_COMPACT} font-mono`}
+      value={displayScalar(scalar)}
+      onChange={(e) => onChange({
+        ...assertion,
+        expectedValue: writeFieldStateScalar(parseScalarInput(e.target.value)),
+      })}
+      placeholder="value"
+    />
   );
 }
 
@@ -200,6 +112,7 @@ export default function TestcaseAssertionFields({
   assertion,
   step,
   catalog,
+  testcaseType = 'UNIT',
   namedInstances = [],
   allowEquals = false,
   allowFieldInstanceRef = false,
@@ -207,10 +120,20 @@ export default function TestcaseAssertionFields({
   onRemove,
   canRemove = false,
 }) {
-  const kinds = allowedAssertionKinds(step, catalog);
+  const kinds = allowedAssertionKinds(step, catalog, testcaseType);
   const objectReturn = isObjectReturnStep(step, catalog);
-  const showObjectCheck = assertion.assertionKind === 'RETURN_VALUE' && objectReturn;
-  const showComparison = assertion.assertionKind !== 'EXCEPTION' && !showObjectCheck;
+  const fieldOptions = fieldsForStepAssertion(step, catalog);
+  const showEqualsReturn = assertion.assertionKind === 'RETURN_VALUE'
+    && allowEquals
+    && objectReturn;
+  const showScalarReturn = assertion.assertionKind === 'RETURN_VALUE' && !showEqualsReturn;
+  const showComparison = assertion.assertionKind !== 'EXCEPTION' && !showEqualsReturn;
+  const numericComparison = isNumericAssertion(assertion, step, catalog);
+  const comparisonModes = comparisonModesForAssertion(assertion, step, catalog);
+  const storedComparisonMode = normalizeComparisonMode(assertion.comparisonMode);
+  const comparisonMode = comparisonModes.includes(storedComparisonMode)
+    ? storedComparisonMode
+    : (numericComparison ? 'VALUE_ONLY' : 'EXACT');
 
   return (
     <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-3">
@@ -219,11 +142,12 @@ export default function TestcaseAssertionFields({
         value={kinds.includes(assertion.assertionKind) ? assertion.assertionKind : kinds[0]}
         onChange={(e) => {
           const nextKind = e.target.value;
+          const objectEquals = nextKind === 'RETURN_VALUE' && allowEquals && objectReturn;
           onChange({
             ...assertion,
             assertionKind: nextKind,
             fieldId: nextKind === 'FIELD_STATE' ? (assertion.fieldId || null) : null,
-            expectedValue: defaultExpectedValue(nextKind, nextKind === 'RETURN_VALUE' && objectReturn),
+            expectedValue: defaultExpectedValue(nextKind, objectEquals),
           });
         }}
       >
@@ -236,22 +160,33 @@ export default function TestcaseAssertionFields({
         <select
           className={FIELD_CLASS_COMPACT}
           value={assertion.fieldId || ''}
-          onChange={(e) => onChange({ ...assertion, fieldId: e.target.value || null })}
+          onChange={(e) => {
+            const fieldId = e.target.value || null;
+            let expectedValue = assertion.expectedValue;
+            if (allowFieldInstanceRef && fieldId) {
+              const field = catalog.fieldsById.get(fieldId);
+              if (field && isRubricClassType(field.dataType, catalog)) {
+                if (readInstanceExpected(expectedValue) == null) {
+                  expectedValue = JSON.stringify({ $instance: namedInstances[0]?.name || '' });
+                }
+              } else if (field && readInstanceExpected(expectedValue) != null) {
+                expectedValue = defaultFieldStateExpected(field);
+              }
+            }
+            onChange({ ...assertion, fieldId, expectedValue });
+          }}
         >
           <option value="">Field</option>
-          {catalog.fields.map((opt) => (
+          {fieldOptions.map((opt) => (
             <option key={opt.id} value={opt.id}>{opt.label}</option>
           ))}
         </select>
       )}
 
-      {showObjectCheck && (
-        <ObjectCheckFields
+      {showEqualsReturn && (
+        <EqualsExpected
           assertion={assertion}
-          step={step}
-          catalog={catalog}
           namedInstances={namedInstances}
-          allowEquals={allowEquals}
           onChange={onChange}
         />
       )}
@@ -282,7 +217,7 @@ export default function TestcaseAssertionFields({
         />
       )}
 
-      {assertion.assertionKind === 'RETURN_VALUE' && !showObjectCheck && (
+      {showScalarReturn && (
         <input
           className={`${FIELD_CLASS_COMPACT} font-mono sm:col-span-2`}
           value={assertion.expectedValue || ''}
@@ -294,11 +229,13 @@ export default function TestcaseAssertionFields({
       {showComparison && (
         <select
           className={FIELD_CLASS_COMPACT}
-          value={assertion.comparisonMode || 'EXACT'}
+          value={comparisonMode}
           onChange={(e) => onChange({ ...assertion, comparisonMode: e.target.value })}
         >
-          {COMPARISON_MODES.map((mode) => (
-            <option key={mode} value={mode}>{mode}</option>
+          {comparisonModes.map((mode) => (
+            <option key={mode} value={mode}>
+              {comparisonModeLabel(mode)}
+            </option>
           ))}
         </select>
       )}

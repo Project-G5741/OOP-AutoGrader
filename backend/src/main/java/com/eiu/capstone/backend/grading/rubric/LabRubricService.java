@@ -319,12 +319,13 @@ public class LabRubricService {
         String instanceName = invocation.getInstanceName();
         if (invocation.getInvocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = invocation.getConstructor().getId();
+            String className = context.classNameByConstructorId().get(constructorId);
             return new InvocationRubric(
                     invocation.getId(),
                     invocation.getInvocationKind(),
                     constructorId,
                     null,
-                    context.classNameByConstructorId().get(constructorId),
+                    className,
                     null,
                     context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                     invocation.getParams(),
@@ -334,7 +335,8 @@ public class LabRubricService {
                     null,
                     instanceName,
                     dispatchClassId,
-                    dispatchClassName);
+                    dispatchClassName,
+                    InvocationRubric.resultTypeNameForConstructor(className));
         }
         return methodInvocationRubric(invocation, context, instanceName, dispatchClassId, dispatchClassName);
     }
@@ -370,7 +372,8 @@ public class LabRubricService {
                 invocation.getReceiverParams(),
                 instanceName,
                 dispatchClassId,
-                dispatchClassName);
+                dispatchClassName,
+                InvocationRubric.resultTypeNameForMethod(method));
     }
 
     private record TestcaseRubricContext(

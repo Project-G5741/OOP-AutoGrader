@@ -1,6 +1,8 @@
 package com.eiu.capstone.backend.service;
 
+import java.util.ArrayDeque;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -28,6 +30,7 @@ import com.eiu.capstone.backend.grading.rubric.RubricParameterMaps;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.ClassRelation;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.Field;
@@ -41,6 +44,7 @@ import com.eiu.capstone.backend.model.TestcaseInvocation;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
+import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
@@ -70,6 +74,7 @@ public class TestcaseRubricService {
 
     private final ChallengeRepository challengeRepository;
     private final ClassEntityRepository classEntityRepository;
+    private final ClassRelationRepository classRelationRepository;
     private final ConstructorRepository constructorRepository;
     private final MethodRepository methodRepository;
     private final FieldRepository fieldRepository;
@@ -83,6 +88,7 @@ public class TestcaseRubricService {
 
     public TestcaseRubricService(ChallengeRepository challengeRepository,
                                    ClassEntityRepository classEntityRepository,
+                                   ClassRelationRepository classRelationRepository,
                                    ConstructorRepository constructorRepository,
                                    MethodRepository methodRepository,
                                    FieldRepository fieldRepository,
@@ -94,6 +100,7 @@ public class TestcaseRubricService {
                                    EntityManager entityManager) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
+        this.classRelationRepository = classRelationRepository;
         this.constructorRepository = constructorRepository;
         this.methodRepository = methodRepository;
         this.fieldRepository = fieldRepository;
@@ -353,12 +360,6 @@ public class TestcaseRubricService {
             throw unprocessable("UNIT cannot pass a rubric-class object as an argument");
         }
         rejectObjectArrayArgs(step.params(), paramTypes, memberIds, "Invocation params");
-        if (step.invocationKind() == InvocationKind.METHOD && !isStaticMethod(step.methodId(), memberIds)) {
-            UUID classId = memberIds.classIdByMethodId().get(step.methodId());
-            if (classId == null || !memberIds.noArgConstructorClassIds().contains(classId)) {
-                throw unprocessable("UNIT instance method requires a no-arg constructor on the declaring class");
-            }
-        }
         return Map.of();
     }
 
@@ -465,6 +466,9 @@ public class TestcaseRubricService {
             if (kind == AssertionKind.STDOUT) {
                 throw unprocessable("Constructor steps cannot assert stdout");
             }
+            if (kind == AssertionKind.RETURN_VALUE) {
+                throw unprocessable("Constructor steps cannot assert return value; use field state");
+            }
             return;
         }
         String returnType = memberIds.methodReturnTypeById().get(step.methodId());
@@ -511,15 +515,10 @@ public class TestcaseRubricService {
         }
         String kind = kindNode.asText();
         if (OBJECT_CHECK_TYPE.equals(kind)) {
-            return;
+            throw unprocessable("Type-only object checks are not supported; use field state");
         }
         if (OBJECT_CHECK_FIELDS.equals(kind)) {
-            JsonNode fields = node.get("fields");
-            if (fields == null || !fields.isObject()) {
-                throw unprocessable("Object field map requires a fields object");
-            }
-            fields.fields().forEachRemaining(entry -> validateLiteralNode(entry.getValue(), "Object field map"));
-            return;
+            throw unprocessable("Object field maps are not supported; use field state assertions");
         }
         if (OBJECT_CHECK_EQUALS.equals(kind)) {
             if (testcaseType != TestcaseType.COMPOSITION) {
@@ -580,7 +579,8 @@ public class TestcaseRubricService {
                 }
                 String expectedType = coreTypeName(paramType);
                 String actualType = namedEarlier.get(name);
-                if (expectedType == null || actualType == null || !expectedType.equals(actualType)) {
+                if (expectedType == null || actualType == null
+                        || !instanceTypeMatchesParameter(expectedType, actualType, memberIds)) {
                     throw unprocessable("Named instance '" + name + "' type does not match parameter type");
                 }
             } else if (paramType != null
@@ -963,11 +963,27 @@ public class TestcaseRubricService {
         Set<UUID> classIds = new HashSet<>();
         Set<String> rubricClassNames = new HashSet<>();
         Map<UUID, String> classNameByClassId = new HashMap<>();
+        Map<String, UUID> classIdByName = new HashMap<>();
         for (ClassEntity cls : classes) {
             classIds.add(cls.getId());
             classNameByClassId.put(cls.getId(), cls.getName());
             if (cls.getName() != null && !cls.getName().isBlank()) {
                 rubricClassNames.add(cls.getName());
+                classIdByName.put(cls.getName(), cls.getId());
+            }
+        }
+        Map<UUID, Set<UUID>> heritageChildrenByParentId = new HashMap<>();
+        if (!classes.isEmpty()) {
+            for (ClassRelation relation : classRelationRepository.findByClassEntityInWithEndpoints(classes)) {
+                if (relation.getRelationType() == null
+                        || !isHeritageRelationType(relation.getRelationType().getName())) {
+                    continue;
+                }
+                UUID childId = relation.getClassEntity().getId();
+                UUID parentId = relation.getTargetClassEntity().getId();
+                heritageChildrenByParentId
+                        .computeIfAbsent(parentId, ignored -> new HashSet<>())
+                        .add(childId);
             }
         }
         Set<UUID> constructorIds = new HashSet<>();
@@ -1018,6 +1034,8 @@ public class TestcaseRubricService {
                 fieldIds,
                 classIds,
                 rubricClassNames,
+                classIdByName,
+                heritageChildrenByParentId,
                 classNameByConstructorId,
                 classIdByMethodId,
                 methodStaticById,
@@ -1025,6 +1043,32 @@ public class TestcaseRubricService {
                 noArgConstructorClassIds,
                 paramTypesByConstructorId,
                 RubricParameterMaps.byMethod(methodParams));
+    }
+
+    private static boolean isHeritageRelationType(String relationTypeName) {
+        if (relationTypeName == null || relationTypeName.isBlank()) {
+            return false;
+        }
+        String normalized = relationTypeName.trim().toLowerCase();
+        return normalized.contains("realiz")
+                || normalized.contains("implement")
+                || normalized.contains("inherit")
+                || normalized.contains("extend")
+                || normalized.contains("general");
+    }
+
+    private static boolean instanceTypeMatchesParameter(String paramType,
+                                                        String instanceClassName,
+                                                        ChallengeMemberIds memberIds) {
+        if (paramType.equals(instanceClassName)) {
+            return true;
+        }
+        UUID parentId = memberIds.classIdByName().get(paramType);
+        UUID childId = memberIds.classIdByName().get(instanceClassName);
+        if (parentId == null || childId == null) {
+            return false;
+        }
+        return memberIds.isHeritageDescendant(parentId, childId);
     }
 
     private Constructor requireConstructor(UUID id, ChallengeMemberIds memberIds) {
@@ -1111,11 +1155,36 @@ public class TestcaseRubricService {
             Set<UUID> fieldIds,
             Set<UUID> classIds,
             Set<String> rubricClassNames,
+            Map<String, UUID> classIdByName,
+            Map<UUID, Set<UUID>> heritageChildrenByParentId,
             Map<UUID, String> classNameByConstructorId,
             Map<UUID, UUID> classIdByMethodId,
             Map<UUID, Boolean> methodStaticById,
             Map<UUID, String> methodReturnTypeById,
             Set<UUID> noArgConstructorClassIds,
             Map<UUID, List<String>> paramTypesByConstructorId,
-            Map<UUID, List<String>> paramTypesByMethodId) {}
+            Map<UUID, List<String>> paramTypesByMethodId) {
+
+        boolean isHeritageDescendant(UUID ancestorClassId, UUID descendantClassId) {
+            if (ancestorClassId == null || descendantClassId == null) {
+                return false;
+            }
+            Set<UUID> visited = new HashSet<>();
+            Deque<UUID> stack = new ArrayDeque<>(
+                    heritageChildrenByParentId.getOrDefault(ancestorClassId, Set.of()));
+            while (!stack.isEmpty()) {
+                UUID id = stack.pop();
+                if (id.equals(descendantClassId)) {
+                    return true;
+                }
+                if (!visited.add(id)) {
+                    continue;
+                }
+                for (UUID child : heritageChildrenByParentId.getOrDefault(id, Set.of())) {
+                    stack.push(child);
+                }
+            }
+            return false;
+        }
+    }
 }

@@ -8,12 +8,12 @@ import {
   emptyAssertion,
   emptyInvocation,
   FIELD_CLASS,
-  isObjectReturnStep,
+  fieldsForStepAssertion,
   selectedUnitTarget,
   stepParameters,
   unitMemberBlockedReason,
   unitTargetKey,
-  unitTargets,
+  unitSelectableTargets,
 } from './testcaseAuthoring';
 
 export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
@@ -21,7 +21,6 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
   const target = selectedUnitTarget(step, catalog);
   const blocked = unitMemberBlockedReason(target, catalog);
   const parameters = stepParameters(step, catalog);
-  const objectReturn = isObjectReturnStep(step, catalog);
 
   const patchStep = (nextStep, extra = {}) => {
     onUpdate({
@@ -36,7 +35,7 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
   return (
     <div className="min-w-0 space-y-3">
       <p className="text-xs text-foreground-muted">
-        One constructor or method, then assertions. The hidden no-arg receiver is not a step.
+        One constructor or method, then assertions. Instance methods use a hidden receiver (not shown as a step).
       </p>
 
       <label className="block text-xs text-foreground-muted">
@@ -46,28 +45,32 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
           value={unitTargetKey(step)}
           onChange={(e) => {
             const nextStep = applyUnitTarget(step, e.target.value, catalog);
-            const kinds = allowedAssertionKinds(nextStep, catalog);
-            const nextObject = isObjectReturnStep(nextStep, catalog);
+            const kinds = allowedAssertionKinds(nextStep, catalog, 'UNIT');
+            const allowedFields = fieldsForStepAssertion(nextStep, catalog);
+            const allowedFieldIds = new Set(allowedFields.map((f) => f.id));
             patchStep(nextStep, {
               assertions: (tc.assertions || []).map((assertion) => {
-                if (kinds.includes(assertion.assertionKind)) return assertion;
+                const kind = kinds.includes(assertion.assertionKind) ? assertion.assertionKind : kinds[0];
+                const fieldId = kind === 'FIELD_STATE' && allowedFieldIds.has(assertion.fieldId)
+                  ? assertion.fieldId
+                  : (kind === 'FIELD_STATE' ? null : null);
+                if (kind === assertion.assertionKind && fieldId === assertion.fieldId) return assertion;
                 return {
                   ...assertion,
-                  assertionKind: kinds[0],
-                  fieldId: kinds[0] === 'FIELD_STATE' ? assertion.fieldId : null,
-                  expectedValue: defaultExpectedValue(kinds[0], kinds[0] === 'RETURN_VALUE' && nextObject),
+                  assertionKind: kind,
+                  fieldId,
+                  expectedValue: defaultExpectedValue(kind, false),
                 };
               }),
             });
           }}
         >
           <option value="">Select constructor or method</option>
-          {unitTargets(catalog).map((item) => {
+          {unitSelectableTargets(catalog).map((item) => {
             const key = `${item.kind}:${item.id}`;
-            const reason = unitMemberBlockedReason(item, catalog);
             return (
-              <option key={key} value={key} disabled={Boolean(reason)}>
-                {item.label}{reason ? ` — ${reason}` : ''}
+              <option key={key} value={key}>
+                {item.label}
               </option>
             );
           })}
@@ -77,12 +80,6 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
       {blocked && (
         <p className="rounded border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-text">
           {blocked}
-        </p>
-      )}
-
-      {target?.kind === 'METHOD' && !target.isStatic && !blocked && (
-        <p className="text-xs text-foreground-muted">
-          Dry-run constructs a hidden no-arg receiver. That construct is not shown as a step.
         </p>
       )}
 
@@ -105,6 +102,7 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
             assertion={{ ...assertion, invocationId: step?.id }}
             step={step}
             catalog={catalog}
+            testcaseType="UNIT"
             namedInstances={[]}
             allowEquals={false}
             allowFieldInstanceRef={false}
@@ -121,13 +119,13 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
           type="button"
           className="text-xs text-primary"
           onClick={() => {
-            const kinds = allowedAssertionKinds(step, catalog);
+            const kinds = allowedAssertionKinds(step, catalog, 'UNIT');
             const kind = kinds.includes('FIELD_STATE') ? 'FIELD_STATE' : kinds[0];
             patchAssertions([
               ...(tc.assertions || []),
               {
                 ...emptyAssertion(step?.id, kind),
-                expectedValue: defaultExpectedValue(kind, kind === 'RETURN_VALUE' && objectReturn),
+                expectedValue: defaultExpectedValue(kind, false),
                 orderIndex: (tc.assertions || []).length,
               },
             ]);

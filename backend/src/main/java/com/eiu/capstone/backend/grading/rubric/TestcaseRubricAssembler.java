@@ -126,12 +126,13 @@ public class TestcaseRubricAssembler {
                 ? dto.instanceName().trim() : null;
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = dto.constructorId();
+            String className = maps.classNameByConstructorId.get(constructorId);
             return new InvocationRubric(
                     invocationId,
                     dto.invocationKind(),
                     constructorId,
                     null,
-                    maps.classNameByConstructorId.get(constructorId),
+                    className,
                     null,
                     maps.paramTypesByConstructorId.getOrDefault(constructorId, List.of()),
                     dto.params() != null ? dto.params() : "[]",
@@ -141,7 +142,8 @@ public class TestcaseRubricAssembler {
                     null,
                     instanceName,
                     dispatchClassId,
-                    dispatchClassName);
+                    dispatchClassName,
+                    InvocationRubric.resultTypeNameForConstructor(className));
         }
         UUID methodId = dto.methodId();
         Method method = maps.methodById.get(methodId);
@@ -164,7 +166,8 @@ public class TestcaseRubricAssembler {
                 dto.receiverParams() != null ? dto.receiverParams() : "[]",
                 instanceName,
                 dispatchClassId,
-                dispatchClassName);
+                dispatchClassName,
+                InvocationRubric.resultTypeNameForMethod(method));
     }
 
     private MemberMaps loadMemberMaps(UUID challengeId) {

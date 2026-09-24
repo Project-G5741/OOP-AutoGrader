@@ -19,6 +19,8 @@ public class AssertionEvaluator {
     static final String OBJECT_CHECK_FIELDS = "FIELDS";
     static final String OBJECT_CHECK_EQUALS = "EQUALS";
     static final String INSTANCE_REF_KEY = "$instance";
+    /** Worker field snapshot when the live field value is the same object as a named instance. */
+    static final String SAME_INSTANCE_KEY = "$sameInstance";
 
     private final JsonValueCoercer jsonValueCoercer;
 
@@ -63,30 +65,10 @@ public class AssertionEvaluator {
         JsonNode node = jsonValueCoercer.parseTree(assertion.expectedValueJson());
         String kind = node.get(OBJECT_CHECK_KEY).asText();
         if (OBJECT_CHECK_TYPE.equals(kind)) {
-            if (outcome.objectTypeSimpleName() == null || outcome.objectTypeSimpleName().isBlank()) {
-                return failure(assertion, null, "Expected object type but value was null");
-            }
-            return success(assertion, outcome.objectTypeSimpleName(), "Object type matches");
+            return failure(assertion, null, "Type-only object checks are not supported");
         }
         if (OBJECT_CHECK_FIELDS.equals(kind)) {
-            JsonNode fields = node.get("fields");
-            if (fields == null || !fields.isObject()) {
-                return failure(assertion, outcome.objectFieldSnapshots(), "Object field map missing fields");
-            }
-            Map<String, Object> actualFields = outcome.objectFieldSnapshots();
-            java.util.Iterator<Map.Entry<String, JsonNode>> entries = fields.fields();
-            while (entries.hasNext()) {
-                Map.Entry<String, JsonNode> entry = entries.next();
-                Object actual = actualFields != null ? actualFields.get(entry.getKey()) : null;
-                Object expected = jsonValueCoercer.coerceFromNode(entry.getValue(), null);
-                if (actual == null && (actualFields == null || !actualFields.containsKey(entry.getKey()))) {
-                    return failure(assertion, actualFields, "Could not read field: " + entry.getKey());
-                }
-                if (!ValueComparator.matches(actual, expected, assertion.comparisonMode())) {
-                    return failure(assertion, actual, entry.getKey() + " mismatch");
-                }
-            }
-            return success(assertion, actualFields, "Object fields match");
+            return failure(assertion, null, "Object field maps are not supported; use field state");
         }
         if (OBJECT_CHECK_EQUALS.equals(kind)) {
             JsonNode instanceNode = node.get(INSTANCE_REF_KEY);
@@ -119,6 +101,10 @@ public class AssertionEvaluator {
         if (precondition.isPresent()) {
             return precondition.get();
         }
+        Optional<AssertionEvaluation> namedInstance = evaluateFieldStateNamedInstance(assertion, outcome);
+        if (namedInstance.isPresent()) {
+            return namedInstance.get();
+        }
         Object actual = outcome.fieldSnapshots() != null
                 ? outcome.fieldSnapshots().get(assertion.fieldName())
                 : null;
@@ -132,6 +118,49 @@ public class AssertionEvaluator {
         return passed
                 ? success(assertion, actual, assertion.fieldName() + " matches")
                 : failure(assertion, actual, assertion.fieldName() + " mismatch");
+    }
+
+    private Optional<AssertionEvaluation> evaluateFieldStateNamedInstance(AssertionRubric assertion,
+                                                                            InvocationOutcome outcome) {
+        JsonNode expectedNode = jsonValueCoercer.parseTree(assertion.expectedValueJson());
+        if (expectedNode == null || !expectedNode.isObject() || !expectedNode.has(INSTANCE_REF_KEY)) {
+            return Optional.empty();
+        }
+        String expectedName = expectedNode.get(INSTANCE_REF_KEY).asText();
+        Object actual = outcome.fieldSnapshots() != null
+                ? outcome.fieldSnapshots().get(assertion.fieldName())
+                : null;
+        String actualName = readSameInstanceName(actual);
+        if (actualName == null) {
+            return Optional.of(failure(assertion, actual, assertion.fieldName() + " is not the named instance"));
+        }
+        boolean passed = expectedName != null && expectedName.equals(actualName);
+        return Optional.of(passed
+                ? success(assertion, actualName, assertion.fieldName() + " is " + expectedName)
+                : failure(assertion, actualName, assertion.fieldName() + " mismatch"));
+    }
+
+    static String readSameInstanceName(Object snapshotValue) {
+        if (snapshotValue instanceof Map<?, ?> map) {
+            Object name = map.get(SAME_INSTANCE_KEY);
+            if (name != null) {
+                return String.valueOf(name);
+            }
+        }
+        if (snapshotValue instanceof JsonNode node && node.isObject() && node.has(SAME_INSTANCE_KEY)) {
+            return node.get(SAME_INSTANCE_KEY).asText();
+        }
+        if (snapshotValue instanceof String text && !text.isBlank()) {
+            try {
+                JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(text);
+                if (node.isObject() && node.has(SAME_INSTANCE_KEY)) {
+                    return node.get(SAME_INSTANCE_KEY).asText();
+                }
+            } catch (Exception ignored) {
+                // not JSON
+            }
+        }
+        return null;
     }
 
     private AssertionEvaluation evaluateStdout(AssertionRubric assertion, InvocationOutcome outcome) {
@@ -154,16 +183,13 @@ public class AssertionEvaluator {
         }
         String expectedType = jsonValueCoercer.parseExceptionType(assertion.expectedValueJson());
         if (outcome.kind() != InvocationOutcomeKind.THREW) {
-            String secondary = outcome.returnValue() != null
-                    ? "returned " + TestcaseLiteralFormatter.format(outcome.returnValue())
-                    : "no exception thrown";
-            return failure(assertion, null, secondary);
+            return failure(assertion, null, "No exception thrown");
         }
         String actualType = outcome.exceptionSimpleName();
         boolean passed = matchesExceptionType(actualType, outcome.exceptionSuperclassSimpleNames(), expectedType);
         return passed
                 ? success(assertion, actualType, "Exception matches")
-                : failure(assertion, actualType, "Expected " + expectedType + " but got " + actualType);
+                : failure(assertion, actualType, "Exception mismatch");
     }
 
     private Optional<AssertionEvaluation> invocationPrecondition(AssertionRubric assertion,

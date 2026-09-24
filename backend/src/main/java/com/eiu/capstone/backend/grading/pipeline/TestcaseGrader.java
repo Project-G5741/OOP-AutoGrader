@@ -220,7 +220,8 @@ public class TestcaseGrader {
                 "[]",
                 step.instanceName(),
                 step.dispatchClassId(),
-                step.dispatchClassName());
+                step.dispatchClassName(),
+                step.resultTypeName());
     }
 
     private static int firstThrowIndex(List<InvocationOutcome> outcomes) {
@@ -397,7 +398,7 @@ public class TestcaseGrader {
         if (steps == null || steps.isEmpty()) {
             AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
             String inputDisplay = displayFormatter.formatInput(testcase);
-            return displaysFor(primary, evaluations, null, inputDisplay, fallbackActual);
+            return displaysFor(primary, evaluations, null, inputDisplay, fallbackActual, null);
         }
 
         int primaryIndex = firstFailingOrLastRunIndex(steps, outcomes, evaluations, testcase.assertions());
@@ -417,19 +418,20 @@ public class TestcaseGrader {
                 ? outcomes.get(primaryIndex)
                 : null;
         String inputDisplay = displayFormatter.formatInput(testcase, primaryStep);
-        return displaysFor(primary, evaluations, stepOutcome, inputDisplay, fallbackActual);
+        return displaysFor(primary, evaluations, stepOutcome, inputDisplay, fallbackActual, primaryStep);
     }
 
     private PrimaryDisplays displaysFor(AssertionRubric primary,
                                         Map<UUID, AssertionEvaluation> evaluations,
                                         InvocationOutcome invocationOutcome,
                                         String inputDisplay,
-                                        String fallbackActual) {
+                                        String fallbackActual,
+                                        InvocationRubric invocation) {
         if (primary == null) {
             return new PrimaryDisplays(inputDisplay, null, fallbackActual);
         }
         AssertionEvaluation primaryEvaluation = evaluations.get(primary.id());
-        String expectedDisplay = displayFormatter.formatExpected(primary);
+        String expectedDisplay = displayFormatter.formatExpected(primary, invocation);
         String actualDisplay = fallbackActual != null
                 ? fallbackActual
                 : displayFormatter.formatActual(

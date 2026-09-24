@@ -53,7 +53,16 @@ const CLIENT_VALIDATION_PREFIXES = [
   'You are not authorized',
   'Could not find Student ID',
   'Not matched:',
+  'Step ',
+  'Testcase:',
+  'Add at least',
+  'Each ',
+  'Complete the',
+  'Check the testcase',
+  'Add reference Java',
 ];
+
+const TESTCASE_API_CONTEXTS = new Set(['testcase-dry-run', 'testcase-save']);
 
 function collectFriendlyMessages() {
   const messages = new Set(Object.values(FRIENDLY));
@@ -89,19 +98,33 @@ function isClientValidationMessage(message) {
   return CLIENT_VALIDATION_PREFIXES.some((prefix) => message.startsWith(prefix) || message.includes(prefix));
 }
 
-async function consumeResponseBody(response) {
+async function readBackendErrorMessage(response) {
   try {
-    await response.text();
+    const text = await response.text();
+    if (!text) return null;
+    const data = JSON.parse(text);
+    const message = data?.message;
+    if (typeof message !== 'string') return null;
+    const trimmed = message.trim();
+    return trimmed.length > 0 && trimmed.length <= 500 ? trimmed : null;
   } catch {
-    // Ignore body read failures — response status still drives the user message.
+    return null;
   }
 }
 
 export async function readFriendlyApiError(response, context = 'read') {
-  await consumeResponseBody(response);
+  const backendMessage = await readBackendErrorMessage(response);
 
   if (isServerBusyStatus(response.status)) {
     return FRIENDLY.SERVER_BUSY;
+  }
+
+  if (
+    (response.status === 400 || response.status === 422)
+    && backendMessage
+    && TESTCASE_API_CONTEXTS.has(context)
+  ) {
+    return backendMessage;
   }
 
   const authMessages = AUTH_ERROR_MESSAGES[context];
@@ -122,6 +145,9 @@ export async function readFriendlyApiError(response, context = 'read') {
   }
 
   switch (context) {
+    case 'testcase-dry-run':
+    case 'testcase-save':
+      return backendMessage || 'Check the testcase configuration and try again.';
     case 'save':
       return FRIENDLY.SAVE_FAILED;
     case 'delete':
@@ -156,12 +182,19 @@ export function toFriendlyError(error, context = 'read') {
     return message;
   }
 
+  if (message && TESTCASE_API_CONTEXTS.has(context)) {
+    return message;
+  }
+
   const authMessages = AUTH_ERROR_MESSAGES[context];
   if (authMessages) {
     return authMessages.default || FRIENDLY.SOMETHING_WRONG;
   }
 
   switch (context) {
+    case 'testcase-dry-run':
+    case 'testcase-save':
+      return 'Check the testcase configuration and try again.';
     case 'save':
       return FRIENDLY.SAVE_FAILED;
     case 'delete':

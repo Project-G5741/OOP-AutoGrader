@@ -15,6 +15,8 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class TestcaseSchemaMigrator {
 
+    private static final String ASSERTION_KIND_STAGING_COLUMN = "assertion_kind_staging";
+
     private final JdbcTemplate jdbcTemplate;
     private final LabRubricCache labRubricCache;
 
@@ -38,6 +40,26 @@ public class TestcaseSchemaMigrator {
             }
         }
         ensureKeptScenarioColumns();
+        ensureComparisonModeEnum();
+    }
+
+    private void ensureComparisonModeEnum() {
+        if (!enumTypeExists("comparison_mode")) {
+            return;
+        }
+        if (!enumHasLabel("comparison_mode", "NUMERIC_VALUE")) {
+            jdbcTemplate.execute("ALTER TYPE comparison_mode ADD VALUE 'NUMERIC_VALUE'");
+        }
+        if (!enumHasLabel("comparison_mode", "VALUE_ONLY")) {
+            jdbcTemplate.execute("ALTER TYPE comparison_mode ADD VALUE 'VALUE_ONLY'");
+        }
+        if (tableExists("testcase_assertion")) {
+            jdbcTemplate.update("""
+                    UPDATE testcase_assertion
+                    SET comparison_mode = 'VALUE_ONLY'::comparison_mode
+                    WHERE comparison_mode::text = 'NUMERIC_VALUE'
+                    """);
+        }
     }
 
     private void ensureReceiverColumns() {
@@ -101,29 +123,55 @@ public class TestcaseSchemaMigrator {
                 """);
         jdbcTemplate.execute("DROP TYPE testcase_type");
         jdbcTemplate.execute("ALTER TYPE testcase_type_new RENAME TO testcase_type");
-        jdbcTemplate.execute("""
-                DO $$ BEGIN
-                    CREATE TYPE assertion_kind_new AS ENUM (
+        rewriteAssertionKindEnum();
+    }
+
+    private void rewriteAssertionKindEnum() {
+        boolean legacyAssertionKind = enumHasLabel("assertion_kind", "COMPARISON_RESULT")
+                || enumTypeExists("assertion_kind_new")
+                || columnExists("testcase_assertion", ASSERTION_KIND_STAGING_COLUMN);
+        if (!legacyAssertionKind) {
+            dropTypeIfExists("assertion_kind_new");
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT");
+        String assertionKindColumnType = assertionKindColumnPgType();
+        if (!"text".equals(assertionKindColumnType) && !"assertion_kind".equals(assertionKindColumnType)) {
+            if (!columnExists("testcase_assertion", ASSERTION_KIND_STAGING_COLUMN)) {
+                jdbcTemplate.execute(
+                        "ALTER TABLE testcase_assertion RENAME COLUMN assertion_kind TO "
+                                + ASSERTION_KIND_STAGING_COLUMN);
+                jdbcTemplate.execute("""
+                        ALTER TABLE testcase_assertion
+                            ADD COLUMN assertion_kind text NOT NULL DEFAULT 'RETURN_VALUE'
+                        """);
+                jdbcTemplate.execute("ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT");
+            }
+            jdbcTemplate.execute("""
+                    UPDATE testcase_assertion
+                    SET assertion_kind = CASE
+                        WHEN assertion_kind_staging::text = 'COMPARISON_RESULT' THEN 'RETURN_VALUE'
+                        ELSE assertion_kind_staging::text
+                    END
+                    """);
+            jdbcTemplate.execute("ALTER TABLE testcase_assertion DROP COLUMN " + ASSERTION_KIND_STAGING_COLUMN);
+        }
+        dropTypeIfExists("assertion_kind");
+        dropTypeIfExists("assertion_kind_new");
+        if (!enumTypeExists("assertion_kind")) {
+            jdbcTemplate.execute("""
+                    CREATE TYPE assertion_kind AS ENUM (
                         'RETURN_VALUE', 'FIELD_STATE', 'STDOUT', 'EXCEPTION'
-                    );
-                EXCEPTION WHEN duplicate_object THEN NULL;
-                END $$
-                """);
-        jdbcTemplate.execute("""
-                ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT
-                """);
-        jdbcTemplate.execute("""
-                ALTER TABLE testcase_assertion
-                    ALTER COLUMN assertion_kind TYPE assertion_kind_new
-                    USING (
-                        CASE
-                            WHEN assertion_kind::text = 'COMPARISON_RESULT' THEN 'RETURN_VALUE'
-                            ELSE assertion_kind::text
-                        END
-                    )::assertion_kind_new
-                """);
-        jdbcTemplate.execute("DROP TYPE assertion_kind");
-        jdbcTemplate.execute("ALTER TYPE assertion_kind_new RENAME TO assertion_kind");
+                    )
+                    """);
+        }
+        if (!"assertion_kind".equals(assertionKindColumnPgType())) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE testcase_assertion
+                        ALTER COLUMN assertion_kind TYPE assertion_kind
+                        USING (assertion_kind::text::assertion_kind)
+                    """);
+        }
     }
 
     private void ensureKeptScenarioColumns() {
@@ -162,6 +210,28 @@ public class TestcaseSchemaMigrator {
                         UNIQUE (testcase_id, order_index)
                     """);
         }
+    }
+
+    private String assertionKindColumnPgType() {
+        return jdbcTemplate.queryForObject("""
+                SELECT t.typname
+                FROM pg_attribute a
+                JOIN pg_type t ON a.atttypid = t.oid
+                WHERE a.attrelid = 'testcase_assertion'::regclass
+                  AND a.attname = 'assertion_kind'
+                  AND NOT a.attisdropped
+                """, String.class);
+    }
+
+    private boolean enumTypeExists(String typeName) {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_type WHERE typname = ?)
+                """, Boolean.class, typeName);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    private void dropTypeIfExists(String typeName) {
+        jdbcTemplate.execute("DROP TYPE IF EXISTS " + typeName);
     }
 
     private boolean enumHasLabel(String typeName, String label) {

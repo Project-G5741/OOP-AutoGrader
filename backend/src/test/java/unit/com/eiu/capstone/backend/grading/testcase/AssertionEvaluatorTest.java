@@ -65,7 +65,7 @@ class AssertionEvaluatorTest {
     }
 
     @Test
-    void objectCheckTypePassesWhenWorkerReportsMatchingType() {
+    void objectCheckTypeIsRejected() {
         AssertionRubric assertion = assertion(
                 AssertionKind.RETURN_VALUE, "{\"$objectCheck\":\"TYPE\"}");
         InvocationOutcome outcome = InvocationOutcome.normal(
@@ -73,11 +73,12 @@ class AssertionEvaluatorTest {
 
         AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
 
-        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertTrue(result.feedback().contains("not supported"));
     }
 
     @Test
-    void objectCheckFieldsPassesWhenWorkerReportsMatchingLiterals() {
+    void objectCheckFieldsIsRejected() {
         AssertionRubric assertion = assertion(
                 AssertionKind.RETURN_VALUE,
                 "{\"$objectCheck\":\"FIELDS\",\"fields\":{\"amount\":10}}");
@@ -86,7 +87,8 @@ class AssertionEvaluatorTest {
 
         AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
 
-        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertTrue(result.feedback().contains("field state"));
     }
 
     @Test
@@ -132,6 +134,75 @@ class AssertionEvaluatorTest {
         assertEquals(TestcaseResultStatus.PASSED, exception.status());
         assertEquals(TestcaseResultStatus.PASSED, stdout.status());
         assertEquals(TestcaseResultStatus.PASSED, field.status());
+    }
+
+    @Test
+    void exceptionAssertionWhenNoneThrown_reportsNoExceptionThrown() {
+        AssertionRubric assertion = assertion(AssertionKind.EXCEPTION, "\"IllegalArgumentException\"");
+        InvocationOutcome outcome = InvocationOutcome.normal("factory@1", "", false, Map.of());
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertEquals("No exception thrown", result.feedback());
+    }
+
+    @Test
+    void fieldStateNamedInstanceRef_matchesSameReference() {
+        AssertionRubric assertion = new AssertionRubric(
+                UUID.randomUUID(),
+                AssertionKind.FIELD_STATE,
+                null,
+                null,
+                "retailItem",
+                "RetailItem",
+                "{\"$instance\":\"retailItem\"}",
+                ComparisonMode.EXACT,
+                0);
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null,
+                "",
+                false,
+                Map.of("retailItem", Map.of("$sameInstance", "retailItem")));
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+    }
+
+    @Test
+    void fieldStateNamedInstanceRef_mismatchWhenDifferentInstance() {
+        AssertionRubric assertion = new AssertionRubric(
+                UUID.randomUUID(),
+                AssertionKind.FIELD_STATE,
+                null,
+                null,
+                "retailItem",
+                "RetailItem",
+                "{\"$instance\":\"retailItem\"}",
+                ComparisonMode.EXACT,
+                0);
+        InvocationOutcome outcome = InvocationOutcome.normal(
+                null,
+                "",
+                false,
+                Map.of("retailItem", Map.of("$sameInstance", "other")));
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+    }
+
+    @Test
+    void exceptionAssertionWrongType_reportsExceptionMismatch() {
+        AssertionRubric assertion = assertion(AssertionKind.EXCEPTION, "\"IllegalArgumentException\"");
+        InvocationOutcome outcome = InvocationOutcome.threw(
+                "", false, "IllegalStateException", List.of("RuntimeException"));
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertEquals("Exception mismatch", result.feedback());
     }
 
     private AssertionRubric assertion(AssertionKind kind, String expectedJson) {

@@ -94,7 +94,7 @@ Per upload request (unique `requestId` prevents collisions):
 ### Operational testcase save
 
 - `PUT .../testcases` upserts by client UUID (testcase, invocation steps, assertions). Delete only omitted child ids — never delete-all-reinsert
-- Types are `UNIT` and `COMPOSITION` only. UNIT: exactly one invocation; no `instanceName`, `$instance` args, rubric-class object args, lecturer-set `receiver_constructor_id`, or equals() object checks. Instance methods require a no-arg constructor on the declaring class (hidden receiver at dry-run)
+- Types are `UNIT` and `COMPOSITION` only. UNIT: exactly one invocation; no `instanceName`, `$instance` args, rubric-class object args, lecturer-set `receiver_constructor_id`, or equals() object checks. Instance methods get a hidden receiver at dry-run/grade (no-arg when available, else default literal constructor args)
 - COMPOSITION: 1–20 ordered steps. Constructor steps and static named rubric-class returns require `instanceName` (product name). Instance-method `instanceName` is the receiver already constructed; the return does not overwrite that name. Caps: 20 steps, 10 named instances
 - Invocation `order_index` is unique per testcase. Save parks kept steps at `MAX_STEPS + i`, deletes omitted rows, then writes final `0..n-1` so removing or reordering earlier steps cannot collide on `UNIQUE (testcase_id, order_index)`
 - `$instance` args (Composition only) must name an earlier constructor or named static return and match the rubric parameter type (class simple name). Failures are HTTP 422

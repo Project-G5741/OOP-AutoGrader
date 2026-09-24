@@ -87,13 +87,6 @@ BEGIN
 END $$;
 
 -- ---------- 4. Rewrite assertion_kind without COMPARISON_RESULT ----------
-DO $$ BEGIN
-    CREATE TYPE assertion_kind_new AS ENUM (
-        'RETURN_VALUE', 'FIELD_STATE', 'STDOUT', 'EXCEPTION'
-    );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 DO $$
 BEGIN
     IF EXISTS (
@@ -103,18 +96,27 @@ BEGIN
             WHERE t.typname = 'assertion_kind'
               AND e.enumlabel = 'COMPARISON_RESULT'
         )
+        OR EXISTS (SELECT 1 FROM pg_catalog.pg_type WHERE typname = 'assertion_kind_new')
     THEN
         ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT;
+        ALTER TABLE testcase_assertion RENAME COLUMN assertion_kind TO assertion_kind_staging;
         ALTER TABLE testcase_assertion
-            ALTER COLUMN assertion_kind TYPE assertion_kind_new
-            USING (
-                CASE
-                    WHEN assertion_kind::text = 'COMPARISON_RESULT' THEN 'RETURN_VALUE'
-                    ELSE assertion_kind::text
-                END
-            )::assertion_kind_new;
-        DROP TYPE assertion_kind;
-        ALTER TYPE assertion_kind_new RENAME TO assertion_kind;
+            ADD COLUMN assertion_kind text NOT NULL DEFAULT 'RETURN_VALUE';
+        UPDATE testcase_assertion
+        SET assertion_kind = CASE
+            WHEN assertion_kind_staging::text = 'COMPARISON_RESULT' THEN 'RETURN_VALUE'
+            ELSE assertion_kind_staging::text
+        END;
+        ALTER TABLE testcase_assertion ALTER COLUMN assertion_kind DROP DEFAULT;
+        ALTER TABLE testcase_assertion DROP COLUMN assertion_kind_staging;
+        DROP TYPE IF EXISTS assertion_kind;
+        DROP TYPE IF EXISTS assertion_kind_new;
+        CREATE TYPE assertion_kind AS ENUM (
+            'RETURN_VALUE', 'FIELD_STATE', 'STDOUT', 'EXCEPTION'
+        );
+        ALTER TABLE testcase_assertion
+            ALTER COLUMN assertion_kind TYPE assertion_kind
+            USING (assertion_kind::text::assertion_kind);
     ELSIF EXISTS (SELECT 1 FROM pg_catalog.pg_type WHERE typname = 'assertion_kind_new') THEN
         DROP TYPE assertion_kind_new;
     END IF;

@@ -6,6 +6,7 @@ import {
   isArrayOrListType,
   isInstanceRef,
   isRubricClassType,
+  namedInstanceMatchesParamType,
   parseParamsArray,
   parseScalarInput,
   serializeParamsArray,
@@ -56,7 +57,11 @@ export default function TestcaseParamFields({
         }
 
         if (objectArg) {
-          const matching = namedInstances.filter((item) => item.className === coreTypeName(param.dataType));
+          const matching = namedInstances.filter((item) => namedInstanceMatchesParamType(
+            item.className,
+            param.dataType,
+            catalog,
+          ));
           const selected = isInstanceRef(value) ? value.$instance : '';
           return (
             <label key={param.id || index} className="block text-xs text-foreground-muted">

@@ -518,10 +518,10 @@ class TestcaseGraderTest {
         TestcaseRubric testcase = composition(
                 "car engine",
                 List.of(engine, car),
-                List.of(returnValue(carId, "{\"$objectCheck\":\"TYPE\"}", 0)));
+                List.of(fieldState(carId, "hp", "int", "200", 0)));
         InvocationRunner runner = scenarioRunner(List.of(
-                InvocationOutcome.normal(null, "", false, Map.of(), "Engine", Map.of(), Map.of()),
-                InvocationOutcome.normal(null, "", false, Map.of(), "Car", Map.of(), Map.of())));
+                InvocationOutcome.normal(null, "", false, Map.of()),
+                InvocationOutcome.normal(null, "", false, Map.of("hp", 200))));
 
         TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
                 .gradeSingle(testcase, context(testcase));
@@ -602,7 +602,7 @@ class TestcaseGraderTest {
         AssertionRubric stdout = new AssertionRubric(
                 UUID.randomUUID(), AssertionKind.STDOUT, invocationId, null, null, null,
                 "\"hello\"", ComparisonMode.EXACT, 0);
-        AssertionRubric typeCheck = returnValue(invocationId, "{\"$objectCheck\":\"TYPE\"}", 1);
+        AssertionRubric fieldCheck = fieldState(invocationId, "ready", "boolean", "true", 1);
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "ctor stdout",
@@ -613,9 +613,9 @@ class TestcaseGraderTest {
                 false,
                 construct,
                 List.of(),
-                List.of(stdout, typeCheck));
+                List.of(stdout, fieldCheck));
         InvocationRunner runner = scenarioRunner(List.of(
-                InvocationOutcome.normal(null, "noise", false, Map.of(), "Printer", Map.of(), Map.of())));
+                InvocationOutcome.normal(null, "noise", false, Map.of("ready", true))));
 
         TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
                 .gradeSingle(testcase, context(testcase));
@@ -757,6 +757,7 @@ class TestcaseGraderTest {
                 null,
                 instanceName,
                 null,
+                null,
                 null);
     }
 
@@ -781,7 +782,25 @@ class TestcaseGraderTest {
                 null,
                 instanceName,
                 null,
-                dispatchClassName);
+                dispatchClassName,
+                null);
+    }
+
+    private static AssertionRubric fieldState(UUID invocationId,
+                                              String fieldName,
+                                              String fieldType,
+                                              String expectedJson,
+                                              int orderIndex) {
+        return new AssertionRubric(
+                UUID.randomUUID(),
+                AssertionKind.FIELD_STATE,
+                invocationId,
+                UUID.randomUUID(),
+                fieldName,
+                fieldType,
+                expectedJson,
+                ComparisonMode.EXACT,
+                orderIndex);
     }
 
     private static AssertionRubric returnValue(UUID invocationId, String expectedJson, int orderIndex) {

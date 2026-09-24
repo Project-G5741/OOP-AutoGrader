@@ -15,7 +15,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 ### Run and deploy
 
-- Local: `mvn spring-boot:run` from `backend/` (port `8002` by default)
+- Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
 - Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
 - Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run; host slot of 1 on the HTTP thread). Student upload does not acquire `workerJvmSlot`. Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.

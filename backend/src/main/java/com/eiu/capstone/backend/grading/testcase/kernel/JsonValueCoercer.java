@@ -1,7 +1,9 @@
 package com.eiu.capstone.backend.grading.testcase.kernel;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -203,8 +205,14 @@ public class JsonValueCoercer {
             }
             return values;
         }
-        if (node.isObject() && node.has("type")) {
-            return node.get("type").asText();
+        if (node.isObject()) {
+            if (node.has("type")) {
+                return node.get("type").asText();
+            }
+            Map<String, Object> map = new LinkedHashMap<>();
+            node.fields().forEachRemaining(entry ->
+                    map.put(entry.getKey(), jsonToObject(entry.getValue())));
+            return map;
         }
         return node.toString();
     }

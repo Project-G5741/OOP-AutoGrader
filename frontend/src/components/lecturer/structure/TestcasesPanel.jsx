@@ -15,6 +15,7 @@ import {
   isComposition,
   normalizeTestcaseForApi,
   switchTestcaseType,
+  validateTestcaseForDryRun,
 } from './testcaseAuthoring';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -26,6 +27,8 @@ function refStorageKey(labId, challengeId) {
 export default function TestcasesPanel({
   labId,
   challenge,
+  relationTypeOptions = [],
+  declaringTypeOptions = [],
   structureDirty,
   onToast,
 }) {
@@ -66,14 +69,17 @@ export default function TestcasesPanel({
 
   const selectedDryRunResult = selectedId ? dryRunResults[selectedId] ?? null : null;
 
+  const catalog = useMemo(
+    () => buildMemberCatalog(challenge, relationTypeOptions, declaringTypeOptions),
+    [challenge, relationTypeOptions, declaringTypeOptions],
+  );
+
   const dryRunPayloadSources = useMemo(
     () => referenceSources
       .filter((s) => s.source?.trim())
       .map(({ className, source }) => ({ className, source })),
     [referenceSources],
   );
-
-  const catalog = useMemo(() => buildMemberCatalog(challenge), [challenge]);
 
   const loadTestcases = useCallback(async () => {
     if (!labId || !challenge?.id) return;
@@ -155,14 +161,14 @@ export default function TestcasesPanel({
           body: JSON.stringify(payload),
         },
       );
-      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'testcase-save'));
       const data = await res.json();
       const rows = (data.testcases || []).map(hydrateTestcase);
       setTestcases(rows);
       setSnapshot(JSON.stringify(rows));
       onToast?.({ type: 'success', message: 'Testcases saved' });
     } catch (e) {
-      onToast?.({ type: 'error', message: toFriendlyError(e, 'save') });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-save') });
     } finally {
       setSaving(false);
     }
@@ -180,7 +186,7 @@ export default function TestcasesPanel({
         }),
       },
     );
-    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'testcase-dry-run'));
     return res.json();
   };
 
@@ -190,13 +196,18 @@ export default function TestcasesPanel({
       onToast?.({ type: 'error', message: 'Add at least one reference Java file before running.' });
       return;
     }
+    const configError = validateTestcaseForDryRun(tc, catalog);
+    if (configError) {
+      onToast?.({ type: 'error', message: configError });
+      return;
+    }
     if (structureDirty) setWarnStructure(true);
     setRunningId(tc.id);
     try {
       const data = await runDryRunForTestcase(tc);
       setDryRunResults((prev) => ({ ...prev, [tc.id]: data }));
     } catch (e) {
-      onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-dry-run') });
     } finally {
       setRunningId(null);
     }
@@ -215,11 +226,17 @@ export default function TestcasesPanel({
     try {
       for (const tc of testcases) {
         setRunningId(tc.id);
+        const configError = validateTestcaseForDryRun(tc, catalog);
+        if (configError) {
+          failedCount += 1;
+          onToast?.({ type: 'error', message: configError });
+          continue;
+        }
         try {
           nextResults[tc.id] = await runDryRunForTestcase(tc);
         } catch (e) {
           failedCount += 1;
-          onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
+          onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-dry-run') });
         }
       }
       setDryRunResults(nextResults);
@@ -247,7 +264,7 @@ export default function TestcasesPanel({
     });
   };
 
-  const handleAddTestcase = (type) => {
+  const handleAddTestcase = (type = 'UNIT') => {
     const tc = emptyTestcase(testcases.length, type);
     setTestcases([...testcases, tc]);
     setSelectedId(tc.id);
@@ -300,17 +317,10 @@ export default function TestcasesPanel({
             )}
             <button
               type="button"
-              onClick={() => handleAddTestcase('UNIT')}
+              onClick={() => handleAddTestcase()}
               className="inline-flex items-center gap-1 text-sm text-primary-text transition-colors hover:text-foreground"
             >
-              <Plus className="h-4 w-4" /> Add Unit
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAddTestcase('COMPOSITION')}
-              className="inline-flex items-center gap-1 text-sm text-primary-text transition-colors hover:text-foreground"
-            >
-              <Plus className="h-4 w-4" /> Add Composition
+              <Plus className="h-4 w-4" /> Add new testcase
             </button>
           </div>
         </div>

@@ -1,6 +1,50 @@
 export const MAX_STEPS = 20;
 export const MAX_NAMED_INSTANCES = 10;
-export const COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
+export const TEXT_COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
+/** @deprecated use comparisonModesForAssertion */
+export const COMPARISON_MODES = TEXT_COMPARISON_MODES;
+export const NUMERIC_COMPARISON_MODES = ['EXACT', 'VALUE_ONLY'];
+
+const NUMERIC_TYPE_NAMES = new Set([
+  'byte', 'Byte', 'short', 'Short', 'int', 'Integer', 'long', 'Long',
+  'float', 'Float', 'double', 'Double',
+]);
+
+export function isPrimitiveNumericType(typeName) {
+  const core = coreTypeName(typeName);
+  return core != null && NUMERIC_TYPE_NAMES.has(core);
+}
+
+export function isNumericAssertion(assertion, step, catalog) {
+  if (!assertion || !step || !catalog) return false;
+  if (assertion.assertionKind === 'RETURN_VALUE') {
+    if (isObjectReturnStep(step, catalog)) return false;
+    if (step.invocationKind === 'CONSTRUCTOR') return false;
+    const method = catalog.methodsById.get(step.methodId);
+    return Boolean(method && isPrimitiveNumericType(method.returnType));
+  }
+  if (assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
+    const field = catalog.fieldsById.get(assertion.fieldId);
+    return Boolean(field && isPrimitiveNumericType(field.dataType));
+  }
+  return false;
+}
+
+export function comparisonModesForAssertion(assertion, step, catalog) {
+  if (assertion?.assertionKind === 'STDOUT') return TEXT_COMPARISON_MODES;
+  if (isNumericAssertion(assertion, step, catalog)) return NUMERIC_COMPARISON_MODES;
+  return TEXT_COMPARISON_MODES;
+}
+
+/** @param {string} mode */
+export function normalizeComparisonMode(mode) {
+  if (mode === 'NUMERIC_VALUE') return 'VALUE_ONLY';
+  return mode;
+}
+
+export function comparisonModeLabel(mode) {
+  return normalizeComparisonMode(mode) ?? mode;
+}
 
 export const FIELD_CLASS =
   'mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white';
@@ -33,14 +77,35 @@ export function emptyAssertion(invocationId, assertionKind = 'FIELD_STATE') {
   };
 }
 
-export function defaultExpectedValue(kind, objectCheck = false) {
+export function defaultExpectedValue(kind, objectEquals = false) {
   if (kind === 'EXCEPTION') return '"IllegalArgumentException"';
   if (kind === 'STDOUT') return '""';
-  if (kind === 'RETURN_VALUE' && objectCheck) {
-    return JSON.stringify({ $objectCheck: 'TYPE' });
+  if (kind === 'RETURN_VALUE' && objectEquals) {
+    return JSON.stringify({ $objectCheck: 'EQUALS', $instance: '' });
   }
   if (kind === 'RETURN_VALUE') return 'null';
   return '0';
+}
+
+export function defaultFieldStateExpected(field) {
+  if (!field?.dataType) return '0';
+  const type = coreTypeName(field.dataType);
+  if (type === 'String' || type === 'char' || type === 'Character') return '""';
+  if (type === 'boolean' || type === 'Boolean') return 'false';
+  return '0';
+}
+
+export function parseFieldStateExpected(expectedValue) {
+  if (readInstanceExpected(expectedValue) != null) return null;
+  try {
+    return JSON.parse(expectedValue ?? '0');
+  } catch {
+    return parseScalarInput(expectedValue);
+  }
+}
+
+export function writeFieldStateScalar(value) {
+  return JSON.stringify(value === undefined ? null : value);
 }
 
 export function emptyTestcase(orderIndex = 0, testcaseType = 'UNIT') {
@@ -167,6 +232,82 @@ function normalizeInvocation(step, unit) {
   };
 }
 
+/**
+ * Client-side checks before dry-run. Returns an error message or null when runnable.
+ */
+export function validateTestcaseForDryRun(tc, catalog) {
+  if (!catalog) {
+    return 'Challenge structure is still loading. Try again in a moment.';
+  }
+  const hydrated = hydrateTestcase(tc);
+  const composition = isComposition(hydrated);
+  const steps = hydrated.invocations;
+
+  if (!steps.length) {
+    return 'Complete the testcase steps before running.';
+  }
+
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i];
+    const label = composition ? `Step ${i + 1}` : 'Testcase';
+    if (step.invocationKind === 'CONSTRUCTOR') {
+      if (!step.constructorId) {
+        return `${label}: choose a constructor.`;
+      }
+    } else if (!step.methodId) {
+      return `${label}: choose a method.`;
+    }
+
+    if (composition) {
+      const role = compositionNameRole(step, catalog);
+      if (role === 'product' && !(step.instanceName?.trim())) {
+        return `${label}: enter an instance name.`;
+      }
+      if (role === 'receiver' && !(step.instanceName?.trim())) {
+        return `${label}: choose a receiver instance.`;
+      }
+    }
+
+    const parameters = stepParameters(step, catalog);
+    const values = parseParamsArray(step.params, parameters.length);
+    for (let p = 0; p < parameters.length; p += 1) {
+      const param = parameters[p];
+      const value = values[p];
+      const argLabel = param.name ? `${param.name}` : `argument ${p + 1}`;
+      const objectArg = isRubricClassType(param.dataType, catalog);
+      if (composition && objectArg) {
+        if (!isInstanceRef(value) || !String(value.$instance || '').trim()) {
+          return `${label}: choose a named instance for ${argLabel}.`;
+        }
+      } else if (value === null || value === undefined || value === '') {
+        return `${label}: enter a value for ${argLabel}.`;
+      }
+    }
+  }
+
+  const assertions = hydrated.assertions || [];
+  if (!assertions.length) {
+    return 'Add at least one assertion before running.';
+  }
+
+  for (const assertion of assertions) {
+    if (assertion.assertionKind === 'FIELD_STATE' && !assertion.fieldId) {
+      return 'Each field assertion must select a field.';
+    }
+    if (composition && assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
+      const field = catalog.fieldsById.get(assertion.fieldId);
+      if (field && isRubricClassType(field.dataType, catalog)) {
+        const instance = readInstanceExpected(assertion.expectedValue);
+        if (!instance?.trim()) {
+          return 'Each object field assertion must choose a named instance.';
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 export function normalizeTestcaseForApi(tc) {
   const hydrated = hydrateTestcase(tc);
   const unit = hydrated.testcaseType !== 'COMPOSITION';
@@ -186,7 +327,7 @@ export function normalizeTestcaseForApi(tc) {
       assertionKind: a.assertionKind,
       fieldId: a.assertionKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
       expectedValue: a.expectedValue?.trim() ? a.expectedValue.trim() : 'null',
-      comparisonMode: a.comparisonMode || 'EXACT',
+      comparisonMode: normalizeComparisonMode(a.comparisonMode || 'EXACT'),
       orderIndex: a.orderIndex ?? idx,
     })),
   };
@@ -278,16 +419,92 @@ export function paramSignature(parameters) {
   return (parameters || []).map((param) => param.dataType || '?').join(', ');
 }
 
-export function buildMemberCatalog(challenge) {
+function heritageRelationKind(relationTypeOption) {
+  const name = (relationTypeOption?.name || '').toLowerCase();
+  if (name.includes('realiz') || name.includes('implement')) return 'heritage';
+  if (name.includes('inherit') || name.includes('extend') || name.includes('general')) return 'heritage';
+  return null;
+}
+
+function buildChildrenByParentId(relations, relationTypeOptions) {
+  const childrenByParentId = new Map();
+  (relations || []).forEach((relation) => {
+    const option = (relationTypeOptions || []).find((item) => item.id === relation.relationTypeId);
+    if (!heritageRelationKind(option)) return;
+    const parentId = relation.targetClassId;
+    const childId = relation.sourceClassId;
+    if (!parentId || !childId) return;
+    if (!childrenByParentId.has(parentId)) childrenByParentId.set(parentId, new Set());
+    childrenByParentId.get(parentId).add(childId);
+  });
+  return childrenByParentId;
+}
+
+function collectDescendantClassIds(rootClassId, childrenByParentId) {
+  const descendants = new Set();
+  const stack = [...(childrenByParentId.get(rootClassId) || [])];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (descendants.has(id)) continue;
+    descendants.add(id);
+    (childrenByParentId.get(id) || []).forEach((childId) => stack.push(childId));
+  }
+  return descendants;
+}
+
+/** Whether a named instance's concrete class can be passed where the parameter type is expected. */
+export function namedInstanceMatchesParamType(instanceClassName, paramDataType, catalog) {
+  const paramCore = coreTypeName(paramDataType);
+  const instanceCore = coreTypeName(instanceClassName);
+  if (!paramCore || !instanceCore) return false;
+  if (paramCore === instanceCore) return true;
+  const paramClassId = catalog?.classIdByName?.get(paramCore);
+  const instanceClassId = catalog?.classIdByName?.get(instanceCore);
+  if (!paramClassId || !instanceClassId) return false;
+  const descendants = collectDescendantClassIds(
+    paramClassId,
+    catalog.childrenByParentId || new Map(),
+  );
+  return descendants.has(instanceClassId);
+}
+
+function declaringTypeKey(declaringTypeId, declaringTypeOptions) {
+  const opt = (declaringTypeOptions || []).find((item) => item.id === declaringTypeId);
+  return (opt?.name || '').trim().toLowerCase();
+}
+
+/** Concrete classes only — excludes interface/enum/annotation shells and abstract classes. */
+export function isConcreteRubricClass(cls, declaringTypeOptions = []) {
+  if (!cls) return false;
+  if (cls.isAbstract) return false;
+  const typeKey = declaringTypeKey(cls.declaringTypeId, declaringTypeOptions);
+  if (typeKey === 'interface' || typeKey === 'enum' || typeKey === 'annotation') {
+    return false;
+  }
+  return true;
+}
+
+export function buildMemberCatalog(
+  challenge,
+  relationTypeOptions = [],
+  declaringTypeOptions = [],
+) {
   const classes = challenge?.classes || [];
   const classNames = new Set(classes.map((cls) => cls.name).filter(Boolean));
+  const classIdByName = new Map();
+  classes.forEach((cls) => {
+    if (cls.name) classIdByName.set(cls.name, cls.id);
+  });
+  const childrenByParentId = buildChildrenByParentId(challenge?.relations, relationTypeOptions);
   const constructors = [];
   const methods = [];
   const fields = [];
   const noArgClassIds = new Set();
 
   classes.forEach((cls) => {
+    const concreteClass = isConcreteRubricClass(cls, declaringTypeOptions);
     (cls.constructors || []).forEach((ctor) => {
+      if (!concreteClass) return;
       const parameters = ctor.parameters || [];
       const isNoArg = parameters.length === 0;
       if (isNoArg) noArgClassIds.add(cls.id);
@@ -301,6 +518,7 @@ export function buildMemberCatalog(challenge) {
       });
     });
     (cls.methods || []).forEach((method) => {
+      if (!concreteClass || method.isAbstract) return;
       const parameters = method.parameters || [];
       methods.push({
         id: method.id,
@@ -311,6 +529,7 @@ export function buildMemberCatalog(challenge) {
         parameters,
         returnType: method.returnType,
         isStatic: !!method.isStatic,
+        isAbstract: false,
       });
     });
     (cls.fields || []).forEach((field) => {
@@ -327,6 +546,8 @@ export function buildMemberCatalog(challenge) {
 
   return {
     classNames,
+    classIdByName,
+    childrenByParentId,
     noArgClassIds,
     constructors,
     methods,
@@ -351,9 +572,6 @@ export function unitMemberBlockedReason(target, catalog) {
   if (hasRubricClassArgument(target.parameters, catalog)) {
     return 'Object arguments belong in Composition.';
   }
-  if (target.kind === 'METHOD' && !target.isStatic && !catalog.noArgClassIds.has(target.classId)) {
-    return 'Instance methods need a no-arg constructor. Use Composition.';
-  }
   return null;
 }
 
@@ -361,6 +579,11 @@ export function unitTargets(catalog) {
   const ctorTargets = catalog.constructors.map((ctor) => ({ ...ctor, kind: 'CONSTRUCTOR' }));
   const methodTargets = catalog.methods.map((method) => ({ ...method, kind: 'METHOD' }));
   return [...ctorTargets, ...methodTargets];
+}
+
+/** Members lecturers can pick for a UNIT testcase (excludes Composition-only shapes). */
+export function unitSelectableTargets(catalog) {
+  return unitTargets(catalog).filter((item) => !unitMemberBlockedReason(item, catalog));
 }
 
 export function selectedUnitTarget(step, catalog) {
@@ -427,14 +650,54 @@ export function resultClassName(step, catalog) {
   return method ? coreTypeName(method.returnType) : null;
 }
 
-export function allowedAssertionKinds(step, catalog) {
+export function classIdForClassName(className, catalog) {
+  if (!className) return null;
+  const fromClass = catalog.classIdByName?.get(className);
+  if (fromClass) return fromClass;
+  const ctor = catalog.constructors.find((item) => item.className === className);
+  if (ctor) return ctor.classId;
+  const method = catalog.methods.find((item) => item.className === className);
+  return method?.classId ?? null;
+}
+
+function fieldOwnerClassIdsForStep(step, catalog) {
+  if (!step) return [];
+  if (step.invocationKind === 'CONSTRUCTOR') {
+    const classId = catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+    return classId ? [classId] : [];
+  }
+  const method = catalog.methodsById.get(step.methodId);
+  if (!method) return [];
+  if (isRubricClassType(method.returnType, catalog) && !isVoidReturn(method.returnType)) {
+    const returnName = coreTypeName(method.returnType);
+    const rootId = classIdForClassName(returnName, catalog);
+    if (!rootId) return [];
+    const ids = new Set([rootId]);
+    collectDescendantClassIds(rootId, catalog.childrenByParentId || new Map())
+      .forEach((id) => ids.add(id));
+    return [...ids];
+  }
+  return method.classId ? [method.classId] : [];
+}
+
+/** Rubric fields eligible for FIELD_STATE on this step (constructed type, return type, or receiver). */
+export function fieldsForStepAssertion(step, catalog) {
+  const ownerIds = new Set(fieldOwnerClassIdsForStep(step, catalog));
+  if (ownerIds.size === 0) return [];
+  return catalog.fields.filter((field) => ownerIds.has(field.classId));
+}
+
+export function allowedAssertionKinds(step, catalog, testcaseType = 'UNIT') {
   if (!step) return ['FIELD_STATE', 'EXCEPTION'];
   if (step.invocationKind === 'CONSTRUCTOR') {
-    return ['RETURN_VALUE', 'FIELD_STATE', 'EXCEPTION'];
+    return ['FIELD_STATE', 'EXCEPTION'];
   }
   const method = catalog.methodsById.get(step.methodId);
   if (method && isVoidReturn(method.returnType)) {
     return ['STDOUT', 'FIELD_STATE', 'EXCEPTION'];
+  }
+  if (isObjectReturnStep(step, catalog)) {
+    return ['RETURN_VALUE', 'FIELD_STATE', 'EXCEPTION'];
   }
   return ['RETURN_VALUE', 'STDOUT', 'FIELD_STATE', 'EXCEPTION'];
 }
@@ -475,11 +738,14 @@ export function readObjectCheck(expectedValue) {
   try {
     const node = JSON.parse(expectedValue || '');
     if (node && typeof node === 'object' && typeof node.$objectCheck === 'string') {
-      return {
-        kind: node.$objectCheck,
-        fields: node.fields && typeof node.fields === 'object' ? node.fields : {},
-        instance: typeof node.$instance === 'string' ? node.$instance : '',
-      };
+      if (node.$objectCheck === 'EQUALS') {
+        return {
+          kind: 'EQUALS',
+          fields: {},
+          instance: typeof node.$instance === 'string' ? node.$instance : '',
+        };
+      }
+      return null;
     }
   } catch {
     // scalar expected values are not object checks
@@ -487,14 +753,8 @@ export function readObjectCheck(expectedValue) {
   return null;
 }
 
-export function writeObjectCheck(kind, { fields = {}, instance = '' } = {}) {
-  if (kind === 'FIELDS') {
-    return JSON.stringify({ $objectCheck: 'FIELDS', fields });
-  }
-  if (kind === 'EQUALS') {
-    return JSON.stringify({ $objectCheck: 'EQUALS', $instance: instance });
-  }
-  return JSON.stringify({ $objectCheck: 'TYPE' });
+export function writeObjectCheck(kind, { instance = '' } = {}) {
+  return JSON.stringify({ $objectCheck: 'EQUALS', $instance: instance });
 }
 
 export function readInstanceExpected(expectedValue) {

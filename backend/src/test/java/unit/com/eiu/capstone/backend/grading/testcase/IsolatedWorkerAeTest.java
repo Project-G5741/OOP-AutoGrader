@@ -316,6 +316,7 @@ class IsolatedWorkerAeTest {
                                     null,
                                     "actor",
                                     null,
+                                    null,
                                     null),
                             new InvocationRubric(
                                     boomId,
@@ -332,6 +333,7 @@ class IsolatedWorkerAeTest {
                                     null,
                                     "actor",
                                     null,
+                                    null,
                                     null),
                             new InvocationRubric(
                                     laterId,
@@ -347,6 +349,7 @@ class IsolatedWorkerAeTest {
                                     List.of(),
                                     null,
                                     "actor",
+                                    null,
                                     null,
                                     null)),
                     null);
@@ -415,6 +418,7 @@ class IsolatedWorkerAeTest {
                                     null,
                                     "probe",
                                     null,
+                                    null,
                                     null),
                             new InvocationRubric(
                                     shoutId,
@@ -430,6 +434,7 @@ class IsolatedWorkerAeTest {
                                     List.of(),
                                     null,
                                     "probe",
+                                    null,
                                     null,
                                     null)),
                     null);
