@@ -34,6 +34,8 @@ class TermServiceCurrentTermTest {
     private com.eiu.capstone.backend.repository.LabRepository labRepository;
     @Mock
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
+    @Mock
+    private SessionValidityService sessionValidityService;
 
     private TermService termService;
 
@@ -45,7 +47,8 @@ class TermServiceCurrentTermTest {
                 termEnrollmentRepository,
                 userAccountRepository,
                 labRepository,
-                lecturerOverviewCache);
+                lecturerOverviewCache,
+                sessionValidityService);
     }
 
     @Test

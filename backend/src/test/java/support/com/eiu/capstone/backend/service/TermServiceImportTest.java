@@ -46,6 +46,8 @@ class TermServiceImportTest {
     private com.eiu.capstone.backend.repository.LabRepository labRepository;
     @Mock
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
+    @Mock
+    private SessionValidityService sessionValidityService;
 
     private TermService termService;
     private UUID termId;
@@ -60,7 +62,8 @@ class TermServiceImportTest {
                 termEnrollmentRepository,
                 userAccountRepository,
                 labRepository,
-                lecturerOverviewCache);
+                lecturerOverviewCache,
+                sessionValidityService);
         termId = UUID.randomUUID();
         userId = UUID.randomUUID();
         term = new Term();

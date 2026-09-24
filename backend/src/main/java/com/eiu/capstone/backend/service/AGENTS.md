@@ -11,7 +11,8 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionStorageService` | Upload pipeline: group files by challenge, parallel compile `.java`, return metadata |
 | `MmdPersistenceHook` | Extension point for `.mmd` archival (default `NoOpMmdPersistenceHook`) |
 | `JavaCompilerService` | Compile submitted `.java` files to `classes/` via `javax.tools.JavaCompiler` |
-| `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn) |
+| `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn, sv) |
+| `SessionValidityService` | Resolve/bump `user_account.session_version`; filter rejects mismatched or missing accounts |
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
@@ -22,7 +23,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
-| `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; `DELETE /api/presence` removes that email; unique count within 30s |
+| `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
@@ -71,7 +72,8 @@ Per upload request (unique `requestId` prevents collisions):
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
-- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row
+- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row; clears session-version cache for that email so live JWTs fail the filter
+- Soft suspend bumps `session_version` so the live JWT is rejected (SPA presence poll then hard-cuts to login)
 - Google upsert creates or updates user on first login
 - Inactive users cannot log in (IRN or Google)
 - Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)
@@ -81,6 +83,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Lecturers create a term under an academic year label (reused if it exists) and optional dates
 - One term is current (`is_current`); set via `POST /api/lecturer/terms/{id}/current`
 - Enroll only active students; out-of-term active students can still log in and read history, not submit
+- Remove from the **current** term bumps `session_version` (force logout of live JWT); remove from a non-current term does not
 - Excel import matches an existing user by **IRN (`student_code`) first, then email**; extra columns (including Fullname) are ignored for matching. Unmatched rows are skipped and returned for lecturer Details.
 - Import, enroll, and term list use batched queries (user lookup by IRN list and email list, enrollment ids, grouped student counts, `saveAll`)
 - Current-term membership is `existsByUser_IdAndTerm_CurrentTrue` (no extra current-term fetch)

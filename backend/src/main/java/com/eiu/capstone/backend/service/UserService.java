@@ -62,6 +62,7 @@ public class UserService {
     private final TermEnrollmentRepository termEnrollmentRepository;
     private final LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final SessionValidityService sessionValidityService;
 
     public UserService(UserAccountRepository userRepository,
             RoleRepository roleRepository,
@@ -78,7 +79,8 @@ public class UserService {
             StudentLabProgressRepository studentLabProgressRepository,
             TermEnrollmentRepository termEnrollmentRepository,
             LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
-            PasswordResetTokenRepository passwordResetTokenRepository) {
+            PasswordResetTokenRepository passwordResetTokenRepository,
+            SessionValidityService sessionValidityService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -95,6 +97,7 @@ public class UserService {
         this.termEnrollmentRepository = termEnrollmentRepository;
         this.labDeadlineEmailSentRepository = labDeadlineEmailSentRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.sessionValidityService = sessionValidityService;
     }
 
     @Transactional
@@ -264,8 +267,10 @@ public class UserService {
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         UserDTO.UserResponse response = UserDTO.UserResponse.fromEntity(user);
+        String email = user.getEmail();
         purgeUserData(id);
         userRepository.delete(user);
+        sessionValidityService.invalidateCachedEmail(email);
         return response;
     }
 
@@ -307,7 +312,12 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend a lecturer account");
         }
         user.setIsActive(active);
-        return UserDTO.UserResponse.fromEntity(userRepository.save(user));
+        if (!active) {
+            sessionValidityService.bumpSessionVersion(user);
+        } else {
+            userRepository.save(user);
+        }
+        return UserDTO.UserResponse.fromEntity(user);
     }
 
     private boolean hasRole(UserAccount user, String roleName) {

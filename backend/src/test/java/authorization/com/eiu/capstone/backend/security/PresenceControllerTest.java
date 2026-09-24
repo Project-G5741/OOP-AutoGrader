@@ -7,12 +7,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,6 +25,12 @@ import com.eiu.capstone.backend.security.JwtAuthenticationFilter;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.PresenceService;
+import com.eiu.capstone.backend.service.SessionValidityService;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.when;
 
 @WebMvcTest(controllers = PresenceController.class)
 @Import({
@@ -52,6 +60,15 @@ class PresenceControllerTest {
     @Autowired
     private JwtService jwtService;
 
+    @MockBean
+    private SessionValidityService sessionValidityService;
+
+    @BeforeEach
+    void allowSessions() {
+        when(sessionValidityService.isSessionValid(any(), anyInt())).thenReturn(true);
+        when(sessionValidityService.isSessionValid(any(), isNull())).thenReturn(true);
+    }
+
     @Test
     void signedInGetHeartbeatsOnceAndAnonymousCanReadCount() throws Exception {
         mockMvc.perform(get("/api/presence"))
@@ -75,5 +92,15 @@ class PresenceControllerTest {
         mockMvc.perform(get("/api/presence"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(0));
+    }
+
+    @Test
+    void bearerWithRevokedSession_returns401() throws Exception {
+        when(sessionValidityService.isSessionValid(any(), anyInt())).thenReturn(false);
+        when(sessionValidityService.isSessionValid(any(), isNull())).thenReturn(false);
+        String token = jwtService.createToken(
+                "user@eiu.edu.vn", "User", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN001");
+        mockMvc.perform(get("/api/presence").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
     }
 }

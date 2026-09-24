@@ -99,6 +99,9 @@ class UserServiceTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
+    private SessionValidityService sessionValidityService;
+
+    @Mock
     private UserAccount existingUser;
 
     private UserService userService;
@@ -123,7 +126,8 @@ class UserServiceTest {
                 studentLabProgressRepository,
                 termEnrollmentRepository,
                 labDeadlineEmailSentRepository,
-                passwordResetTokenRepository);
+                passwordResetTokenRepository,
+                sessionValidityService);
         userId = UUID.randomUUID();
         when(existingUser.getId()).thenReturn(userId);
         when(existingUser.getEmail()).thenReturn("student@eiu.edu.vn");
@@ -271,6 +275,7 @@ class UserServiceTest {
         verify(submissionRelationResultRepository, never()).deleteBySubmission(any());
         verify(submissionTestcaseResultRepository, never()).deleteBySubmission_Id(any());
         verify(userRepository).delete(student);
+        verify(sessionValidityService).invalidateCachedEmail("student@eiu.edu.vn");
     }
 
     @Test
@@ -293,6 +298,7 @@ class UserServiceTest {
 
         assertFalse(result.isActive());
         assertFalse(student.getIsActive());
+        verify(sessionValidityService).bumpSessionVersion(student);
     }
 
     @Test
@@ -306,6 +312,7 @@ class UserServiceTest {
 
         assertTrue(result.isActive());
         assertTrue(student.getIsActive());
+        verify(sessionValidityService, never()).bumpSessionVersion(any(UserAccount.class));
     }
 
     @Test

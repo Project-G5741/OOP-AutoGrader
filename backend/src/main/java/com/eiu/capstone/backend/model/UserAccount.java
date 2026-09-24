@@ -38,6 +38,9 @@ public class UserAccount {
     @Column(name = "is_active", nullable = false)
     private boolean is_active;
 
+    @Column(name = "session_version", nullable = false)
+    private int sessionVersion = 0;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_role", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
@@ -112,6 +115,14 @@ public class UserAccount {
 
     public void setIsActive(boolean is_active) {
         this.is_active = is_active;
+    }
+
+    public int getSessionVersion() {
+        return sessionVersion;
+    }
+
+    public void setSessionVersion(int sessionVersion) {
+        this.sessionVersion = sessionVersion;
     }
 
     public String getIrn() {

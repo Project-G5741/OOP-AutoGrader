@@ -67,7 +67,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 
 ### Security posture
 
-- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser; matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403
+- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser and validates claim `sv` via `SessionValidityService` (missing user or version mismatch → unauthenticated); matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403
 - No role hierarchy. `TEACHER` in a token maps to `LECTURER`. Dual-role accounts need both `STUDENT` and `LECTURER` authorities
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats

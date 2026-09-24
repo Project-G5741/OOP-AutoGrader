@@ -162,7 +162,10 @@ API posture where a request is refused unless an explicit path-and-method rule a
 The SPA screen for a signed-in user whose API call was forbidden. The session stays valid so they can return to their default dashboard. It is not used for wrong-role page URLs (those use the default-dashboard redirect) and not used for missing or expired sessions (those return to login).
 
 ### Active user presence
-In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently.
+In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently. The same poll is the hard-cut heartbeat for **session revoke**: a 401 on presence clears the SPA session and returns to login.
+
+### Session revoke
+Invalidating a signed-in JWT before natural expiry by bumping `user_account.session_version` (claim `sv`) or deleting the account. Hard delete, suspend, and remove-from-current-term bump or remove the row so the filter rejects the old token immediately; the SPA presence poll forces logout within seconds.
 
 ## Backend tests
 
