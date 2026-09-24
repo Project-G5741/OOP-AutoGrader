@@ -15,8 +15,8 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseResult;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
+import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
-import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.SubmissionTestcaseAssertionResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
@@ -80,7 +80,7 @@ public class TestcaseResultMapper {
                 expectedOutput,
                 actualOutput,
                 assertions.isEmpty() ? null : assertions,
-                visibleTag(testcase));
+                null);
     }
 
     public TestcaseResultDTO mapDryRunResult(TestcaseRubric rubric, PendingTestcaseResult pending) {
@@ -103,11 +103,7 @@ public class TestcaseResultMapper {
                 pending.expectedDisplay(),
                 pending.actualDisplay(),
                 assertions.isEmpty() ? null : assertions,
-                visibleTag(rubric));
-    }
-
-    private static OopPrincipleTag visibleTag(TestcaseRubric testcase) {
-        return testcase.oopPrincipleTag() != null ? testcase.oopPrincipleTag() : OopPrincipleTag.Unit;
+                null);
     }
 
     private List<TestcaseAssertionResultDTO> mapAssertions(TestcaseRubric testcase,
@@ -138,7 +134,8 @@ public class TestcaseResultMapper {
                     String result = row != null
                             ? LabResultAssembler.toFrontendResult(row.getResult())
                             : TestcaseResultStatus.SKIPPED.name();
-                    String expected = displayFormatter.formatExpected(assertion);
+                    String expected = displayFormatter.formatExpected(
+                            assertion, invocationForAssertion(assertion, testcase));
                     String actual;
                     if (primary != null && primary.id().equals(assertion.id())
                             && submissionResult != null
@@ -177,7 +174,8 @@ public class TestcaseResultMapper {
                     String result = row != null
                             ? LabResultAssembler.toFrontendResult(row.status())
                             : TestcaseResultStatus.SKIPPED.name();
-                    String expected = displayFormatter.formatExpected(assertion);
+                    String expected = displayFormatter.formatExpected(
+                            assertion, invocationForAssertion(assertion, testcase));
                     String actual;
                     if (primary != null && primary.id().equals(assertion.id())) {
                         actual = primaryActualDisplay != null ? primaryActualDisplay : "";
@@ -202,6 +200,21 @@ public class TestcaseResultMapper {
                 .sorted(Comparator.comparingInt(AssertionRubric::orderIndex))
                 .map(rowMapper)
                 .toList();
+    }
+
+    private static InvocationRubric invocationForAssertion(AssertionRubric assertion, TestcaseRubric testcase) {
+        List<InvocationRubric> steps = TestcaseGrader.resolveSteps(testcase);
+        if (steps.isEmpty()) {
+            return null;
+        }
+        if (assertion.invocationId() != null) {
+            for (InvocationRubric step : steps) {
+                if (assertion.invocationId().equals(step.id())) {
+                    return step;
+                }
+            }
+        }
+        return steps.size() == 1 ? steps.get(0) : null;
     }
 
     private static Map<UUID, TestcaseResultStatus> persistedStatusById(

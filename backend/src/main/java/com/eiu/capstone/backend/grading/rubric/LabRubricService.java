@@ -35,7 +35,6 @@ import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
-import com.eiu.capstone.backend.repository.TestcaseInstanceRepository;
 import com.eiu.capstone.backend.repository.TestcaseInvocationRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 
@@ -51,7 +50,6 @@ public class LabRubricService {
     private final ClassRelationRepository classRelationRepository;
     private final TestcaseRepository testcaseRepository;
     private final TestcaseInvocationRepository testcaseInvocationRepository;
-    private final TestcaseInstanceRepository testcaseInstanceRepository;
     private final TestcaseAssertionRepository testcaseAssertionRepository;
 
     public LabRubricService(ChallengeRepository challengeRepository,
@@ -63,7 +61,6 @@ public class LabRubricService {
                             ClassRelationRepository classRelationRepository,
                             TestcaseRepository testcaseRepository,
                             TestcaseInvocationRepository testcaseInvocationRepository,
-                            TestcaseInstanceRepository testcaseInstanceRepository,
                             TestcaseAssertionRepository testcaseAssertionRepository) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
@@ -74,7 +71,6 @@ public class LabRubricService {
         this.classRelationRepository = classRelationRepository;
         this.testcaseRepository = testcaseRepository;
         this.testcaseInvocationRepository = testcaseInvocationRepository;
-        this.testcaseInstanceRepository = testcaseInstanceRepository;
         this.testcaseAssertionRepository = testcaseAssertionRepository;
     }
 
@@ -104,8 +100,7 @@ public class LabRubricService {
         List<UUID> testcaseIds = allTestcases.stream().map(Testcase::getId).toList();
         List<TestcaseInvocation> allInvocations = testcaseIds.isEmpty() ? List.of()
                 : testcaseInvocationRepository.findByTestcase_IdIn(testcaseIds);
-        List<TestcaseInstance> allInstances = testcaseIds.isEmpty() ? List.of()
-                : testcaseInstanceRepository.findByTestcase_IdIn(testcaseIds);
+        List<TestcaseInstance> allInstances = List.of();
         List<TestcaseAssertion> allAssertions = testcaseIds.isEmpty() ? List.of()
                 : testcaseAssertionRepository.findByTestcase_IdInOrderByOrderIndexAsc(testcaseIds);
         Map<UUID, List<TestcaseInvocation>> invocationsByTestcaseId = allInvocations.stream()
@@ -300,14 +295,13 @@ public class LabRubricService {
                 })
                 .toList();
 
-        OopPrincipleTag tag = testcase.getOopPrincipleTag() != null
-                ? testcase.getOopPrincipleTag() : OopPrincipleTag.Unit;
+        OopPrincipleTag tag = OopPrincipleTag.Unit;
         return new TestcaseRubric(
                 testcase.getId(),
                 testcase.getName(),
                 testcase.getTestcaseType(),
-                testcase.getComparisonMethod(),
-                testcase.getWeight(),
+                null,
+                1,
                 testcase.getOrderIndex(),
                 testcase.isHidden(),
                 invocationRubric,
@@ -325,12 +319,13 @@ public class LabRubricService {
         String instanceName = invocation.getInstanceName();
         if (invocation.getInvocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = invocation.getConstructor().getId();
+            String className = context.classNameByConstructorId().get(constructorId);
             return new InvocationRubric(
                     invocation.getId(),
                     invocation.getInvocationKind(),
                     constructorId,
                     null,
-                    context.classNameByConstructorId().get(constructorId),
+                    className,
                     null,
                     context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                     invocation.getParams(),
@@ -340,7 +335,8 @@ public class LabRubricService {
                     null,
                     instanceName,
                     dispatchClassId,
-                    dispatchClassName);
+                    dispatchClassName,
+                    InvocationRubric.resultTypeNameForConstructor(className));
         }
         return methodInvocationRubric(invocation, context, instanceName, dispatchClassId, dispatchClassName);
     }
@@ -376,7 +372,8 @@ public class LabRubricService {
                 invocation.getReceiverParams(),
                 instanceName,
                 dispatchClassId,
-                dispatchClassName);
+                dispatchClassName,
+                InvocationRubric.resultTypeNameForMethod(method));
     }
 
     private record TestcaseRubricContext(

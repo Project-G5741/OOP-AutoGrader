@@ -27,6 +27,16 @@ class JwtServiceTest {
 
         assertEquals("student@eiu.edu.vn", claims.get("email", String.class));
         assertEquals("IRN001", claims.get("irn", String.class));
+        assertEquals(0, claims.get("sv", Integer.class));
+    }
+
+    @Test
+    void createToken_includesSessionVersionClaim() {
+        JwtService issuer = new JwtService(STABLE_SECRET, 3600);
+        String token = issuer.createToken("student@eiu.edu.vn", "Student", "eiu.edu.vn",
+                List.of("STUDENT"), "IRN001", 7);
+        Claims claims = issuer.parseToken(token);
+        assertEquals(7, claims.get("sv", Integer.class));
     }
 
     @Test

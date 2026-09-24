@@ -258,7 +258,7 @@ Each challenge has three weight sliders:
 |---|---|
 | MMD Weight | Score contribution from the UML/MMD diagram check |
 | Class Weight | Score contribution from declared class structure |
-| Testcase Weight | Score contribution from operational testcase results |
+| Testcase Weight | Score contribution from operational testcases when the challenge has authored OT rows |
 
 Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail Panel**.
 
@@ -266,11 +266,11 @@ Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail 
 
 1. Select a challenge in the structure tree.
 2. In the **Challenge Detail Panel**, switch to the **Operational Testcases** tab.
-3. Click **+ Add testcase** to create a scenario or comparison test.
-4. Mark a testcase as **Hidden** to hide its I/O from students (they see PASS/FAIL only).
+3. Click **Add Unit** or **Add Composition**.
+4. Mark **Hidden** on a testcase to hide input/expected/actual from students (they still see pass/fail). Example testcases (`Hidden` off) show full I/O on the student Operation Test tab.
 5. Click **Save Testcases** (in that tab) to persist testcase changes. Click **Save Structure** separately when you change classes, fields, or methods.
 
-For a full walkthrough with examples (steps, assertions, OOP tags, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
+For a full walkthrough (Unit worksheet, Composition script, **Call as** for override checks, assertions, object checks, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
 
 #### Lab Deadline
 
@@ -293,7 +293,7 @@ Operational testcases use a separate **Save Testcases** button in the Operationa
 
 ### 2.5.1 Operational testcases (detailed guide)
 
-See **[LECTURER_OPERATIONAL_TESTCASE_GUIDE.md](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)** — step-by-step setup for scenario tests, comparison tests, assertions, OOP principle tags, reference Java dry-run, and worked examples in plain English.
+See **[LECTURER_OPERATIONAL_TESTCASE_GUIDE.md](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)** — Unit and Composition authoring, assertions, object checks, reference Java dry-run, and the operator wipe step. Student upload does not run these tests this ship.
 
 ---
 
@@ -384,7 +384,7 @@ Once a lab is selected, three stats appear above the upload zone:
 
 ### 3.2 Reading Your Results
 
-After a successful upload, result tabs appear below the stats row. Tabs shown depend on what the challenge tests:
+After a successful upload, result tabs appear below the stats row. **Declaration Test** is always shown. **MMD** appears when the challenge has a diagram. **Operation Test** appears when the challenge has authored operational testcases and your attempt was graded with OT (including after upload in the same session).
 
 #### MMD Tab
 
@@ -408,10 +408,7 @@ Tests whether your Java class declarations (class names, fields, constructors, m
 
 #### Operation Test Tab (Testcases)
 
-Tests whether your code runs correctly against pre-defined inputs.
-
-- **Example Testcases** (visible): shown as expandable rows with Input, Expected Output, and Your Output. Both passing and failing rows can be expanded.
-- **Other Testcases** (hidden): shown as a 2-column grid with a 🔒 lock icon and a PASS or FAIL label only — inputs and outputs are not revealed.
+When the challenge has operational testcases, this tab lists **Example Testcases** (full input, expected, and your output) and **Other Testcases** (hidden rows: name and pass/fail only). Unit, Composition, and Call-as type labels are never shown to students. Attempts graded before OT shipped have no persisted testcase rows — the tab stays hidden until you upload again.
 
 #### Challenge Sidebar Scores
 

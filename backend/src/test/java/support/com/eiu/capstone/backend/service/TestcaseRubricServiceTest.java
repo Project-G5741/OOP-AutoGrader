@@ -3,6 +3,7 @@ package support.com.eiu.capstone.backend.service;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +36,6 @@ import jakarta.persistence.EntityManager;
 
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
-import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
@@ -48,21 +49,22 @@ import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Method;
+import com.eiu.capstone.backend.model.MethodDeclaration;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
+import com.eiu.capstone.backend.model.Parameter;
 import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.model.TestcaseAssertion;
-import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseInvocation;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
+import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
-import com.eiu.capstone.backend.repository.TestcaseInstanceRepository;
 import com.eiu.capstone.backend.repository.TestcaseInvocationRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 
@@ -72,13 +74,13 @@ class TestcaseRubricServiceTest {
 
     @Mock private ChallengeRepository challengeRepository;
     @Mock private ClassEntityRepository classEntityRepository;
+    @Mock private ClassRelationRepository classRelationRepository;
     @Mock private ConstructorRepository constructorRepository;
     @Mock private MethodRepository methodRepository;
     @Mock private FieldRepository fieldRepository;
     @Mock private ParameterRepository parameterRepository;
     @Mock private TestcaseRepository testcaseRepository;
     @Mock private TestcaseInvocationRepository testcaseInvocationRepository;
-    @Mock private TestcaseInstanceRepository testcaseInstanceRepository;
     @Mock private TestcaseAssertionRepository testcaseAssertionRepository;
     @Mock private LabRubricCache labRubricCache;
     @Mock private EntityManager entityManager;
@@ -99,20 +101,23 @@ class TestcaseRubricServiceTest {
     private ClassEntity classEntity;
     private Constructor constructor;
     private Method method;
+    private UUID speedFieldId;
+    private Field speedField;
 
     @BeforeEach
     void setUp() {
         RubricCacheInvalidationSupport cacheSupport = new RubricCacheInvalidationSupport(labRubricCache);
+        when(classRelationRepository.findByClassEntityInWithEndpoints(any())).thenReturn(List.of());
         service = new TestcaseRubricService(
                 challengeRepository,
                 classEntityRepository,
+                classRelationRepository,
                 constructorRepository,
                 methodRepository,
                 fieldRepository,
                 parameterRepository,
                 testcaseRepository,
                 testcaseInvocationRepository,
-                testcaseInstanceRepository,
                 testcaseAssertionRepository,
                 cacheSupport,
                 entityManager);
@@ -154,9 +159,19 @@ class TestcaseRubricServiceTest {
         when(testcaseRepository.findByChallenge_IdOrderByOrderIndexAsc(any()))
                 .thenAnswer(inv -> List.copyOf(storedTestcases));
         when(testcaseInvocationRepository.findByTestcase_IdIn(any()))
-                .thenAnswer(inv -> List.copyOf(storedInvocations));
+                .thenAnswer(inv -> {
+                    Collection<UUID> ids = inv.getArgument(0);
+                    return storedInvocations.stream()
+                            .filter(row -> ids.contains(row.getTestcase().getId()))
+                            .toList();
+                });
         when(testcaseAssertionRepository.findByTestcase_IdInOrderByOrderIndexAsc(any()))
-                .thenAnswer(inv -> List.copyOf(storedAssertions));
+                .thenAnswer(inv -> {
+                    Collection<UUID> ids = inv.getArgument(0);
+                    return storedAssertions.stream()
+                            .filter(row -> ids.contains(row.getTestcase().getId()))
+                            .toList();
+                });
 
         labId = UUID.randomUUID();
         challengeId = UUID.randomUUID();
@@ -183,6 +198,15 @@ class TestcaseRubricServiceTest {
         method.setId(methodId);
         method.setClassEntity(classEntity);
         method.setName("getSpeed");
+        MethodDeclaration methodDeclaration = new MethodDeclaration();
+        methodDeclaration.setReturnType("int");
+        methodDeclaration.setStatic(false);
+        method.setMethodDeclaration(methodDeclaration);
+
+        speedFieldId = UUID.randomUUID();
+        speedField = new Field();
+        speedField.setId(speedFieldId);
+        speedField.setClassEntity(classEntity);
     }
 
     @Test
@@ -195,8 +219,6 @@ class TestcaseRubricServiceTest {
         stubChallengeAndMembers();
         when(testcaseRepository.findById(clientTestcaseId)).thenReturn(Optional.empty());
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
 
         verify(entityManager).persist(any(Testcase.class));
@@ -214,8 +236,6 @@ class TestcaseRubricServiceTest {
 
         stubChallengeAndMembers();
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
 
         verify(labRubricCache).invalidate(labId);
@@ -232,7 +252,7 @@ class TestcaseRubricServiceTest {
         TestcaseStructureDTO payload = new TestcaseStructureDTO(
                 null,
                 "bad",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -279,49 +299,9 @@ class TestcaseRubricServiceTest {
         when(testcaseRepository.findByChallenge_IdOrderByOrderIndexAsc(challengeId))
                 .thenReturn(List.of(existing))
                 .thenReturn(List.of());
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         service.saveForChallenge(labId, challengeId, List.of());
 
         verify(testcaseRepository).delete(existing);
-    }
-
-    @Test
-    void saveForChallenge_comparisonWithTwoInstances_succeeds() {
-        UUID instanceAId = UUID.randomUUID();
-        UUID instanceBId = UUID.randomUUID();
-        TestcaseStructureDTO payload = new TestcaseStructureDTO(
-                null,
-                "compare",
-                TestcaseType.COMPARISON,
-                TestcaseComparisonMethod.EQUALS,
-                1,
-                0,
-                false,
-                null,
-                List.of(
-                        new InstanceStructureDTO(instanceAId, "A", constructorId, "[]"),
-                        new InstanceStructureDTO(instanceBId, "B", constructorId, "[]")),
-                List.of(new AssertionStructureDTO(
-                        UUID.randomUUID(),
-                        null,
-                        AssertionKind.COMPARISON_RESULT,
-                        null,
-                        "true",
-                        ComparisonMode.EXACT,
-                        0)),
-                null,
-                null);
-
-        stubChallengeAndMembers();
-        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
-        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
-
-        verify(testcaseInstanceRepository, times(2)).save(any());
-        assertEquals(1, response.testcases().size());
-        assertEquals(TestcaseType.COMPARISON, response.testcases().get(0).testcaseType());
     }
 
     @Test
@@ -396,7 +376,7 @@ class TestcaseRubricServiceTest {
         TestcaseStructureDTO payload = new TestcaseStructureDTO(
                 UUID.randomUUID(),
                 "integration-multi",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 100,
@@ -421,73 +401,18 @@ class TestcaseRubricServiceTest {
         when(fieldRepository.findById(fieldB)).thenReturn(Optional.of(fb));
         when(fieldRepository.findById(fieldC)).thenReturn(Optional.of(fc));
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
 
         assertEquals(3, response.testcases().get(0).assertions().size());
     }
 
     @Test
-    void saveForChallenge_polymorphismWithoutDispatch_throws422() {
-        UUID invocationId = UUID.randomUUID();
-        TestcaseStructureDTO payload = new TestcaseStructureDTO(
-                UUID.randomUUID(),
-                "poly-no-dispatch",
-                TestcaseType.SINGLE_INVOCATION,
-                null,
-                1,
-                0,
-                false,
-                methodInvocation(invocationId, null, null),
-                List.of(),
-                List.of(returnValueAssertion(UUID.randomUUID(), invocationId, "0")),
-                null,
-                OopPrincipleTag.Polymorphism);
-
-        stubChallengeAndMembers();
-
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
-        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
-        verify(entityManager, never()).persist(any(Testcase.class));
-    }
-
-    @Test
-    void saveForChallenge_polymorphismDispatchOnlyOnConstructor_throws422() {
-        UUID ctorStepId = UUID.randomUUID();
-        InvocationStructureDTO construct = constructorInvocation(ctorStepId, "car", "[]", classId);
-        TestcaseStructureDTO payload = new TestcaseStructureDTO(
-                UUID.randomUUID(),
-                "poly-ctor-dispatch",
-                TestcaseType.SINGLE_INVOCATION,
-                null,
-                1,
-                0,
-                false,
-                construct,
-                List.of(),
-                List.of(returnValueAssertion(UUID.randomUUID(), ctorStepId, "null")),
-                List.of(construct),
-                OopPrincipleTag.Polymorphism);
-
-        stubChallengeAndMembers();
-
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
-        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
-        verify(entityManager, never()).persist(any(Testcase.class));
-    }
-
-    @Test
-    void validatePayload_polymorphismWithoutDispatch_doesNotThrow() {
+    void validatePayload_unitMethod_doesNotThrow() {
         UUID invocationId = UUID.randomUUID();
         TestcaseStructureDTO payload = new TestcaseStructureDTO(
                 UUID.randomUUID(),
                 "poly-preview",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -511,14 +436,12 @@ class TestcaseRubricServiceTest {
 
         stubChallengeAndMembers();
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
 
         assertEquals(1, response.testcases().size());
         assertEquals(invocationId, response.testcases().get(0).invocation().id());
-        assertEquals(OopPrincipleTag.Unit, response.testcases().get(0).oopPrincipleTag());
-        assertEquals(OopPrincipleTag.Unit, storedTestcases.get(0).getOopPrincipleTag());
+        assertEquals(TestcaseType.UNIT, response.testcases().get(0).testcaseType());
+        assertNull(response.testcases().get(0).oopPrincipleTag());
     }
 
     @Test
@@ -543,8 +466,6 @@ class TestcaseRubricServiceTest {
             storedAssertions.add(row);
             return row;
         });
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         service.saveForChallenge(labId, challengeId, List.of(first));
         assertEquals(1, storedAssertions.size());
         assertEquals(assertionId, storedAssertions.get(0).getId());
@@ -553,7 +474,7 @@ class TestcaseRubricServiceTest {
         TestcaseStructureDTO second = new TestcaseStructureDTO(
                 testcaseId,
                 "deposit",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -623,7 +544,7 @@ class TestcaseRubricServiceTest {
     void saveForChallenge_overTwentySteps_throws422() {
         List<InvocationStructureDTO> steps = new ArrayList<>();
         for (int i = 0; i < 21; i++) {
-            steps.add(constructorInvocation(UUID.randomUUID(), null, "[]"));
+            steps.add(constructorInvocation(UUID.randomUUID(), "step" + i, "[]"));
         }
         UUID firstId = steps.get(0).id();
         TestcaseStructureDTO payload = scenarioDto(
@@ -664,43 +585,7 @@ class TestcaseRubricServiceTest {
     }
 
     @Test
-    void saveForChallenge_comparisonWithInvocationsList_throws422() {
-        UUID instanceAId = UUID.randomUUID();
-        UUID instanceBId = UUID.randomUUID();
-        TestcaseStructureDTO payload = new TestcaseStructureDTO(
-                null,
-                "compare",
-                TestcaseType.COMPARISON,
-                TestcaseComparisonMethod.EQUALS,
-                1,
-                0,
-                false,
-                null,
-                List.of(
-                        new InstanceStructureDTO(instanceAId, "A", constructorId, "[]"),
-                        new InstanceStructureDTO(instanceBId, "B", constructorId, "[]")),
-                List.of(new AssertionStructureDTO(
-                        UUID.randomUUID(),
-                        null,
-                        AssertionKind.COMPARISON_RESULT,
-                        null,
-                        "true",
-                        ComparisonMode.EXACT,
-                        0)),
-                List.of(constructorInvocation(UUID.randomUUID(), null, "[]")),
-                null);
-
-        stubChallengeAndMembers();
-
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
-        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
-        verify(testcaseInstanceRepository, never()).save(any());
-    }
-
-    @Test
-    void saveForChallenge_twoInvocations_roundTripOrderedStepsAndTag() {
+    void saveForChallenge_twoInvocations_roundTripOrderedSteps() {
         UUID ctorStepId = UUID.randomUUID();
         UUID methodStepId = UUID.randomUUID();
         UUID assertionId = UUID.randomUUID();
@@ -709,7 +594,7 @@ class TestcaseRubricServiceTest {
         TestcaseStructureDTO payload = new TestcaseStructureDTO(
                 UUID.randomUUID(),
                 "sequence",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.COMPOSITION,
                 null,
                 1,
                 0,
@@ -718,16 +603,14 @@ class TestcaseRubricServiceTest {
                 List.of(),
                 List.of(returnValueAssertion(assertionId, methodStepId, "0")),
                 List.of(construct, call),
-                OopPrincipleTag.Encapsulation);
+                null);
 
         stubChallengeAndMembers();
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
 
         TestcaseStructureDTO saved = response.testcases().get(0);
-        assertEquals(OopPrincipleTag.Encapsulation, saved.oopPrincipleTag());
+        assertEquals(TestcaseType.COMPOSITION, saved.testcaseType());
         assertNotNull(saved.invocations());
         assertEquals(2, saved.invocations().size());
         assertEquals(ctorStepId, saved.invocations().get(0).id());
@@ -750,38 +633,36 @@ class TestcaseRubricServiceTest {
         TestcaseStructureDTO first = new TestcaseStructureDTO(
                 testcaseId,
                 "sequence",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.COMPOSITION,
                 null,
                 1,
                 0,
                 false,
                 firstStep,
                 List.of(),
-                List.of(returnValueAssertion(assertionId, secondStepId, "null")),
+                List.of(fieldStateAssertion(assertionId, secondStepId, speedFieldId, "0")),
                 List.of(firstStep, secondStep),
-                OopPrincipleTag.Unit);
+                null);
 
         stubChallengeAndMembers();
         when(testcaseRepository.findById(testcaseId)).thenReturn(Optional.empty());
         when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(testcaseInstanceRepository.findByTestcase_IdIn(any())).thenReturn(List.of());
-
         service.saveForChallenge(labId, challengeId, List.of(first));
         when(testcaseRepository.findById(testcaseId)).thenReturn(Optional.of(storedTestcases.get(0)));
 
         TestcaseStructureDTO second = new TestcaseStructureDTO(
                 testcaseId,
                 "sequence",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.COMPOSITION,
                 null,
                 1,
                 0,
                 false,
                 secondStep,
                 List.of(),
-                List.of(returnValueAssertion(assertionId, secondStepId, "null")),
+                List.of(fieldStateAssertion(assertionId, secondStepId, speedFieldId, "0")),
                 List.of(secondStep),
-                OopPrincipleTag.Unit);
+                null);
 
         ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(second));
 
@@ -791,6 +672,392 @@ class TestcaseRubricServiceTest {
         assertEquals(1, storedInvocations.size());
     }
 
+    @Test
+    void saveForChallenge_unitInstanceMethodWithoutNoArg_saves() {
+        UUID accountClassId = UUID.randomUUID();
+        UUID accountCtorId = UUID.randomUUID();
+        UUID withdrawId = UUID.randomUUID();
+        ClassEntity account = new ClassEntity();
+        account.setId(accountClassId);
+        account.setChallenge(challenge);
+        account.setName("Account");
+
+        Constructor accountCtor = new Constructor();
+        accountCtor.setId(accountCtorId);
+        accountCtor.setClassEntity(account);
+
+        Method withdraw = instanceMethod(withdrawId, account, "withdraw", "void");
+        Parameter idParam = constructorParam(accountCtor, "id", "String", 0);
+
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = unitMethodDto(
+                "withdraw-unit",
+                invocationId,
+                withdrawId,
+                "[10]",
+                List.of(stdoutAssertion(UUID.randomUUID(), invocationId, "\"\"")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity, account), List.of(constructor, accountCtor),
+                List.of(method, withdraw), List.of(idParam));
+        when(methodRepository.findById(withdrawId)).thenReturn(Optional.of(withdraw));
+        when(constructorRepository.findById(accountCtorId)).thenReturn(Optional.of(accountCtor));
+
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals(1, response.testcases().size());
+        verify(entityManager).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_unitObjectTypedArgument_throws422() {
+        UUID accountClassId = UUID.randomUUID();
+        UUID transferId = UUID.randomUUID();
+        ClassEntity account = new ClassEntity();
+        account.setId(accountClassId);
+        account.setChallenge(challenge);
+        account.setName("Account");
+
+        Method transfer = instanceMethod(transferId, classEntity, "transfer", "void");
+        Parameter other = methodParam(transfer, "other", "Account", 0);
+        Parameter amount = methodParam(transfer, "amount", "int", 1);
+
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = unitMethodDto(
+                "transfer-unit",
+                invocationId,
+                transferId,
+                "[null, 100]",
+                List.of(stdoutAssertion(UUID.randomUUID(), invocationId, "\"\"")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity, account), List.of(constructor),
+                List.of(method, transfer), List.of());
+        when(methodRepository.findById(transferId)).thenReturn(Optional.of(transfer));
+        when(parameterRepository.findByMethodIn(any())).thenReturn(List.of(other, amount));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_compositionSetupStepsWithoutAssertions_saves() {
+        UUID firstCtorId = UUID.randomUUID();
+        UUID secondCtorId = UUID.randomUUID();
+        UUID methodStepId = UUID.randomUUID();
+        UUID assertionId = UUID.randomUUID();
+        InvocationStructureDTO first = constructorInvocation(firstCtorId, "engine", "[]");
+        InvocationStructureDTO second = constructorInvocation(secondCtorId, "car", "[]");
+        InvocationStructureDTO call = methodInvocation(methodStepId, "car", null);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(first, second, call),
+                List.of(returnValueAssertion(assertionId, methodStepId, "0")));
+
+        stubChallengeAndMembers();
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        TestcaseStructureDTO saved = response.testcases().get(0);
+        assertEquals(TestcaseType.COMPOSITION, saved.testcaseType());
+        assertEquals(3, saved.invocations().size());
+        assertEquals(1, saved.assertions().size());
+        assertEquals(methodStepId, saved.assertions().get(0).invocationId());
+        assertEquals("engine", saved.invocations().get(0).instanceName());
+        assertEquals("car", saved.invocations().get(1).instanceName());
+    }
+
+    @Test
+    void saveForChallenge_unitEqualsObjectCheck_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        method.getMethodDeclaration().setReturnType("Car");
+        TestcaseStructureDTO payload = unitMethodDto(
+                "equals-unit",
+                invocationId,
+                methodId,
+                "[]",
+                List.of(returnValueAssertion(
+                        UUID.randomUUID(),
+                        invocationId,
+                        "{\"$objectCheck\":\"EQUALS\",\"$instance\":\"other\"}")));
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_compositionNamedMethodReturn_thenInstanceRef_saves() {
+        UUID factoryId = UUID.randomUUID();
+        UUID consumeId = UUID.randomUUID();
+        Method factory = staticMethod(factoryId, classEntity, "create", "Car");
+        InvocationStructureDTO produce = namedMethodInvocation(factoryId, factoryId, "car", "[]");
+        InvocationStructureDTO consume = constructorInvocation(
+                consumeId, "copy", "[{\"$instance\":\"car\"}]");
+        Parameter engineParam = constructorParam(constructor, "source", "Car", 0);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(produce, consume),
+                List.of(fieldStateAssertion(UUID.randomUUID(), consumeId, speedFieldId, "0")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity), List.of(constructor), List.of(method, factory), List.of(engineParam));
+        when(methodRepository.findById(factoryId)).thenReturn(Optional.of(factory));
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals(TestcaseType.COMPOSITION, response.testcases().get(0).testcaseType());
+        assertEquals(2, response.testcases().get(0).invocations().size());
+        assertEquals("car", response.testcases().get(0).invocations().get(0).instanceName());
+    }
+
+    @Test
+    void saveForChallenge_compositionUnknownMethodReturnName_throws422() {
+        UUID factoryId = UUID.randomUUID();
+        UUID consumeId = UUID.randomUUID();
+        Method factory = staticMethod(factoryId, classEntity, "create", "Car");
+        InvocationStructureDTO produce = namedMethodInvocation(factoryId, factoryId, "car", "[]");
+        InvocationStructureDTO consume = constructorInvocation(
+                consumeId, "copy", "[{\"$instance\":\"ghost\"}]");
+        Parameter engineParam = constructorParam(constructor, "source", "Car", 0);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(produce, consume),
+                List.of(fieldStateAssertion(UUID.randomUUID(), consumeId, speedFieldId, "0")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity), List.of(constructor), List.of(method, factory), List.of(engineParam));
+        when(methodRepository.findById(factoryId)).thenReturn(Optional.of(factory));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_constructorReturnValue_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "ctor-return",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                constructorInvocation(invocationId, null, "[]"),
+                List.of(),
+                List.of(returnValueAssertion(UUID.randomUUID(), invocationId, "null")),
+                List.of(),
+                null);
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("field state"));
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_fieldsObjectCheck_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        method.getMethodDeclaration().setReturnType("Car");
+        TestcaseStructureDTO payload = unitMethodDto(
+                "fields-map",
+                invocationId,
+                methodId,
+                "[]",
+                List.of(returnValueAssertion(
+                        UUID.randomUUID(),
+                        invocationId,
+                        "{\"$objectCheck\":\"FIELDS\",\"fields\":{\"speed\":0}}")));
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("field state"));
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_typeOnlyObjectCheck_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = unitMethodDto(
+                "type-only",
+                invocationId,
+                methodId,
+                "[]",
+                List.of(returnValueAssertion(UUID.randomUUID(), invocationId, "{\"$objectCheck\":\"TYPE\"}")));
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_emptyAssertionList_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = unitMethodDto(
+                "no-asserts", invocationId, methodId, "[]", List.of());
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_constructorStdoutAssertion_throws422() {
+        UUID invocationId = UUID.randomUUID();
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "ctor-stdout",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                constructorInvocation(invocationId, null, "[]"),
+                List.of(),
+                List.of(stdoutAssertion(UUID.randomUUID(), invocationId, "\"hi\"")),
+                List.of(),
+                null);
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_unitTwoInvocations_throws422() {
+        UUID ctorStepId = UUID.randomUUID();
+        UUID methodStepId = UUID.randomUUID();
+        InvocationStructureDTO construct = constructorInvocation(ctorStepId, "car", "[]");
+        InvocationStructureDTO call = methodInvocation(methodStepId, "car", null);
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "unit-multi",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                construct,
+                List.of(),
+                List.of(returnValueAssertion(UUID.randomUUID(), methodStepId, "0")),
+                List.of(construct, call),
+                null);
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void saveForChallenge_namedObjectArrayArgument_throws422() {
+        UUID constructId = UUID.randomUUID();
+        UUID consumeId = UUID.randomUUID();
+        InvocationStructureDTO construct = constructorInvocation(constructId, "engine", "[]");
+        InvocationStructureDTO consume = constructorInvocation(
+                consumeId, "car", "[[{\"$instance\":\"engine\"}]]");
+        Parameter enginesParam = constructorParam(constructor, "engines", "Car[]", 0);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(construct, consume),
+                List.of(fieldStateAssertion(UUID.randomUUID(), consumeId, speedFieldId, "0")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity), List.of(constructor), List.of(method), List.of(enginesParam));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
+    }
+
+    @Test
+    void loadForChallenge_roundTripsUnitAndComposition() {
+        UUID unitInvocationId = UUID.randomUUID();
+        UUID unitAssertionId = UUID.randomUUID();
+        UUID ctorStepId = UUID.randomUUID();
+        UUID methodStepId = UUID.randomUUID();
+        TestcaseStructureDTO unit = unitMethodDto(
+                "unit-hidden",
+                unitInvocationId,
+                methodId,
+                "[]",
+                List.of(returnValueAssertion(unitAssertionId, unitInvocationId, "0")));
+        unit = new TestcaseStructureDTO(
+                unit.id(),
+                unit.name(),
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                true,
+                unit.invocation(),
+                List.of(),
+                unit.assertions(),
+                List.of(unit.invocation()),
+                null);
+        InvocationStructureDTO construct = constructorInvocation(ctorStepId, "car", "[]");
+        InvocationStructureDTO call = methodInvocation(methodStepId, "car", null);
+        TestcaseStructureDTO composition = compositionDto(
+                List.of(construct, call),
+                List.of(returnValueAssertion(UUID.randomUUID(), methodStepId, "0")));
+
+        stubChallengeAndMembers();
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+        service.saveForChallenge(labId, challengeId, List.of(unit, composition));
+
+        ChallengeTestcasesResponse loaded = service.loadForChallenge(labId, challengeId);
+
+        assertEquals(2, loaded.testcases().size());
+        TestcaseStructureDTO loadedUnit = loaded.testcases().stream()
+                .filter(tc -> tc.testcaseType() == TestcaseType.UNIT)
+                .findFirst()
+                .orElseThrow();
+        TestcaseStructureDTO loadedComposition = loaded.testcases().stream()
+                .filter(tc -> tc.testcaseType() == TestcaseType.COMPOSITION)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(true, loadedUnit.hidden());
+        assertEquals(1, loadedUnit.invocations().size());
+        assertEquals(unitInvocationId, loadedUnit.invocations().get(0).id());
+        assertEquals(2, loadedComposition.invocations().size());
+        assertEquals("car", loadedComposition.invocations().get(0).instanceName());
+    }
+
     private void stubChallengeAndMembers() {
         when(challengeRepository.findById(challengeId)).thenReturn(Optional.of(challenge));
         when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(List.of(classEntity));
@@ -798,7 +1065,9 @@ class TestcaseRubricServiceTest {
                 .thenReturn(List.of(constructor));
         when(methodRepository.findByClassEntityInWithDeclaration(List.of(classEntity)))
                 .thenReturn(List.of(method));
-        when(fieldRepository.findByClassEntityInWithDeclaration(List.of(classEntity))).thenReturn(List.of());
+        when(fieldRepository.findByClassEntityInWithDeclaration(List.of(classEntity)))
+                .thenReturn(List.of(speedField));
+        when(fieldRepository.findById(speedFieldId)).thenReturn(Optional.of(speedField));
         when(constructorRepository.findById(constructorId)).thenReturn(Optional.of(constructor));
         when(methodRepository.findById(methodId)).thenReturn(Optional.of(method));
         when(parameterRepository.findByConstructorEntityIn(any())).thenReturn(List.of());
@@ -810,7 +1079,7 @@ class TestcaseRubricServiceTest {
         return new TestcaseStructureDTO(
                 testcaseId,
                 "deposit",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
@@ -821,7 +1090,7 @@ class TestcaseRubricServiceTest {
                         null,
                         methodId,
                         "[]",
-                        constructorId,
+                        null,
                         "[]",
                         null,
                         null),
@@ -831,6 +1100,126 @@ class TestcaseRubricServiceTest {
                 null);
     }
 
+    private TestcaseStructureDTO unitMethodDto(String name,
+                                               UUID invocationId,
+                                               UUID targetMethodId,
+                                               String params,
+                                               List<AssertionStructureDTO> assertions) {
+        InvocationStructureDTO invocation = new InvocationStructureDTO(
+                invocationId,
+                InvocationKind.METHOD,
+                null,
+                targetMethodId,
+                params,
+                null,
+                "[]",
+                null,
+                null);
+        return new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                name,
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                invocation,
+                List.of(),
+                assertions,
+                List.of(invocation),
+                null);
+    }
+
+    private TestcaseStructureDTO compositionDto(List<InvocationStructureDTO> invocations,
+                                                List<AssertionStructureDTO> assertions) {
+        return new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "composition",
+                TestcaseType.COMPOSITION,
+                null,
+                1,
+                0,
+                false,
+                invocations.get(0),
+                List.of(),
+                assertions,
+                invocations,
+                null);
+    }
+
+    private void stubExtraMembers(List<ClassEntity> classes,
+                                  List<Constructor> constructors,
+                                  List<Method> methods,
+                                  List<Parameter> constructorParams) {
+        when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(classes);
+        when(constructorRepository.findByClassEntityInWithDeclaration(classes)).thenReturn(constructors);
+        when(methodRepository.findByClassEntityInWithDeclaration(classes)).thenReturn(methods);
+        when(parameterRepository.findByConstructorEntityIn(any())).thenReturn(constructorParams);
+        for (ClassEntity cls : classes) {
+            when(classEntityRepository.findById(cls.getId())).thenReturn(Optional.of(cls));
+        }
+    }
+
+    private static Method instanceMethod(UUID id, ClassEntity owner, String name, String returnType) {
+        Method row = new Method();
+        row.setId(id);
+        row.setClassEntity(owner);
+        row.setName(name);
+        MethodDeclaration declaration = new MethodDeclaration();
+        declaration.setReturnType(returnType);
+        declaration.setStatic(false);
+        row.setMethodDeclaration(declaration);
+        return row;
+    }
+
+    private static Method staticMethod(UUID id, ClassEntity owner, String name, String returnType) {
+        Method row = instanceMethod(id, owner, name, returnType);
+        row.getMethodDeclaration().setStatic(true);
+        return row;
+    }
+
+    private static Parameter constructorParam(Constructor constructor, String name, String dataType, int order) {
+        Parameter parameter = new Parameter();
+        parameter.setConstructorEntity(constructor);
+        parameter.setName(name);
+        parameter.setDataType(dataType);
+        parameter.setOrderIndex(order);
+        return parameter;
+    }
+
+    private static Parameter methodParam(Method owner, String name, String dataType, int order) {
+        Parameter parameter = new Parameter();
+        parameter.setMethod(owner);
+        parameter.setName(name);
+        parameter.setDataType(dataType);
+        parameter.setOrderIndex(order);
+        return parameter;
+    }
+
+    private InvocationStructureDTO namedMethodInvocation(UUID id, UUID targetMethodId, String instanceName, String params) {
+        return new InvocationStructureDTO(
+                id,
+                InvocationKind.METHOD,
+                null,
+                targetMethodId,
+                params,
+                null,
+                "[]",
+                instanceName,
+                null);
+    }
+
+    private static AssertionStructureDTO stdoutAssertion(UUID id, UUID invocationId, String expected) {
+        return new AssertionStructureDTO(
+                id,
+                invocationId,
+                AssertionKind.STDOUT,
+                null,
+                expected,
+                ComparisonMode.EXACT,
+                0);
+    }
+
     private TestcaseStructureDTO scenarioDto(InvocationStructureDTO singular,
                                              List<InvocationStructureDTO> invocations,
                                              List<AssertionStructureDTO> assertions,
@@ -838,7 +1227,7 @@ class TestcaseRubricServiceTest {
         return new TestcaseStructureDTO(
                 UUID.randomUUID(),
                 "scenario",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.COMPOSITION,
                 null,
                 1,
                 0,
@@ -875,7 +1264,7 @@ class TestcaseRubricServiceTest {
                 null,
                 methodId,
                 "[]",
-                constructorId,
+                null,
                 "[]",
                 instanceName,
                 dispatchClassId);
@@ -887,6 +1276,18 @@ class TestcaseRubricServiceTest {
                 invocationId,
                 AssertionKind.RETURN_VALUE,
                 null,
+                expected,
+                ComparisonMode.EXACT,
+                0);
+    }
+
+    private static AssertionStructureDTO fieldStateAssertion(
+            UUID id, UUID invocationId, UUID fieldId, String expected) {
+        return new AssertionStructureDTO(
+                id,
+                invocationId,
+                AssertionKind.FIELD_STATE,
+                fieldId,
                 expected,
                 ComparisonMode.EXACT,
                 0);

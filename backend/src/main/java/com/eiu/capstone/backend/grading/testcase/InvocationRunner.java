@@ -7,9 +7,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
-import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Component
@@ -65,20 +63,6 @@ public class InvocationRunner {
         return List.of(toInvocation(serialized));
     }
 
-    public ComparisonOutcome invokeComparison(ChallengeGradingContext context,
-                                              TestcaseComparisonMethod comparisonMethod,
-                                              List<InstanceRubric> instances) {
-        if (!hasRunnableClassesDir(context)) {
-            return ComparisonOutcome.error("Missing compiled classes directory");
-        }
-        WorkerSessionHandle handle = context.workerSession();
-        if (handle == null) {
-            return ComparisonOutcome.error("Worker session missing");
-        }
-        return toComparison(handle.compare(context.classesDir().toAbsolutePath().toString(),
-                comparisonMethod, instances));
-    }
-
     InvocationOutcome toInvocation(SerializedInvocationOutcome serialized) {
         if (serialized == null) {
             return InvocationOutcome.error("Empty worker response");
@@ -97,26 +81,11 @@ public class InvocationRunner {
                     decodeJson(serialized.returnValueJson()),
                     serialized.stdout(),
                     serialized.stdoutTruncated(),
-                    decodeSnapshots(serialized.fieldSnapshotsJson()));
+                    decodeSnapshots(serialized.fieldSnapshotsJson()),
+                    serialized.objectTypeSimpleName(),
+                    decodeSnapshots(serialized.objectFieldSnapshotsJson()),
+                    serialized.equalsNamed() == null ? Map.of() : serialized.equalsNamed());
             default -> InvocationOutcome.error("Malformed IPC JSON");
-        };
-    }
-
-    ComparisonOutcome toComparison(SerializedInvocationOutcome serialized) {
-        if (serialized == null) {
-            return ComparisonOutcome.error("Empty worker response");
-        }
-        return switch (serialized.kind()) {
-            case SerializedInvocationOutcome.KIND_ERROR, SerializedInvocationOutcome.KIND_TIMED_OUT ->
-                    ComparisonOutcome.error(
-                            serialized.errorMessage() != null ? serialized.errorMessage() : "Comparison invocation failed");
-            case SerializedInvocationOutcome.KIND_THREW -> ComparisonOutcome.error(
-                    serialized.exceptionSimpleName() != null ? serialized.exceptionSimpleName() : "Comparison threw");
-            case SerializedInvocationOutcome.KIND_NORMAL -> ComparisonOutcome.normal(decodeJson(
-                    serialized.comparisonResultJson() != null
-                            ? serialized.comparisonResultJson()
-                            : serialized.returnValueJson()));
-            default -> ComparisonOutcome.error("Malformed IPC JSON");
         };
     }
 

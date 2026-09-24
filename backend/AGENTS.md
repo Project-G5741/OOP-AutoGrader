@@ -15,10 +15,10 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 ### Run and deploy
 
-- Local: `mvn spring-boot:run` from `backend/` (port `8002` by default)
+- Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
 - Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
-- Operational testcase invoke runs in the thin worker JAR (one JVM per upload/dry-run; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
+- Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
 ### Environment
@@ -67,7 +67,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 
 ### Security posture
 
-- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser; matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403
+- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser and validates claim `sv` via `SessionValidityService` (missing user or version mismatch → unauthenticated); matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403
 - No role hierarchy. `TEACHER` in a token maps to `LECTURER`. Dual-role accounts need both `STUDENT` and `LECTURER` authorities
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
@@ -86,7 +86,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - Schema managed externally — no Flyway/Liquibase migrations in repo
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
-- Operational testcase scenario persistence (operator SQL `docs/sql/2026-09-17-testcase-scenario-steps.sql`; also applied on startup by `TestcaseSchemaMigrator`): `testcase.oop_principle_tag` NOT NULL default `Unit`; multiple `testcase_invocation` rows per testcase (`order_index`, unique `(testcase_id, order_index)`); `instance_name`; `dispatch_class_id` FK to `class_entity`. COMPARISON tables unchanged.
+- Operational testcase persistence (operator SQL `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`; also applied on startup by `TestcaseSchemaMigrator` when leftover types/columns remain): wipe CASCADE of OT graphs, drop `testcase_instance` / `oop_principle_tag` / per-testcase `weight` / `COMPARISON_RESULT`, rewrite `testcase_type` to `UNIT` | `COMPOSITION`. After wipe the migrator calls `LabRubricCache.invalidateAll()`. Kept columns: `testcase_invocation.order_index` (unique `(testcase_id, order_index)`), `instance_name` (constructor/static product or Composition receiver). No per-testcase weight. Challenge `testcase_weight` is unchanged.
 - Plagiarism (operator SQL `docs/sql/2026-08-19-plagiarism.sql`): after upload, compare this student to other students in the same lab — git commit hashes in order (100%), git metadata (100%), `.java`/`.mmd` SHA-256 Jaccard `> 90%`. A content match is flagged only if the uploader's **prior** lab best (excluding current attempt) is strictly below the other student's **lab best** and the current attempt scores **> 0** (first-time copy to 100 still flags; already-proven ≥ peer best does not; zero-score uploads never flag). Only the uploader's **latest** attempt stays active — a later original submit clears older copy flags. Signals snapshot on the upload thread; inspect (one attempts query, persist only content matches, re-evaluate matches where this uploader is the other side) runs on `persistExecutor`. Lecturer flags typically appear within ~1–3s. Missing `.git` skips git/metadata only. Lecturer UI roles: earlier **first** submit in the lab → `ORIGINAL` (victim), later first submit → `PLAGIARIZER` (never both; re-uploads do not invert roles). Exposed on roster rows, `GET /api/lecturer/plagiarism/flags` → `rolesByStudentAndLab`, and `GET /api/lecturer/labs/{labId}/students/{studentId}/plagiarism` (lineage).
 - `Lab.deadline_date` (optional `DATE`) — end 23:59:59 Vietnam time; lecturer score SQL uses qualifying submissions on or before cutoff; extend deadline to backfill from history
 - `Lab.student_visible` (default `true`) — when `false`, lab is hidden from student dashboard and submission APIs return 403
@@ -119,7 +119,7 @@ Grading tuning properties (`application.properties`):
 | `app.grading.sandbox.enabled` | `false` | Route testcase invoke/dry-run through remote `sandbox-runner` (`SANDBOX_ENABLED`) |
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
 | `app.grading.sandbox.runner-token` | _(empty)_ | Bearer token shared with runner (`SANDBOX_RUNNER_TOKEN`) |
-| `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `GradingService` / `TestcaseDryRunService` |
+| `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `TestcaseDryRunService` and `GradingService.gradeSubmission` when OT applies. Capacity stays 1. |
 | `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
@@ -134,7 +134,7 @@ Grading tuning properties (`application.properties`):
 
 **Detail persist gate:** In-process `CompletableFuture` per submission. A Class-tab GET that hits a different instance than the upload may not wait; details should already be in Postgres if the UPSERT finished.
 
-**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`).
+**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`). OT rebuild: apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a copy first, then restart the API so `TestcaseSchemaMigrator` + `LabRubricCache.invalidateAll()` drop stale rubric graphs.
 
 ### Read-path performance
 

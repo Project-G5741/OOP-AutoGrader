@@ -11,21 +11,45 @@ public record InvocationOutcome(
         Map<String, Object> fieldSnapshots,
         String exceptionSimpleName,
         List<String> exceptionSuperclassSimpleNames,
-        String errorMessage) {
+        String errorMessage,
+        String objectTypeSimpleName,
+        Map<String, Object> objectFieldSnapshots,
+        Map<String, Boolean> equalsNamed) {
+
+    public InvocationOutcome {
+        fieldSnapshots = fieldSnapshots == null ? Map.of() : fieldSnapshots;
+        exceptionSuperclassSimpleNames = exceptionSuperclassSimpleNames == null
+                ? List.of() : exceptionSuperclassSimpleNames;
+        objectFieldSnapshots = objectFieldSnapshots == null ? Map.of() : objectFieldSnapshots;
+        equalsNamed = equalsNamed == null ? Map.of() : equalsNamed;
+    }
 
     public static InvocationOutcome normal(Object returnValue,
                                            String stdout,
                                            boolean stdoutTruncated,
                                            Map<String, Object> fieldSnapshots) {
+        return normal(returnValue, stdout, stdoutTruncated, fieldSnapshots, null, Map.of(), Map.of());
+    }
+
+    public static InvocationOutcome normal(Object returnValue,
+                                           String stdout,
+                                           boolean stdoutTruncated,
+                                           Map<String, Object> fieldSnapshots,
+                                           String objectTypeSimpleName,
+                                           Map<String, Object> objectFieldSnapshots,
+                                           Map<String, Boolean> equalsNamed) {
         return new InvocationOutcome(
                 InvocationOutcomeKind.NORMAL,
                 returnValue,
                 stdout,
                 stdoutTruncated,
-                fieldSnapshots == null ? Map.of() : fieldSnapshots,
+                fieldSnapshots,
                 null,
                 List.of(),
-                null);
+                null,
+                objectTypeSimpleName,
+                objectFieldSnapshots,
+                equalsNamed);
     }
 
     public static InvocationOutcome threw(String stdout,
@@ -45,19 +69,22 @@ public record InvocationOutcome(
                 null,
                 stdout,
                 stdoutTruncated,
-                fieldSnapshots == null ? Map.of() : fieldSnapshots,
+                fieldSnapshots,
                 exceptionSimpleName,
-                exceptionSuperclassSimpleNames == null ? List.of() : exceptionSuperclassSimpleNames,
-                null);
+                exceptionSuperclassSimpleNames,
+                null,
+                null,
+                Map.of(),
+                Map.of());
     }
 
     public static InvocationOutcome timedOut(String stdout) {
         return new InvocationOutcome(InvocationOutcomeKind.TIMED_OUT, null, stdout, false, Map.of(),
-                null, List.of(), "Invocation timed out");
+                null, List.of(), "Invocation timed out", null, Map.of(), Map.of());
     }
 
     public static InvocationOutcome error(String message) {
         return new InvocationOutcome(InvocationOutcomeKind.ERROR, null, "", false, Map.of(),
-                null, List.of(), message);
+                null, List.of(), message, null, Map.of(), Map.of());
     }
 }

@@ -695,7 +695,11 @@ public class ClassStructureService {
         return getClassData(labId, challengeId, studentId, submissionId, DisclosureMode.LECTURER);
     }
 
-    /** Powers the "Operation Test" tab. Returns [] when the student has no reference submission yet. */
+    /**
+     * Student revisit GET for the Operation Test tab. Returns persisted OT results when the
+     * submission was graded with operational tests; empty when the rubric has no OT or the
+     * attempt predates OT grading (no persisted rows).
+     */
     public List<TestcaseResultDTO> getTestcaseData(UUID labId,
                                                    UUID challengeId,
                                                    UUID studentId,
@@ -706,8 +710,9 @@ public class ClassStructureService {
             return List.of();
         }
         detailPersistGate.await(resolvedSubmissionId);
-        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(labId, resolvedSubmissionId, challengeId);
-        TimingLog.line(timingLog, "Read testcase", System.currentTimeMillis() - start);
+        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(
+                labId, resolvedSubmissionId, challengeId);
+        TimingLog.line(timingLog, "Read testcases", System.currentTimeMillis() - start);
         return result;
     }
 
@@ -715,24 +720,26 @@ public class ClassStructureService {
                                                                   UUID submissionId,
                                                                   UUID challengeId) {
         ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
-        if (challengeRubric == null) {
+        if (challengeRubric == null || challengeRubric.testcases().isEmpty()) {
             return List.of();
         }
-
-        Map<UUID, SubmissionTestcaseResult> resultsByTestcaseId = submissionTestcaseResultRepository
-                .findBySubmission_IdWithTestcase(submissionId)
-                .stream()
-                .filter(result -> result.getTestcase() != null
-                        && challengeId.equals(result.getTestcase().getChallenge().getId()))
+        List<SubmissionTestcaseResult> persisted =
+                submissionTestcaseResultRepository.findBySubmission_IdWithTestcase(submissionId);
+        if (persisted.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, SubmissionTestcaseResult> resultsByTestcaseId = persisted.stream()
+                .filter(row -> row.getTestcase() != null
+                        && row.getTestcase().getChallenge() != null
+                        && challengeId.equals(row.getTestcase().getChallenge().getId()))
                 .collect(Collectors.toMap(
-                        result -> result.getTestcase().getId(),
-                        result -> result,
-                        (left, right) -> left,
-                        LinkedHashMap::new));
-
-        return testcaseResultMapper.mapChallengeTestcases(
-                challengeRubric.testcases(),
-                resultsByTestcaseId);
+                        row -> row.getTestcase().getId(),
+                        row -> row,
+                        (left, right) -> left));
+        if (resultsByTestcaseId.isEmpty()) {
+            return List.of();
+        }
+        return testcaseResultMapper.mapChallengeTestcases(challengeRubric.testcases(), resultsByTestcaseId);
     }
 
     public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {

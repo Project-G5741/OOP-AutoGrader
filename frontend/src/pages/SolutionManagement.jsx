@@ -684,6 +684,7 @@ export default function SolutionManagement() {
                 <ChallengeDetailPanel
                   challenge={selectedChallenge}
                   relationTypeOptions={relationTypeOptions}
+                  declaringTypeOptions={declaringTypeOptions}
                   onMmdChange={updateSelectedChallenge}
                   activeTab={challengeTabById[selectedChallengeId] || 'mmd'}
                   onTabChange={(tab) => {

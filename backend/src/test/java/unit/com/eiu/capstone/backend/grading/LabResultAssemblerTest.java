@@ -78,6 +78,54 @@ class LabResultAssemblerTest {
         assertEquals(0, structureService.mmdBuilds);
     }
 
+    @Test
+    void assemble_withUnitAndCompositionRows_omitsTestcaseIoWhenPillarDark() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        assertEquals(2, challenge.testcases().size());
+        FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new ThrowingTestcaseMapper());
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed(challengeId, true, false),
+                Map.of(),
+                Map.of());
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertEquals(1, bundle.getClassData().size());
+        assertEquals("CakeFactory", bundle.getClassData().get(0).name());
+        assertTrue(bundle.getTestcases().isEmpty());
+        assertEquals(false, bundle.getScoreApplicability().get("testcase"));
+        assertEquals(true, bundle.getScoreApplicability().get("class"));
+        assertEquals(true, bundle.getScoreApplicability().get("mmd"));
+        assertTrue(bundle.getScores().containsKey("class"));
+        assertTrue(bundle.getScores().containsKey("mmd"));
+    }
+
+    @Test
+    void assemble_defaultsTestcaseNotApplicableWhenPillarScoresMissing() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new ThrowingTestcaseMapper());
+
+        GradingService.GradingComputationResult computed = computed(challengeId, true, true);
+        computed.pillarScoresByChallengeNumber = Map.of();
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed,
+                Map.of(),
+                Map.of());
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertTrue(bundle.getTestcases().isEmpty());
+        assertEquals(false, bundle.getScoreApplicability().get("testcase"));
+    }
+
     private static GradingService.GradingComputationResult computed(
             UUID challengeId,
             boolean mmdApplicable,
@@ -124,13 +172,24 @@ class LabResultAssemblerTest {
                 "\"1\"",
                 ComparisonMode.EXACT,
                 0);
-        TestcaseRubric testcase = new TestcaseRubric(
+        TestcaseRubric unit = new TestcaseRubric(
                 UUID.randomUUID(),
-                "example",
-                TestcaseType.SINGLE_INVOCATION,
+                "unit-example",
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,
+                false,
+                null,
+                List.of(),
+                List.of(assertion));
+        TestcaseRubric composition = new TestcaseRubric(
+                UUID.randomUUID(),
+                "composition-script",
+                TestcaseType.COMPOSITION,
+                null,
+                1,
+                1,
                 false,
                 null,
                 List.of(),
@@ -141,7 +200,7 @@ class LabResultAssemblerTest {
                 "Challenge 1",
                 List.of(classRubric),
                 List.of(),
-                List.of(testcase),
+                List.of(unit, composition),
                 false);
     }
 

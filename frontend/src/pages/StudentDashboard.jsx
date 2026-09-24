@@ -63,16 +63,36 @@ function normalizeClassData(classes = []) {
   }));
 }
 
+function mergeTestcaseBundle(challengeId, testcaseJson, cacheRef) {
+  const mapped = mapOperationalTestcases(testcaseJson);
+  if (mapped.length === 0) {
+    return mapped;
+  }
+  const existing = cacheRef.current[challengeId] ?? {};
+  cacheRef.current[challengeId] = {
+    ...existing,
+    testcases: testcaseJson,
+    scoreApplicability: {
+      ...(existing.scoreApplicability ?? existing.score_applicability ?? {}),
+      testcase: true,
+    },
+  };
+  return mapped;
+}
+
 function applyChallengeBundle(bundle) {
   if (!bundle) {
     return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
   }
   const mmd = mmdFromChallengeBundle(bundle);
+  const testcaseApplicable = bundle.scoreApplicability?.testcase === true
+    || bundle.score_applicability?.testcase === true
+    || (Array.isArray(bundle.testcases) && bundle.testcases.length > 0);
   return {
     classData: normalizeClassData(bundle.class ?? []),
     mmdData: mmd.classes,
     mmdParseError: mmd.parseError,
-    testCases: mapOperationalTestcases(bundle.testcases),
+    testCases: testcaseApplicable ? mapOperationalTestcases(bundle.testcases) : [],
     normalizationNotice: bundle.normalizationNotice ?? bundle.normalization_notice ?? null,
   };
 }
@@ -370,7 +390,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       const parsedClass = parseClassTabResponse(classJson);
       const mmdJson = mmdRes.ok ? await mmdRes.json() : { classes: [], parseError: null };
       const parsedMmd = parseMmdResponse(mmdJson);
-      const testcaseJson = testcaseRes.ok ? await testcaseRes.json() : [];
+      const testcaseRaw = testcaseRes.ok ? await testcaseRes.json() : [];
+      const testcaseJson = Array.isArray(testcaseRaw) ? testcaseRaw : [];
+      const mappedTestcases = !cachedTestcases
+        ? mergeTestcaseBundle(challengeId, testcaseJson, labResultCacheRef)
+        : cachedTestcases;
 
       if (!cachedClass) {
         classDataCacheRef.current[challengeId] = parsedClass.classData;
@@ -380,13 +404,30 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         mmdDataCacheRef.current[challengeId] = parsedMmd;
       }
       if (!cachedTestcases) {
-        testcaseDataCacheRef.current[challengeId] = mapOperationalTestcases(testcaseJson);
+        testcaseDataCacheRef.current[challengeId] = mappedTestcases;
       }
       setClassData(parsedClass.classData);
       setClassNormalizationNotice(parsedClass.normalizationNotice);
       setMmdData(parsedMmd.classes);
       setMmdParseError(parsedMmd.parseError);
-      setTestCases(mapOperationalTestcases(testcaseJson));
+      setTestCases(mappedTestcases);
+
+      if (!cachedTestcases && mappedTestcases.length > 0) {
+        setSessionResultsByLab((prev) => {
+          const lab = prev[labId];
+          if (!lab) return prev;
+          return {
+            ...prev,
+            [labId]: {
+              ...lab,
+              challengeBundles: {
+                ...(lab.challengeBundles ?? {}),
+                [challengeId]: labResultCacheRef.current[challengeId],
+              },
+            },
+          };
+        });
+      }
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
       setClassData([]);
@@ -395,7 +436,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setMmdParseError(null);
       setTestCases([]);
     }
-  }, [studentId]);
+  }, [studentId, setSessionResultsByLab]);
 
   const fetchLabSummaries = useCallback(async () => {
     const token = sessionStorage.getItem('accessToken');

@@ -5,11 +5,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.testcase.transport.WorkerTransport;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
-import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 
 /**
  * Per-request worker JVM. Respawn keeps the host slot; callers acquire/release that slot.
@@ -99,25 +97,6 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 toInvokeSpec(invocation),
                 null,
                 snapshotFieldNames,
-                WorkerIpc.DEFAULT_STDOUT_CAP);
-        return roundTrip(request);
-    }
-
-    public SerializedInvocationOutcome compare(String classesDir,
-                                               TestcaseComparisonMethod comparisonMethod,
-                                               List<InstanceRubric> instances) {
-        if (instances == null || instances.size() < 2) {
-            return SerializedInvocationOutcome.error("Comparison testcase requires two instances");
-        }
-        WorkerIpc.Request request = new WorkerIpc.Request(
-                WorkerIpc.OP_COMPARE,
-                classesDirMapper.apply(classesDir),
-                null,
-                new WorkerIpc.CompareSpec(
-                        comparisonMethod != null ? comparisonMethod.name() : "EQUALS",
-                        toInstance(instances.get(0)),
-                        toInstance(instances.get(1))),
-                List.of(),
                 WorkerIpc.DEFAULT_STDOUT_CAP);
         return roundTrip(request);
     }
@@ -246,13 +225,6 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.receiverParamsJson(),
                 invocation.instanceName(),
                 invocation.dispatchClassName());
-    }
-
-    private static WorkerIpc.InstanceSpec toInstance(InstanceRubric instance) {
-        return new WorkerIpc.InstanceSpec(
-                instance.className(),
-                instance.parameterTypes(),
-                instance.paramsJson());
     }
 }
 

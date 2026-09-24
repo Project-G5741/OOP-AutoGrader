@@ -25,6 +25,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @EntityGraph(attributePaths = "roles")
     Optional<UserAccount> findByEmail(String email);
 
+    @Query("SELECT u.sessionVersion FROM UserAccount u WHERE LOWER(u.email) = LOWER(:email)")
+    Optional<Integer> findSessionVersionByEmailIgnoreCase(@Param("email") String email);
+
     /**
      * One round-trip for upload access: user by email, optional lab+term, enrollment count
      * in that lab's term (0 when the lab/term is missing).

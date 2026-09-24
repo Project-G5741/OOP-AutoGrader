@@ -94,7 +94,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy")
-- Default `Footer` (AppShell) polls `GET /api/presence` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence` so the count drops; count is far-left, course title stays centered
+- Default `Footer` (AppShell) polls `GET /api/presence` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login.
 - `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard uses it for the fox mascot.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
@@ -111,4 +111,4 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `src/pages/AGENTS.md` | Screen orchestration, navigation model, page-to-API mapping |
 | `src/components/ui/AGENTS.md` | Shared UI primitives and upload contract |
 | `src/components/lecturer/AGENTS.md` | Lecturer grading dashboard widgets |
-| `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Example testcase principle tag |
+| `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Operation Test tab when OT applies |

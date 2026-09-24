@@ -45,9 +45,15 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
 | `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
-| `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase weights |
+| `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase pillar weights (no per-testcase weight) |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
-| `structure/TestcasesPanel.jsx` | Operational testcase list, scenario-step editor (instance name, dispatch class, `$instance` args, OOP principle tag), dry-run, separate Save Testcases; Save stays disabled when a Polymorphism tag has no METHOD dispatch class |
+| `structure/TestcasesPanel.jsx` | Operational testcase list; **Add new testcase** (default UNIT) plus per-testcase Type dropdown; dry-run I/O, Run all, Save Testcases; shared `normalizeTestcaseForApi` for save and dry-run; editor column uses `minmax(0,1fr)` so the panel cannot overflow the viewport |
+| `structure/UnitTestcaseWorksheet.jsx` | Closed Unit canvas: one member picker, scalar params, allowed assertions; no step list, instance names, `$instance`, or equals() |
+| `structure/CompositionTestcaseScript.jsx` | Composition canvas: ordered named-object steps, required names on constructs and static object returns, `$instance` args, optional **Call as** (`dispatchClassId`) on instance-method receivers, optional per-step assertions, equals() |
+| `structure/testcaseAuthoring.js` | Shared empty/hydrate/normalize helpers and member catalog for Unit and Composition; Composition preserves `dispatchClassId`; Unit always nulls it; Call-as ancestor helpers from Extends/Implements |
+| `structure/TestcaseParamFields.jsx` | Per-parameter scalar or `$instance` argument editors |
+| `structure/TestcaseAssertionFields.jsx` | Assertion kinds; Composition object-return equals() picker; constructors FIELD_STATE + EXCEPTION only |
+| `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
@@ -128,7 +134,7 @@ LecturerDashboard
 
 User management and submission management are separate pages (`UserManagement`, `SubmissionManagement`), not in this folder.
 
-**Solution Management** (`SolutionManagement.jsx`, `/lecturer-solution`) uses `structure/*` for lab structure and operational testcase authoring. Testcase API: `GET/PUT /api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, dry-run `POST .../testcases/dry-run`. PUT body uses `invocations` (ordered scenario steps) plus `oopPrincipleTag`; a single-step test is one invocation. Reference Java is loaded via drag/drop or file picker (`ReferenceJavaFiles.jsx`) and kept in `sessionStorage` per lab/challenge.
+**Solution Management** (`SolutionManagement.jsx`, `/lecturer-solution`) uses `structure/*` for lab structure and operational testcase authoring. Testcase API: `GET/PUT /api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, dry-run `POST .../testcases/dry-run` (isolated worker `scenario` op). Types are `UNIT` and `COMPOSITION`. PUT body uses `invocations` (Unit: exactly one; Composition: ordered named-object steps). Constructors assert via **FIELD_STATE** (not RETURN_VALUE). Composition non-primitive method returns may use RETURN_VALUE with `{ "$objectCheck": "EQUALS", "$instance": "name" }`. No OOP principle tag, COMPARISON builder, or per-testcase weight. Challenge `testcase_weight` on `ChallengeDetailPanel` scales the student OT pillar when the challenge has authored OT. Hidden vs example (`is_hidden`) drives student Example vs Other disclosure. Students never see Unit/Composition labels. Reference Java is loaded via drag/drop or file picker (`ReferenceJavaFiles.jsx`) and kept in `sessionStorage` per lab/challenge.
 
 
 

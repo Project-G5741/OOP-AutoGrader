@@ -39,6 +39,8 @@ class TermServiceDeleteTest {
     private LabRepository labRepository;
     @Mock
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
+    @Mock
+    private com.eiu.capstone.backend.service.SessionValidityService sessionValidityService;
 
     private TermService termService;
     private UUID termId;
@@ -51,7 +53,8 @@ class TermServiceDeleteTest {
                 termEnrollmentRepository,
                 userAccountRepository,
                 labRepository,
-                lecturerOverviewCache);
+                lecturerOverviewCache,
+                sessionValidityService);
         termId = UUID.randomUUID();
     }
 

@@ -132,13 +132,13 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
-    void missingNoArgConstructorIsError() {
+    void hiddenReceiverUsesDefaultConstructorWhenNoArgMissing() {
         WorkerIpc.InvokeSpec spec = new WorkerIpc.InvokeSpec(
                 "METHOD", "Car", "getSpeed", List.of(), "[]", null, List.of(), null);
         SerializedInvocationOutcome outcome = engine.invoke(
                 classesDir, spec, List.of(), WorkerIpc.DEFAULT_STDOUT_CAP);
-        assertEquals("ERROR", outcome.kind());
-        assertTrue(outcome.errorMessage().contains("no-argument constructor"));
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        assertEquals("0", outcome.returnValueJson());
     }
 
     @Test
@@ -205,36 +205,34 @@ class WorkerInvokeEngineTest {
     @Test
     void ae4CompositionNamedInstanceAndFieldSnapshot() throws Exception {
         Path dir = compileSources(Map.of(
-                "Engine.java", """
-                        public class Engine {
-                            private int horsepower;
-                            public Engine(int horsepower) { this.horsepower = horsepower; }
-                            public void upgrade(int extra) { horsepower += extra; }
-                            public int getHorsepower() { return horsepower; }
+                "RetailItem.java", """
+                        public class RetailItem {
+                            private String description;
+                            public RetailItem(String description, int unitsOnHand, double price) {
+                                this.description = description;
+                            }
                         }
                         """,
-                "Car.java", """
-                        public class Car {
-                            private Engine engine;
-                            public Car(Engine engine) { this.engine = engine; }
-                            public int readEngineHp() { return engine.getHorsepower(); }
+                "CashRegister.java", """
+                        public class CashRegister {
+                            private RetailItem retailItem;
+                            public CashRegister(RetailItem retailItem, int quantity) {
+                                this.retailItem = retailItem;
+                            }
                         }
                         """));
         SerializedInvocationOutcome outcome = runScenario(dir, List.of(
-                constructorStep("Engine", List.of("int"), "[100]", "engine"),
-                constructorStep("Car", List.of("Engine"), "[{\"$instance\":\"engine\"}]", "car"),
-                methodStep("Engine", "upgrade", List.of("int"), "[50]", "engine", null),
-                methodStep("Car", "readEngineHp", List.of(), "[]", "car", null)), List.of("engine"));
+                constructorStep("RetailItem", List.of("String", "int", "double"), "[\"wool\",1,12.3]", "retailItem"),
+                constructorStep("CashRegister", List.of("RetailItem", "int"),
+                        "[{\"$instance\":\"retailItem\"},14]", "register")),
+                List.of("retailItem"));
 
         assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
-        assertEquals(String.class, outcome.kind().getClass());
         JsonNode steps = stepsJson(outcome);
-        assertEquals(4, steps.size());
-        assertEquals("NORMAL", steps.get(3).get("kind").asText());
-        assertTrue(steps.get(3).get("kind").isTextual());
-        assertEquals("150", steps.get(3).get("returnValueJson").asText());
-        String engineSnap = steps.get(3).get("fieldSnapshotsJson").get("engine").asText();
-        assertTrue(engineSnap.contains("150"), engineSnap);
+        assertEquals(2, steps.size());
+        String retailItemSnap = steps.get(1).get("fieldSnapshotsJson").get("retailItem").asText();
+        assertTrue(retailItemSnap.contains("$sameInstance"), retailItemSnap);
+        assertTrue(retailItemSnap.contains("retailItem"), retailItemSnap);
         String encoded = WorkerIpc.writeLine(outcome);
         assertFalse(encoded.contains("\"passed\""));
     }
@@ -318,7 +316,7 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
-    void scenarioContinuesLaterStepsAfterMethodThrew() throws Exception {
+    void scenarioStopsLaterStepsAfterMethodThrew() throws Exception {
         Path dir = compileSources(Map.of(
                 "Person.java", """
                         public class Person {
@@ -338,12 +336,119 @@ class WorkerInvokeEngineTest {
 
         assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
         JsonNode steps = stepsJson(outcome);
-        assertEquals(3, steps.size());
+        assertEquals(2, steps.size());
         assertEquals("NORMAL", steps.get(0).get("kind").asText());
         assertEquals("THREW", steps.get(1).get("kind").asText());
         assertEquals("IllegalArgumentException", steps.get(1).get("exceptionSimpleName").asText());
+    }
+
+    @Test
+    void staticFactoryReturnRegistersNamedInstanceForLaterArgument() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Money.java", """
+                        public class Money {
+                            private final int amount;
+                            private Money(int amount) { this.amount = amount; }
+                            public static Money of(int amount) { return new Money(amount); }
+                            public int getAmount() { return amount; }
+                        }
+                        """,
+                "Wallet.java", """
+                        public class Wallet {
+                            private final Money money;
+                            public Wallet(Money money) { this.money = money; }
+                            public int read() { return money.getAmount(); }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                methodStep("Money", "of", List.of("int"), "[50]", "cash", null),
+                constructorStep("Wallet", List.of("Money"), "[{\"$instance\":\"cash\"}]", "wallet"),
+                methodStep("Wallet", "read", List.of(), "[]", "wallet", null)), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(3, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("NORMAL", steps.get(1).get("kind").asText());
         assertEquals("NORMAL", steps.get(2).get("kind").asText());
-        assertEquals("30", steps.get(2).get("returnValueJson").asText());
+        assertEquals("50", steps.get(2).get("returnValueJson").asText());
+    }
+
+    @Test
+    void compositionEqualsNamedFactBetweenTwoInstances() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Coin.java", """
+                        public class Coin {
+                            private final int value;
+                            public Coin(int value) { this.value = value; }
+                            @Override public boolean equals(Object other) {
+                                return other instanceof Coin coin && coin.value == value;
+                            }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Coin", List.of("int"), "[5]", "left"),
+                constructorStep("Coin", List.of("int"), "[5]", "right")), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(2, steps.size());
+        assertEquals("Coin", steps.get(1).get("objectTypeSimpleName").asText());
+        assertTrue(steps.get(1).get("equalsNamed").get("left").asBoolean());
+    }
+
+    @Test
+    void unitHiddenReceiverObjectReturnSnapshotsReturnTypeFields() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Circle.java", """
+                        public class Circle {
+                            private double diameter;
+                            public Circle(double diameter) { this.diameter = diameter; }
+                        }
+                        """,
+                "CircleFactory.java", """
+                        public class CircleFactory {
+                            public Circle getShape() { return new Circle(10.0); }
+                        }
+                        """));
+        Map<String, Object> step = methodStep("CircleFactory", "getShape", List.of(), "[]", null, null);
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(step), List.of("diameter"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("10.0", steps.get(0).get("fieldSnapshotsJson").get("diameter").asText());
+    }
+
+    @Test
+    void unitHiddenNoArgReceiverSnapshotsFieldState() throws Exception {
+        Path dir = compileSources(Map.of(
+                "BankAccount.java", """
+                        public class BankAccount {
+                            private int balance;
+                            public BankAccount() { this.balance = 0; }
+                            public void deposit(int amount) { this.balance += amount; }
+                        }
+                        """));
+        Map<String, Object> deposit = methodStep("BankAccount", "deposit", List.of("int"), "[100]", null, null);
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(deposit), List.of("balance"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("100", steps.get(0).get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void compareIpcOpIsUnknown() throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "compare");
+        request.put("classesDir", classesDir.toAbsolutePath().toString());
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+        assertEquals("ERROR", outcome.kind());
+        assertTrue(outcome.errorMessage() != null && outcome.errorMessage().toLowerCase().contains("unknown"),
+                outcome.errorMessage());
     }
 
     @Test

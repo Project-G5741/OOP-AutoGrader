@@ -1,833 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Circle, ChevronDown, ChevronUp, FlaskConical, Loader2, Play, Plus, Save, Trash2, XCircle } from 'lucide-react';
+import { FlaskConical, Loader2, Play, Plus, Save, Trash2 } from 'lucide-react';
 import { authHeaders } from '../../../utils/authHeaders';
 import { apiFetch } from '../../../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
+import CompositionTestcaseScript from './CompositionTestcaseScript';
+import UnitTestcaseWorksheet from './UnitTestcaseWorksheet';
+import { DryRunResultCard, DryRunStatusIcon } from './DryRunResultCard';
+import {
+  buildMemberCatalog,
+  emptyTestcase,
+  FIELD_CLASS,
+  hydrateTestcase,
+  isComposition,
+  normalizeTestcaseForApi,
+  switchTestcaseType,
+  validateTestcaseForDryRun,
+} from './testcaseAuthoring';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-
-const ASSERTION_KINDS = [
-  'RETURN_VALUE',
-  'FIELD_STATE',
-  'STDOUT',
-  'EXCEPTION',
-  'COMPARISON_RESULT',
-];
-
-const COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
-
-const COMPARISON_RESULT_EQUALS_OPTIONS = ['true', 'false'];
-const COMPARISON_RESULT_COMPARE_TO_OPTIONS = ['-1', '0', '1'];
-const OOP_PRINCIPLE_TAGS = ['Unit', 'Polymorphism', 'Encapsulation', 'Composition', 'Inheritance'];
-const MAX_STEPS = 20;
-
-function comparisonResultSelectValue(expectedValue, comparisonMethod) {
-  if (comparisonMethod === 'COMPARE_TO') {
-    const value = String(expectedValue ?? '0');
-    return COMPARISON_RESULT_COMPARE_TO_OPTIONS.includes(value) ? value : '0';
-  }
-  const value = String(expectedValue ?? 'true').toLowerCase();
-  if (COMPARISON_RESULT_EQUALS_OPTIONS.includes(value)) return value;
-  if (value === '0') return 'true';
-  if (value === '1') return 'false';
-  return 'true';
-}
-
-function emptyInvocation() {
-  return {
-    id: crypto.randomUUID(),
-    invocationKind: 'CONSTRUCTOR',
-    constructorId: null,
-    methodId: null,
-    params: '[]',
-    receiverConstructorId: null,
-    receiverParams: '[]',
-    instanceName: '',
-    dispatchClassId: null,
-  };
-}
-
-function emptyTestcase(orderIndex = 0) {
-  const invocation = emptyInvocation();
-  return {
-    id: crypto.randomUUID(),
-    name: 'New testcase',
-    testcaseType: 'SINGLE_INVOCATION',
-    comparisonMethod: null,
-    oopPrincipleTag: 'Unit',
-    weight: 1,
-    orderIndex,
-    hidden: false,
-    invocation,
-    invocations: [invocation],
-    instances: [],
-    assertions: [{
-      id: crypto.randomUUID(),
-      invocationId: invocation.id,
-      assertionKind: 'FIELD_STATE',
-      fieldId: null,
-      expectedValue: '0',
-      comparisonMode: 'EXACT',
-      orderIndex: 0,
-    }],
-  };
-}
-
-function hydrateInvocation(inv) {
-  return {
-    ...emptyInvocation(),
-    ...inv,
-    instanceName: inv?.instanceName ?? '',
-    dispatchClassId: inv?.dispatchClassId ?? null,
-    params: inv?.params || '[]',
-    receiverParams: inv?.receiverParams || '[]',
-  };
-}
-
-function resolvedInvocations(tc) {
-  if (Array.isArray(tc?.invocations) && tc.invocations.length > 0) {
-    return tc.invocations.map(hydrateInvocation);
-  }
-  if (tc?.invocation) return [hydrateInvocation(tc.invocation)];
-  return [];
-}
-
-function hydrateTestcase(tc) {
-  if (!tc) return tc;
-  if (tc.testcaseType === 'COMPARISON') {
-    return { ...tc, oopPrincipleTag: tc.oopPrincipleTag || 'Unit', invocations: [] };
-  }
-  const invocations = resolvedInvocations(tc);
-  const firstId = invocations[0]?.id ?? null;
-  return {
-    ...tc,
-    oopPrincipleTag: tc.oopPrincipleTag || 'Unit',
-    invocations,
-    invocation: invocations[0] || null,
-    assertions: (tc.assertions || []).map((a) => ({
-      ...a,
-      invocationId: a.invocationId || firstId,
-    })),
-  };
-}
-
-function namedInstanceNames(invocations) {
-  const names = [];
-  (invocations || []).forEach((step) => {
-    if (step.invocationKind === 'CONSTRUCTOR' && step.instanceName?.trim()) {
-      names.push(step.instanceName.trim());
-    }
-  });
-  return names;
-}
-
-function appendInstanceRef(paramsJson, name) {
-  let parsed;
-  try {
-    parsed = JSON.parse(paramsJson || '[]');
-  } catch {
-    parsed = [];
-  }
-  if (!Array.isArray(parsed)) parsed = [];
-  parsed.push({ $instance: name });
-  return JSON.stringify(parsed);
-}
-
-function polymorphismMissingDispatch(tc) {
-  if ((tc.oopPrincipleTag || 'Unit') !== 'Polymorphism') return false;
-  if (tc.testcaseType !== 'SINGLE_INVOCATION') return false;
-  return !resolvedInvocations(tc).some(
-    (step) => step.invocationKind === 'METHOD' && step.dispatchClassId,
-  );
-}
 
 function refStorageKey(labId, challengeId) {
   return `ref-java:${labId}:${challengeId}`;
 }
 
-function normalizeTestcaseForApi(tc) {
-  const hydrated = hydrateTestcase(tc);
-  const invocations = hydrated.testcaseType === 'SINGLE_INVOCATION' ? resolvedInvocations(hydrated) : [];
-  return {
-    ...hydrated,
-    oopPrincipleTag: hydrated.oopPrincipleTag || 'Unit',
-    invocations: hydrated.testcaseType === 'SINGLE_INVOCATION' ? invocations : null,
-    invocation: hydrated.testcaseType === 'SINGLE_INVOCATION' ? (invocations[0] || null) : null,
-    assertions: (hydrated.assertions || []).map((a, idx) => ({
-      ...a,
-      assertionKind: a.assertionKind,
-      invocationId: hydrated.testcaseType === 'SINGLE_INVOCATION'
-        ? (a.invocationId || invocations[0]?.id || null)
-        : null,
-      fieldId: a.assertionKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
-      expectedValue: a.assertionKind === 'COMPARISON_RESULT' && hydrated.testcaseType === 'COMPARISON'
-        ? comparisonResultSelectValue(a.expectedValue, hydrated.comparisonMethod)
-        : (a.expectedValue?.trim() ? a.expectedValue.trim() : 'null'),
-      comparisonMode: a.comparisonMode || 'EXACT',
-      orderIndex: a.orderIndex ?? idx,
-    })),
-  };
-}
-
-function comparisonTestcaseDefaults() {
-  return {
-    comparisonMethod: 'EQUALS',
-    invocation: null,
-    invocations: [],
-    instances: [
-      { id: crypto.randomUUID(), label: 'A', constructorId: null, params: '[]' },
-      { id: crypto.randomUUID(), label: 'B', constructorId: null, params: '[]' },
-    ],
-    assertions: [{
-      id: crypto.randomUUID(),
-      invocationId: null,
-      assertionKind: 'COMPARISON_RESULT',
-      fieldId: null,
-      expectedValue: 'true',
-      comparisonMode: 'EXACT',
-      orderIndex: 0,
-    }],
-  };
-}
-
-function invocationForKindChange(invocation, kind) {
-  const next = { ...invocation, invocationKind: kind };
-  if (kind === 'CONSTRUCTOR') {
-    next.methodId = null;
-    next.receiverConstructorId = null;
-    next.receiverParams = '[]';
-    next.dispatchClassId = null;
-  } else {
-    next.constructorId = null;
-  }
-  return next;
-}
-
-function dryRunSummaryText(result) {
-  if (!result) return '';
-  if (result.feedback) return result.feedback;
-  const assertions = result.assertions ?? [];
-  const failed = assertions.filter((a) => a.result !== 'PASS').length;
-  if (failed > 0) return `${failed} assertion${failed === 1 ? '' : 's'} failed`;
-  if (assertions.length > 0) return 'All assertions passed';
-  return result.result === 'PASS' ? 'Passed' : 'Failed';
-}
-
-function principleTagLabel(result) {
-  return result?.oop_principle_tag ?? result?.oopPrincipleTag ?? null;
-}
-
-function DryRunStatusIcon({ result, running }) {
-  if (running) {
-    return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden />;
-  }
-  if (!result) {
-    return <Circle className="h-3.5 w-3.5 shrink-0 text-foreground-disabled" aria-hidden />;
-  }
-  if (result.result === 'PASS') {
-    return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />;
-  }
-  return <XCircle className="h-3.5 w-3.5 shrink-0 text-error" aria-hidden />;
-}
-
-function DryRunResultCard({ result }) {
-  if (!result) return null;
-  const passed = result.result === 'PASS';
-  const [expanded, setExpanded] = useState(!passed);
-  const assertions = result.assertions ?? [];
-  const hasAssertionRows = assertions.length > 0
-    && assertions.some((a) => a.expected_output ?? a.expectedOutput);
-
-  const headerBarClass = passed
-    ? 'bg-[var(--success-panel)] text-[var(--success-panel-text)]'
-    : 'bg-[var(--error-bg)] text-[var(--error-text)]';
-  const bodyCardClass = 'overflow-hidden rounded-lg border border-border-subtle bg-surface-secondary';
-  const sectionDividerClass = 'border-t border-border-subtle';
-  const sectionLabelClass = 'mb-1 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted';
-  const codeBlockClass = 'whitespace-pre-wrap rounded-md bg-surface px-2 py-1.5 font-mono text-xs text-foreground-secondary';
-
-  const summary = dryRunSummaryText(result);
-
-  if (!expanded) {
-    return (
-      <div className={`animate-panel-in overflow-hidden rounded-lg ${headerBarClass}`}>
-        <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-xs font-semibold">{result.result}</span>
-            {principleTagLabel(result) && (
-              <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                {principleTagLabel(result)}
-              </span>
-            )}
-            <span className="truncate text-xs">{summary}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="inline-flex shrink-0 items-center gap-1 text-xs opacity-80 hover:opacity-100"
-          >
-            Details <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`animate-panel-in text-sm ${bodyCardClass}`}>
-      <div className={`flex items-center justify-between gap-3 px-3 py-2 ${headerBarClass}`}>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-xs font-semibold">{result.result}</span>
-          {principleTagLabel(result) && (
-            <span className="shrink-0 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-              {principleTagLabel(result)}
-            </span>
-          )}
-          <span className="truncate text-xs">{summary}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="inline-flex shrink-0 items-center gap-1 text-xs opacity-80 hover:opacity-100"
-        >
-          Hide <ChevronUp className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div className="px-3 py-3">
-      {result.input != null && (
-        <div className="pb-3">
-          <div className={sectionLabelClass}>Input</div>
-          <pre className={codeBlockClass}>{result.input}</pre>
-        </div>
-      )}
-
-      {hasAssertionRows ? (
-        <div className={`scrollbar-themed max-h-36 space-y-0 overflow-y-auto pr-1 ${result.input != null ? sectionDividerClass : ''}`}>
-          {assertions.map((assertion, index) => {
-            const aPassed = assertion.result === 'PASS';
-            const expected = assertion.expected_output ?? assertion.expectedOutput ?? '—';
-            const actual = assertion.actual_output ?? assertion.actualOutput ?? '—';
-            const fieldLabel = assertion.kind === 'FIELD_STATE' && expected.includes('=')
-              ? expected.split('=')[0].trim()
-              : null;
-
-            return (
-              <div
-                key={`${assertion.kind}-${assertion.order_index ?? assertion.orderIndex ?? index}`}
-                className={`py-3 ${index > 0 ? sectionDividerClass : ''}`}
-              >
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
-                    {fieldLabel ?? assertion.kind}
-                  </span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    aPassed ? 'bg-success-bg text-success-text' : 'bg-error-bg text-error-text'
-                  }`}
-                  >
-                    {assertion.result}
-                  </span>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Expected</div>
-                    <pre className={codeBlockClass}>{expected}</pre>
-                  </div>
-                  <div>
-                    <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">Actual</div>
-                    <pre className={`whitespace-pre-wrap rounded-md px-2 py-1.5 font-mono text-xs ${
-                      aPassed
-                        ? 'bg-surface text-foreground-secondary'
-                        : 'bg-error-bg text-error-text'
-                    }`}
-                    >
-                      {actual}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className={`grid gap-3 sm:grid-cols-2 ${result.input != null ? `${sectionDividerClass} pt-3` : ''}`}>
-          {result.expected_output != null && (
-            <div>
-              <div className={sectionLabelClass}>Expected</div>
-              <pre className={codeBlockClass}>{result.expected_output}</pre>
-            </div>
-          )}
-          {result.actual_output != null && (
-            <div>
-              <div className={sectionLabelClass}>Actual</div>
-              <pre className={codeBlockClass}>{result.actual_output}</pre>
-            </div>
-          )}
-        </div>
-      )}
-      </div>
-    </div>
-  );
-}
-
-function updateInvocations(nextInvocations, extra = {}) {
-  return {
-    invocations: nextInvocations,
-    invocation: nextInvocations[0] || null,
-    ...extra,
-  };
-}
-
-function ScenarioStepEditor({
-  step,
-  index,
-  steps,
-  memberOptions,
-  onChange,
-  onRemove,
-  canRemove,
-}) {
-  const namedBefore = namedInstanceNames(steps.slice(0, index));
-  const insertName = namedBefore[namedBefore.length - 1] || namedBefore[0] || '';
-
-  return (
-    <div className="space-y-3 rounded border border-border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
-          Step {index + 1}
-        </span>
-        {canRemove && (
-          <button
-            type="button"
-            className="text-xs text-error hover:underline"
-            onClick={onRemove}
-          >
-            Remove
-          </button>
-        )}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-foreground-muted">
-          Invocation kind
-          <select
-            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-            value={step.invocationKind}
-            onChange={(e) => onChange(invocationForKindChange(step, e.target.value))}
-          >
-            <option value="CONSTRUCTOR">CONSTRUCTOR</option>
-            <option value="METHOD">METHOD</option>
-          </select>
-        </label>
-        {step.invocationKind === 'CONSTRUCTOR' ? (
-          <>
-            <label className="block text-xs text-foreground-muted">
-              Constructor
-              <select
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={step.constructorId || ''}
-                onChange={(e) => onChange({ ...step, constructorId: e.target.value || null })}
-              >
-                <option value="">Select constructor</option>
-                {memberOptions.constructors.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs text-foreground-muted sm:col-span-2">
-              Instance name
-              <input
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-                value={step.instanceName || ''}
-                onChange={(e) => onChange({ ...step, instanceName: e.target.value })}
-                placeholder="e.g. account"
-              />
-            </label>
-          </>
-        ) : (
-          <>
-            <label className="block text-xs text-foreground-muted">
-              Method
-              <select
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={step.methodId || ''}
-                onChange={(e) => onChange({ ...step, methodId: e.target.value || null })}
-              >
-                <option value="">Select method</option>
-                {memberOptions.methods.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs text-foreground-muted">
-              Receiver constructor (optional)
-              <select
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={step.receiverConstructorId || ''}
-                onChange={(e) => onChange({ ...step, receiverConstructorId: e.target.value || null })}
-              >
-                <option value="">No-arg ctor on class</option>
-                {memberOptions.constructors.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs text-foreground-muted">
-              Receiver params (JSON array)
-              <input
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-                value={step.receiverParams || '[]'}
-                onChange={(e) => onChange({ ...step, receiverParams: e.target.value })}
-              />
-            </label>
-            <label className="block text-xs text-foreground-muted">
-              Dispatch class
-              <select
-                className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={step.dispatchClassId || ''}
-                onChange={(e) => onChange({ ...step, dispatchClassId: e.target.value || null })}
-              >
-                <option value="">Concrete class</option>
-                {(memberOptions.classes || []).map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-        <label className="block text-xs text-foreground-muted sm:col-span-2">
-          Params (JSON array)
-          <div className="mt-1 flex gap-2">
-            <input
-              className="w-full rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-              value={step.params || '[]'}
-              onChange={(e) => onChange({ ...step, params: e.target.value })}
-            />
-            {namedBefore.length > 0 && (
-              <button
-                type="button"
-                className="shrink-0 rounded border border-border px-2 py-1 text-xs text-primary"
-                onClick={() => onChange({ ...step, params: appendInstanceRef(step.params, insertName) })}
-                title={`Insert {"$instance":"${insertName}"}`}
-              >
-                $instance
-              </button>
-            )}
-          </div>
-          {namedBefore.length > 1 && (
-            <select
-              className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1 text-xs dark:text-white"
-              value=""
-              onChange={(e) => {
-                if (!e.target.value) return;
-                onChange({ ...step, params: appendInstanceRef(step.params, e.target.value) });
-              }}
-            >
-              <option value="">Insert named instance…</option>
-              {namedBefore.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          )}
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function TestcaseEditor({
-  tc,
-  memberOptions,
-  onUpdate,
-}) {
-  const steps = resolvedInvocations(tc);
-  const missingDispatch = polymorphismMissingDispatch(tc);
-
-  const patchSteps = (nextSteps, extra) => {
-    onUpdate(updateInvocations(nextSteps, extra));
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-foreground-muted">
-          Type
-          <select
-            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-            value={tc.testcaseType}
-            onChange={(e) => {
-              const type = e.target.value;
-              if (type === 'SINGLE_INVOCATION') {
-                const fallback = emptyTestcase();
-                const invocations = steps.length ? steps : fallback.invocations;
-                onUpdate({
-                  testcaseType: type,
-                  comparisonMethod: null,
-                  instances: [],
-                  ...updateInvocations(invocations, {
-                    assertions: (tc.assertions?.length && tc.testcaseType === 'SINGLE_INVOCATION')
-                      ? tc.assertions
-                      : fallback.assertions,
-                  }),
-                });
-              } else {
-                onUpdate({
-                  testcaseType: type,
-                  ...comparisonTestcaseDefaults(),
-                });
-              }
-            }}
-          >
-            <option value="SINGLE_INVOCATION">SINGLE_INVOCATION</option>
-            <option value="COMPARISON">COMPARISON</option>
-          </select>
-        </label>
-        <label className="block text-xs text-foreground-muted">
-          OOP principle
-          <select
-            className="mt-1 w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-            value={tc.oopPrincipleTag || 'Unit'}
-            onChange={(e) => onUpdate({ oopPrincipleTag: e.target.value })}
-          >
-            {OOP_PRINCIPLE_TAGS.map((tag) => (
-              <option key={tag} value={tag}>{tag}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {missingDispatch && (
-        <p className="rounded border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-text">
-          Polymorphism tests need a dispatch class on at least one method step before save.
-        </p>
-      )}
-
-      {tc.testcaseType === 'SINGLE_INVOCATION' && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-foreground-secondary">Scenario steps</div>
-          {steps.map((step, idx) => (
-            <ScenarioStepEditor
-              key={step.id || idx}
-              step={step}
-              index={idx}
-              steps={steps}
-              memberOptions={memberOptions}
-              onChange={(next) => {
-                const nextSteps = steps.map((s, i) => (i === idx ? next : s));
-                patchSteps(nextSteps);
-              }}
-              onRemove={() => {
-                const nextSteps = steps.filter((_, i) => i !== idx);
-                const remainingIds = new Set(nextSteps.map((s) => s.id));
-                const fallbackId = nextSteps[0]?.id ?? null;
-                patchSteps(nextSteps, {
-                  assertions: (tc.assertions || []).map((a) => (
-                    remainingIds.has(a.invocationId) ? a : { ...a, invocationId: fallbackId }
-                  )),
-                });
-              }}
-              canRemove={steps.length > 1}
-            />
-          ))}
-          <button
-            type="button"
-            className="text-xs text-primary disabled:opacity-50"
-            disabled={steps.length >= MAX_STEPS}
-            onClick={() => patchSteps([...steps, emptyInvocation()])}
-          >
-            + Add step
-          </button>
-        </div>
-      )}
-
-      {tc.testcaseType === 'COMPARISON' && (
-        <div className="space-y-2">
-          <select
-            className="w-full rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-            value={tc.comparisonMethod || 'EQUALS'}
-            onChange={(e) => {
-              const method = e.target.value;
-              const assertions = (tc.assertions || []).map((a) => {
-                if (a.assertionKind !== 'COMPARISON_RESULT') return a;
-                return {
-                  ...a,
-                  expectedValue: method === 'COMPARE_TO' ? '0' : 'true',
-                };
-              });
-              onUpdate({ comparisonMethod: method, assertions });
-            }}
-          >
-            <option value="EQUALS">EQUALS</option>
-            <option value="COMPARE_TO">COMPARE_TO</option>
-          </select>
-          {(tc.instances || []).map((inst, idx) => (
-            <div key={inst.id || idx} className="grid gap-2 sm:grid-cols-2">
-              <span className="text-xs text-foreground-muted">Instance {inst.label}</span>
-              <select
-                className="rounded border border-border bg-surface-secondary px-2 py-1.5 text-sm dark:text-white"
-                value={inst.constructorId || ''}
-                onChange={(e) => {
-                  const instances = [...(tc.instances || [])];
-                  instances[idx] = { ...inst, constructorId: e.target.value || null };
-                  onUpdate({ instances });
-                }}
-              >
-                <option value="">Constructor</option>
-                {memberOptions.constructors.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-              <input
-                className="sm:col-span-2 rounded border border-border bg-surface-secondary px-2 py-1.5 font-mono text-sm dark:text-white"
-                value={inst.params || '[]'}
-                onChange={(e) => {
-                  const instances = [...(tc.instances || [])];
-                  instances[idx] = { ...inst, params: e.target.value };
-                  onUpdate({ instances });
-                }}
-                placeholder="Params JSON"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <div className="text-xs font-semibold text-foreground-secondary">Assertions</div>
-        {(tc.assertions || []).map((a, idx) => (
-          <div key={a.id || idx} className="grid gap-2 rounded border border-border p-2 sm:grid-cols-3">
-            {tc.testcaseType === 'SINGLE_INVOCATION' && steps.length > 0 && (
-              <select
-                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white sm:col-span-3"
-                value={a.invocationId || steps[0]?.id || ''}
-                onChange={(e) => {
-                  const assertions = [...(tc.assertions || [])];
-                  assertions[idx] = { ...a, invocationId: e.target.value || steps[0]?.id || null };
-                  onUpdate({ assertions });
-                }}
-              >
-                {steps.map((step, stepIdx) => (
-                  <option key={step.id || stepIdx} value={step.id}>
-                    Step {stepIdx + 1}
-                    {step.instanceName ? ` (${step.instanceName})` : ''}
-                    {step.invocationKind === 'METHOD' ? ' method' : ' constructor'}
-                  </option>
-                ))}
-              </select>
-            )}
-            <select
-              className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
-              value={a.assertionKind}
-              onChange={(e) => {
-                const assertions = [...(tc.assertions || [])];
-                const nextKind = e.target.value;
-                assertions[idx] = {
-                  ...a,
-                  assertionKind: nextKind,
-                  fieldId: nextKind === 'FIELD_STATE' ? (a.fieldId || null) : null,
-                  expectedValue: nextKind === 'COMPARISON_RESULT' && tc.testcaseType === 'COMPARISON'
-                    ? (tc.comparisonMethod === 'COMPARE_TO' ? '0' : 'true')
-                    : a.expectedValue,
-                };
-                onUpdate({ assertions });
-              }}
-            >
-              {ASSERTION_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-            {a.assertionKind === 'FIELD_STATE' && (
-              <select
-                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
-                value={a.fieldId || ''}
-                onChange={(e) => {
-                  const assertions = [...(tc.assertions || [])];
-                  assertions[idx] = { ...a, fieldId: e.target.value || null };
-                  onUpdate({ assertions });
-                }}
-              >
-                <option value="">Field</option>
-                {memberOptions.fields.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-            )}
-            {tc.testcaseType === 'COMPARISON' && a.assertionKind === 'COMPARISON_RESULT' ? (
-              <select
-                className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
-                value={comparisonResultSelectValue(a.expectedValue, tc.comparisonMethod)}
-                onChange={(e) => {
-                  const assertions = [...(tc.assertions || [])];
-                  assertions[idx] = { ...a, expectedValue: e.target.value };
-                  onUpdate({ assertions });
-                }}
-              >
-                {(tc.comparisonMethod === 'COMPARE_TO'
-                  ? COMPARISON_RESULT_COMPARE_TO_OPTIONS
-                  : COMPARISON_RESULT_EQUALS_OPTIONS
-                ).map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="rounded border border-border bg-surface-secondary px-2 py-1 font-mono text-sm dark:text-white"
-                value={a.expectedValue || ''}
-                onChange={(e) => {
-                  const assertions = [...(tc.assertions || [])];
-                  assertions[idx] = { ...a, expectedValue: e.target.value };
-                  onUpdate({ assertions });
-                }}
-                placeholder="Expected value JSON"
-              />
-            )}
-            <select
-              className="rounded border border-border bg-surface-secondary px-2 py-1 text-sm dark:text-white"
-              value={a.comparisonMode || 'EXACT'}
-              onChange={(e) => {
-                const assertions = [...(tc.assertions || [])];
-                assertions[idx] = { ...a, comparisonMode: e.target.value };
-                onUpdate({ assertions });
-              }}
-            >
-              {COMPARISON_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="text-xs text-primary"
-          onClick={() => onUpdate({
-            assertions: [
-              ...(tc.assertions || []),
-              {
-                id: crypto.randomUUID(),
-                invocationId: steps[steps.length - 1]?.id || steps[0]?.id || null,
-                assertionKind: 'RETURN_VALUE',
-                expectedValue: 'null',
-                comparisonMode: 'EXACT',
-                orderIndex: (tc.assertions || []).length,
-              },
-            ],
-          })}
-        >
-          + Add assertion
-        </button>
-      </div>
-
-      <label className="flex items-center gap-2 text-sm text-foreground-muted">
-        <input
-          type="checkbox"
-          checked={!!tc.hidden}
-          onChange={(e) => onUpdate({ hidden: e.target.checked })}
-        />
-        Hidden from students (pass/fail only)
-      </label>
-    </div>
-  );
-}
-
 export default function TestcasesPanel({
   labId,
   challenge,
+  relationTypeOptions = [],
+  declaringTypeOptions = [],
   structureDirty,
   onToast,
 }) {
@@ -838,17 +39,12 @@ export default function TestcasesPanel({
   const [runningId, setRunningId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [referenceSources, setReferenceSources] = useState([]);
-  const [dryRunResults, setDryRunResults] = useState({}); // { [testcaseId]: resultData }
+  const [dryRunResults, setDryRunResults] = useState({});
   const [warnStructure, setWarnStructure] = useState(false);
 
   const isDirty = useMemo(
     () => JSON.stringify(testcases) !== snapshot,
     [testcases, snapshot],
-  );
-
-  const polymorphismSaveBlocked = useMemo(
-    () => testcases.some(polymorphismMissingDispatch),
-    [testcases],
   );
 
   const dryRunSummary = useMemo(() => {
@@ -872,6 +68,11 @@ export default function TestcasesPanel({
   );
 
   const selectedDryRunResult = selectedId ? dryRunResults[selectedId] ?? null : null;
+
+  const catalog = useMemo(
+    () => buildMemberCatalog(challenge, relationTypeOptions, declaringTypeOptions),
+    [challenge, relationTypeOptions, declaringTypeOptions],
+  );
 
   const dryRunPayloadSources = useMemo(
     () => referenceSources
@@ -931,27 +132,6 @@ export default function TestcasesPanel({
     );
   }, [referenceSources, labId, challenge?.id]);
 
-  const memberOptions = useMemo(() => {
-    const classes = challenge?.classes || [];
-    const constructors = [];
-    const methods = [];
-    const fields = [];
-    const classOptions = [];
-    classes.forEach((cls) => {
-      classOptions.push({ id: cls.id, label: cls.name });
-      (cls.constructors || []).forEach((c) => {
-        constructors.push({ id: c.id, label: `${cls.name}.<init>(...)` });
-      });
-      (cls.methods || []).forEach((m) => {
-        methods.push({ id: m.id, label: `${cls.name}.${m.name}(...)` });
-      });
-      (cls.fields || []).forEach((f) => {
-        fields.push({ id: f.id, label: `${cls.name}.${f.name}` });
-      });
-    });
-    return { constructors, methods, fields, classes: classOptions };
-  }, [challenge]);
-
   const updateTestcase = (id, patch) => {
     setTestcases((prev) => prev.map((tc) => (tc.id === id ? { ...tc, ...patch } : tc)));
     setDryRunResults((prev) => {
@@ -969,13 +149,6 @@ export default function TestcasesPanel({
 
   const handleSave = async () => {
     if (!labId || !challenge?.id) return;
-    if (testcases.some(polymorphismMissingDispatch)) {
-      onToast?.({
-        type: 'error',
-        message: 'Polymorphism tests need a dispatch class on at least one method step.',
-      });
-      return;
-    }
     if (structureDirty) setWarnStructure(true);
     setSaving(true);
     try {
@@ -988,14 +161,14 @@ export default function TestcasesPanel({
           body: JSON.stringify(payload),
         },
       );
-      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'testcase-save'));
       const data = await res.json();
       const rows = (data.testcases || []).map(hydrateTestcase);
       setTestcases(rows);
       setSnapshot(JSON.stringify(rows));
       onToast?.({ type: 'success', message: 'Testcases saved' });
     } catch (e) {
-      onToast?.({ type: 'error', message: toFriendlyError(e, 'save') });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-save') });
     } finally {
       setSaving(false);
     }
@@ -1013,7 +186,7 @@ export default function TestcasesPanel({
         }),
       },
     );
-    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
+    if (!res.ok) throw new Error(await readFriendlyApiError(res, 'testcase-dry-run'));
     return res.json();
   };
 
@@ -1023,13 +196,18 @@ export default function TestcasesPanel({
       onToast?.({ type: 'error', message: 'Add at least one reference Java file before running.' });
       return;
     }
+    const configError = validateTestcaseForDryRun(tc, catalog);
+    if (configError) {
+      onToast?.({ type: 'error', message: configError });
+      return;
+    }
     if (structureDirty) setWarnStructure(true);
     setRunningId(tc.id);
     try {
       const data = await runDryRunForTestcase(tc);
       setDryRunResults((prev) => ({ ...prev, [tc.id]: data }));
     } catch (e) {
-      onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
+      onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-dry-run') });
     } finally {
       setRunningId(null);
     }
@@ -1048,11 +226,17 @@ export default function TestcasesPanel({
     try {
       for (const tc of testcases) {
         setRunningId(tc.id);
+        const configError = validateTestcaseForDryRun(tc, catalog);
+        if (configError) {
+          failedCount += 1;
+          onToast?.({ type: 'error', message: configError });
+          continue;
+        }
         try {
           nextResults[tc.id] = await runDryRunForTestcase(tc);
         } catch (e) {
           failedCount += 1;
-          onToast?.({ type: 'error', message: toFriendlyError(e, 'read') });
+          onToast?.({ type: 'error', message: toFriendlyError(e, 'testcase-dry-run') });
         }
       }
       setDryRunResults(nextResults);
@@ -1080,8 +264,8 @@ export default function TestcasesPanel({
     });
   };
 
-  const handleAddTestcase = () => {
-    const tc = emptyTestcase(testcases.length);
+  const handleAddTestcase = (type = 'UNIT') => {
+    const tc = emptyTestcase(testcases.length, type);
     setTestcases([...testcases, tc]);
     setSelectedId(tc.id);
   };
@@ -1095,7 +279,7 @@ export default function TestcasesPanel({
   }
 
   return (
-    <div className="space-y-4 pb-4">
+    <div className="min-w-0 space-y-4 pb-4">
       {warnStructure && (
         <div className="rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-warning-text">
           Lab structure has unsaved changes. Save structure first so new methods and fields can be referenced.
@@ -1113,13 +297,13 @@ export default function TestcasesPanel({
         />
       </div>
 
-      <div className="rounded-xl bg-surface">
-        <div className="flex items-center justify-between px-4 py-3">
+      <div className="min-w-0 rounded-xl bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-chart-green" />
             <span className="font-medium text-foreground">Operational Testcases</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {testcases.length > 0 && (
               <button
                 type="button"
@@ -1133,10 +317,10 @@ export default function TestcasesPanel({
             )}
             <button
               type="button"
-              onClick={handleAddTestcase}
+              onClick={() => handleAddTestcase()}
               className="inline-flex items-center gap-1 text-sm text-primary-text transition-colors hover:text-foreground"
             >
-              <Plus className="h-4 w-4" /> Add testcase
+              <Plus className="h-4 w-4" /> Add new testcase
             </button>
           </div>
         </div>
@@ -1148,7 +332,7 @@ export default function TestcasesPanel({
         ) : testcases.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-foreground-secondary">No testcases yet.</p>
         ) : (
-          <div className="grid min-h-[22rem] lg:grid-cols-[minmax(200px,260px)_1fr]">
+          <div className="grid min-h-[22rem] min-w-0 lg:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]">
             <aside className="border-b border-border-subtle p-2 lg:border-b-0 lg:border-r lg:border-border-subtle">
               {(dryRunSummary.pass > 0 || dryRunSummary.fail > 0) && (
                 <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 px-2 text-[11px] text-foreground-muted">
@@ -1181,11 +365,9 @@ export default function TestcasesPanel({
                       >
                         <DryRunStatusIcon result={tcResult} running={isRunning} />
                         <span className="min-w-0 flex-1 truncate font-medium">{tc.name}</span>
-                        {tc.oopPrincipleTag && tc.oopPrincipleTag !== 'Unit' && (
-                          <span className="shrink-0 rounded bg-surface-secondary px-1.5 text-[10px] uppercase tracking-wide text-foreground-muted">
-                            {tc.oopPrincipleTag}
-                          </span>
-                        )}
+                        <span className="shrink-0 rounded bg-surface-secondary px-1.5 text-[10px] uppercase tracking-wide text-foreground-muted">
+                          {isComposition(tc) ? 'Composition' : 'Unit'}
+                        </span>
                         {tc.hidden && (
                           <span className="shrink-0 rounded bg-foreground-muted/80 px-1.5 text-[10px] uppercase tracking-wide text-foreground">
                             hidden
@@ -1198,23 +380,36 @@ export default function TestcasesPanel({
               </ul>
             </aside>
 
-            <div className="flex max-h-[min(70vh,42rem)] flex-col p-4">
+            <div className="flex min-w-0 max-h-[min(70vh,42rem)] flex-col p-4">
               {selectedTestcase ? (
-                <div key={selectedTestcase.id} className="flex min-h-0 flex-1 flex-col animate-panel-in">
-                  <div className="shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
+                <div key={selectedTestcase.id} className="flex min-h-0 min-w-0 flex-1 flex-col animate-panel-in">
+                  <div className="min-w-0 shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 space-y-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
                           Name
+                          <input
+                            type="text"
+                            value={selectedTestcase.name ?? ''}
+                            onChange={(e) => updateTestcase(selectedTestcase.id, { name: e.target.value })}
+                            className="mt-1 w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm font-medium text-foreground outline-none ring-primary/0 transition-shadow focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                            placeholder="Testcase name"
+                          />
                         </label>
-                        <input
-                          type="text"
-                          value={selectedTestcase.name ?? ''}
-                          onChange={(e) => updateTestcase(selectedTestcase.id, { name: e.target.value })}
-                          className="mt-1 w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm font-medium text-foreground outline-none ring-primary/0 transition-shadow focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
-                          placeholder="Testcase name"
-                        />
-                        <p className="mt-1 text-xs text-foreground-muted">{selectedTestcase.testcaseType}</p>
+                        <label className="block text-xs text-foreground-muted">
+                          Type
+                          <select
+                            className={FIELD_CLASS}
+                            value={selectedTestcase.testcaseType}
+                            onChange={(e) => updateTestcase(
+                              selectedTestcase.id,
+                              switchTestcaseType(selectedTestcase, e.target.value),
+                            )}
+                          >
+                            <option value="UNIT">Unit</option>
+                            <option value="COMPOSITION">Composition</option>
+                          </select>
+                        </label>
                       </div>
                       <div className="flex shrink-0 items-center gap-1 pt-4">
                         <button
@@ -1246,11 +441,27 @@ export default function TestcasesPanel({
                   </div>
 
                   <div className="scrollbar-themed min-h-0 flex-1 overflow-y-auto pt-3">
-                    <TestcaseEditor
-                      tc={selectedTestcase}
-                      memberOptions={memberOptions}
-                      onUpdate={(patch) => updateTestcase(selectedTestcase.id, patch)}
-                    />
+                    {isComposition(selectedTestcase) ? (
+                      <CompositionTestcaseScript
+                        tc={selectedTestcase}
+                        catalog={catalog}
+                        onUpdate={(patch) => updateTestcase(selectedTestcase.id, patch)}
+                      />
+                    ) : (
+                      <UnitTestcaseWorksheet
+                        tc={selectedTestcase}
+                        catalog={catalog}
+                        onUpdate={(patch) => updateTestcase(selectedTestcase.id, patch)}
+                      />
+                    )}
+                    <label className="mt-3 flex items-center gap-2 text-sm text-foreground-muted">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedTestcase.hidden}
+                        onChange={(e) => updateTestcase(selectedTestcase.id, { hidden: e.target.checked })}
+                      />
+                      Hidden from students (pass/fail only)
+                    </label>
                   </div>
                 </div>
               ) : (
@@ -1266,11 +477,8 @@ export default function TestcasesPanel({
       <div className="flex justify-end">
         <button
           type="button"
-          disabled={!isDirty || saving || polymorphismSaveBlocked}
+          disabled={!isDirty || saving}
           onClick={handleSave}
-          title={polymorphismSaveBlocked
-            ? 'Polymorphism tests need a dispatch class on at least one method step'
-            : undefined}
           className="inline-flex items-center gap-2 rounded-full bg-success px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-success-hover disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -1280,3 +488,5 @@ export default function TestcasesPanel({
     </div>
   );
 }
+
+export { normalizeTestcaseForApi, emptyTestcase };

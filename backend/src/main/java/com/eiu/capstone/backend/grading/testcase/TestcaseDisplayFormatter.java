@@ -1,15 +1,11 @@
 package com.eiu.capstone.backend.grading.testcase;
 
-import java.util.stream.Collectors;
-
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.model.InvocationKind;
-import com.eiu.capstone.backend.model.TestcaseType;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Component
@@ -22,29 +18,14 @@ public class TestcaseDisplayFormatter {
     }
 
     public String formatInput(TestcaseRubric testcase) {
-        if (testcase != null && testcase.testcaseType() == TestcaseType.COMPARISON) {
-            return formatComparisonInput(testcase);
-        }
         return formatInput(testcase, firstInvocation(testcase));
     }
 
     public String formatInput(TestcaseRubric testcase, InvocationRubric invocation) {
-        if (testcase != null && testcase.testcaseType() == TestcaseType.COMPARISON) {
-            return formatComparisonInput(testcase);
-        }
         if (invocation == null) {
             return "";
         }
         return formatInvocationInput(invocation);
-    }
-
-    private String formatComparisonInput(TestcaseRubric testcase) {
-        if (testcase.instances() == null) {
-            return "";
-        }
-        return testcase.instances().stream()
-                .map(this::formatInstanceInput)
-                .collect(Collectors.joining("\n"));
     }
 
     private static InvocationRubric firstInvocation(TestcaseRubric testcase) {
@@ -58,21 +39,64 @@ public class TestcaseDisplayFormatter {
     }
 
     public String formatExpected(AssertionRubric assertion) {
+        return formatExpected(assertion, null);
+    }
+
+    public String formatExpected(AssertionRubric assertion, InvocationRubric invocation) {
         if (assertion == null) {
             return "";
         }
         return switch (assertion.kind()) {
-            case RETURN_VALUE -> TestcaseLiteralFormatter.format(
-                    jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null));
-            case FIELD_STATE -> assertion.fieldName() + " = "
-                    + TestcaseLiteralFormatter.format(jsonValueCoercer.coerceExpectedValue(
-                            assertion.expectedValueJson(), assertion.fieldDataType()));
+            case RETURN_VALUE -> formatReturnExpected(assertion, invocation);
+            case FIELD_STATE -> formatFieldStateExpected(assertion);
             case STDOUT -> String.valueOf(jsonValueCoercer.coerceExpectedValue(
                     assertion.expectedValueJson(), AssertionEvaluator.STRING_TYPE));
             case EXCEPTION -> jsonValueCoercer.parseExceptionType(assertion.expectedValueJson());
-            case COMPARISON_RESULT -> TestcaseLiteralFormatter.format(
-                    jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null));
         };
+    }
+
+    private String formatFieldStateActual(String actualValueJson) {
+        Object parsed = parseActual(actualValueJson);
+        String sameInstance = AssertionEvaluator.readSameInstanceName(parsed);
+        if (sameInstance != null) {
+            return "$" + sameInstance;
+        }
+        return TestcaseLiteralFormatter.format(parsed);
+    }
+
+    private String formatFieldStateExpected(AssertionRubric assertion) {
+        try {
+            JsonNode node = jsonValueCoercer.parseTree(assertion.expectedValueJson());
+            if (node != null && node.isObject() && node.has(AssertionEvaluator.INSTANCE_REF_KEY)) {
+                return assertion.fieldName() + " = $" + node.get(AssertionEvaluator.INSTANCE_REF_KEY).asText();
+            }
+        } catch (Exception ignored) {
+            // fall through
+        }
+        return assertion.fieldName() + " = "
+                + TestcaseLiteralFormatter.format(jsonValueCoercer.coerceExpectedValue(
+                        assertion.expectedValueJson(), assertion.fieldDataType()));
+    }
+
+    private String formatReturnExpected(AssertionRubric assertion, InvocationRubric invocation) {
+        try {
+            JsonNode node = jsonValueCoercer.parseTree(assertion.expectedValueJson());
+            if (node != null && node.isObject() && node.has(AssertionEvaluator.OBJECT_CHECK_KEY)) {
+                String kind = node.get(AssertionEvaluator.OBJECT_CHECK_KEY).asText();
+                if (AssertionEvaluator.OBJECT_CHECK_FIELDS.equals(kind)) {
+                    JsonNode fields = node.get("fields");
+                    return fields == null ? "fields" : fields.toString();
+                }
+                if (AssertionEvaluator.OBJECT_CHECK_EQUALS.equals(kind)) {
+                    JsonNode instance = node.get(AssertionEvaluator.INSTANCE_REF_KEY);
+                    return instance != null ? "equals(" + instance.asText() + ")" : "equals()";
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through to scalar formatting
+        }
+        return TestcaseLiteralFormatter.format(
+                jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), null));
     }
 
     public String formatActual(AssertionRubric assertion,
@@ -83,9 +107,8 @@ public class TestcaseDisplayFormatter {
             return "";
         }
         return switch (assertion.kind()) {
-            case RETURN_VALUE -> TestcaseLiteralFormatter.format(parseActual(evaluation.actualValueJson()));
-            case FIELD_STATE -> assertion.fieldName() + " = "
-                    + TestcaseLiteralFormatter.format(parseActual(evaluation.actualValueJson()));
+            case RETURN_VALUE -> formatReturnActual(evaluation);
+            case FIELD_STATE -> assertion.fieldName() + " = " + formatFieldStateActual(evaluation.actualValueJson());
             case STDOUT -> {
                 String stdout = evaluation.actualValueJson() != null
                         ? stripQuotes(evaluation.actualValueJson())
@@ -96,9 +119,6 @@ public class TestcaseDisplayFormatter {
                 yield stdout;
             }
             case EXCEPTION -> formatExceptionActual(evaluation, invocationOutcome);
-            case COMPARISON_RESULT -> TestcaseLiteralFormatter.format(
-                    comparisonOutcome != null ? comparisonOutcome.comparisonResult()
-                            : parseActual(evaluation.actualValueJson()));
         };
     }
 
@@ -136,10 +156,6 @@ public class TestcaseDisplayFormatter {
         return invocation.instanceName() != null && !invocation.instanceName().isBlank();
     }
 
-    private String formatInstanceInput(InstanceRubric instance) {
-        return instance.label() + " = new " + instance.className() + "(" + formatArgs(instance.paramsJson()) + ")";
-    }
-
     private String formatArgs(String paramsJson) {
         JsonNode array = jsonValueCoercer.parseTree(paramsJson);
         if (!array.isArray()) {
@@ -150,8 +166,13 @@ public class TestcaseDisplayFormatter {
             if (i > 0) {
                 builder.append(", ");
             }
-            builder.append(TestcaseLiteralFormatter.format(
-                    jsonValueCoercer.coerceFromNode(array.get(i), null)));
+            JsonNode param = array.get(i);
+            if (param.isObject() && param.has(AssertionEvaluator.INSTANCE_REF_KEY)) {
+                builder.append('$').append(param.get(AssertionEvaluator.INSTANCE_REF_KEY).asText());
+            } else {
+                builder.append(TestcaseLiteralFormatter.format(
+                        jsonValueCoercer.coerceFromNode(param, null)));
+            }
         }
         return builder.toString();
     }
@@ -161,14 +182,32 @@ public class TestcaseDisplayFormatter {
         if (evaluation.status() == com.eiu.capstone.backend.model.TestcaseResultStatus.PASSED) {
             return stripQuotes(evaluation.actualValueJson());
         }
-        if (invocationOutcome != null && invocationOutcome.kind() == InvocationOutcomeKind.NORMAL) {
-            if (invocationOutcome.returnValue() != null) {
-                return "no exception thrown\nreturned "
-                        + TestcaseLiteralFormatter.format(invocationOutcome.returnValue());
-            }
-            return "no exception thrown";
+        if (evaluation.feedback() != null && !evaluation.feedback().isBlank()) {
+            return evaluation.feedback();
         }
-        return evaluation.feedback() != null ? evaluation.feedback() : "no exception thrown";
+        if (invocationOutcome != null && invocationOutcome.kind() == InvocationOutcomeKind.THREW) {
+            return "Exception mismatch";
+        }
+        return "No exception thrown";
+    }
+
+    private String formatReturnActual(AssertionEvaluation evaluation) {
+        String raw = evaluation.actualValueJson();
+        if (raw == null || raw.isBlank()) {
+            return TestcaseLiteralFormatter.format(null);
+        }
+        String trimmed = raw.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            try {
+                JsonNode node = jsonValueCoercer.parseTree(trimmed);
+                if (node.isObject() || node.isArray()) {
+                    return node.toString();
+                }
+            } catch (Exception ignored) {
+                // fall through to scalar formatting
+            }
+        }
+        return TestcaseLiteralFormatter.format(parseActual(raw));
     }
 
     private Object parseActual(String actualValueJson) {

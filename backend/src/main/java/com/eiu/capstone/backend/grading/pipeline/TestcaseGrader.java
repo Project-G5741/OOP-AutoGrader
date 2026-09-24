@@ -20,12 +20,13 @@ import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator.WeightedAccuracy;
 import com.eiu.capstone.backend.grading.testcase.AssertionEvaluation;
 import com.eiu.capstone.backend.grading.testcase.AssertionEvaluator;
-import com.eiu.capstone.backend.grading.testcase.ComparisonOutcome;
 import com.eiu.capstone.backend.grading.testcase.InvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.InvocationOutcomeKind;
 import com.eiu.capstone.backend.grading.testcase.InvocationRunner;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
+import com.eiu.capstone.backend.model.AssertionKind;
+import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
@@ -81,38 +82,26 @@ public class TestcaseGrader {
             return compileErrorEvaluation(testcase, message);
         }
 
-        ComparisonOutcome comparisonOutcome = null;
-        List<InvocationRubric> steps = List.of();
-        List<InvocationOutcome> outcomes = List.of();
-
-        if (testcase.testcaseType() == TestcaseType.COMPARISON) {
-            comparisonOutcome = invocationRunner.invokeComparison(
-                    context, testcase.comparisonMethod(), testcase.instances());
-            if (comparisonOutcome.kind() == InvocationOutcomeKind.ERROR) {
-                return infrastructureError(testcase, comparisonOutcome.errorMessage(), null);
-            }
-        } else {
-            steps = resolveSteps(testcase);
-            if (steps.isEmpty()) {
-                return infrastructureError(testcase, "Missing invocation rubric", null);
-            }
-            List<String> snapshotFields = testcase.assertions().stream()
-                    .filter(assertion -> assertion.kind() == com.eiu.capstone.backend.model.AssertionKind.FIELD_STATE)
-                    .map(AssertionRubric::fieldName)
-                    .toList();
-            outcomes = invocationRunner.invokeScenario(context, steps, snapshotFields);
-            if (outcomes == null || outcomes.isEmpty()) {
-                return infrastructureError(testcase, "Invocation failed", steps.get(0));
-            }
-            for (int i = 0; i < outcomes.size(); i++) {
-                InvocationOutcome outcome = outcomes.get(i);
-                if (outcome != null && (outcome.kind() == InvocationOutcomeKind.TIMED_OUT
-                        || outcome.kind() == InvocationOutcomeKind.ERROR)) {
-                    InvocationRubric step = i < steps.size() ? steps.get(i) : steps.get(0);
-                    return infrastructureError(testcase,
-                            outcome.errorMessage() != null ? outcome.errorMessage() : "Invocation failed",
-                            step);
-                }
+        List<InvocationRubric> steps = prepareSteps(testcase);
+        if (steps.isEmpty()) {
+            return infrastructureError(testcase, "Missing invocation rubric", null);
+        }
+        List<String> snapshotFields = testcase.assertions().stream()
+                .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
+                .map(AssertionRubric::fieldName)
+                .toList();
+        List<InvocationOutcome> outcomes = invocationRunner.invokeScenario(context, steps, snapshotFields);
+        if (outcomes == null || outcomes.isEmpty()) {
+            return infrastructureError(testcase, "Invocation failed", steps.get(0));
+        }
+        for (int i = 0; i < outcomes.size(); i++) {
+            InvocationOutcome outcome = outcomes.get(i);
+            if (outcome != null && (outcome.kind() == InvocationOutcomeKind.TIMED_OUT
+                    || outcome.kind() == InvocationOutcomeKind.ERROR)) {
+                InvocationRubric step = i < steps.size() ? steps.get(i) : steps.get(0);
+                return infrastructureError(testcase,
+                        outcome.errorMessage() != null ? outcome.errorMessage() : "Invocation failed",
+                        step);
             }
         }
 
@@ -122,11 +111,24 @@ public class TestcaseGrader {
         }
 
         Map<UUID, InvocationOutcome> outcomeByStepId = zipOutcomes(steps, outcomes);
+        int stopAfter = firstThrowIndex(outcomes);
         Map<UUID, AssertionEvaluation> evaluations = new HashMap<>();
         for (AssertionRubric assertion : testcase.assertions()) {
+            int stepIndex = boundStepIndex(assertion, steps);
+            if (stepIndex > stopAfter) {
+                evaluations.put(assertion.id(), assertionEvaluator.evaluate(assertion, null, null));
+                continue;
+            }
+            InvocationRubric boundStep = stepIndex >= 0 && stepIndex < steps.size() ? steps.get(stepIndex) : null;
+            if (assertion.kind() == AssertionKind.STDOUT
+                    && boundStep != null
+                    && boundStep.kind() == InvocationKind.CONSTRUCTOR) {
+                evaluations.put(assertion.id(), ignoredConstructorStdout(assertion));
+                continue;
+            }
             InvocationOutcome bound = boundOutcome(assertion, steps, outcomeByStepId);
             AssertionEvaluation evaluation = assertionEvaluator.evaluate(
-                    assertion, bound, comparisonOutcome);
+                    assertion, bound, null);
             evaluations.put(assertion.id(), evaluation);
         }
 
@@ -148,8 +150,7 @@ public class TestcaseGrader {
             feedback = firstFailureFeedback(testcase.assertions(), evaluations, outcomes);
         }
 
-        PrimaryDisplays displays = primaryDisplays(
-                testcase, evaluations, steps, outcomes, comparisonOutcome, null);
+        PrimaryDisplays displays = primaryDisplays(testcase, evaluations, steps, outcomes, null);
 
         List<PendingAssertionResult> assertionResults = testcase.assertions().stream()
                 .map(assertion -> {
@@ -180,6 +181,80 @@ public class TestcaseGrader {
             return List.of(testcase.invocation());
         }
         return List.of();
+    }
+
+    private static List<InvocationRubric> prepareSteps(TestcaseRubric testcase) {
+        List<InvocationRubric> steps = resolveSteps(testcase);
+        if (testcase.testcaseType() != TestcaseType.UNIT) {
+            return steps;
+        }
+        List<InvocationRubric> prepared = new ArrayList<>();
+        for (InvocationRubric step : steps) {
+            prepared.add(injectUnitHiddenReceiver(step));
+        }
+        return prepared;
+    }
+
+    private static InvocationRubric injectUnitHiddenReceiver(InvocationRubric step) {
+        if (step == null || step.kind() != InvocationKind.METHOD) {
+            return step;
+        }
+        if (step.instanceName() != null && !step.instanceName().isBlank()) {
+            return step;
+        }
+        if (step.receiverClassName() != null && !step.receiverClassName().isBlank()) {
+            return step;
+        }
+        return new InvocationRubric(
+                step.id(),
+                step.kind(),
+                step.constructorId(),
+                step.methodId(),
+                step.className(),
+                step.methodName(),
+                step.parameterTypes(),
+                step.paramsJson(),
+                step.receiverConstructorId(),
+                step.className(),
+                List.of(),
+                "[]",
+                step.instanceName(),
+                step.dispatchClassId(),
+                step.dispatchClassName(),
+                step.resultTypeName());
+    }
+
+    private static int firstThrowIndex(List<InvocationOutcome> outcomes) {
+        if (outcomes == null) {
+            return Integer.MAX_VALUE;
+        }
+        for (int i = 0; i < outcomes.size(); i++) {
+            InvocationOutcome outcome = outcomes.get(i);
+            if (outcome != null && outcome.kind() == InvocationOutcomeKind.THREW) {
+                return i;
+            }
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    private static int boundStepIndex(AssertionRubric assertion, List<InvocationRubric> steps) {
+        if (assertion.invocationId() != null) {
+            for (int i = 0; i < steps.size(); i++) {
+                if (assertion.invocationId().equals(steps.get(i).id())) {
+                    return i;
+                }
+            }
+            return Integer.MAX_VALUE;
+        }
+        return steps.size() == 1 ? 0 : Integer.MAX_VALUE;
+    }
+
+    private AssertionEvaluation ignoredConstructorStdout(AssertionRubric assertion) {
+        return new AssertionEvaluation(
+                assertion.id(),
+                TestcaseResultStatus.PASSED,
+                null,
+                "Stdout is not evaluated on constructors");
     }
 
     private static String firstFailedInvokedType(TestcaseRubric testcase, Set<String> failedClassNames) {
@@ -319,12 +394,11 @@ public class TestcaseGrader {
                                             Map<UUID, AssertionEvaluation> evaluations,
                                             List<InvocationRubric> steps,
                                             List<InvocationOutcome> outcomes,
-                                            ComparisonOutcome comparisonOutcome,
                                             String fallbackActual) {
-        if (testcase.testcaseType() == TestcaseType.COMPARISON || steps == null || steps.isEmpty()) {
+        if (steps == null || steps.isEmpty()) {
             AssertionRubric primary = primaryAssertionSelector.select(testcase.assertions());
             String inputDisplay = displayFormatter.formatInput(testcase);
-            return displaysFor(primary, evaluations, null, comparisonOutcome, inputDisplay, fallbackActual);
+            return displaysFor(primary, evaluations, null, inputDisplay, fallbackActual, null);
         }
 
         int primaryIndex = firstFailingOrLastRunIndex(steps, outcomes, evaluations, testcase.assertions());
@@ -344,24 +418,24 @@ public class TestcaseGrader {
                 ? outcomes.get(primaryIndex)
                 : null;
         String inputDisplay = displayFormatter.formatInput(testcase, primaryStep);
-        return displaysFor(primary, evaluations, stepOutcome, comparisonOutcome, inputDisplay, fallbackActual);
+        return displaysFor(primary, evaluations, stepOutcome, inputDisplay, fallbackActual, primaryStep);
     }
 
     private PrimaryDisplays displaysFor(AssertionRubric primary,
                                         Map<UUID, AssertionEvaluation> evaluations,
                                         InvocationOutcome invocationOutcome,
-                                        ComparisonOutcome comparisonOutcome,
                                         String inputDisplay,
-                                        String fallbackActual) {
+                                        String fallbackActual,
+                                        InvocationRubric invocation) {
         if (primary == null) {
             return new PrimaryDisplays(inputDisplay, null, fallbackActual);
         }
         AssertionEvaluation primaryEvaluation = evaluations.get(primary.id());
-        String expectedDisplay = displayFormatter.formatExpected(primary);
+        String expectedDisplay = displayFormatter.formatExpected(primary, invocation);
         String actualDisplay = fallbackActual != null
                 ? fallbackActual
                 : displayFormatter.formatActual(
-                        primary, primaryEvaluation, invocationOutcome, comparisonOutcome);
+                        primary, primaryEvaluation, invocationOutcome, null);
         return new PrimaryDisplays(inputDisplay, expectedDisplay, actualDisplay);
     }
 

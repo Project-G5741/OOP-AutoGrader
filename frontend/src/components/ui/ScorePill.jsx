@@ -36,8 +36,9 @@ export function hasScoreToShow(score, bundle, pillarKey) {
 /**
  * A pillar is not applicable when the backend explicitly says so via
  * `bundle.scoreApplicability[pillarKey] === false` (e.g. challenge has has_mmd=false,
- * or no operational testcases exist). Absent signal (older cached bundle, or the
- * "class" pillar which is always applicable) defaults to applicable.
+ * or the student testcase pillar is dark). Absent signal (older cached bundle, or the
+ * "class" pillar which is always applicable) defaults to applicable. The student
+ * Operation Test tab additionally requires `scoreApplicability.testcase === true`.
  */
 export function isPillarNotApplicable(bundle, pillarKey) {
   return bundle?.scoreApplicability?.[pillarKey] === false;

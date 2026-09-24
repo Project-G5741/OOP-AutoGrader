@@ -17,7 +17,7 @@ public final class ValueComparator {
             return false;
         }
         if (actual instanceof Number actualNumber && expected instanceof Number expectedNumber) {
-            return Double.compare(actualNumber.doubleValue(), expectedNumber.doubleValue()) == 0;
+            return compareNumbers(actualNumber, expectedNumber, mode);
         }
         if (actual instanceof String actualText && expected instanceof String expectedText) {
             return compareText(actualText, expectedText, mode);
@@ -28,9 +28,36 @@ public final class ValueComparator {
         return Objects.equals(actual, expected);
     }
 
+    private static boolean compareNumbers(Number actual, Number expected, ComparisonMode mode) {
+        if (mode == ComparisonMode.VALUE_ONLY) {
+            return Double.compare(actual.doubleValue(), expected.doubleValue()) == 0;
+        }
+        if (mode == ComparisonMode.TRIMMED || mode == ComparisonMode.NORMALIZED_WHITESPACE) {
+            return Double.compare(actual.doubleValue(), expected.doubleValue()) == 0;
+        }
+        return numericExact(actual, expected);
+    }
+
+    /** Integral types match by long value; floating types by double; never int vs double. */
+    private static boolean numericExact(Number actual, Number expected) {
+        boolean actualFloating = isFloatingPoint(actual);
+        boolean expectedFloating = isFloatingPoint(expected);
+        if (actualFloating != expectedFloating) {
+            return false;
+        }
+        if (actualFloating) {
+            return Double.compare(actual.doubleValue(), expected.doubleValue()) == 0;
+        }
+        return actual.longValue() == expected.longValue();
+    }
+
+    private static boolean isFloatingPoint(Number value) {
+        return value instanceof Float || value instanceof Double;
+    }
+
     private static boolean compareText(String actual, String expected, ComparisonMode mode) {
         return switch (mode) {
-            case EXACT -> actual.equals(expected);
+            case EXACT, VALUE_ONLY -> actual.equals(expected);
             case TRIMMED -> actual.trim().equals(expected.trim());
             case NORMALIZED_WHITESPACE -> normalizeWhitespace(actual).equals(normalizeWhitespace(expected));
         };

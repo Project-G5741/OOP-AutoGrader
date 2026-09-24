@@ -50,14 +50,25 @@ public class JwtService {
     }
 
     public String createToken(GoogleTokenInfo tokenInfo, List<String> roles, String irn) {
-        return createToken(tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roles, tokenInfo.getSub(), irn);
+        return createToken(tokenInfo, roles, irn, 0);
+    }
+
+    public String createToken(GoogleTokenInfo tokenInfo, List<String> roles, String irn, int sessionVersion) {
+        return createToken(tokenInfo.getEmail(), tokenInfo.getName(), tokenInfo.getDomain(), roles,
+                tokenInfo.getSub(), irn, sessionVersion);
     }
 
     public String createToken(String email, String name, String domain, List<String> roles, String irn) {
-        return createToken(email, name, domain, roles, email, irn);
+        return createToken(email, name, domain, roles, email, irn, 0);
     }
 
-    private String createToken(String email, String name, String domain, List<String> roles, String subject, String irn) {
+    public String createToken(String email, String name, String domain, List<String> roles, String irn,
+            int sessionVersion) {
+        return createToken(email, name, domain, roles, email, irn, sessionVersion);
+    }
+
+    private String createToken(String email, String name, String domain, List<String> roles, String subject,
+            String irn, int sessionVersion) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .setSubject(subject)
@@ -66,6 +77,7 @@ public class JwtService {
                 .claim("domain", domain)
                 .claim("roles", roles)
                 .claim("irn", irn)
+                .claim("sv", sessionVersion)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(validitySeconds)))
                 .signWith(signingKey, SignatureAlgorithm.HS256)

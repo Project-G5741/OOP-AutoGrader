@@ -1,6 +1,6 @@
 # Grading Workflows — Line-by-Line Reference
 
-This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the three grading pillars (**Java / class reflection**, **MMD diagram**, and **operational testcases**). Each section traces the actual Java source files and explains what each significant line or block does.
+This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the class-reflection and MMD pillars, and how lecturer operational tests (Unit / Composition) dry-run. Each section traces the actual Java source files and explains what each significant line or block does. Student upload does **not** execute operational tests this ship.
 
 **Package root:** `backend/src/main/java/com/eiu/capstone/backend/grading/`
 
@@ -27,15 +27,15 @@ This document describes every step of the OOP AutoGrader grading pipeline: how s
 
 ## 1. High-Level Architecture
 
-Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true; testcase applies when the challenge has at least one operational testcase.
+Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true; operational testcases apply when the challenge has at least one authored Unit/Composition row. Student upload runs `TestcaseGrader` for applicable challenges (one worker session per upload when any challenge needs OT). Challenge `testcase_weight` scales the testcase pillar in student totals when applicable.
 
 | Pillar | Input | Grader class | What is compared |
 |--------|-------|--------------|------------------|
 | **Class (Java)** | Compiled `.class` files | `ClassReflectionGrader` | Rubric classes, fields, methods, constructors via reflection |
 | **MMD** | Uploaded `.mmd` bytes | `MmdPillarGrader` → `MmdParser` + `MmdComparisonService` | Same rubric elements plus UML relations |
-| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` → `InvocationRunner` | Runtime invoke + assertions (return, stdout, field state, exception, comparison) |
+| **Testcase** | Compiled `.class` files + rubric testcase rows | `TestcaseGrader` → `InvocationRunner` | Runtime invoke + assertions (return, stdout, field state, exception, object check) |
 
-**Challenge score** = weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight`, default 1).
+**Challenge score** (student upload) = weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight` when OT rows exist).
 
 **Lab score** = weighted mean across all rubric challenges using `challenge.weight` (missing challenges count as 0%).
 
@@ -52,7 +52,7 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
   │    │         ├─ ReflectionClassParser.parseClasses()   ← load .class via URLClassLoader
   │    │         ├─ ClassReflectionGrader.grade()            ← sync
   │    │         ├─ MmdPillarGrader.grade()                  ← async on pillarExecutor
-  │    │         └─ TestcaseGrader.grade()                   ← async on pillarExecutor; invokes via isolated worker JVM
+  │    │         └─ TestcaseGrader skipped on student upload  ← lecturer dry-run still uses isolated worker JVM
   │    └─ LabResultAssembler.assemble()             ← in-memory lab_result bundle
   ├─ UploadPersistService.persist()               ← one SQL: insert MAX+1, challenge UPSERT, progress
   │    └─ persistExecutor after that statement: detail UPSERT
@@ -143,9 +143,9 @@ Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bun
 5. `constructorRepository.findByClassEntityInWithDeclaration(...)` — constructors.
 6. `parameterRepository.findByMethodIn(...)` / `findByConstructorEntityIn(...)` — parameter type lists.
 7. `classRelationRepository.findByClassEntityInWithEndpoints(...)` — UML relations (inheritance/realization also feed the Java class shell).
-8. `testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(...)` plus invocation / instance / assertion batches — operational testcase graph.
+8. `testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(...)` plus invocation / assertion batches — Unit/Composition graph.
 
-The result is an immutable `LabRubricSnapshot` keyed by challenge number, used read-only throughout grading. Rubric mutations must call `RubricCacheInvalidationSupport.invalidateLab(labId)`.
+The result is an immutable `LabRubricSnapshot` keyed by challenge number, used read-only throughout grading. Rubric mutations must call `RubricCacheInvalidationSupport.invalidateLab(labId)`. Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API.
 
 ---
 
@@ -281,7 +281,7 @@ Delegates to `gradingPipeline.gradeChallenge()`, then maps pipeline output into 
 
 - Copies class pillar field/method/constructor results
 - Copies MMD relation results
-- Copies testcase results
+- Testcase results stay empty on student upload (pillar not applicable)
 - Builds MMD metadata via `buildMmdMeta()` (class presence, relation error labels)
 - Builds parsed snapshot via `ParsedSubmissionSnapshotBuilder.build()`
 
@@ -301,14 +301,14 @@ Step 4: reflectionClassParser.parseClasses(classesDir) → List<ParsedClass>
 Step 5: ChallengeGradingContext.of(rubric, classesDir, compileError, parsedClasses, failedClassNames, compileErrorsByClassName)
 Step 6: classReflectionGrader.grade(context)          ← SYNCHRONOUS
 Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← ASYNC on pillarExecutor
-Step 8: testcaseGrader.grade(context)                 ← ASYNC on pillarExecutor
-Step 9: CompletableFuture.allOf(mmdFuture, testcaseFuture).join()
-Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase) with pillar weights
+Step 8: student upload: testcase pillar skipped (no worker). Lecturer dry-run: TestcaseGrader.gradeSingle()
+Step 9: join MMD future (upload does not join a testcase future)
+Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase) — upload treats testcase as not applicable
 Step 11: fullyCorrect = all **applicable** pillars == 100%
 Step 12: return ChallengePipelineResult(...)
 ```
 
-**Threading note:** MMD and testcase pillars run in parallel on `pillarExecutor` (separate from `gradingExecutor`) to avoid deadlock when challenge workers block waiting for pillar tasks on a small pool (e.g. Render free tier with 1–2 CPUs).
+**Threading note:** MMD still runs on `pillarExecutor` (separate from `gradingExecutor`) to avoid deadlock when challenge workers block waiting for pillar tasks on a small pool (e.g. Render free tier with 1–2 CPUs). Student upload does not schedule `TestcaseGrader`. Lecturer dry-run acquires `workerJvmSlot` on the HTTP thread.
 
 ### 6.2 `ChallengeGradingContext` (record)
 
@@ -571,40 +571,41 @@ boolean correct = diagram.relations.stream().anyMatch(parsed ->
 
 **Files:** `grading/pipeline/TestcaseGrader.java`, `grading/testcase/InvocationRunner.java`
 
-Testcases **execute student bytecode**. They are not JUnit tests and not structural EXISTENCE/DECLARATION checks. Each rubric row names an invocation (or a two-instance comparison) plus assertions.
+Operational tests **execute compiled bytecode**. They are not JUnit tests and not structural EXISTENCE/DECLARATION checks. Types are **Unit** (one invocation) and **Composition** (ordered named-object steps). **Student upload does not run this pillar.** Lecturer dry-run does, against reference Java.
 
 ### 9.1 Testcase rubric graph
 
 | Table | Role |
 |-------|------|
-| `testcase` | Type `SINGLE_INVOCATION` or `COMPARISON`, weight, `is_hidden` |
-| `testcase_invocation` | Class, constructor or method, JSON params; optional receiver constructor for instance methods |
-| `testcase_instance` | Two instances for COMPARISON (`EQUALS` / `COMPARE_TO`) |
-| `testcase_assertion` | Kind: RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION, COMPARISON_RESULT |
+| `testcase` | Type `UNIT` or `COMPOSITION`, `is_hidden` (no per-testcase weight) |
+| `testcase_invocation` | Ordered steps; Unit has exactly one. `instance_name` is a constructor/static product or Composition receiver |
+| `testcase_assertion` | Kind: RETURN_VALUE, FIELD_STATE, STDOUT, EXCEPTION. Object checks live in `expected_value` JSON |
 
-### 9.2 `TestcaseGrader.grade(context)`
+There is no `testcase_instance` table and no `COMPARISON_RESULT` kind.
 
-Loops **sequentially** over `challengeRubric.testcases()`. Empty list → pillar 0% (the pipeline skips this grader when the list is empty).
+### 9.2 `TestcaseGrader` (dry-run)
+
+`GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and `invokeScenario` for both UNIT and COMPOSITION.
 
 For each testcase:
 
 1. Catastrophic `compileError` → every testcase `ERROR`.
 2. Mixed javac: `ERROR` only when an invoked type is in `failedClassNames`; independent targets still invoke.
-3. `COMPARISON` → `invocationRunner.invokeComparison(...)`; `SINGLE_INVOCATION` → `invokeSingle(...)`.
-4. Every assertion is evaluated; the testcase **passes only when all assertions pass** (binary 0/1 × weight).
-5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT) fills collapsed I/O card display strings.
+3. Worker `scenario` op: Unit is one step (hidden no-arg receiver for instance methods); Composition runs ordered named instances.
+4. Every assertion is evaluated; the testcase **passes only when all assertions pass**.
+5. Primary assertion (STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION) fills collapsed I/O card display strings. Constructors use FIELD_STATE only (no RETURN_VALUE). Composition object-return equals: `{ "$objectCheck": "EQUALS", "$instance": "name" }`.
 
 ### 9.3 Isolated testcase worker
 
-Each invoke:
+Each dry-run or student-upload OT batch:
 
-1. Reuses the request's worker JVM (one process per upload/dry-run). Parallel challenges share it under a mutex.
-2. Sends one NDJSON request; the worker loads student classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots.
+1. Acquires the host `workerJvmSlot` (one process). Student upload acquires the slot when any challenge in the upload batch has operational testcases; dry-run always acquires.
+2. Sends one NDJSON `scenario` request; the worker loads target classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The API waits up to `app.grading.testcase-invoke-timeout-seconds` (default **5s**), then tree-kills and respawns without releasing the host slot.
 
-At most one worker session runs on the host slot (local JVM or remote sandbox session when `app.grading.sandbox.enabled=true`). Other uploads wait for that slot on the HTTP thread (`worker_slot_wait_ms`). This is extra latency, not a deadlock. Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
+At most one worker session runs on the host slot (local JVM or remote sandbox session when `app.grading.sandbox.enabled=true`). Other dry-runs wait for that slot on the HTTP thread (`worker_slot_wait_ms`). Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
-Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir (no persistence) on the same isolated path.
+Operator wipe SQL is `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`. `TestcaseSchemaMigrator` applies it on startup when leftover types/columns remain, then `LabRubricCache.invalidateAll()`.
 
 ---
 
@@ -629,7 +630,7 @@ pillarPercentage = (Σ weightᵢ × accuracyᵢ) / (Σ weightᵢ) × 100
 challengePercentage = Σ (pillarWeight × pillarPct) / Σ pillarWeight
 ```
 
-Only **applicable** pillars are included: class always; MMD when `has_mmd`; testcase when the challenge has at least one operational testcase. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1 (equal mean when all three apply).
+Only **applicable** pillars are included: class always; MMD when `has_mmd`; operational testcases when the challenge has ≥1 authored testcase row. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1.
 
 ### 10.3 Lab percentage
 
@@ -698,12 +699,13 @@ Keyed `challenge_<N>`. Each bundle:
 {
   "class": { ... element details ... },
   "mmd": { ... element details ... },
-  "testcases": [ ... ],
-  "scores": { "class": 85.0, "mmd": 100.0, "testcase": 50.0, "total": 78.33 }
+  "testcases": [],
+  "scores": { "class": 85.0, "mmd": 100.0, "testcase": 0.0, "total": 92.5 },
+  "scoreApplicability": { "class": true, "mmd": true, "testcase": false }
 }
 ```
 
-Allows student UI to render results immediately without follow-up API calls.
+Student upload always sets `testcaseApplicable` false and `testcases: []`. The student UI hides the Operation Test tab. Allows Class/MMD to render immediately without follow-up API calls.
 
 ---
 
@@ -713,8 +715,8 @@ Allows student UI to render results immediately without follow-up API calls.
 |----------|---------|------|---------|
 | `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
-| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD + testcase pillars inside each challenge (not CPU-capped) |
-| (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM (acquire on HTTP thread) |
+| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped). Upload does not schedule TestcaseGrader |
+| (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; lecturer dry-run acquires on the HTTP thread. Student upload does not |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, plagiarism inspect, temp delete |
 | `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout (process kill) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
@@ -724,7 +726,7 @@ Allows student UI to render results immediately without follow-up API calls.
 | `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), compile, challenge, grade submission |
 | `app.storage.submission-base-dir` | `submissions/` | — | Temp upload root |
 
-**Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD+testcase futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
+**Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
 
 ---
 
@@ -772,22 +774,22 @@ Allows student UI to render results immediately without follow-up API calls.
 
 Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
-Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases in the lab, *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Concurrent uploads also wait on the one-worker slot (`worker_slot_wait_ms`).
+Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases (lecturer dry-run only this ship), *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Student upload does not wait on `workerJvmSlot`. Lecturer dry-run still does (`worker_slot_wait_ms`).
 
 | Rank | Stage | Typical dominance | Work | Request-thread wall |
 |------|-------|-------------------|------|---------------------|
-| 1 | Operational testcases | Large *T*, slow or hanging student code | *Θ(T)* invokes on one worker JVM per request | **Σ invoke times across the lab**, plus `worker_slot_wait_ms` under concurrent uploads. Worst case *O(T · τ)* plus respawn |
-| 2 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
-| 3 | Plagiarism snapshot | Fat `.git` without reflog (rare reconstruct) | SHA-256 *O(B)*; in-memory git `config`+reflog | **Extract + schedule** on the upload thread (milliseconds unless reconstruct). Compare/persist is **off-request** (`persistExecutor`); see `[timing] Plagiarism inspect` |
-| 4 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
-| 5 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
-| 6 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | Overlaps testcases on `pillarExecutor`; usually smaller than invoke |
-| 7 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
-| 8 | Persist SQL (insert MAX+1 + challenge UPSERT + progress) | One Neon RTT | *O(C)* | On the request thread after assemble |
+| 1 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
+| 2 | Plagiarism snapshot | Fat `.git` without reflog (rare reconstruct) | SHA-256 *O(B)*; in-memory git `config`+reflog | **Extract + schedule** on the upload thread (milliseconds unless reconstruct). Compare/persist is **off-request** (`persistExecutor`); see `[timing] Plagiarism inspect` |
+| 3 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
+| 4 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
+| 5 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | On `pillarExecutor`; usually smaller than compile |
+| 6 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
+| 7 | Persist SQL (insert MAX+1 + challenge UPSERT + progress) | One Neon RTT | *O(C)* | On the request thread after assemble |
+| — | Lecturer dry-run OT | Large *T*, slow or hanging reference code | *Θ(T)* `scenario` ops on one worker JVM | **Σ invoke times**, plus `worker_slot_wait_ms` under concurrent dry-runs. Worst case *O(T · τ)* plus respawn. Not on the student upload path |
 | — | Detail UPSERT | Large *E* | *O(E)* JDBC | **Off-request** (`persistExecutor`); GET tabs wait up to 60s |
 | — | Multipart + `.git` | Fat folders | *O(upload bytes)* | Before compile; Spring reads every part including `.git` |
 
-**Why testcases beat compile on wall-clock even when `javac` is “heavier” CPU:** compile parallelizes across challenges; invokes of one request share one worker JVM and stay serial. Concurrent uploads wait for the one-process slot.
+**Why compile now dominates student wait:** upload no longer invokes operational tests, so it does not serialize on the one worker JVM. Lecturer dry-run still does.
 
 **Why plagiarism used to overtake compile on a large roster:** pairwise compare still walks every other fingerprint, but that work is on `persistExecutor`. The student wait is only the signal snapshot. Peer/prior bests are one grouped attempts load; non-matches are not inserted; re-eval is limited to rows where this uploader is the other side.
 

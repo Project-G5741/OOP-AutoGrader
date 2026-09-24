@@ -62,7 +62,8 @@ public class AuthController {
 
         List<String> roleNames = roleNamesFrom(userAccount);
 
-        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
+        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn(),
+                userAccount.getSessionVersion());
         return ResponseEntity.ok(toAuthResponse(jwt, userAccount, tokenInfo.getDomain(), roleNames));
     }
 
@@ -79,7 +80,8 @@ public class AuthController {
 
         List<String> roleNames = roleNamesFrom(userAccount);
 
-        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn());
+        var jwt = jwtService.createToken(tokenInfo, roleNames, userAccount.getIrn(),
+                userAccount.getSessionVersion());
         return ResponseEntity.ok(toAuthResponse(jwt, userAccount, tokenInfo.getDomain(), roleNames));
     }
 
@@ -90,7 +92,7 @@ public class AuthController {
             List<String> roleNames = roleNamesFrom(userAccount);
 
             var jwt = jwtService.createToken(userAccount.getEmail(), userAccount.getFullName(), "local", roleNames,
-                    userAccount.getIrn());
+                    userAccount.getIrn(), userAccount.getSessionVersion());
             return ResponseEntity.ok(toAuthResponse(jwt, userAccount, "local", roleNames));
         } catch (BadCredentialsException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ex.getMessage());

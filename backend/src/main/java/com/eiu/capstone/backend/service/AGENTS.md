@@ -11,7 +11,8 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionStorageService` | Upload pipeline: group files by challenge, parallel compile `.java`, return metadata |
 | `MmdPersistenceHook` | Extension point for `.mmd` archival (default `NoOpMmdPersistenceHook`) |
 | `JavaCompilerService` | Compile submitted `.java` files to `classes/` via `javax.tools.JavaCompiler` |
-| `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn) |
+| `JwtService` | Create/parse JWTs (claims: email, name, domain, roles, irn, sv) |
+| `SessionValidityService` | Resolve/bump `user_account.session_version`; filter rejects mismatched or missing accounts |
 | `GoogleTokenVerifier` | Validate Google ID tokens; enforce verified email + allowed domain |
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
@@ -22,12 +23,12 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
-| `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; `DELETE /api/presence` removes that email; unique count within 30s |
+| `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher` |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / persisted testcase rows + `TestcaseResultMapper`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher`; student GET `/testcases` returns `[]` when no persisted OT results |
 | `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan |
 
 ## Local Contracts
@@ -71,7 +72,8 @@ Per upload request (unique `requestId` prevents collisions):
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
-- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row
+- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row; clears session-version cache for that email so live JWTs fail the filter
+- Soft suspend bumps `session_version` so the live JWT is rejected (SPA presence poll then hard-cuts to login)
 - Google upsert creates or updates user on first login
 - Inactive users cannot log in (IRN or Google)
 - Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)
@@ -81,6 +83,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Lecturers create a term under an academic year label (reused if it exists) and optional dates
 - One term is current (`is_current`); set via `POST /api/lecturer/terms/{id}/current`
 - Enroll only active students; out-of-term active students can still log in and read history, not submit
+- Remove from the **current** term bumps `session_version` (force logout of live JWT); remove from a non-current term does not
 - Excel import matches an existing user by **IRN (`student_code`) first, then email**; extra columns (including Fullname) are ignored for matching. Unmatched rows are skipped and returned for lecturer Details.
 - Import, enroll, and term list use batched queries (user lookup by IRN list and email list, enrollment ids, grouped student counts, `saveAll`)
 - Current-term membership is `existsByUser_IdAndTerm_CurrentTrue` (no extra current-term fetch)
@@ -94,12 +97,12 @@ Per upload request (unique `requestId` prevents collisions):
 ### Operational testcase save
 
 - `PUT .../testcases` upserts by client UUID (testcase, invocation steps, assertions). Delete only omitted child ids — never delete-all-reinsert
-- `SINGLE_INVOCATION` may have 1–20 ordered steps (`invocations` list canonical; singular `invocation` is legacy one-step). `COMPARISON` still has two instances and no invocation steps
-- Omitted `oopPrincipleTag` stores `Unit`. Polymorphism save requires at least one **METHOD** step with `dispatchClassId`; a dispatch id on a constructor step does not count. `validatePayload` (dry-run assemble) skips that guardrail
+- Types are `UNIT` and `COMPOSITION` only. UNIT: exactly one invocation; no `instanceName`, `$instance` args, rubric-class object args, lecturer-set `receiver_constructor_id`, or equals() object checks. Instance methods get a hidden receiver at dry-run/grade (no-arg when available, else default literal constructor args)
+- COMPOSITION: 1–20 ordered steps. Constructor steps and static named rubric-class returns require `instanceName` (product name). Instance-method `instanceName` is the receiver already constructed; the return does not overwrite that name. Caps: 20 steps, 10 named instances
 - Invocation `order_index` is unique per testcase. Save parks kept steps at `MAX_STEPS + i`, deletes omitted rows, then writes final `0..n-1` so removing or reordering earlier steps cannot collide on `UNIQUE (testcase_id, order_index)`
-- `$instance` args must name a construct from an earlier step and match the rubric parameter type (class simple name). Caps: 20 steps, 10 named construct instances. Failures are HTTP 422
-- GET returns `oopPrincipleTag` plus ordered `invocations`; singular `invocation` is the first step so the current UI can round-trip
-- `LabStructureService.deleteClassCascade` blocks when a class is a dispatch target (`RubricMemberKind.CLASS`)
+- `$instance` args (Composition only) must name an earlier constructor or named static return and match the rubric parameter type (class simple name). Failures are HTTP 422
+- GET returns `testcaseType` plus ordered `invocations`. No `oopPrincipleTag`, COMPARISON instances, or per-testcase weight
+- `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 
 ## Work Guidance
 
@@ -131,7 +134,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
-- Operational testcase save: `support` `TestcaseRubricServiceTest` (scenario guardrails, upsert-by-id, Unit default tag)
+- Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 
 ## Child DOX Index

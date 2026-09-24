@@ -6,7 +6,9 @@ import java.util.UUID;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record TestcaseStructureDTO(
         UUID id,
         String name,

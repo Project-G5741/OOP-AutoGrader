@@ -3,7 +3,6 @@ package unit.com.eiu.capstone.backend.grading.testcase;
 import com.eiu.capstone.backend.grading.testcase.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -24,14 +23,12 @@ import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
-import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.InvocationKind;
-import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 
@@ -210,22 +207,240 @@ class IsolatedWorkerAeTest {
     }
 
     @Test
-    void ae9SystemExitInEqualsDoesNotKillApiJvm() throws Exception {
-        Path classesDir = compile("ExitEquals.java", """
-                public class ExitEquals {
-                    public boolean equals(Object o) { System.exit(1); return false; }
+    void ae1UnitDepositFieldStateOnHiddenReceiver() throws Exception {
+        Path classesDir = compile("BankAccount.java", """
+                public class BankAccount {
+                    private int balance;
+                    public BankAccount() { this.balance = 0; }
+                    public void deposit(int amount) { this.balance += amount; }
                 }
                 """);
         try (WorkerSessionHandle handle = startWorker()) {
-            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
-            ComparisonOutcome outcome = runner.invokeComparison(
-                    context(classesDir, handle),
-                    TestcaseComparisonMethod.EQUALS,
+            JsonValueCoercer coercer = new JsonValueCoercer();
+            TestcaseGrader grader = new TestcaseGrader(
+                    new InvocationRunner(coercer),
+                    new AssertionEvaluator(coercer),
+                    new PrimaryAssertionSelector(),
+                    new TestcaseDisplayFormatter(coercer));
+            UUID invocationId = UUID.randomUUID();
+            InvocationRubric deposit = new InvocationRubric(
+                    invocationId,
+                    InvocationKind.METHOD,
+                    null,
+                    UUID.randomUUID(),
+                    "BankAccount",
+                    "deposit",
+                    List.of("int"),
+                    "[100]",
+                    null,
+                    null,
+                    List.of(),
+                    null);
+            TestcaseRubric testcase = new TestcaseRubric(
+                    UUID.randomUUID(),
+                    "deposit",
+                    TestcaseType.UNIT,
+                    null,
+                    1,
+                    0,
+                    false,
+                    deposit,
+                    List.of(),
+                    List.of(new AssertionRubric(
+                            UUID.randomUUID(),
+                            AssertionKind.FIELD_STATE,
+                            invocationId,
+                            null,
+                            "balance",
+                            "int",
+                            "100",
+                            ComparisonMode.EXACT,
+                            0)));
+            TestcaseGrader.PendingTestcaseResult result = grader.gradeSingle(
+                    testcase, context(classesDir, handle));
+            assertEquals(TestcaseResultStatus.PASSED, result.status(), result.feedback());
+        }
+    }
+
+    @Test
+    void ae6UnacceptedMethodThrowFailsLaterAssertions() throws Exception {
+        Path classesDir = compile("Actor.java", """
+                public class Actor {
+                    public void boom() { throw new IllegalStateException("boom"); }
+                    public int ok() { return 7; }
+                }
+                """);
+        try (WorkerSessionHandle handle = startWorker()) {
+            JsonValueCoercer coercer = new JsonValueCoercer();
+            TestcaseGrader grader = new TestcaseGrader(
+                    new InvocationRunner(coercer),
+                    new AssertionEvaluator(coercer),
+                    new PrimaryAssertionSelector(),
+                    new TestcaseDisplayFormatter(coercer));
+            UUID constructId = UUID.randomUUID();
+            UUID boomId = UUID.randomUUID();
+            UUID laterId = UUID.randomUUID();
+            TestcaseRubric testcase = new TestcaseRubric(
+                    UUID.randomUUID(),
+                    "mid throw",
+                    TestcaseType.COMPOSITION,
+                    null,
+                    1,
+                    0,
+                    false,
+                    null,
+                    List.of(),
+                    List.of(new AssertionRubric(
+                            UUID.randomUUID(),
+                            AssertionKind.RETURN_VALUE,
+                            laterId,
+                            null,
+                            null,
+                            null,
+                            "7",
+                            ComparisonMode.EXACT,
+                            0)),
                     List.of(
-                            new InstanceRubric(UUID.randomUUID(), "a", null, "ExitEquals", List.of(), "[]"),
-                            new InstanceRubric(UUID.randomUUID(), "b", null, "ExitEquals", List.of(), "[]")));
-            assertNotEquals(null, outcome);
-            assertEquals(InvocationOutcomeKind.ERROR, outcome.kind());
+                            new InvocationRubric(
+                                    constructId,
+                                    InvocationKind.CONSTRUCTOR,
+                                    UUID.randomUUID(),
+                                    null,
+                                    "Actor",
+                                    null,
+                                    List.of(),
+                                    "[]",
+                                    null,
+                                    null,
+                                    List.of(),
+                                    null,
+                                    "actor",
+                                    null,
+                                    null,
+                                    null),
+                            new InvocationRubric(
+                                    boomId,
+                                    InvocationKind.METHOD,
+                                    null,
+                                    UUID.randomUUID(),
+                                    "Actor",
+                                    "boom",
+                                    List.of(),
+                                    "[]",
+                                    null,
+                                    null,
+                                    List.of(),
+                                    null,
+                                    "actor",
+                                    null,
+                                    null,
+                                    null),
+                            new InvocationRubric(
+                                    laterId,
+                                    InvocationKind.METHOD,
+                                    null,
+                                    UUID.randomUUID(),
+                                    "Actor",
+                                    "ok",
+                                    List.of(),
+                                    "[]",
+                                    null,
+                                    null,
+                                    List.of(),
+                                    null,
+                                    "actor",
+                                    null,
+                                    null,
+                                    null)),
+                    null);
+            TestcaseGrader.PendingTestcaseResult result = grader.gradeSingle(
+                    testcase, context(classesDir, handle));
+            assertEquals(TestcaseResultStatus.FAILED, result.status());
+            assertEquals(TestcaseResultStatus.FAILED, result.assertions().get(0).status());
+            assertTrue(result.assertions().get(0).feedback().toLowerCase().contains("not executed"),
+                    result.assertions().get(0).feedback());
+        }
+    }
+
+    @Test
+    void ae7ExceptionStdoutAndFieldStateThroughWorker() throws Exception {
+        Path classesDir = compile("Probe.java", """
+                public class Probe {
+                    private int flag = 1;
+                    public void shout() {
+                        System.out.print("hi");
+                        throw new IllegalArgumentException("nope");
+                    }
+                }
+                """);
+        try (WorkerSessionHandle handle = startWorker()) {
+            JsonValueCoercer coercer = new JsonValueCoercer();
+            TestcaseGrader grader = new TestcaseGrader(
+                    new InvocationRunner(coercer),
+                    new AssertionEvaluator(coercer),
+                    new PrimaryAssertionSelector(),
+                    new TestcaseDisplayFormatter(coercer));
+            UUID constructId = UUID.randomUUID();
+            UUID shoutId = UUID.randomUUID();
+            TestcaseRubric testcase = new TestcaseRubric(
+                    UUID.randomUUID(),
+                    "mixed",
+                    TestcaseType.COMPOSITION,
+                    null,
+                    1,
+                    0,
+                    false,
+                    null,
+                    List.of(),
+                    List.of(
+                            new AssertionRubric(
+                                    UUID.randomUUID(), AssertionKind.EXCEPTION, shoutId, null, null, null,
+                                    "\"IllegalArgumentException\"", ComparisonMode.EXACT, 0),
+                            new AssertionRubric(
+                                    UUID.randomUUID(), AssertionKind.STDOUT, shoutId, null, null, null,
+                                    "\"hi\"", ComparisonMode.EXACT, 1),
+                            new AssertionRubric(
+                                    UUID.randomUUID(), AssertionKind.FIELD_STATE, shoutId, null, "flag", "int",
+                                    "1", ComparisonMode.EXACT, 2)),
+                    List.of(
+                            new InvocationRubric(
+                                    constructId,
+                                    InvocationKind.CONSTRUCTOR,
+                                    UUID.randomUUID(),
+                                    null,
+                                    "Probe",
+                                    null,
+                                    List.of(),
+                                    "[]",
+                                    null,
+                                    null,
+                                    List.of(),
+                                    null,
+                                    "probe",
+                                    null,
+                                    null,
+                                    null),
+                            new InvocationRubric(
+                                    shoutId,
+                                    InvocationKind.METHOD,
+                                    null,
+                                    UUID.randomUUID(),
+                                    "Probe",
+                                    "shout",
+                                    List.of(),
+                                    "[]",
+                                    null,
+                                    null,
+                                    List.of(),
+                                    null,
+                                    "probe",
+                                    null,
+                                    null,
+                                    null)),
+                    null);
+            TestcaseGrader.PendingTestcaseResult result = grader.gradeSingle(
+                    testcase, context(classesDir, handle));
+            assertEquals(TestcaseResultStatus.PASSED, result.status(), result.feedback());
         }
     }
 
@@ -278,7 +493,7 @@ class IsolatedWorkerAeTest {
         return new TestcaseRubric(
                 UUID.randomUUID(),
                 "hostile",
-                TestcaseType.SINGLE_INVOCATION,
+                TestcaseType.UNIT,
                 null,
                 1,
                 0,

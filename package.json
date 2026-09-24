@@ -6,7 +6,7 @@
   "scripts": {
     "install": "cd frontend && npm install && cd ../backend && npm install",
     "frontend": "cd frontend && npm run dev",
-    "backend": "cd backend && mvn spring-boot:run",
+    "backend": "cd backend && mvn package -DskipTests -q && mvn spring-boot:run",
     "start": "concurrently \"npm run backend\" \"npm run frontend\""
   },
   "repository": {

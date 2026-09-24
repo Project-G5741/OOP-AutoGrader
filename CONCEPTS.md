@@ -8,7 +8,7 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 The pre-grading slice that receives a multipart folder, validates path structure, compiles each challenge's `.java` files in parallel, and writes `.class` output under `challenge_N/classes/`. Sources are compiled from memory; MMD files stay in the multipart map for grading without disk staging on the hot path.
 
 ### Intra-challenge compile isolation
-Compile-failure rule inside one challenge: a class that does not compile, and any class that references it, fail as a whole; classes that still compile keep Class-tab scores, their operational testcases, and their share of the challenge score. Sibling challenges already isolate independently; this rule is the same-challenge counterpart. Dependent Class-tab lines use `See {Upstream}` rather than repeating the root syntax error. Display copy is the Class-card compile line convention in `backend/src/main/java/com/eiu/capstone/backend/service/compile/AGENTS.md`.
+Compile-failure rule inside one challenge: a class that does not compile, and any class that references it, fail as a whole; classes that still compile keep Class-tab scores and their share of the challenge score. Sibling challenges already isolate independently; this rule is the same-challenge counterpart. Dependent Class-tab lines use `See {Upstream}` rather than repeating the root syntax error. Display copy is the Class-card compile line convention in `backend/src/main/java/com/eiu/capstone/backend/service/compile/AGENTS.md`. When student upload runs operational tests, mixed javac marks ERROR only for tests whose invoked types failed javac (same rule as lecturer dry-run).
 
 ### Package normalization
 Pre-compile transformation of student Java sources that removes `package ...;` declarations and same-challenge cross-imports so all classes compile into the default package. Grading rubrics and reflection use simple class names against flat `classes/` output; when normalization runs, students see a non-blocking warning that package declarations were ignored.
@@ -26,7 +26,7 @@ A class's optional Extends or Implements target, authored on the class editor as
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
 ### Upload hot path
-The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel grade compute (testcase invokes globally serial) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → snapshot plagiarism signals. Temp-folder delete, detail UPSERT, and plagiarism inspect run on `persistExecutor` after persist succeeds. Lecturer flags typically appear within a few seconds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel Class, MMD, and (when applicable) operational-testcase grade compute → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → snapshot plagiarism signals. When any uploaded challenge has OT, the request acquires `workerJvmSlot` and opens one worker session for the upload. Temp-folder delete, detail UPSERT, and plagiarism inspect run on `persistExecutor` after persist succeeds. Lecturer flags typically appear within a few seconds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
 
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
@@ -44,40 +44,45 @@ Diagram-side grading of an uploaded `.mmd` file: parse Mermaid `classDiagram` sy
 A fatal parser failure on a submitted `.mmd`. All MMD-applicable rubric elements score incorrect; a human-readable error message is persisted and shown on the student MMD tab. Upload still succeeds.
 
 ### Grading pillar
-One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one operational testcase). Challenge score is the weighted mean of only the applicable pillar percentages — class, MMD, and testcase use lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` (default 1). Inapplicable pillars are omitted entirely from the student result tab navigation, not shown as "not scored."
+One of up to three scoring slices per challenge: `.class` reflection (always applicable), `.mmd` diagram (applicable when the challenge's `has_mmd` flag is true), or operational `testcase` invocations (applicable when the challenge has at least one authored operational testcase). Challenge score is the weighted mean of applicable pillars using `class_weight`, `mmd_weight`, and `testcase_weight`. Inapplicable pillars are omitted from student result tab navigation, not shown as "not scored."
 
 ### Declaration Test
 The Class-tab name for the class grading pillar: the class shell plus fields, methods, and constructors compared to the rubric. A member earns its points only when every graded declaration attribute matches; otherwise it earns none. Distinct from MMD grading and from operational testcases. Lecturer breakdowns for the same pillar are titled Declaration Score.
 
 ### Scoring weight
-A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight.
+A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight. A testcase has no per-testcase scoring weight. Challenge-level `testcase_weight` affects student totals when the testcase pillar is applicable.
 
 ### Operational testcase
-A rubric-linked grading check that invokes student code via Java reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or instance comparison). Rubric shape: `testcase` → `testcase_invocation` or `testcase_instance` + `testcase_assertion`. Outcomes persist in `submission_testcase_result` (rollup) and `submission_testcase_assertion_result` (per-assertion detail).
+A rubric-linked check that invokes compiled Java via reflection (`Constructor.newInstance` / `Method.invoke`) and evaluates one or more assertions (return value, field state, stdout, exception type, or object check). Types are **Unit** and **Composition** (`testcase_type` `UNIT` | `COMPOSITION`). Rubric shape: `testcase` → ordered `testcase_invocation` rows + `testcase_assertion`. Student upload runs applicable testcases through the isolated worker when the challenge has authored rows; lecturer dry-run uses the same grader path.
 
 ### is_hidden (testcase)
-Rubric flag on `testcase` controlling student visibility. When `false`, the testcase appears in **Example Testcases** with full I/O card expand. When `true`, it appears in **Other Testcases** as pass/fail only — input and output are withheld.
+Rubric flag on `testcase`. When `false`, the row is an **example** testcase: students see name, pass/fail, and full Input / Expected / Your Output (plus expanded assertion detail). When `true`, the row is **hidden**: students see name and pass/fail only — no input, expected, or actual strings in API or UI. Students never see Unit, Composition, or Call-as labels.
 
 ### Primary assertion
-The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display` on `submission_testcase_result`). For a multi-step scenario, the grader first picks the earliest invoked step that failed an assertion (or the last run step if every assertion passed), then applies kind priority on that step: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION → COMPARISON_RESULT; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only.
+The assertion that drives a testcase's collapsed I/O card display (`input_display`, `expected_display`, `actual_display`). For Composition, the grader first picks the earliest invoked step that failed an assertion (or the last run step if every assertion passed), then applies kind priority on that step: STDOUT → RETURN_VALUE → FIELD_STATE → EXCEPTION; within the same kind, lowest `order_index` wins. Other assertions appear in the expanded stacked view only. Student and lecturer result cards use this selection.
 
 ### Receiver construction (testcase)
-Optional rubric configuration for METHOD invocations on classes that lack a no-arg constructor. The testcase invocation row names a rubric constructor and JSON parameter list used to build the receiver object before the method call. When absent, the runner falls back to a no-arg constructor on the method's declaring class.
-
-### Testcase scenario
-An operational testcase authored as an ordered list of steps that share **named instances**: construct, call, and assert. A single step remains a valid scenario. This is the authoring model for sequences, polymorphism, encapsulation, composition, and inheritance-behavior checks on the testcase pillar.
+How an instance method gets its `this`. A **Unit** instance method uses a hidden receiver on the declaring class (no-arg constructor when bytecode provides one, otherwise the shortest constructor fillable with literal defaults such as `0` or `""`); that construct is not a step, not named, and the lecturer cannot set `receiver_constructor_id`. **Composition** passes a named receiver already created in an earlier step (`instance_name` is the receiver, not a distinct return-name column).
 
 ### Named instance (testcase)
-A constructed student object in a **testcase scenario**, addressable by a lecturer-chosen name in later steps (including as an object-typed argument). Distinct from COMPARISON's unlabeled A/B instance pair.
+A live student/rubric-class object in a **Composition** test, addressable by a lecturer-chosen name in later steps (including as `{"$instance":"name"}` arguments). Names are required on constructor results and on static factory returns that produce a rubric-class object. Instance-method `instance_name` is the receiver already in the registry; the method return does not overwrite that name. Unit tests have no named instances.
 
-### OOP principle tag
-Lecturer-authored label on an operational testcase naming which principle the scenario checks: Unit, Polymorphism, Encapsulation, Composition, or Inheritance. Shown on Example I/O cards; not inferred by the grader. A Polymorphism tag requires at least one call through a **dispatch type**.
+### Unit operational testcase
+A lecturer-authored operational test of exactly one constructor or method invocation, plus at least one assertion. Closed worksheet: pick the member, then assertions. No `$instance` arguments, no named objects, no equals(). Constructors use **FIELD_STATE** (and **EXCEPTION**) only. Non-primitive **method** returns on Unit may use **RETURN_VALUE** and/or **FIELD_STATE** on the **return type’s** fields (not the hidden receiver). A Unit static method has no receiver.
 
-### Dispatch type (testcase)
-Parent class or interface named on a scenario call so the invoke looks up the method on that type and dynamic dispatch runs the student's override. Required on at least one call when the test is tagged Polymorphism.
+### Composition operational testcase
+A lecturer-authored operational test of 1–20 ordered constructor and/or method invocations that share **named instances**, with at least one assertion on the testcase as a whole. Setup steps may carry zero assertions. equals() against another live named object is Composition-only. An unaccepted throw stops the sequence; later steps do not run and their assertions fail as not executed.
+
+### Call as (Composition)
+Lecturer choice on a Composition method step: look up the method on a selected parent or interface type from the receiver’s Extends/Implements heritage, then invoke on the **same named receiver** so polymorphic override behavior is what is graded. Java shape: `Shape s = circle; s.draw();` — one object, not a second `new`. Leaving Call as unset keeps concrete lookup on the receiver’s class. Call as is a step capability, not a separate testcase type. Unit worksheets do not offer it.
+
+### Testcase type
+Lecturer choice at create: `UNIT` or `COMPOSITION`. Two different authoring canvases, not principle tags on a shared scenario. Switching type replaces the other flow’s graph. Students never see the type name. Polymorphism, inheritance, and encapsulation are not operational-testcase types this ship; override proof uses Composition **Call as**, not a third type.
+
+
 
 ### Testcase rubric graph
-The persisted testcase authoring shape: one `testcase` row plus ordered invocation rows (SINGLE_INVOCATION scenario), optional instance pair (COMPARISON), and assertion rows. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save.
+The persisted testcase authoring shape: one `testcase` row (`UNIT` or `COMPOSITION`, `is_hidden`, no per-testcase weight) plus ordered `testcase_invocation` rows and `testcase_assertion` rows. Child rows upsert by client UUID. Invocation `order_index` uses park-delete-compact so uniqueness cannot collide mid-save. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save. Shipping the rebuild wipes existing operational-test graphs; lecturers re-author. There is no `testcase_instance` table, `oop_principle_tag`, or `COMPARISON_RESULT`.
 
 ### Sync-by-presence (testcase save)
 The lecturer testcase PUT contract: testcase ids omitted from the payload are deleted from the challenge; ids present are upserted. Child invocation and assertion rows must be updated in place by client UUID — not delete-all-then-reinsert — because graded submissions reference `testcase_assertion.id` with `ON DELETE CASCADE`.
@@ -88,22 +93,22 @@ Invocation steps also have a unique dense order per testcase. Compact that order
 Retired name for serializing student invoke in the API JVM. Operational invoke now runs in the isolated testcase worker; the host allows one worker JVM via `workerJvmSlot` on the HTTP thread.
 
 ### Isolated testcase worker
-A separate JVM process that executes operational testcase target classes (student submission or lecturer dry-run reference), including comparison and live-instance scoring, so a crash or unkillable loop cannot terminate the API JVM. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from container sandbox invoke.
+A separate JVM process that executes operational testcase target classes for **student upload** (when the lab batch has applicable OT) and **lecturer dry-run**, so a crash or unkillable loop cannot terminate the API JVM. Both Unit and Composition reuse the `scenario` worker op plus a request-local named-instance registry. Student upload acquires `workerJvmSlot` and opens one worker session per upload when any graded challenge has operational testcases. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from container sandbox invoke.
 
 ### Container sandbox invoke
 Ephemeral container execution of the isolated testcase worker: network disabled, read-only root filesystem with a scoped writable temp area for student classes, and cgroup CPU/memory limits. A dedicated sandbox runner (not the Render API process) maintains a warm pool and accepts authenticated invoke delegation from the API. Thesis stage 3; invoke-only — Class-tab reflection and javac compile stay in the API.
 
 ### Serialized invocation outcome
-Untrusted facts returned from the isolated testcase worker over IPC (local process or remote container): return value JSON, stdout, field snapshots, exception names, comparison JSON, and an error message. The API treats this payload as data only — scoring keys such as `passed` are ignored if present. Kind is a wire-level string (normal, threw, timed out, error) that the grading layer maps to trusted outcome semantics before assertion evaluation.
+Untrusted facts returned from the isolated testcase worker over IPC (local process or remote container): return value JSON, stdout, field snapshots, exception names, object-check facts (`objectTypeSimpleName`, `objectFieldSnapshots`, `equalsNamed`), and an error message. The API treats this payload as data only — scoring keys such as `passed` are ignored if present. Kind is a wire-level string (normal, threw, timed out, error) that the grading layer maps to trusted outcome semantics before assertion evaluation.
 
 ### Assertion kind
-The category of check applied to an invoke or comparison outcome: return value, field state, stdout, exception type, or comparison result. A testcase passes only when every configured assertion kind passes.
+The category of check applied to an invoke outcome: return value, field state, stdout, or exception type. Constructor steps allow **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Composition non-primitive **method** returns may use RETURN_VALUE with `{ "$objectCheck": "EQUALS", "$instance": "name" }`. Field expectations use **FIELD_STATE** with a rubric field id, not legacy field-map JSON. There is no `COMPARISON_RESULT` kind. A testcase passes only when every configured assertion passes.
 
 ### Testcase I/O card
-Student-facing expandable result card per testcase: INPUT (formatted invocation), EXPECTED OUTPUT, YOUR OUTPUT. Collapsed view uses primary assertion display fields; expanded view stacks every assertion's EXPECTED/YOUR pair under one shared INPUT.
+Expandable result card per testcase: INPUT (formatted invocation), EXPECTED OUTPUT, YOUR OUTPUT. Collapsed view uses primary assertion display fields; expanded view stacks every assertion's EXPECTED/YOUR pair under one shared INPUT. Example testcases show full I/O; hidden testcases show pass/fail only.
 
 ### lab_result bundle
-Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, and operational testcase I/O card arrays so the student UI renders tabs without follow-up read API calls. Revisit read paths return the same testcase shape when the upload cache is absent.
+Upload-time JSON payload keyed by `challenge_<N>` where `N` is the challenge's rubric number (`challenge_number`), not the sidebar list index. Each entry contains class, MMD, `testcases`, `scores`, and `scoreApplicability`. When the challenge has authored operational testcases, upload sets `scoreApplicability.testcase` true and fills student-safe `testcases` (hidden rows omit I/O). Revisit `GET .../testcases` returns the same shape from persisted rows; attempts graded before OT shipped stay without testcase rows (empty tab). Next upload after ship uses the lit path; prior attempts are not retroactively regraded.
 
 ### Parsed submission snapshot
 Immutable per-(submission, challenge) capture of rubric-scoped Class and MMD display text as parsed from the student's files at grade time. Result tabs use snapshot text for present items. When a snapshot entry is missing, student-facing assembly (`DisclosureMode.STUDENT`) shows generic placeholders instead of rubric expected labels; lecturer drawer (`DisclosureMode.LECTURER`) still uses the full rubric checklist. Pass/fail flags are unchanged.
@@ -157,7 +162,10 @@ API posture where a request is refused unless an explicit path-and-method rule a
 The SPA screen for a signed-in user whose API call was forbidden. The session stays valid so they can return to their default dashboard. It is not used for wrong-role page URLs (those use the default-dashboard redirect) and not used for missing or expired sessions (those return to login).
 
 ### Active user presence
-In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently.
+In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently. The same poll is the hard-cut heartbeat for **session revoke**: a 401 on presence clears the SPA session and returns to login.
+
+### Session revoke
+Invalidating a signed-in JWT before natural expiry by bumping `user_account.session_version` (claim `sv`) or deleting the account. Hard delete, suspend, and remove-from-current-term bump or remove the row so the filter rejects the old token immediately; the SPA presence poll forces logout within seconds.
 
 ## Backend tests
 

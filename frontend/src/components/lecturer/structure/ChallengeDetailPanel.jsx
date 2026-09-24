@@ -6,6 +6,7 @@ import WeightInput from './WeightInput';
 export default function ChallengeDetailPanel({
   challenge,
   relationTypeOptions,
+  declaringTypeOptions = [],
   onMmdChange,
   activeTab,
   onTabChange,
@@ -22,7 +23,7 @@ export default function ChallengeDetailPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 xl:grid-cols-4">
         <WeightInput
           id={`challenge-weight-${challenge.id}`}
@@ -42,12 +43,14 @@ export default function ChallengeDetailPanel({
           value={challenge.mmdWeight}
           onChange={(mmdWeight) => onMmdChange({ ...challenge, mmdWeight })}
         />
-        <WeightInput
-          id={`challenge-testcase-weight-${challenge.id}`}
-          label="Operational testcase weight"
-          value={challenge.testcaseWeight}
-          onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
-        />
+        <div title="Challenge-level pillar weight. Individual testcases have no scoring weight.">
+          <WeightInput
+            id={`challenge-testcase-weight-${challenge.id}`}
+            label="Operational testcase weight"
+            value={challenge.testcaseWeight}
+            onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
+          />
+        </div>
       </div>
       <div className="flex gap-1 border-b border-border">
         <button
@@ -84,6 +87,8 @@ export default function ChallengeDetailPanel({
         <TestcasesPanel
           labId={labId}
           challenge={challenge}
+          relationTypeOptions={relationTypeOptions}
+          declaringTypeOptions={declaringTypeOptions}
           structureDirty={structureDirty}
           onToast={onToast}
         />

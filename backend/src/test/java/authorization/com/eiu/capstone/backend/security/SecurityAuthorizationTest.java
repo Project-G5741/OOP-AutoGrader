@@ -10,12 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -24,6 +26,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.eiu.capstone.backend.config.SecurityConfig;
 import com.eiu.capstone.backend.controller.RootController;
 import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.service.SessionValidityService;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.when;
 
 @WebMvcTest(controllers = {
         RootController.class,
@@ -55,6 +63,15 @@ class SecurityAuthorizationTest {
 
     @Autowired
     private JwtService jwtService;
+
+    @MockBean
+    private SessionValidityService sessionValidityService;
+
+    @BeforeEach
+    void allowSessions() {
+        when(sessionValidityService.isSessionValid(any(), anyInt())).thenReturn(true);
+        when(sessionValidityService.isSessionValid(any(), isNull())).thenReturn(true);
+    }
 
     @Test
     void anonymousOverview_is401Not403() throws Exception {

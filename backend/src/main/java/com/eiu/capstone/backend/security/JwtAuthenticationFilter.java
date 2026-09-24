@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.service.SessionValidityService;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -24,9 +25,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final SessionValidityService sessionValidityService;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, SessionValidityService sessionValidityService) {
         this.jwtService = jwtService;
+        this.sessionValidityService = sessionValidityService;
     }
 
     @Override
@@ -36,21 +39,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 Claims claims = jwtService.parseToken(header.substring(7));
-                JwtUserPrincipal principal = new JwtUserPrincipal(
-                        claims.get("email", String.class),
-                        claims.get("irn", String.class),
-                        extractRoles(claims));
-                Collection<SimpleGrantedAuthority> authorities = principal.roles().stream()
-                        .map(name -> new SimpleGrantedAuthority("ROLE_" + name))
-                        .toList();
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                String email = claims.get("email", String.class);
+                Integer sessionVersion = readSessionVersion(claims);
+                if (sessionValidityService.isSessionValid(email, sessionVersion)) {
+                    JwtUserPrincipal principal = new JwtUserPrincipal(
+                            email,
+                            claims.get("irn", String.class),
+                            extractRoles(claims));
+                    Collection<SimpleGrantedAuthority> authorities = principal.roles().stream()
+                            .map(name -> new SimpleGrantedAuthority("ROLE_" + name))
+                            .toList();
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    SecurityContextHolder.clearContext();
+                }
             } catch (JwtException | IllegalArgumentException ignored) {
                 SecurityContextHolder.clearContext();
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private static Integer readSessionVersion(Claims claims) {
+        Object raw = claims.get("sv");
+        if (raw instanceof Number number) {
+            return number.intValue();
+        }
+        return null;
     }
 
     private static List<String> extractRoles(Claims claims) {

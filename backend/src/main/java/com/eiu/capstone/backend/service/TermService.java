@@ -45,19 +45,22 @@ public class TermService {
     private final UserAccountRepository userAccountRepository;
     private final LabRepository labRepository;
     private final LecturerOverviewCache lecturerOverviewCache;
+    private final SessionValidityService sessionValidityService;
 
     public TermService(TermRepository termRepository,
                        AcademicYearRepository academicYearRepository,
                        TermEnrollmentRepository termEnrollmentRepository,
                        UserAccountRepository userAccountRepository,
                        LabRepository labRepository,
-                       LecturerOverviewCache lecturerOverviewCache) {
+                       LecturerOverviewCache lecturerOverviewCache,
+                       SessionValidityService sessionValidityService) {
         this.termRepository = termRepository;
         this.academicYearRepository = academicYearRepository;
         this.termEnrollmentRepository = termEnrollmentRepository;
         this.userAccountRepository = userAccountRepository;
         this.labRepository = labRepository;
         this.lecturerOverviewCache = lecturerOverviewCache;
+        this.sessionValidityService = sessionValidityService;
     }
 
     @Transactional(readOnly = true)
@@ -276,10 +279,13 @@ public class TermService {
 
     @Transactional
     public void removeStudent(UUID termId, UUID studentId) {
-        requireTerm(termId);
+        Term term = requireTerm(termId);
         TermEnrollment enrollment = termEnrollmentRepository.findByUser_IdAndTerm_Id(studentId, termId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student is not in this term"));
         termEnrollmentRepository.delete(enrollment);
+        if (term.isCurrent()) {
+            sessionValidityService.bumpSessionVersion(studentId);
+        }
     }
 
     @Transactional

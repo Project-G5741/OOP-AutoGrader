@@ -1,10 +1,11 @@
 package integration.com.eiu.capstone.backend.pipeline;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +33,7 @@ import com.eiu.capstone.backend.grading.pipeline.ClassReflectionGrader;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
+import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.TestcasePillarResult;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
@@ -149,11 +151,11 @@ class SubmissionPipelineIntegrationTest {
     }
 
     @Test
-    void testcasesWithoutWorkerFailFast() throws IOException {
+    void uploadWithUnitAndCompositionRowsInvokesOperationalTests() throws IOException {
         try (UploadHarness harness = newHarness(tempDir)) {
             SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
                     "irn1",
-                    "req-worker-required",
+                    "req-ot-lit",
                     List.of(classpathFile("integration/happy/" + UPLOAD_ANIMAL, UPLOAD_ANIMAL)));
             SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
             UUID classId = UUID.randomUUID();
@@ -164,22 +166,73 @@ class SubmissionPipelineIntegrationTest {
                     List.of(new ClassRubric(
                             classId, "Animal", "public", "CLASS", false, List.of(), List.of(), List.of())),
                     List.of(),
-                    List.of(new TestcaseRubric(
-                            UUID.randomUUID(),
-                            "needs-worker",
-                            TestcaseType.SINGLE_INVOCATION,
-                            null,
-                            1,
-                            0,
-                            false,
-                            null,
-                            List.of(),
-                            List.of())),
+                    List.of(
+                            new TestcaseRubric(
+                                    UUID.randomUUID(),
+                                    "unit-row",
+                                    TestcaseType.UNIT,
+                                    null,
+                                    1,
+                                    0,
+                                    false,
+                                    null,
+                                    List.of(),
+                                    List.of()),
+                            new TestcaseRubric(
+                                    UUID.randomUUID(),
+                                    "composition-row",
+                                    TestcaseType.COMPOSITION,
+                                    null,
+                                    1,
+                                    1,
+                                    false,
+                                    null,
+                                    List.of(),
+                                    List.of())),
+                    false,
+                    1,
+                    1,
+                    1,
+                    4);
+            java.util.concurrent.atomic.AtomicInteger invokeCount = new java.util.concurrent.atomic.AtomicInteger();
+            TestcaseGrader grader = new TestcaseGrader(null, null, null, null) {
+                @Override
+                public TestcasePillarResult grade(com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext context) {
+                    invokeCount.incrementAndGet();
+                    return TestcasePillarResult.empty();
+                }
+            };
+            GradingPipeline pipeline = new GradingPipeline(
+                    new ReflectionClassParser(),
+                    new ClassReflectionGrader(),
+                    new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
+                    grader,
+                    pillarExecutor,
                     false);
-            IllegalStateException thrown = assertThrows(IllegalStateException.class, () ->
-                    pipeline().gradeChallenge(new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
-                            folder, List.of()));
-            assertTrue(thrown.getMessage().contains("Worker session required"), thrown.getMessage());
+            GradingPipeline.ChallengePipelineResult graded = pipeline.gradeChallenge(
+                    new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                    folder,
+                    List.of(),
+                    com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle.failedRemote("test", 0));
+            assertNotNull(graded);
+            assertTrue(graded.testcaseApplicable());
+            assertEquals(1, invokeCount.get());
+        }
+    }
+
+    @Test
+    void uploadWithNoOperationalTestRowsSkipsTestcaseGrader() throws IOException {
+        try (UploadHarness harness = newHarness(tempDir)) {
+            SubmissionStorageService.ProcessResult upload = harness.storage.processUpload(
+                    "irn1",
+                    "req-ot-empty",
+                    List.of(classpathFile("integration/happy/" + UPLOAD_ANIMAL, UPLOAD_ANIMAL)));
+            SubmissionStorageService.ChallengeResult folder = findChallenge(upload, CHALLENGE_1);
+            GradingPipeline.ChallengePipelineResult graded = pipelineThatFailsIfTestcasesRun()
+                    .gradeChallenge(snapshot(false), folder, List.of());
+            assertNotNull(graded);
+            assertFalse(graded.testcaseApplicable());
+            assertTrue(graded.testcaseResult().results().isEmpty());
         }
     }
 
@@ -223,6 +276,23 @@ class SubmissionPipelineIntegrationTest {
                 new ClassReflectionGrader(),
                 new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                 new TestcaseGrader(null, null, null, null),
+                pillarExecutor,
+                false);
+    }
+
+    private GradingPipeline pipelineThatFailsIfTestcasesRun() {
+        TestcaseGrader grader = new TestcaseGrader(null, null, null, null) {
+            @Override
+            public TestcasePillarResult grade(com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext context) {
+                fail("student upload must not invoke TestcaseGrader");
+                return TestcasePillarResult.empty();
+            }
+        };
+        return new GradingPipeline(
+                new ReflectionClassParser(),
+                new ClassReflectionGrader(),
+                new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
+                grader,
                 pillarExecutor,
                 false);
     }

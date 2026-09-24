@@ -90,7 +90,7 @@ class InvocationRunnerTest {
     }
 
     @Test
-    void methodInvocationWithoutReceiverRequiresNoArgConstructor() {
+    void methodInvocationWithoutReceiverUsesHiddenDefaultConstructor() {
         InvocationRubric rubric = new InvocationRubric(
                 UUID.randomUUID(),
                 InvocationKind.METHOD,
@@ -107,8 +107,8 @@ class InvocationRunnerTest {
 
         InvocationOutcome outcome = runner.invokeSingle(context(), rubric, List.of());
 
-        assertEquals(InvocationOutcomeKind.ERROR, outcome.kind());
-        assertTrue(outcome.errorMessage().contains("no-argument constructor"));
+        assertEquals(InvocationOutcomeKind.NORMAL, outcome.kind());
+        assertEquals(0, outcome.returnValue());
     }
 
     @Test

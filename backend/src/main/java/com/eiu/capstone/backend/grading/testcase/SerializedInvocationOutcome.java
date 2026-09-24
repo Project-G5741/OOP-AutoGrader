@@ -19,12 +19,23 @@ public record SerializedInvocationOutcome(
         List<String> exceptionSuperclassSimpleNames,
         String comparisonResultJson,
         String errorMessage,
+        String objectTypeSimpleName,
+        Map<String, String> objectFieldSnapshotsJson,
+        Map<String, Boolean> equalsNamed,
         List<SerializedInvocationOutcome> steps) {
 
     public static final String KIND_ERROR = "ERROR";
     public static final String KIND_NORMAL = "NORMAL";
     public static final String KIND_THREW = "THREW";
     public static final String KIND_TIMED_OUT = "TIMED_OUT";
+
+    public SerializedInvocationOutcome {
+        fieldSnapshotsJson = fieldSnapshotsJson == null ? Map.of() : fieldSnapshotsJson;
+        exceptionSuperclassSimpleNames = exceptionSuperclassSimpleNames == null
+                ? List.of() : exceptionSuperclassSimpleNames;
+        objectFieldSnapshotsJson = objectFieldSnapshotsJson == null ? Map.of() : objectFieldSnapshotsJson;
+        equalsNamed = equalsNamed == null ? Map.of() : equalsNamed;
+    }
 
     public SerializedInvocationOutcome(
             String kind,
@@ -46,7 +57,37 @@ public record SerializedInvocationOutcome(
                 exceptionSuperclassSimpleNames,
                 comparisonResultJson,
                 errorMessage,
+                null,
+                Map.of(),
+                Map.of(),
                 null);
+    }
+
+    public SerializedInvocationOutcome(
+            String kind,
+            String returnValueJson,
+            String stdout,
+            boolean stdoutTruncated,
+            Map<String, String> fieldSnapshotsJson,
+            String exceptionSimpleName,
+            List<String> exceptionSuperclassSimpleNames,
+            String comparisonResultJson,
+            String errorMessage,
+            List<SerializedInvocationOutcome> steps) {
+        this(
+                kind,
+                returnValueJson,
+                stdout,
+                stdoutTruncated,
+                fieldSnapshotsJson,
+                exceptionSimpleName,
+                exceptionSuperclassSimpleNames,
+                comparisonResultJson,
+                errorMessage,
+                null,
+                Map.of(),
+                Map.of(),
+                steps);
     }
 
     public static SerializedInvocationOutcome error(String message) {
