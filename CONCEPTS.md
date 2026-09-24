@@ -73,8 +73,13 @@ A lecturer-authored operational test of exactly one constructor or method invoca
 ### Composition operational testcase
 A lecturer-authored operational test of 1–20 ordered constructor and/or method invocations that share **named instances**, with at least one assertion on the testcase as a whole. Setup steps may carry zero assertions. equals() against another live named object is Composition-only. An unaccepted throw stops the sequence; later steps do not run and their assertions fail as not executed.
 
+### Call as (Composition)
+Lecturer choice on a Composition method step: look up the method on a selected parent or interface type from the receiver’s Extends/Implements heritage, then invoke on the **same named receiver** so polymorphic override behavior is what is graded. Java shape: `Shape s = circle; s.draw();` — one object, not a second `new`. Leaving Call as unset keeps concrete lookup on the receiver’s class. Call as is a step capability, not a separate testcase type. Unit worksheets do not offer it.
+
 ### Testcase type
-Lecturer choice at create: `UNIT` or `COMPOSITION`. Two different authoring canvases, not principle tags on a shared scenario. Switching type replaces the other flow’s graph. Students never see the type name. Polymorphism, inheritance, and encapsulation are not operational-testcase types this ship.
+Lecturer choice at create: `UNIT` or `COMPOSITION`. Two different authoring canvases, not principle tags on a shared scenario. Switching type replaces the other flow’s graph. Students never see the type name. Polymorphism, inheritance, and encapsulation are not operational-testcase types this ship; override proof uses Composition **Call as**, not a third type.
+
+
 
 ### Testcase rubric graph
 The persisted testcase authoring shape: one `testcase` row (`UNIT` or `COMPOSITION`, `is_hidden`, no per-testcase weight) plus ordered `testcase_invocation` rows and `testcase_assertion` rows. Child rows upsert by client UUID. Invocation `order_index` uses park-delete-compact so uniqueness cannot collide mid-save. Lecturers edit this graph in Solution Management and save it via a dedicated PUT endpoint separate from lab structure save. Shipping the rebuild wipes existing operational-test graphs; lecturers re-author. There is no `testcase_instance` table, `oop_principle_tag`, or `COMPARISON_RESULT`.

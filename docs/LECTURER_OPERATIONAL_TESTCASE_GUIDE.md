@@ -161,6 +161,42 @@ If a step throws and that throw is **not** an accepted EXCEPTION assertion, the 
 
 Cap: **20** steps and **10** named instances per testcase.
 
+### 6.5 Call as — prove method overriding
+
+**Call as** is a Composition method-step option (not a third testcase type). It looks up the method on a **parent or interface** type from the receiver’s Extends/Implements heritage, then invokes on the **same** named subclass/implementor instance. Leave **Concrete type (default)** for ordinary concrete lookup.
+
+It does **not** construct a second object. Two Composition steps like “construct `Circle` as `c`” then “`c.draw()` Call as `Shape`” mean:
+
+```java
+Circle c = new Circle(13);
+((Shape) c).draw();   // same object; lookup type is Shape
+```
+
+not `Shape s = new Circle(13)` in addition to `c`.
+
+If `Shape.draw()` is abstract, the abstract body is not executed — the receiver’s override runs (e.g. `Circle.draw()`). Assert the specialized stdout/return/field state you expect from that override.
+
+**Override path (required idea):**
+
+1. Construct a subclass (or implementor) instance and name it.
+2. Pick the method on that class (or a concrete parent method with a subtype-compatible receiver).
+3. Set **Call as** to the parent or interface type.
+4. Assert **RETURN_VALUE**, **STDOUT**, and/or **FIELD_STATE** (EXCEPTION remains available).
+5. Dry-run against reference Java. Students still do not run operational tests this ship.
+
+**Differential contrast (recommended, not enforced):**
+
+| Situation | Contrast pattern |
+|-----------|------------------|
+| Concrete superclass with an executable method body | Also construct a **parent** instance and call the same method without Call as (or without subclass specialization); assert the parent’s default. Empty / pass-through overrides that only match the parent fail the override-path expecteds. |
+| Interface or abstract method (no parent body to run) | Prefer **two implementors** with different expecteds through the same Call as type, **or** Call as alone as a valid minimum. |
+
+The editor does **not** refuse a single-path Call as script. A lone happy-path expected can still miss empty overrides — author contrast when pedagogy needs it.
+
+When Call as and concrete lookup often print the **same** override result, that is expected for a real override. They differ when the subclass does **not** declare the method (inherited parent body / concrete lookup may fail) or for static hiding — not when a working override is already in place.
+
+Class-tab Declaration Test only checks signatures. It does **not** prove override behavior; operational Call as + assertions do.
+
 ---
 
 ## 7. Assertions — what you can check
@@ -263,6 +299,9 @@ Dry-run results are **not saved**; they clear when you edit the testcase.
 | FIELD_STATE without picking a field | Save error | Select field in assertion row |
 | Expect dry-run without reference Java | Toast error | Upload reference `.java` files |
 | Expect students to see Operation Test results | Tab stays hidden | Class and MMD still grade; OT is lecturer + dry-run only |
+| Need polymorphic override through a parent type | Concrete lookup only | Composition method step → **Call as** parent/interface; dry-run |
+| Interface Call as — no parent body | Cannot construct the interface | Call as alone, or two implementors with different expecteds |
+| Empty override still “passes” | Only one happy expected | Add parent-default or two-implementor contrast (not enforced) |
 
 ---
 

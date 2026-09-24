@@ -49,8 +49,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list; **Add new testcase** (default UNIT) plus per-testcase Type dropdown; dry-run I/O, Run all, Save Testcases; shared `normalizeTestcaseForApi` for save and dry-run; editor column uses `minmax(0,1fr)` so the panel cannot overflow the viewport |
 | `structure/UnitTestcaseWorksheet.jsx` | Closed Unit canvas: one member picker, scalar params, allowed assertions; no step list, instance names, `$instance`, or equals() |
-| `structure/CompositionTestcaseScript.jsx` | Composition canvas: ordered named-object steps, required names on constructs and static object returns, `$instance` args, optional per-step assertions, equals() |
-| `structure/testcaseAuthoring.js` | Shared empty/hydrate/normalize helpers and member catalog for Unit and Composition |
+| `structure/CompositionTestcaseScript.jsx` | Composition canvas: ordered named-object steps, required names on constructs and static object returns, `$instance` args, optional **Call as** (`dispatchClassId`) on instance-method receivers, optional per-step assertions, equals() |
+| `structure/testcaseAuthoring.js` | Shared empty/hydrate/normalize helpers and member catalog for Unit and Composition; Composition preserves `dispatchClassId`; Unit always nulls it; Call-as ancestor helpers from Extends/Implements |
 | `structure/TestcaseParamFields.jsx` | Per-parameter scalar or `$instance` argument editors |
 | `structure/TestcaseAssertionFields.jsx` | Assertion kinds; Composition object-return equals() picker; constructors FIELD_STATE + EXCEPTION only |
 | `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |

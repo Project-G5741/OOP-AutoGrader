@@ -270,7 +270,7 @@ Weights must sum to 100 within a challenge. Edit them in the **Challenge Detail 
 4. Mark **Hidden** if you want the flag stored for a later student ship (students do not see operational tests today).
 5. Click **Save Testcases** (in that tab) to persist testcase changes. Click **Save Structure** separately when you change classes, fields, or methods.
 
-For a full walkthrough (Unit worksheet, Composition script, assertions, object checks, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
+For a full walkthrough (Unit worksheet, Composition script, **Call as** for override checks, assertions, object checks, dry-run), see **[Operational testcases — lecturer guide](./LECTURER_OPERATIONAL_TESTCASE_GUIDE.md)**.
 
 #### Lab Deadline
 

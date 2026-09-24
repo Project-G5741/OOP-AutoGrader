@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Method overriding testcases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --ink: #1a1f1c;
+    --muted: #5a635c;
+    --line: #d8d4cb;
+    --accent: #0d6e5f;
+    --accent-soft: #e4f3ef;
+    --accent-text: #0a5448;
+    --warn-soft: #f8efe2;
+    --warn-text: #7a4e12;
+    --info-soft: #e8eef6;
+    --info-text: #2a4a6b;
+    --chip: #eef1ec;
+    --radius: 10px;
+    --measure: 70ch;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #e8f2ee 0%, transparent 55%),
+      radial-gradient(900px 400px at 100% 0%, #f0ebe3 0%, transparent 50%),
+      var(--bg);
+    line-height: 1.55;
+  }
+  .page { max-width: 920px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header.doc-header {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.6rem;
+    margin-bottom: 1.75rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent-text);
+    margin: 0 0 0.4rem;
+  }
+  h1 { margin: 0 0 0.75rem; font-size: 1.65rem; line-height: 1.25; font-weight: 700; }
+  .meta { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+  .meta li {
+    background: var(--chip);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .meta strong { color: var(--ink); font-weight: 600; }
+  .plain { max-width: var(--measure); color: var(--muted); margin: 1rem 0 0; }
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.75rem;
+  }
+  nav.toc h2 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc a { color: var(--accent-text); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.35rem 1.5rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  section > h2 {
+    margin: 0 0 0.85rem;
+    font-size: 1.2rem;
+    border-bottom: 2px solid var(--accent-soft);
+    padding-bottom: 0.45rem;
+  }
+  h3 { margin: 1.1rem 0 0.4rem; font-size: 1.05rem; }
+  p, li { font-size: 0.98rem; }
+  ul { padding-left: 1.2rem; }
+  .callout {
+    background: var(--info-soft);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    margin: 0.85rem 0;
+  }
+  .callout.warn { background: var(--warn-soft); }
+  .callout .label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--info-text);
+    margin: 0 0 0.25rem;
+  }
+  .callout.warn .label { color: var(--warn-text); }
+  .callout p { margin: 0; color: var(--info-text); }
+  .callout.warn p { color: var(--warn-text); }
+  .axes { display: grid; gap: 0.45rem; }
+  .axis-row {
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    gap: 0.55rem;
+    align-items: start;
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+  }
+  .axis-num {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    color: var(--accent-text);
+  }
+  .jump { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+  .jump a {
+    font-size: 0.82rem;
+    text-decoration: none;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+  }
+  .jump a:hover { text-decoration: underline; }
+  article.idea {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem 1.15rem;
+    margin: 0 0 1rem;
+    background: #fcfbf8;
+  }
+  article.idea.top {
+    background: linear-gradient(180deg, #eef8f4 0%, #fcfbf8 55%);
+    border-color: #b7d9cf;
+  }
+  .idea-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.55rem; }
+  .chip {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.18rem 0.6rem;
+    border: 1px solid var(--line);
+    background: var(--chip);
+  }
+  .chip.rank { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip.axis { background: var(--accent-soft); color: var(--accent-text); border-color: #b7d9cf; }
+  .chip.conf { background: var(--warn-soft); color: var(--warn-text); border-color: #e5d2b0; }
+  .chip.cx { background: var(--info-soft); color: var(--info-text); border-color: #c5d3e6; }
+  article.idea h3 { margin: 0.2rem 0 0.55rem; font-size: 1.12rem; }
+  article.idea dl { margin: 0.6rem 0 0; display: grid; gap: 0.55rem; }
+  article.idea dt {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--muted);
+    margin: 0;
+  }
+  article.idea dd { margin: 0.15rem 0 0; max-width: var(--measure); }
+  .diagram {
+    margin: 0.9rem 0;
+    padding: 0.75rem;
+    background: #fff;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  .diagram figcaption { margin-top: 0.45rem; font-size: 0.82rem; color: var(--muted); }
+  table.reject { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.reject th, table.reject td {
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    padding: 0.55rem 0.4rem;
+    vertical-align: top;
+  }
+  table.reject th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  code, .mono {
+    font-family: "IBM Plex Mono", "Consolas", monospace;
+    font-size: 0.88em;
+  }
+  footer.composition-signal {
+    margin-top: 2rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="doc-header">
+    <p class="eyebrow">ce-ideate · repo-grounded</p>
+    <h1>Method overriding testcases — difficulties and approaches</h1>
+    <ul class="meta">
+      <li><strong>Date</strong> <time datetime="2026-09-25">2026-09-25</time></li>
+      <li><strong>Topic</strong> method-overriding-testcases</li>
+      <li><strong>Focus</strong> implement a check for method overriding; difficulties; appropriate approaches</li>
+      <li><strong>Mode</strong> repo-grounded</li>
+      <li><strong>Survivors</strong> 6 of ~38 raw</li>
+    </ul>
+    <p class="plain">
+      Fresh ideation (not a continuation of the same-day overloading doc). Overriding means inheritance
+      polymorphism: same signature, subclass body runs when invoked through a parent/interface type.
+      That is orthogonal to overloading (same name, different params).
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="Document sections">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#grounding">Grounding context</a></li>
+      <li><a href="#axes">Topic axes</a></li>
+      <li><a href="#ideas">Ranked ideas</a></li>
+      <li><a href="#difficulties">Difficulty map</a></li>
+      <li><a href="#rejection">Rejection summary</a></li>
+    </ol>
+  </nav>
+
+  <section id="grounding">
+    <h2>Grounding context</h2>
+    <h3>Codebase context</h3>
+    <ul>
+      <li>Operational testcase types are <code>UNIT</code> | <code>COMPOSITION</code> only. CONCEPTS states polymorphism / inheritance / encapsulation are <em>not</em> OT types this ship.</li>
+      <li><strong>Runtime polymorphic dispatch already exists in the worker:</strong> when <code>dispatchClassName</code> is set on a method step, <code>WorkerInvokeEngine</code> resolves via <code>getMethod</code> on the dispatch type and invokes on the named receiver. Covered by <code>ae1GetAreaThroughShapeUsesCircleOverride</code> (Circle area through Shape → 12.5).</li>
+      <li>Without dispatch, lookup is <code>getDeclaredMethod</code> on the concrete class — no virtual call through a supertype.</li>
+      <li><strong>Frontend always forces <code>dispatchClassId: null</code></strong> in empty/normalize/member-pick paths. No lecturer control in Unit or Composition worksheets.</li>
+      <li>Declaration Test matches methods by name + parameter types on the declaring class; heritage is Extends/Implements shell only. No <code>getDeclaringClass</code> override evidence; no <code>@Override</code> grading.</li>
+      <li><code>oop_principle_tag</code> was wiped by the OT migrator; enum/DTO leftovers remain but are not the product model.</li>
+      <li>Student Operation Test pillar is still dark (<code>testcaseApplicable = false</code>); lecturer dry-run is the live loop.</li>
+    </ul>
+    <h3>Past learnings</h3>
+    <ul>
+      <li>No <code>docs/solutions/</code> entry on method overriding. Closest: operational grading stack, receiver-constructor pitfalls (Unit hidden receiver unfit for polymorphic call sites), Composition multi-step order_index, sync-by-presence saves.</li>
+    </ul>
+    <h3>External context</h3>
+    <ul>
+      <li>Prior art (ASys/JavAssess, Miami AutoGrader, Kelas): reflection hierarchy + behavioral invoke — rarely a first-class “override” lecturer primitive.</li>
+      <li>Canonical structural idiom: subclass method’s <code>getDeclaringClass()</code> ≠ superclass. <code>@Override</code> is <strong>SOURCE</strong> retention — absent from bytecode.</li>
+      <li>Traps: overload ≠ override; static same-signature = hiding; bridge/synthetic for covariant returns.</li>
+    </ul>
+    <div class="callout warn">
+      <p class="label">Core difficulty (one sentence)</p>
+      <p>The engine can already prove override behavior; authoring erases the switch, Declaration Test cannot prove behavior, and a new <code>TestcaseType</code> would fight CONCEPTS — so the hard problem is product posture + UX, not inventing a third grader.</p>
+    </div>
+  </section>
+
+  <section id="axes">
+    <h2>Topic axes</h2>
+    <div class="axes">
+      <div class="axis-row"><span class="axis-num">1</span><div><strong>Structural override evidence</strong> — Declaration Test / reflection / declaring-class</div></div>
+      <div class="axis-row"><span class="axis-num">2</span><div><strong>Behavioral polymorphic dispatch</strong> — runtime invoke / <code>dispatchClassId</code></div></div>
+      <div class="axis-row"><span class="axis-num">3</span><div><strong>Lecturer authoring surface</strong> — worksheets, Call-as, Unit vs Composition</div></div>
+      <div class="axis-row"><span class="axis-num">4</span><div><strong>Semantic traps &amp; negative cases</strong> — overload / hide / empty override / bridges</div></div>
+      <div class="axis-row"><span class="axis-num">5</span><div><strong>Product / type model shape</strong> — new type vs step capability vs Class pillar</div></div>
+    </div>
+  </section>
+
+  <section id="ideas">
+    <h2>Ranked ideas</h2>
+    <div class="jump">
+      <a href="#i1">1. Call-as dispatch</a>
+      <a href="#i2">2. Differential proof</a>
+      <a href="#i3">3. Behavior-first posture</a>
+      <a href="#i4">4. Override Lab dry-run</a>
+      <a href="#i5">5. Declaring-class diagnosis</a>
+      <a href="#i6">6. Eligibility + traps</a>
+    </div>
+
+    <article class="idea top" id="i1">
+      <div class="idea-head">
+        <span class="chip rank">#1</span>
+        <span class="chip axis">Behavioral + Authoring + Product</span>
+        <span class="chip conf">Conf 90%</span>
+        <span class="chip cx">Cx Medium</span>
+      </div>
+      <h3>Call-as: uncap <code>dispatchClassId</code> on Composition (not a third type)</h3>
+      <p>
+        Stop nulling <code>dispatchClassId</code> in <code>testcaseAuthoring.js</code>. On Composition method steps,
+        add a <strong>Call as: &lt;supertype&gt;</strong> control populated from the receiver’s Extends/Implements
+        ancestors. Persist the existing DB column; worker path already proven by AE1. Keep
+        <code>TestcaseType</code> as UNIT | COMPOSITION — override is a <em>step capability</em>, not a passport type.
+      </p>
+      <figure class="diagram" aria-label="Call-as flow">
+        <svg viewBox="0 0 720 160" width="100%" height="160" xmlns="http://www.w3.org/2000/svg" role="img">
+          <rect x="10" y="40" width="150" height="70" rx="8" fill="#e4f3ef" stroke="#0d6e5f"/>
+          <text x="85" y="72" text-anchor="middle" font-size="13" font-family="IBM Plex Sans, sans-serif">Construct Circle</text>
+          <text x="85" y="92" text-anchor="middle" font-size="11" fill="#5a635c" font-family="IBM Plex Sans, sans-serif">named instance</text>
+          <path d="M165 75 H210" stroke="#0d6e5f" stroke-width="2" marker-end="url(#a)"/>
+          <rect x="215" y="40" width="200" height="70" rx="8" fill="#eef8f4" stroke="#0d6e5f" stroke-width="2"/>
+          <text x="315" y="68" text-anchor="middle" font-size="13" font-family="IBM Plex Sans, sans-serif">Call getArea</text>
+          <text x="315" y="90" text-anchor="middle" font-size="12" font-weight="600" fill="#0a5448" font-family="IBM Plex Sans, sans-serif">as Shape (dispatch)</text>
+          <path d="M420 75 H465" stroke="#0d6e5f" stroke-width="2" marker-end="url(#a)"/>
+          <rect x="470" y="40" width="230" height="70" rx="8" fill="#fff" stroke="#d8d4cb"/>
+          <text x="585" y="72" text-anchor="middle" font-size="13" font-family="IBM Plex Sans, sans-serif">Worker getMethod(Shape)</text>
+          <text x="585" y="92" text-anchor="middle" font-size="11" fill="#5a635c" font-family="IBM Plex Sans, sans-serif">invoke on Circle → 12.5</text>
+          <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#0d6e5f"/></marker></defs>
+        </svg>
+        <figcaption>Override proof is parent-typed lookup + virtual invoke on a subclass receiver — already in the worker, blocked only by authoring.</figcaption>
+      </figure>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> <code>WorkerInvokeEngine</code> dispatch branch + <code>ae1GetAreaThroughShapeUsesCircleOverride</code>; <code>testcaseAuthoring.js</code> always sets <code>dispatchClassId: null</code>; CONCEPTS forbids polymorphism as an OT type; invocation DTO already carries <code>dispatchClassId</code>.</dd>
+        <dt>Why it matters</dt>
+        <dd>Highest leverage/cost: “implement an override testcase” mostly means stop erasing a live capability and give lecturers a Call-as control — without a migrator wipe or a third type.</dd>
+        <dt>Downsides</dt>
+        <dd>Lecturers must understand billed-role vs actor (Call as Shape ≠ rename Circle). Multi-supertype graphs need a picker, not a silent default. Unit should stay out of scope (hidden receiver unfit).</dd>
+      </dl>
+    </article>
+
+    <article class="idea" id="i2">
+      <div class="idea-head">
+        <span class="chip rank">#2</span>
+        <span class="chip axis">Semantic traps</span>
+        <span class="chip conf">Conf 85%</span>
+        <span class="chip cx">Cx Medium</span>
+      </div>
+      <h3>Differential override proof (dual-path / paired expecteds)</h3>
+      <p>
+        A single happy return through parent dispatch is not enough — empty overrides, hardcoding, and
+        <code>instanceof</code> switches still fool positive-only checks. Require differential evidence:
+        invoke through the parent with subclass-expected behavior, and optionally pair with a concrete-path
+        or parent-default contrast so pass-through fails. Encode this as a Composition macro or twin assertions,
+        not a new grader opcode.
+      </p>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> 2026-09-17 plan R13/AE2 — Declaration can mark override present while empty overrides pass; worker forks <code>getDeclaredMethod</code> vs <code>getMethod</code>. <span class="mono">external:</span> Liskov-style contract tests / prodrug “activation” assays — dose via declared route, measure active metabolite.</dd>
+        <dt>Why it matters</dt>
+        <dd>Answers the pedagogical difficulty: what fails when students “have” the method but do not specialize behavior.</dd>
+        <dt>Downsides</dt>
+        <dd>Authoring cost rises; auto-generated traps can be noisy if parent default is undefined. Prefer lecturer-owned expecteds over smell detectors.</dd>
+      </dl>
+    </article>
+
+    <article class="idea" id="i3">
+      <div class="idea-head">
+        <span class="chip rank">#3</span>
+        <span class="chip axis">Product + Structural</span>
+        <span class="chip conf">Conf 88%</span>
+        <span class="chip cx">Cx Low–Medium</span>
+      </div>
+      <h3>Behavior-first posture: OT proves override; Class only diagnoses</h3>
+      <p>
+        Do not score “override exists” as a separate OT type or as a Class all-or-nothing row that greenlights
+        empty methods. Primary grade = polymorphic invoke + assertions. Structural declaring-class evidence
+        (idea #5) is a failure-diagnosis sidecar and authoring filter — not a substitute for AE1-shaped behavior.
+      </p>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> CONCEPTS separates Declaration Test from OT; plan language already splits “signature present” from “override works.” Verifier concurred this is the correct product posture.</dd>
+        <dt>Why it matters</dt>
+        <dd>Prevents shipping a false-green Class tab and calling the override problem solved.</dd>
+        <dt>Downsides</dt>
+        <dd>Lecturers who only use Class tab still lack a polymorphism signal until OT authoring ships. Messaging must be explicit in guides.</dd>
+      </dl>
+    </article>
+
+    <article class="idea" id="i4">
+      <div class="idea-head">
+        <span class="chip rank">#4</span>
+        <span class="chip axis">Product sequencing</span>
+        <span class="chip conf">Conf 82%</span>
+        <span class="chip cx">Cx Low</span>
+      </div>
+      <h3>Lecturer Override Lab via dry-run while student OT stays dark</h3>
+      <p>
+        Treat student-pillar darkness as a feature window, not a blocker. Ship Call-as + differential scripts
+        for lecturers; validate against reference Java with existing dry-run (<code>TestcaseGrader.gradeSingle</code>).
+        Light student OT later as a separate policy decision — do not gate it on “has a dispatch step.”
+      </p>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> <code>testcaseApplicable = false</code> globally; dry-run already runs the worker. Rejected sibling: gating student OT on dispatch presence (blocks non-inheritance labs).</dd>
+        <dt>Why it matters</dt>
+        <dd>Unblocks validating override pedagogy without student-facing risk or a premature pillar light-up.</dd>
+        <dt>Downsides</dt>
+        <dd>Lecturers invest in OT that students cannot see yet — set expectations in docs.</dd>
+      </dl>
+    </article>
+
+    <article class="idea" id="i5">
+      <div class="idea-head">
+        <span class="chip rank">#5</span>
+        <span class="chip axis">Structural</span>
+        <span class="chip conf">Conf 70%</span>
+        <span class="chip cx">Cx Medium</span>
+      </div>
+      <h3>Declaring-class capture for diagnosis and filters (not primary score)</h3>
+      <p>
+        Extend reflection parsing to record <code>Method.getDeclaringClass()</code> (bridges/synthetics already skipped).
+        Use it to (a) explain dry-run failures (“signature present but declared on parent only”), and
+        (b) constrain Call-as options / eligibility. Do <em>not</em> treat declaring-class alone as override proof —
+        empty bodies still declare on the subclass.
+      </p>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> repo has zero <code>getDeclaringClass</code> usage; Class matcher is name+params only. <span class="mono">external:</span> industry structural idiom — useful but incomplete without behavior.</dd>
+        <dt>Why it matters</dt>
+        <dd>Closes the structural half of the dual-evidence gap without pretending Class tab can grade specialization.</dd>
+        <dt>Downsides</dt>
+        <dd>Verifier marked “weak” as primary proof — keep scope diagnostic. Covariant returns / bridges need care.</dd>
+      </dl>
+    </article>
+
+    <article class="idea" id="i6">
+      <div class="idea-head">
+        <span class="chip rank">#6</span>
+        <span class="chip axis">Semantic traps</span>
+        <span class="chip conf">Conf 78%</span>
+        <span class="chip cx">Cx Medium</span>
+      </div>
+      <h3>Override-eligibility predicate + trap taxonomy</h3>
+      <p>
+        Central <code>isOverrideEligible(parent, child)</code>: same name+params, non-static, parent not final,
+        declaring classes differ, bridges skipped. Surface three exclusive lecturer intents for same-name methods —
+        <strong>overload</strong> / <strong>override</strong> / <strong>hide</strong> — so authoring cannot collapse them.
+        Never trust <code>@Override</code> as runtime evidence (SOURCE retention).
+      </p>
+      <dl>
+        <dt>Basis</dt>
+        <dd><span class="mono">direct:</span> overload already disambiguated by method-id labels; no hiding vocabulary in grading docs; UI nulls dispatch so traps never surface. <span class="mono">external:</span> Oracle override vs hide; SpotBugs-style hiding checkers; <code>@Override</code> SOURCE-only.</dd>
+        <dt>Why it matters</dt>
+        <dd>Makes the classroom difficulties first-class so Call-as does not become “another signature picker.”</dd>
+        <dt>Downsides</dt>
+        <dd>Auto-companion trap suites can over-generate; start with validation messages + optional packs.</dd>
+      </dl>
+    </article>
+  </section>
+
+  <section id="difficulties">
+    <h2>Difficulty map (what makes this hard)</h2>
+    <ul>
+      <li><strong>Capability vs surface gap:</strong> worker + DB column exist; every authoring path nulls them — Composition can look polymorphic while using concrete <code>getDeclaredMethod</code>.</li>
+      <li><strong>Structural ≠ behavioral:</strong> name+params (and even declaring-class) greenlight empty overrides; only parent-typed invoke + differing expecteds prove specialization.</li>
+      <li><strong>Unit canvas mismatch:</strong> one member + hidden receiver cannot express “subclass instance, parent call site.”</li>
+      <li><strong>Vocabulary collision:</strong> overload UX is rich; override UX is absent; static hiding and bridges are undocumented traps; <code>@Override</code> is unreliable at runtime.</li>
+      <li><strong>Product-model trap:</strong> a third <code>TestcaseType</code> (or revived principle tag) contradicts CONCEPTS and the OT migrator — step capability is the appropriate shape.</li>
+      <li><strong>Student pillar timing:</strong> student OT is dark; lecturer dry-run can still validate override labs first.</li>
+    </ul>
+    <div class="callout">
+      <p class="label">Appropriate approach (compressed)</p>
+      <p>
+        Prefer <strong>#1 + #2 + #3 + #4</strong>: Composition Call-as (uncap dispatch), differential assertions,
+        behavior-first scoring, lecturer dry-run first. Add <strong>#5/#6</strong> as diagnostics and trap vocabulary —
+        not as a new OT type and not as <code>@Override</code> scraping.
+      </p>
+    </div>
+  </section>
+
+  <section id="rejection">
+    <h2>Rejection summary</h2>
+    <p>~38 raw candidates across five frames; basis-verified then arbitrated. Cuts:</p>
+    <table class="reject">
+      <thead>
+        <tr><th>Candidate</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Hard auto-infer / force dispatch from heritage</td><td>Refuted — non-unique call site; bans legitimate concrete lookup</td></tr>
+        <tr><td>New OVERRIDE / POLYMORPHISM TestcaseType</td><td>Refuted — contradicts CONCEPTS + wiped tags</td></tr>
+        <tr><td>Primary evidence = <code>@Override</code></td><td>Refuted — SOURCE retention; absent from bytecode</td></tr>
+        <tr><td>Unit auto-receiver override path</td><td>Refuted — Unit contract unfit; stay on Composition</td></tr>
+        <tr><td>Gate student OT light-up on dispatch dry-run</td><td>Refuted — blocks non-inheritance labs</td></tr>
+        <tr><td>Override Pair / <code>override_of_method_id</code> edges</td><td>Weak — schema tax; still no behavioral proof</td></tr>
+        <tr><td>Class-tab synthesizes full Composition</td><td>Weak — couples pillars; steals expecteds</td></tr>
+        <tr><td>Single-gesture wizard packaging Class+OT</td><td>Weak — hides multi-supertype edge cases</td></tr>
+        <tr><td>Cascade specificity audit chrome</td><td>Weak — debugger theater vs outcome assertions</td></tr>
+        <tr><td>Service→Endpoints metaphor alone</td><td>Refuted as product move (framing only)</td></tr>
+        <tr><td>Composition theater / overload-silence</td><td>Absorbed as diagnosis into #1 / #6</td></tr>
+        <tr><td>No-negative-cases standalone</td><td>Absorbed into #2</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="composition-signal">
+    Composed 2026-09-25 by ce-ideate (run <code>80dac456</code>) from focus
+    “method overriding testcase type — difficulties and approaches.” Fresh run; not a resume of
+    <code>docs/ideation/2026-09-25-method-overloading-testcases-ideation.html</code>.
+  </footer>
+</div>
+</body>
+</html>

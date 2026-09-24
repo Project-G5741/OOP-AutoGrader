@@ -3,6 +3,7 @@ import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
 import {
   allowedAssertionKinds,
+  callAsOptionsForReceiver,
   compositionNameRole,
   defaultExpectedValue,
   emptyAssertion,
@@ -10,6 +11,7 @@ import {
   FIELD_CLASS,
   invocationForKindChange,
   MAX_STEPS,
+  namedInstanceMatchesMethodReceiver,
   namedInstancesBefore,
   parseParamsArray,
   serializeParamsArray,
@@ -32,9 +34,15 @@ function CompositionStepEditor({
   const nameRole = compositionNameRole(step, catalog);
   const method = catalog.methodsById.get(step.methodId);
   const receiverOptions = method && !method.isStatic
-    ? namedBefore.filter((item) => item.className === method.className)
+    ? namedBefore.filter((item) => namedInstanceMatchesMethodReceiver(item.className, method.className, catalog))
+    : [];
+  const receiverMeta = namedBefore.find((item) => item.name === step.instanceName);
+  const callAsOptions = nameRole === 'receiver' && receiverMeta
+    ? callAsOptionsForReceiver(receiverMeta.className, catalog)
     : [];
   const objectReturn = nameRole === 'product' && step.invocationKind === 'METHOD';
+
+  const patchStep = (partial) => onChange({ ...step, ...partial });
 
   return (
     <div className="space-y-3 rounded border border-border p-3">
@@ -74,6 +82,7 @@ function CompositionStepEditor({
                 onChange({
                   ...step,
                   constructorId,
+                  dispatchClassId: null,
                   params: serializeParamsArray(parseParamsArray('[]', ctor?.parameters?.length || 0)),
                 });
               }}
@@ -98,6 +107,7 @@ function CompositionStepEditor({
                   methodId,
                   params: serializeParamsArray(parseParamsArray('[]', nextMethod?.parameters?.length || 0)),
                   instanceName: '',
+                  dispatchClassId: null,
                 });
               }}
             >
@@ -115,7 +125,7 @@ function CompositionStepEditor({
             <input
               className={`${FIELD_CLASS} font-mono`}
               value={step.instanceName || ''}
-              onChange={(e) => onChange({ ...step, instanceName: e.target.value })}
+              onChange={(e) => patchStep({ instanceName: e.target.value, dispatchClassId: null })}
               placeholder={objectReturn ? 'e.g. copy' : 'e.g. account'}
             />
           </label>
@@ -127,18 +137,45 @@ function CompositionStepEditor({
             <select
               className={FIELD_CLASS}
               value={step.instanceName || ''}
-              onChange={(e) => onChange({ ...step, instanceName: e.target.value })}
+              onChange={(e) => {
+                const instanceName = e.target.value;
+                const nextMeta = namedBefore.find((item) => item.name === instanceName);
+                const nextOptions = nextMeta
+                  ? callAsOptionsForReceiver(nextMeta.className, catalog)
+                  : [];
+                const keepDispatch = nextOptions.some((opt) => opt.id === step.dispatchClassId);
+                patchStep({
+                  instanceName,
+                  dispatchClassId: keepDispatch ? step.dispatchClassId : null,
+                });
+              }}
             >
               <option value="">Named instance</option>
               {receiverOptions.map((item) => (
-                <option key={item.name} value={item.name}>{item.name}</option>
+                <option key={item.name} value={item.name}>{item.name} ({item.className})</option>
               ))}
             </select>
             {receiverOptions.length === 0 && (
               <span className="mt-1 block text-xs text-warning-text">
-                Construct this class in an earlier step first.
+                Construct this class (or a subtype) in an earlier step first.
               </span>
             )}
+          </label>
+        )}
+
+        {nameRole === 'receiver' && callAsOptions.length > 0 && (
+          <label className="block text-xs text-foreground-muted sm:col-span-2">
+            Call as
+            <select
+              className={FIELD_CLASS}
+              value={step.dispatchClassId || ''}
+              onChange={(e) => patchStep({ dispatchClassId: e.target.value || null })}
+            >
+              <option value="">Concrete type (default)</option>
+              {callAsOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
           </label>
         )}
 
@@ -220,10 +257,6 @@ export default function CompositionTestcaseScript({ tc, catalog, onUpdate }) {
 
   return (
     <div className="min-w-0 space-y-3">
-      <p className="text-xs text-foreground-muted">
-        Ordered named-object script. Name constructor results and static object returns. Instance methods use a receiver name.
-      </p>
-
       {assertions.length === 0 && (
         <p className="rounded border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-text">
           Add at least one assertion on the testcase before save.

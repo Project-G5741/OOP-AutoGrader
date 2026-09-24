@@ -228,7 +228,7 @@ function normalizeInvocation(step, unit) {
     instanceName: hydrated.instanceName?.trim() || null,
     receiverConstructorId: null,
     receiverParams: '[]',
-    dispatchClassId: null,
+    dispatchClassId: hydrated.dispatchClassId || null,
   };
 }
 
@@ -450,6 +450,60 @@ function collectDescendantClassIds(rootClassId, childrenByParentId) {
     (childrenByParentId.get(id) || []).forEach((childId) => stack.push(childId));
   }
   return descendants;
+}
+
+function buildParentsByChildId(childrenByParentId) {
+  const parentsByChildId = new Map();
+  (childrenByParentId || new Map()).forEach((children, parentId) => {
+    (children || []).forEach((childId) => {
+      if (!parentsByChildId.has(childId)) parentsByChildId.set(childId, new Set());
+      parentsByChildId.get(childId).add(parentId);
+    });
+  });
+  return parentsByChildId;
+}
+
+/** Extends/Implements ancestors of a class (not including itself). */
+export function collectAncestorClassIds(rootClassId, childrenByParentId) {
+  const parentsByChildId = buildParentsByChildId(childrenByParentId);
+  const ancestors = new Set();
+  const stack = [...(parentsByChildId.get(rootClassId) || [])];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (ancestors.has(id)) continue;
+    ancestors.add(id);
+    (parentsByChildId.get(id) || []).forEach((parentId) => stack.push(parentId));
+  }
+  return ancestors;
+}
+
+/** Call-as picker options for a named receiver’s concrete class. */
+export function callAsOptionsForReceiver(receiverClassName, catalog) {
+  const receiverId = catalog?.classIdByName?.get(receiverClassName);
+  if (!receiverId) return [];
+  const ancestorIds = collectAncestorClassIds(receiverId, catalog.childrenByParentId || new Map());
+  const nameById = new Map();
+  (catalog.classIdByName || new Map()).forEach((id, name) => {
+    nameById.set(id, name);
+  });
+  return [...ancestorIds]
+    .map((id) => ({ id, name: nameById.get(id) }))
+    .filter((option) => option.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** True when an instance’s class is the method’s declaring class or a subclass/implementor. */
+export function namedInstanceMatchesMethodReceiver(instanceClassName, methodClassName, catalog) {
+  if (!instanceClassName || !methodClassName) return false;
+  if (coreTypeName(instanceClassName) === coreTypeName(methodClassName)) return true;
+  const methodClassId = catalog?.classIdByName?.get(coreTypeName(methodClassName));
+  const instanceClassId = catalog?.classIdByName?.get(coreTypeName(instanceClassName));
+  if (!methodClassId || !instanceClassId) return false;
+  const descendants = collectDescendantClassIds(
+    methodClassId,
+    catalog.childrenByParentId || new Map(),
+  );
+  return descendants.has(instanceClassId);
 }
 
 /** Whether a named instance's concrete class can be passed where the parameter type is expected. */
