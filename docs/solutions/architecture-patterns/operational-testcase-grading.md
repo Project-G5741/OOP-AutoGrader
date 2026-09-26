@@ -33,8 +33,8 @@ This learning captures the layered shape and the non-obvious failures hit during
 | Layer | Role |
 |-------|------|
 | `LabRubricService` | Batch-load invocation, instance, and assertion graph into immutable rubric records (`TestcaseRubric`, `InvocationRubric`, `AssertionRubric`). Resolve names and param types from pre-fetched maps — never traverse lazy associations after the repository session closes. |
-| `TestcaseGrader` | Per-testcase orchestrator: compile-error short-circuit, run invocation or comparison once, evaluate every assertion, pick primary display via `PrimaryAssertionSelector`, emit `PendingTestcaseResult`. |
-| `InvocationRunner` | IPC facade: send one NDJSON request to the isolated worker JVM and decode snapshots. Does not `Class.forName` student types in the API. |
+| `TestcaseGrader` | Per-challenge orchestrator: compile-error short-circuit, one `batch` round-trip for runnable OT, evaluate every assertion, pick primary display via `PrimaryAssertionSelector`, emit `PendingTestcaseResult`. |
+| `InvocationRunner` | IPC facade: send one NDJSON `batch` (or legacy `invoke`/`scenario`) to the isolated worker JVM and decode snapshots. Does not `Class.forName` student types in the API. |
 | `AssertionEvaluator` | One evaluator per `AssertionKind`; FIELD_STATE and EXCEPTION use serialized snapshots, not live student objects. |
 | `GradingService.buildTestcaseResult` | Upsert `submission_testcase_result` and child `submission_testcase_assertion_result` rows by natural keys (testcase id, assertion id). |
 

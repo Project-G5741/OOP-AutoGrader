@@ -1,8 +1,10 @@
 package com.eiu.capstone.backend.grading.testcase;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
@@ -14,6 +16,9 @@ import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
  */
 public final class WorkerSessionHandle implements AutoCloseable {
 
+    /** Extra seconds beyond execution budget so result return does not consume the invoke timeout. */
+    public static final int RETURN_SLACK_SECONDS = 30;
+
     private final WorkerProcessClient client;
     private final int timeoutSeconds;
     private final Object lock = new Object();
@@ -22,8 +27,9 @@ public final class WorkerSessionHandle implements AutoCloseable {
     private String spawnFailure;
     private final AtomicInteger respawns = new AtomicInteger();
     private final long spawnMs;
-    private final UnaryOperator<String> classesDirMapper;
+    private UnaryOperator<String> classesDirMapper;
     private final boolean remote;
+    private final Supplier<RemoteSessionParts> remoteReopen;
 
     private WorkerSessionHandle(WorkerProcessClient client,
                                 int timeoutSeconds,
@@ -32,7 +38,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                                 long spawnMs,
                                 List<String> restartCommand,
                                 UnaryOperator<String> classesDirMapper,
-                                boolean remote) {
+                                boolean remote,
+                                Supplier<RemoteSessionParts> remoteReopen) {
         this.client = client;
         this.timeoutSeconds = timeoutSeconds;
         this.session = session;
@@ -41,16 +48,17 @@ public final class WorkerSessionHandle implements AutoCloseable {
         this.restartCommand = restartCommand;
         this.classesDirMapper = classesDirMapper == null ? UnaryOperator.identity() : classesDirMapper;
         this.remote = remote;
+        this.remoteReopen = remoteReopen;
     }
 
     public static WorkerSessionHandle start(WorkerProcessClient client, int timeoutSeconds) {
         long started = System.currentTimeMillis();
         try {
             return new WorkerSessionHandle(client, timeoutSeconds, client.start(), null,
-                    System.currentTimeMillis() - started, null, UnaryOperator.identity(), false);
+                    System.currentTimeMillis() - started, null, UnaryOperator.identity(), false, null);
         } catch (WorkerSpawnException e) {
             return new WorkerSessionHandle(client, timeoutSeconds, null, e.getMessage(),
-                    System.currentTimeMillis() - started, null, UnaryOperator.identity(), false);
+                    System.currentTimeMillis() - started, null, UnaryOperator.identity(), false, null);
         }
     }
 
@@ -60,10 +68,10 @@ public final class WorkerSessionHandle implements AutoCloseable {
         long started = System.currentTimeMillis();
         try {
             return new WorkerSessionHandle(client, timeoutSeconds, client.startCommand(command), null,
-                    System.currentTimeMillis() - started, command, UnaryOperator.identity(), false);
+                    System.currentTimeMillis() - started, command, UnaryOperator.identity(), false, null);
         } catch (WorkerSpawnException e) {
             return new WorkerSessionHandle(client, timeoutSeconds, null, e.getMessage(),
-                    System.currentTimeMillis() - started, command, UnaryOperator.identity(), false);
+                    System.currentTimeMillis() - started, command, UnaryOperator.identity(), false, null);
         }
     }
 
@@ -72,12 +80,21 @@ public final class WorkerSessionHandle implements AutoCloseable {
                                                      UnaryOperator<String> classesDirMapper,
                                                      long spawnMs,
                                                      boolean remote) {
+        return startTransport(transport, timeoutSeconds, classesDirMapper, spawnMs, remote, null);
+    }
+
+    public static WorkerSessionHandle startTransport(WorkerTransport transport,
+                                                     int timeoutSeconds,
+                                                     UnaryOperator<String> classesDirMapper,
+                                                     long spawnMs,
+                                                     boolean remote,
+                                                     Supplier<RemoteSessionParts> remoteReopen) {
         return new WorkerSessionHandle(null, timeoutSeconds, new WorkerSession(transport), null,
-                spawnMs, null, classesDirMapper, remote);
+                spawnMs, null, classesDirMapper, remote, remoteReopen);
     }
 
     public static WorkerSessionHandle failedRemote(String message, long spawnMs) {
-        return new WorkerSessionHandle(null, 5, null, message, spawnMs, null, UnaryOperator.identity(), true);
+        return new WorkerSessionHandle(null, 5, null, message, spawnMs, null, UnaryOperator.identity(), true, null);
     }
 
     public long spawnMs() {
@@ -86,6 +103,10 @@ public final class WorkerSessionHandle implements AutoCloseable {
 
     public int respawnCount() {
         return respawns.get();
+    }
+
+    public int timeoutSeconds() {
+        return timeoutSeconds;
     }
 
     public SerializedInvocationOutcome invoke(String classesDir,
@@ -98,13 +119,20 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 null,
                 snapshotFieldNames,
                 WorkerIpc.DEFAULT_STDOUT_CAP);
-        return roundTrip(request);
+        SerializedInvocationOutcome outcome = roundTrip(request, transportWaitSeconds(1));
+        if (WorkerIpc.shouldAbortSession(outcome)) {
+            synchronized (lock) {
+                clearSessionLocked();
+                respawnLocked();
+            }
+        }
+        return outcome;
     }
 
     public SerializedInvocationOutcome scenario(String classesDir,
                                                 List<InvocationRubric> steps,
                                                 List<String> snapshotFieldNames) {
-        List<WorkerIpc.ScenarioStepSpec> specs = new java.util.ArrayList<>();
+        List<WorkerIpc.ScenarioStepSpec> specs = new ArrayList<>();
         if (steps != null) {
             for (InvocationRubric step : steps) {
                 specs.add(toScenarioStep(step));
@@ -118,10 +146,99 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 snapshotFieldNames,
                 WorkerIpc.DEFAULT_STDOUT_CAP,
                 specs);
-        return roundTrip(request);
+        SerializedInvocationOutcome outcome = roundTrip(request, transportWaitSeconds(1));
+        if (WorkerIpc.shouldAbortSession(outcome)) {
+            synchronized (lock) {
+                clearSessionLocked();
+                respawnLocked();
+            }
+        }
+        return outcome;
     }
 
-    private SerializedInvocationOutcome roundTrip(WorkerIpc.Request request) {
+    /**
+     * One or more round-trips until every item has an outcome. After a hang timeout the worker
+     * process is killed (worker halt + local close) and remaining items run on a fresh JVM.
+     */
+    public SerializedInvocationOutcome batch(String classesDir, List<WorkerIpc.BatchItemSpec> items) {
+        if (items == null || items.isEmpty()) {
+            return SerializedInvocationOutcome.error("Missing batch items");
+        }
+        List<SerializedInvocationOutcome> merged = new ArrayList<>(items.size());
+        int offset = 0;
+        while (offset < items.size()) {
+            List<WorkerIpc.BatchItemSpec> slice = items.subList(offset, items.size());
+            WorkerIpc.Request request = new WorkerIpc.Request(
+                    WorkerIpc.OP_BATCH,
+                    classesDirMapper.apply(classesDir),
+                    null,
+                    null,
+                    null,
+                    WorkerIpc.DEFAULT_STDOUT_CAP,
+                    null,
+                    slice,
+                    Math.max(1, timeoutSeconds));
+            SerializedInvocationOutcome partial = roundTrip(request, transportWaitSeconds(slice.size()));
+            if (partial == null) {
+                return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
+            }
+            if (SerializedInvocationOutcome.KIND_ERROR.equals(partial.kind())
+                    && (partial.batch() == null || partial.batch().isEmpty())) {
+                if (merged.isEmpty()) {
+                    return partial;
+                }
+                while (merged.size() < items.size()) {
+                    merged.add(SerializedInvocationOutcome.error(
+                            partial.errorMessage() != null ? partial.errorMessage() : SandboxInfraErrors.STUDENT_MESSAGE));
+                }
+                return SerializedInvocationOutcome.batchOf(merged);
+            }
+            if (SerializedInvocationOutcome.KIND_TIMED_OUT.equals(partial.kind())
+                    && (partial.batch() == null || partial.batch().isEmpty())) {
+                // Outer transport timeout — remaining unknown.
+                while (merged.size() < items.size()) {
+                    merged.add(SerializedInvocationOutcome.timedOut("", false));
+                }
+                synchronized (lock) {
+                    clearSessionLocked();
+                    respawnLocked();
+                }
+                return SerializedInvocationOutcome.batchOf(merged);
+            }
+            List<SerializedInvocationOutcome> part = partial.batch() == null ? List.of() : partial.batch();
+            merged.addAll(part);
+            offset = merged.size();
+            boolean timedOut = WorkerIpc.shouldAbortSession(partial);
+            if (!timedOut) {
+                break;
+            }
+            synchronized (lock) {
+                clearSessionLocked();
+                if (offset >= items.size()) {
+                    respawnLocked();
+                    break;
+                }
+                respawnLocked();
+                if (session == null || !session.isAlive()) {
+                    while (merged.size() < items.size()) {
+                        merged.add(SerializedInvocationOutcome.timedOut("", false));
+                    }
+                    break;
+                }
+            }
+        }
+        return SerializedInvocationOutcome.batchOf(merged);
+    }
+
+    static int transportWaitSeconds(int itemCount, int timeoutSeconds) {
+        return Math.max(1, Math.max(1, itemCount) * Math.max(1, timeoutSeconds) + RETURN_SLACK_SECONDS);
+    }
+
+    private int transportWaitSeconds(int itemCount) {
+        return transportWaitSeconds(itemCount, timeoutSeconds);
+    }
+
+    private SerializedInvocationOutcome roundTrip(WorkerIpc.Request request, int waitSeconds) {
         synchronized (lock) {
             if (session == null || !session.isAlive()) {
                 maybeRespawnLocked();
@@ -139,7 +256,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
             try {
                 session.writeLine(json);
                 String line = session.readLine(
-                        Duration.ofSeconds(Math.max(1, timeoutSeconds)),
+                        Duration.ofSeconds(Math.max(1, waitSeconds)),
                         WorkerProcessClient.IPC_LINE_CAP_BYTES);
                 if (line == null) {
                     maybeRespawnLocked();
@@ -164,20 +281,43 @@ public final class WorkerSessionHandle implements AutoCloseable {
         }
     }
 
-    private void maybeRespawnLocked() {
-        if (!remote) {
-            respawnLocked();
-        }
-    }
-
-    private void respawnLocked() {
-        if (remote) {
-            session = null;
-            return;
-        }
+    private void clearSessionLocked() {
         if (session != null) {
             session.close();
             session = null;
+        }
+    }
+
+    private void maybeRespawnLocked() {
+        respawnLocked();
+    }
+
+    private void respawnLocked() {
+        clearSessionLocked();
+        if (remote) {
+            if (remoteReopen == null) {
+                return;
+            }
+            try {
+                RemoteSessionParts parts = remoteReopen.get();
+                if (parts == null || parts.transport() == null) {
+                    spawnFailure = SandboxInfraErrors.STUDENT_MESSAGE;
+                    return;
+                }
+                session = new WorkerSession(parts.transport());
+                if (parts.classesDirMapper() != null) {
+                    classesDirMapper = parts.classesDirMapper();
+                }
+                spawnFailure = null;
+                respawns.incrementAndGet();
+            } catch (RuntimeException e) {
+                session = null;
+                spawnFailure = e.getMessage() != null ? e.getMessage() : SandboxInfraErrors.STUDENT_MESSAGE;
+            }
+            return;
+        }
+        if (client == null) {
+            return;
         }
         try {
             session = restartCommand != null ? client.startCommand(restartCommand) : client.start();
@@ -194,10 +334,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
     @Override
     public void close() {
         synchronized (lock) {
-            if (session != null) {
-                session.close();
-                session = null;
-            }
+            clearSessionLocked();
         }
     }
 
@@ -213,7 +350,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.receiverParamsJson());
     }
 
-    private static WorkerIpc.ScenarioStepSpec toScenarioStep(InvocationRubric invocation) {
+    static WorkerIpc.ScenarioStepSpec toScenarioStep(InvocationRubric invocation) {
         return new WorkerIpc.ScenarioStepSpec(
                 invocation.kind().name(),
                 invocation.className(),
@@ -226,5 +363,11 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.instanceName(),
                 invocation.dispatchClassName());
     }
-}
 
+    /**
+     * Fresh remote transport + classes-dir mapper after a hang kill.
+     */
+    public record RemoteSessionParts(
+            com.eiu.capstone.backend.grading.testcase.transport.WorkerTransport transport,
+            UnaryOperator<String> classesDirMapper) {}
+}

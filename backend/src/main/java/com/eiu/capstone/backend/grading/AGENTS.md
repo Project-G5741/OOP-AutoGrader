@@ -90,11 +90,11 @@ SubmissionController
 - UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps
 - Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
-- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances). `compare` is not used. `TestcaseGrader` uses `invokeScenario` for UNIT and COMPOSITION
-- Whole-scenario timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget for the `scenario` op
+- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (per-challenge list of scenarios). `compare` is not used. `TestcaseGrader` uses one `batch` round-trip per challenge (dry-run: one-item batch)
+- Whole-scenario execution timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget per batch item; later items still run after a TIMED_OUT item
 - Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
 - Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step
 - Constructor stdout is not evaluated (save already 422s it)

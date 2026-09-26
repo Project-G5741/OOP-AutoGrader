@@ -9,7 +9,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 | File | Role |
 |---|---|
 | `WorkerMain.java` | `main`; retains stdin/stdout for IPC before any `System.setOut` |
-| `WorkerIpc.java` | NDJSON ops `invoke`, `scenario`; request/response records |
+| `WorkerIpc.java` | NDJSON ops `invoke`, `scenario`, `batch`; request/response records |
 | `WorkerInvokeEngine.java` | Reflection invoke and named-instance scenario |
 
 ## Local Contracts
@@ -20,13 +20,13 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - Default path is the NDJSON IPC loop (`WorkerIpc` → `WorkerInvokeEngine`). Student classes load only in this JVM.
 - IPC stdout is UTF-8 NDJSON; one request line in, one response line out. The API must decode those bytes as UTF-8.
 - Worker JAR must not contain `org.springframework` types.
-- Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader). `compare` is unused.
+- Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios for one challenge). `compare` is unused.
 - `scenario` looks up a method on `dispatchClassName` when set, then `invoke`s it on the named receiver so dynamic dispatch runs. Without dispatch, keep concrete-class `getDeclaredMethod` lookup.
 - Params may include `{"$instance":"<name>"}`; live objects never round-trip as JSON.
 - Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 - Any step `THREW`, `ERROR`, or `TIMED_OUT`: omit later steps. Completed scenario top-level `kind` is `NORMAL` (facts in `steps`) or `ERROR`/`TIMED_OUT` for whole-op failure.
 - Worker facts for object checks: `objectTypeSimpleName`, `objectFieldSnapshotsJson` (one-level literals), `equalsNamed` (this object vs other registry names).
-- Whole-scenario timeout is the existing session `readLine` budget (`app.grading.testcase-invoke-timeout-seconds`); one round-trip, no per-step kill/respawn.
+- Whole-scenario / per-batch-item execution timeout is enforced inside the worker (`Future.get` on `timeoutSeconds` from the request). On hang timeout the worker **stops the batch**, writes the partial response, then `Runtime.halt(0)` so interrupt-immune tight loops die with the process. The API transport wait is `itemCount × timeoutSeconds + 30s` return slack; after a timeout abort it respawns (local, or remote reopen) and continues remaining items.
 - Never emit `passed`. Wire `kind` is a string (`KIND_NORMAL`), not the API enum.
 
 ## Work Guidance

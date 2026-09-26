@@ -148,6 +148,39 @@ class IsolatedWorkerAeTest {
                     context(classesDir, handle), methodInvoke("Ok", "value"), List.of());
             assertEquals(InvocationOutcomeKind.NORMAL, later.kind(), later.errorMessage());
             assertEquals(7, later.returnValue());
+            assertTrue(handle.respawnCount() >= 1, "hang should kill worker and respawn");
+        }
+    }
+
+    @Test
+    void batchHangThenOkContinuesOnRespawnedWorker() throws Exception {
+        Path classesDir = compile(Map.of(
+                "Hang.java", """
+                        public class Hang {
+                            public int spin() {
+                                while (true) {
+                                    Thread.onSpinWait();
+                                }
+                            }
+                        }
+                        """,
+                "Ok.java", """
+                        public class Ok {
+                            public int value() { return 7; }
+                        }
+                        """));
+        try (WorkerSessionHandle handle = startWorker(1)) {
+            InvocationRunner runner = new InvocationRunner(new JsonValueCoercer());
+            List<List<InvocationOutcome>> outcomes = runner.invokeBatch(
+                    context(classesDir, handle),
+                    List.of(
+                            new InvocationRunner.BatchItem(List.of(methodInvoke("Hang", "spin")), List.of()),
+                            new InvocationRunner.BatchItem(List.of(methodInvoke("Ok", "value")), List.of())));
+            assertEquals(2, outcomes.size());
+            assertEquals(InvocationOutcomeKind.TIMED_OUT, outcomes.get(0).get(0).kind());
+            assertEquals(InvocationOutcomeKind.NORMAL, outcomes.get(1).get(0).kind());
+            assertEquals(7, outcomes.get(1).get(0).returnValue());
+            assertTrue(handle.respawnCount() >= 1);
         }
     }
 

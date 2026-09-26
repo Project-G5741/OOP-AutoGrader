@@ -22,7 +22,8 @@ public record SerializedInvocationOutcome(
         String objectTypeSimpleName,
         Map<String, String> objectFieldSnapshotsJson,
         Map<String, Boolean> equalsNamed,
-        List<SerializedInvocationOutcome> steps) {
+        List<SerializedInvocationOutcome> steps,
+        List<SerializedInvocationOutcome> batch) {
 
     public static final String KIND_ERROR = "ERROR";
     public static final String KIND_NORMAL = "NORMAL";
@@ -60,6 +61,7 @@ public record SerializedInvocationOutcome(
                 null,
                 Map.of(),
                 Map.of(),
+                null,
                 null);
     }
 
@@ -87,7 +89,8 @@ public record SerializedInvocationOutcome(
                 null,
                 Map.of(),
                 Map.of(),
-                steps);
+                steps,
+                null);
     }
 
     public static SerializedInvocationOutcome error(String message) {
@@ -98,5 +101,23 @@ public record SerializedInvocationOutcome(
     public static SerializedInvocationOutcome timedOut(String stdout, boolean truncated) {
         return new SerializedInvocationOutcome(
                 KIND_TIMED_OUT, null, stdout, truncated, Map.of(), null, List.of(), null, "Invocation timed out");
+    }
+
+    public static SerializedInvocationOutcome batchOf(List<SerializedInvocationOutcome> items) {
+        return new SerializedInvocationOutcome(
+                KIND_NORMAL,
+                null,
+                "",
+                false,
+                Map.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                Map.of(),
+                Map.of(),
+                null,
+                items == null ? List.of() : List.copyOf(items));
     }
 }
