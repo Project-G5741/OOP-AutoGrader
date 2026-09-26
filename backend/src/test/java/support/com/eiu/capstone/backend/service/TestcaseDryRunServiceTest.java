@@ -122,7 +122,7 @@ class TestcaseDryRunServiceTest {
                 new TestcaseResultMapper(displayFormatter, primaryAssertionSelector),
                 new Semaphore(1),
                 new WorkerSessionFactory(false,
-                        new WorkerProcessClient("java", "missing-worker.jar"),
+                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
                 5);
 
@@ -188,7 +188,7 @@ class TestcaseDryRunServiceTest {
                 mapper,
                 new Semaphore(1),
                 new WorkerSessionFactory(false,
-                        new WorkerProcessClient("java", "missing-worker.jar"),
+                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
                 5);
     }

@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.eiu.capstone.backend.grading.testcase.transport.ProcessWorkerTransport;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -22,14 +23,53 @@ public class WorkerProcessClient {
     public static final String METASPACE_FLAG = "-XX:MaxMetaspaceSize=48m";
     public static final String EXIT_ON_OOM_FLAG = "-XX:+ExitOnOutOfMemoryError";
 
+    /** Docker image layout (see backend/Dockerfile). Tried when configured path is missing. */
+    public static final String DOCKER_WORKER_JAR = "/app/worker.jar";
+    /** Local Maven package output relative to backend/. Tried after the Docker path. */
+    public static final String LOCAL_WORKER_JAR = "target/backend-1.0.0-worker.jar";
+
     private final String javaBinary;
     private final Path workerJar;
 
+    @Autowired
     public WorkerProcessClient(
             @Value("${app.grading.worker-java:java}") String javaBinary,
             @Value("${app.grading.worker-jar:/app/worker.jar}") String workerJar) {
+        this(javaBinary, resolveWorkerJar(workerJar));
+    }
+
+    /** Explicit resolved path (tests); skips configured/fallback resolution. */
+    public WorkerProcessClient(String javaBinary, Path workerJar) {
         this.javaBinary = javaBinary;
-        this.workerJar = Path.of(workerJar);
+        this.workerJar = workerJar;
+    }
+
+    /**
+     * Prefer the configured path when it exists. Otherwise fall back to the Docker image
+     * layout, then the local Maven artifact — so a Render env copied from local
+     * {@code WORKER_JAR=target/...} still finds {@code /app/worker.jar}.
+     */
+    static Path resolveWorkerJar(String configured) {
+        return resolveWorkerJar(configured, List.of(DOCKER_WORKER_JAR, LOCAL_WORKER_JAR));
+    }
+
+    /** Tests inject fallback candidates via this overload. */
+    public static Path resolveWorkerJar(String configured, List<String> fallbacks) {
+        Path configuredPath = Path.of(configured == null || configured.isBlank()
+                ? DOCKER_WORKER_JAR
+                : configured.trim());
+        if (Files.isRegularFile(configuredPath)) {
+            return configuredPath.toAbsolutePath().normalize();
+        }
+        if (fallbacks != null) {
+            for (String candidate : fallbacks) {
+                Path path = Path.of(candidate);
+                if (Files.isRegularFile(path)) {
+                    return path.toAbsolutePath().normalize();
+                }
+            }
+        }
+        return configuredPath;
     }
 
     public List<String> productionCommand(String... workerArgs) {

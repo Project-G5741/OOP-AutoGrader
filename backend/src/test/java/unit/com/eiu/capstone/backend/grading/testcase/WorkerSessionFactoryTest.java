@@ -22,7 +22,7 @@ class WorkerSessionFactoryTest {
     void sandboxEnabledWithoutRootReturnsFailedRemote() {
         WorkerSessionFactory factory = new WorkerSessionFactory(
                 true,
-                new WorkerProcessClient("java", "missing-worker.jar"),
+                new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                 mock(RemoteWorkerSessionClient.class));
         try (WorkerSessionHandle handle = factory.open(null, 5)) {
             SerializedInvocationOutcome outcome = handle.invoke(
@@ -50,7 +50,7 @@ class WorkerSessionFactoryTest {
     void sandboxDisabledUsesLocalWorker() {
         WorkerSessionFactory factory = new WorkerSessionFactory(
                 false,
-                new WorkerProcessClient("java", "missing-worker.jar"),
+                new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                 mock(RemoteWorkerSessionClient.class));
         assertFalse(factory.isSandboxEnabled());
         try (WorkerSessionHandle handle = factory.open(Path.of("."), 5)) {
