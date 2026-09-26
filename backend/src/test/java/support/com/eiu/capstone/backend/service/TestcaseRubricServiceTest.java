@@ -172,6 +172,23 @@ class TestcaseRubricServiceTest {
                             .filter(row -> ids.contains(row.getTestcase().getId()))
                             .toList();
                 });
+        doAnswer(inv -> {
+            Class<?> type = inv.getArgument(0);
+            UUID id = inv.getArgument(1);
+            if (type == Method.class) {
+                return methodRepository.findById(id).orElse(null);
+            }
+            if (type == Constructor.class) {
+                return constructorRepository.findById(id).orElse(null);
+            }
+            if (type == Field.class) {
+                return fieldRepository.findById(id).orElse(null);
+            }
+            if (type == ClassEntity.class) {
+                return classEntityRepository.findById(id).orElse(null);
+            }
+            return null;
+        }).when(entityManager).getReference(any(), any());
 
         labId = UUID.randomUUID();
         challengeId = UUID.randomUUID();
@@ -1060,6 +1077,8 @@ class TestcaseRubricServiceTest {
 
     private void stubChallengeAndMembers() {
         when(challengeRepository.findById(challengeId)).thenReturn(Optional.of(challenge));
+        when(challengeRepository.findAllById(any())).thenReturn(List.of(challenge));
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of(classEntity));
         when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(List.of(classEntity));
         when(constructorRepository.findByClassEntityInWithDeclaration(List.of(classEntity)))
                 .thenReturn(List.of(constructor));
@@ -1151,6 +1170,7 @@ class TestcaseRubricServiceTest {
                                   List<Constructor> constructors,
                                   List<Method> methods,
                                   List<Parameter> constructorParams) {
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(classes);
         when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(classes);
         when(constructorRepository.findByClassEntityInWithDeclaration(classes)).thenReturn(constructors);
         when(methodRepository.findByClassEntityInWithDeclaration(classes)).thenReturn(methods);
