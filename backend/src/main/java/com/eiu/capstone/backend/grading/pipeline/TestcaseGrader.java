@@ -30,6 +30,7 @@ import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Component
 public class TestcaseGrader {
@@ -50,7 +51,13 @@ public class TestcaseGrader {
     }
 
     public PendingTestcaseResult gradeSingle(TestcaseRubric testcase, ChallengeGradingContext context) {
-        return evaluate(testcase, context).pending();
+        long started = System.currentTimeMillis();
+        try {
+            return evaluate(testcase, context).pending();
+        } finally {
+            // TEMP: remove after OT warm-path timing check
+            TimingLog.line(true, "OT single " + testcaseLabel(testcase), System.currentTimeMillis() - started);
+        }
     }
 
     public TestcasePillarResult grade(ChallengeGradingContext context) {
@@ -58,9 +65,40 @@ public class TestcaseGrader {
         List<PendingTestcaseResult> results = new ArrayList<>();
         ChallengeRubric rubric = context.challengeRubric();
 
+        List<TestcaseRubric> runnable = new ArrayList<>();
+        List<Evaluation> earlyByIndex = new ArrayList<>();
         for (TestcaseRubric testcase : rubric.testcases()) {
+            Evaluation early = earlyShortCircuit(testcase, context);
+            earlyByIndex.add(early);
+            if (early == null) {
+                runnable.add(testcase);
+            }
+        }
+
+        List<List<InvocationOutcome>> batchOutcomes = List.of();
+        if (!runnable.isEmpty()) {
+            long invokeStarted = System.currentTimeMillis();
+            batchOutcomes = invocationRunner.invokeBatch(
+                    context, runnable.stream().map(this::toBatchItem).toList());
+            // TEMP: remove after OT warm-path timing check
+            if (runnable.size() == 1) {
+                TimingLog.line(true, "OT single invoke " + testcaseLabel(runnable.get(0)),
+                        System.currentTimeMillis() - invokeStarted);
+            }
+        }
+
+        int runnableIndex = 0;
+        for (int i = 0; i < rubric.testcases().size(); i++) {
+            TestcaseRubric testcase = rubric.testcases().get(i);
             int weight = MemberWeightCalculator.testcaseWeight(testcase.weight());
-            Evaluation evaluation = evaluate(testcase, context);
+            Evaluation evaluation = earlyByIndex.get(i);
+            if (evaluation == null) {
+                List<InvocationOutcome> outcomes = runnableIndex < batchOutcomes.size()
+                        ? batchOutcomes.get(runnableIndex)
+                        : List.of();
+                runnableIndex++;
+                evaluation = finishEvaluate(testcase, outcomes);
+            }
             weighted.add(new WeightedAccuracy(weight, evaluation.accuracy()));
             results.add(evaluation.pending());
         }
@@ -72,6 +110,26 @@ public class TestcaseGrader {
     }
 
     private Evaluation evaluate(TestcaseRubric testcase, ChallengeGradingContext context) {
+        Evaluation early = earlyShortCircuit(testcase, context);
+        if (early != null) {
+            return early;
+        }
+        List<List<InvocationOutcome>> batch = invocationRunner.invokeBatch(context, List.of(toBatchItem(testcase)));
+        List<InvocationOutcome> outcomes = batch.isEmpty() ? List.of() : batch.get(0);
+        return finishEvaluate(testcase, outcomes);
+    }
+
+    private static String testcaseLabel(TestcaseRubric testcase) {
+        if (testcase == null) {
+            return "?";
+        }
+        if (testcase.name() != null && !testcase.name().isBlank()) {
+            return testcase.name();
+        }
+        return testcase.id() != null ? testcase.id().toString() : "?";
+    }
+
+    private Evaluation earlyShortCircuit(TestcaseRubric testcase, ChallengeGradingContext context) {
         if (context.compileError() != null && !context.compileError().isBlank()) {
             return compileErrorEvaluation(testcase, context.compileError());
         }
@@ -81,16 +139,27 @@ public class TestcaseGrader {
                     failedType, CompileErrorMessage.see(failedType)));
             return compileErrorEvaluation(testcase, message);
         }
-
         List<InvocationRubric> steps = prepareSteps(testcase);
         if (steps.isEmpty()) {
             return infrastructureError(testcase, "Missing invocation rubric", null);
         }
+        return null;
+    }
+
+    private InvocationRunner.BatchItem toBatchItem(TestcaseRubric testcase) {
+        List<InvocationRubric> steps = prepareSteps(testcase);
         List<String> snapshotFields = testcase.assertions().stream()
                 .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
                 .map(AssertionRubric::fieldName)
                 .toList();
-        List<InvocationOutcome> outcomes = invocationRunner.invokeScenario(context, steps, snapshotFields);
+        return new InvocationRunner.BatchItem(steps, snapshotFields);
+    }
+
+    private Evaluation finishEvaluate(TestcaseRubric testcase, List<InvocationOutcome> outcomes) {
+        List<InvocationRubric> steps = prepareSteps(testcase);
+        if (steps.isEmpty()) {
+            return infrastructureError(testcase, "Missing invocation rubric", null);
+        }
         if (outcomes == null || outcomes.isEmpty()) {
             return infrastructureError(testcase, "Invocation failed", steps.get(0));
         }

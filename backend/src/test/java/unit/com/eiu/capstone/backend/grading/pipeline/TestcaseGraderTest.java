@@ -209,8 +209,8 @@ class TestcaseGraderTest {
 
         com.eiu.capstone.backend.grading.testcase.InvocationRunner runner =
                 org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.InvocationRunner.class);
-        org.mockito.Mockito.when(runner.invokeScenario(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of(com.eiu.capstone.backend.grading.testcase.InvocationOutcome.normal(null, "", false, Map.of())));
+        org.mockito.Mockito.when(runner.invokeBatch(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(List.of(com.eiu.capstone.backend.grading.testcase.InvocationOutcome.normal(null, "", false, Map.of()))));
         com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter formatter =
                 org.mockito.Mockito.mock(com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter.class);
         org.mockito.Mockito.when(formatter.formatInput(org.mockito.ArgumentMatchers.any())).thenReturn("in");
@@ -222,8 +222,8 @@ class TestcaseGraderTest {
         TestcaseGrader.PendingTestcaseResult result =
                 new TestcaseGrader(runner, null, selector, formatter).gradeSingle(testcase, context);
 
-        org.mockito.Mockito.verify(runner).invokeScenario(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(runner).invokeBatch(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         assertTrue(result.feedback() == null || !result.feedback().startsWith("Compilation error:"));
     }
 
@@ -447,8 +447,7 @@ class TestcaseGraderTest {
                 .gradeSingle(testcase, context(testcase));
 
         assertEquals(TestcaseResultStatus.PASSED, result.status());
-        org.mockito.Mockito.verify(runner).invokeScenario(
-                org.mockito.ArgumentMatchers.any(),
+        org.mockito.Mockito.verify(runner).invokeBatch(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any());
     }
@@ -497,13 +496,12 @@ class TestcaseGraderTest {
                 .gradeSingle(testcase, context(testcase));
 
         assertEquals(TestcaseResultStatus.PASSED, result.status());
-        org.mockito.ArgumentCaptor<List<InvocationRubric>> stepsCaptor =
+        org.mockito.ArgumentCaptor<List<InvocationRunner.BatchItem>> itemsCaptor =
                 org.mockito.ArgumentCaptor.forClass(List.class);
-        org.mockito.Mockito.verify(runner).invokeScenario(
+        org.mockito.Mockito.verify(runner).invokeBatch(
                 org.mockito.ArgumentMatchers.any(),
-                stepsCaptor.capture(),
-                org.mockito.ArgumentMatchers.any());
-        InvocationRubric sent = stepsCaptor.getValue().get(0);
+                itemsCaptor.capture());
+        InvocationRubric sent = itemsCaptor.getValue().get(0).steps().get(0);
         assertEquals("BankAccount", sent.receiverClassName());
         assertEquals(List.of(), sent.receiverParameterTypes());
         assertEquals("[]", sent.receiverParamsJson());
@@ -527,14 +525,13 @@ class TestcaseGraderTest {
                 .gradeSingle(testcase, context(testcase));
 
         assertEquals(TestcaseResultStatus.PASSED, result.status());
-        org.mockito.ArgumentCaptor<List<InvocationRubric>> stepsCaptor =
+        org.mockito.ArgumentCaptor<List<InvocationRunner.BatchItem>> itemsCaptor =
                 org.mockito.ArgumentCaptor.forClass(List.class);
-        org.mockito.Mockito.verify(runner).invokeScenario(
+        org.mockito.Mockito.verify(runner).invokeBatch(
                 org.mockito.ArgumentMatchers.any(),
-                stepsCaptor.capture(),
-                org.mockito.ArgumentMatchers.any());
-        assertTrue(stepsCaptor.getValue().get(1).paramsJson().contains("$instance"));
-        assertTrue(stepsCaptor.getValue().get(1).paramsJson().contains("eng"));
+                itemsCaptor.capture());
+        assertTrue(itemsCaptor.getValue().get(0).steps().get(1).paramsJson().contains("$instance"));
+        assertTrue(itemsCaptor.getValue().get(0).steps().get(1).paramsJson().contains("eng"));
     }
 
     @Test
@@ -661,6 +658,10 @@ class TestcaseGraderTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(outcomes);
+        org.mockito.Mockito.when(runner.invokeBatch(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(outcomes));
         if (!outcomes.isEmpty()) {
             org.mockito.Mockito.when(runner.invokeSingle(
                     org.mockito.ArgumentMatchers.any(),

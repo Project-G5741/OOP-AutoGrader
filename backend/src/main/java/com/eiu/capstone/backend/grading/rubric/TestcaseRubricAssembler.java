@@ -36,24 +36,35 @@ public class TestcaseRubricAssembler {
     private final FieldRepository fieldRepository;
     private final ParameterRepository parameterRepository;
     private final TestcaseRubricService testcaseRubricService;
+    private final DryRunChallengeCatalogCache dryRunChallengeCatalogCache;
 
     public TestcaseRubricAssembler(ClassEntityRepository classEntityRepository,
                                    ConstructorRepository constructorRepository,
                                    MethodRepository methodRepository,
                                    FieldRepository fieldRepository,
                                    ParameterRepository parameterRepository,
-                                   TestcaseRubricService testcaseRubricService) {
+                                   TestcaseRubricService testcaseRubricService,
+                                   DryRunChallengeCatalogCache dryRunChallengeCatalogCache) {
         this.classEntityRepository = classEntityRepository;
         this.constructorRepository = constructorRepository;
         this.methodRepository = methodRepository;
         this.fieldRepository = fieldRepository;
         this.parameterRepository = parameterRepository;
         this.testcaseRubricService = testcaseRubricService;
+        this.dryRunChallengeCatalogCache = dryRunChallengeCatalogCache;
     }
 
     public TestcaseRubric assemble(UUID challengeId, TestcaseStructureDTO dto) {
-        testcaseRubricService.validatePayload(challengeId, dto);
-        MemberMaps maps = loadMemberMaps(challengeId);
+        return assemble(null, challengeId, dto);
+    }
+
+    /**
+     * Dry-run assemble. When {@code labId} is set, lab ownership is checked only on a cold
+     * catalog load; warm cache hits are in-memory (no Neon).
+     */
+    public TestcaseRubric assemble(UUID labId, UUID challengeId, TestcaseStructureDTO dto) {
+        testcaseRubricService.validatePayload(labId, challengeId, dto);
+        MemberMaps maps = loadMemberMaps(labId, challengeId);
         UUID testcaseId = dto.id() != null ? dto.id() : UUID.randomUUID();
 
         List<InvocationStructureDTO> steps = TestcaseRubricService.resolvedInvocations(dto);
@@ -170,7 +181,11 @@ public class TestcaseRubricAssembler {
                 InvocationRubric.resultTypeNameForMethod(method));
     }
 
-    private MemberMaps loadMemberMaps(UUID challengeId) {
+    private MemberMaps loadMemberMaps(UUID labId, UUID challengeId) {
+        return dryRunChallengeCatalogCache.getMemberMaps(labId, challengeId, () -> loadMemberMapsUncached(challengeId));
+    }
+
+    private MemberMaps loadMemberMapsUncached(UUID challengeId) {
         List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
         List<Constructor> constructors = classes.isEmpty() ? List.of()
                 : constructorRepository.findByClassEntityInWithDeclaration(classes);

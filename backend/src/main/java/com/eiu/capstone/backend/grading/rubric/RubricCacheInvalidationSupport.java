@@ -11,14 +11,18 @@ import org.springframework.stereotype.Component;
 public class RubricCacheInvalidationSupport {
 
     private final LabRubricCache labRubricCache;
+    private final DryRunChallengeCatalogCache dryRunChallengeCatalogCache;
 
-    public RubricCacheInvalidationSupport(LabRubricCache labRubricCache) {
+    public RubricCacheInvalidationSupport(LabRubricCache labRubricCache,
+                                          DryRunChallengeCatalogCache dryRunChallengeCatalogCache) {
         this.labRubricCache = labRubricCache;
+        this.dryRunChallengeCatalogCache = dryRunChallengeCatalogCache;
     }
 
     public void invalidateLab(UUID labId) {
         if (labId != null) {
             labRubricCache.invalidate(labId);
         }
+        dryRunChallengeCatalogCache.invalidateAll();
     }
 }

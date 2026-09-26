@@ -20,6 +20,7 @@ import org.mockito.quality.Strictness;
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
+import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
@@ -58,7 +59,8 @@ class TestcaseRubricAssemblerTest {
                 methodRepository,
                 fieldRepository,
                 parameterRepository,
-                testcaseRubricService);
+                testcaseRubricService,
+                new DryRunChallengeCatalogCache());
         doNothing().when(testcaseRubricService).validatePayload(any(), any());
     }
 

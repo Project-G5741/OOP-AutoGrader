@@ -22,6 +22,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON) or `HttpWorkerTransport` (remote REST invoke) |
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
+| `grading/testcase/DryRunWorkerCache.java` | Reuses one local worker across lecturer dry-runs (60s idle TTL); sandbox never cached |
+| `grading/rubric/DryRunChallengeCatalogCache.java` | Caches dry-run validate/assemble Neon member graphs (60s); cleared on rubric invalidate |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE including object checks, FIELD_STATE, STDOUT, EXCEPTION) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
@@ -47,7 +49,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
 | `grading/rubric/RubricParameterMaps.java` | Group rubric parameters by constructor/method id for assembler, lab load, and lecturer save validation |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
-| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence) |
+| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local warm worker via `DryRunWorkerCache` (60s idle TTL) |
 
 ## Local Contracts
 
@@ -90,11 +92,11 @@ SubmissionController
 - UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps
 - Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5); kill the worker process tree, then respawn without releasing the host slot
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
-- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances). `compare` is not used. `TestcaseGrader` uses `invokeScenario` for UNIT and COMPOSITION
-- Whole-scenario timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget for the `scenario` op
+- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (per-challenge list of scenarios; one student classloader + one timeout executor for the whole batch). `compare` is not used. `TestcaseGrader` uses one `batch` round-trip per challenge (dry-run: one-item batch)
+- Whole-scenario execution timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget per batch item; on hang the worker stops that batch slice and halts; the API respawns and continues remaining items
 - Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
 - Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step
 - Constructor stdout is not evaluated (save already 422s it)
@@ -104,7 +106,7 @@ SubmissionController
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
-- `GradingPipeline.gradeChallenge(...)` without a worker skips operational invoke (no OT rows). Student upload passes a shared `WorkerSessionHandle` when `GradingService` opened a session for the submission root. Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`.
+- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path reuses an idle worker from `DryRunWorkerCache` (60s TTL) so repeated Run skips cold JVM spawn. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`

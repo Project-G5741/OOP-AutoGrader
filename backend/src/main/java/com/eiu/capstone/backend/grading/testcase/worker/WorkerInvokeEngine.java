@@ -16,6 +16,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import com.eiu.capstone.backend.grading.testcase.AssertionEvaluator;
@@ -56,29 +62,100 @@ public final class WorkerInvokeEngine {
             return SerializedInvocationOutcome.error("Missing scenario steps");
         }
         try (URLClassLoader loader = studentLoader(classesDir)) {
-            Map<String, Object> registry = new LinkedHashMap<>();
-            List<SerializedInvocationOutcome> outcomes = new ArrayList<>();
-            for (WorkerIpc.ScenarioStepSpec step : steps) {
-                SerializedInvocationOutcome outcome = executeStep(
-                        loader, step, snapshotFieldNames, stdoutCap, registry);
-                outcomes.add(outcome);
-                if (shouldStopScenario(outcome)) {
+            return scenario(loader, steps, snapshotFieldNames, stdoutCap);
+        } catch (Exception e) {
+            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
+        }
+    }
+
+    /**
+     * Run each batch item as a scenario under {@code timeoutSeconds} of execution wall-clock.
+     * On timeout, emit {@code TIMED_OUT} and stop — do not run later items in this JVM
+     * (interrupt cannot stop tight loops; the process must be killed/respawned).
+     * One student {@link URLClassLoader} and one timeout executor cover the whole batch.
+     */
+    public SerializedInvocationOutcome batch(Path classesDir,
+                                             List<WorkerIpc.BatchItemSpec> items,
+                                             int timeoutSeconds,
+                                             int stdoutCap) {
+        if (!Files.isDirectory(classesDir)) {
+            return SerializedInvocationOutcome.error("Missing compiled classes directory");
+        }
+        if (items == null || items.isEmpty()) {
+            return SerializedInvocationOutcome.error("Missing batch items");
+        }
+        int budget = Math.max(1, timeoutSeconds);
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "worker-batch-item");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try (URLClassLoader loader = studentLoader(classesDir)) {
+            List<SerializedInvocationOutcome> results = new ArrayList<>();
+            for (WorkerIpc.BatchItemSpec item : items) {
+                SerializedInvocationOutcome outcome = runScenarioWithTimeout(
+                        executor, loader, item, budget, stdoutCap);
+                results.add(outcome);
+                if (SerializedInvocationOutcome.KIND_TIMED_OUT.equals(outcome.kind())) {
                     break;
                 }
             }
-            return new SerializedInvocationOutcome(
-                    SerializedInvocationOutcome.KIND_NORMAL,
-                    null,
-                    "",
-                    false,
-                    Map.of(),
-                    null,
-                    List.of(),
-                    null,
-                    null,
-                    List.copyOf(outcomes));
+            return SerializedInvocationOutcome.batchOf(results);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private SerializedInvocationOutcome scenario(URLClassLoader loader,
+                                                 List<WorkerIpc.ScenarioStepSpec> steps,
+                                                 List<String> snapshotFieldNames,
+                                                 int stdoutCap) {
+        Map<String, Object> registry = new LinkedHashMap<>();
+        List<SerializedInvocationOutcome> outcomes = new ArrayList<>();
+        for (WorkerIpc.ScenarioStepSpec step : steps) {
+            SerializedInvocationOutcome outcome = executeStep(
+                    loader, step, snapshotFieldNames, stdoutCap, registry);
+            outcomes.add(outcome);
+            if (shouldStopScenario(outcome)) {
+                break;
+            }
+        }
+        return new SerializedInvocationOutcome(
+                SerializedInvocationOutcome.KIND_NORMAL,
+                null,
+                "",
+                false,
+                Map.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                List.copyOf(outcomes));
+    }
+
+    private SerializedInvocationOutcome runScenarioWithTimeout(ExecutorService executor,
+                                                               URLClassLoader loader,
+                                                               WorkerIpc.BatchItemSpec item,
+                                                               int timeoutSeconds,
+                                                               int stdoutCap) {
+        List<WorkerIpc.ScenarioStepSpec> steps = item == null ? null : item.steps();
+        List<String> snapshots = item == null ? null : item.snapshotFieldNames();
+        Future<SerializedInvocationOutcome> future = executor.submit(
+                () -> scenario(loader, steps, snapshots, stdoutCap));
+        try {
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            return SerializedInvocationOutcome.timedOut("", false);
+        } catch (ExecutionException e) {
+            return SerializedInvocationOutcome.error(messageOrSimpleName(
+                    e.getCause() != null ? e.getCause() : e));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return SerializedInvocationOutcome.timedOut("", false);
         }
     }
 
@@ -194,6 +271,7 @@ public final class WorkerInvokeEngine {
                 facts.typeName(),
                 facts.fields(),
                 facts.equalsNamed(),
+                null,
                 null);
     }
 

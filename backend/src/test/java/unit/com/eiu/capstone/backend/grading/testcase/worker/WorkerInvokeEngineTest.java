@@ -543,6 +543,87 @@ class WorkerInvokeEngineTest {
         return spec;
     }
 
+    @Test
+    void batch_runsMultipleScenarios() {
+        WorkerIpc.BatchItemSpec speed = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "CONSTRUCTOR", "Car", null, List.of("int", "String"), "[2020,\"X\"]",
+                        null, null, null, "car", null),
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Car", "getSpeed", List.of(), "[]",
+                        null, null, null, "car", null)), List.of());
+        WorkerIpc.BatchItemSpec accel = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "CONSTRUCTOR", "Car", null, List.of("int", "String"), "[2020,\"X\"]",
+                        null, null, null, "car", null),
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Car", "accelerate", List.of(), "[]",
+                        null, null, null, "car", null),
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Car", "getSpeed", List.of(), "[]",
+                        null, null, null, "car", null)), List.of());
+
+        SerializedInvocationOutcome result = engine.batch(classesDir, List.of(speed, accel), 5, 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(2, result.batch().size());
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.batch().get(0).kind());
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.batch().get(1).kind());
+        assertEquals("0", result.batch().get(0).steps().get(1).returnValueJson());
+        assertEquals("5", result.batch().get(1).steps().get(2).returnValueJson());
+    }
+
+    @Test
+    void batch_warmSingleUnitUnder300ms() {
+        WorkerIpc.BatchItemSpec unit = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Car", "getSpeed", List.of(), "[]",
+                        "Car", List.of("int", "String"), "[2020,\"X\"]", null, null)), List.of("speed"));
+        // Warm classloader / executor path once so the measured call excludes cold JIT.
+        engine.batch(classesDir, List.of(unit), 5, WorkerIpc.DEFAULT_STDOUT_CAP);
+
+        long started = System.nanoTime();
+        SerializedInvocationOutcome result = engine.batch(
+                classesDir, List.of(unit), 5, WorkerIpc.DEFAULT_STDOUT_CAP);
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(1, result.batch().size());
+        assertEquals("0", result.batch().get(0).steps().get(0).returnValueJson());
+        assertTrue(elapsedMs < 300,
+                () -> "warm one-item UNIT batch took " + elapsedMs + "ms (budget 300ms)");
+    }
+
+    @Test
+    void batch_timesOutStopsWithoutRunningLaterItemsInSameJvm() throws Exception {
+        Path hangDir = compileSources(Map.of(
+                "Hang.java", """
+                        public class Hang {
+                            public int spin() {
+                                while (true) {
+                                    Thread.onSpinWait();
+                                }
+                            }
+                        }
+                        """,
+                "Ok.java", """
+                        public class Ok {
+                            public int value() { return 7; }
+                        }
+                        """));
+        WorkerIpc.BatchItemSpec hang = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Hang", "spin", List.of(), "[]",
+                        "Hang", List.of(), "[]", null, null)), List.of());
+        WorkerIpc.BatchItemSpec ok = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Ok", "value", List.of(), "[]",
+                        "Ok", List.of(), "[]", null, null)), List.of());
+
+        SerializedInvocationOutcome result = engine.batch(hangDir, List.of(hang, ok), 1, 65536);
+        assertEquals(1, result.batch().size());
+        assertEquals(SerializedInvocationOutcome.KIND_TIMED_OUT, result.batch().get(0).kind());
+    }
+
     private Path compileSources(Map<String, String> sources) throws Exception {
         Path dir = tempDir.resolve("classes-" + UUID.randomUUID());
         Path sourceDir = tempDir.resolve("src-" + UUID.randomUUID());

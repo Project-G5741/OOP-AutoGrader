@@ -17,6 +17,7 @@ public final class WorkerIpc {
     public static final int MAX_NESTING_DEPTH = 8;
     public static final String OP_INVOKE = "invoke";
     public static final String OP_SCENARIO = "scenario";
+    public static final String OP_BATCH = "batch";
 
     private static final ObjectMapper MAPPER = createMapper();
     private static final WorkerInvokeEngine ENGINE = new WorkerInvokeEngine();
@@ -49,6 +50,11 @@ public final class WorkerIpc {
             return switch (request.op()) {
                 case OP_INVOKE -> ENGINE.invoke(classesDir, request.invoke(), request.snapshotFieldNames(), stdoutCap);
                 case OP_SCENARIO -> ENGINE.scenario(classesDir, request.steps(), request.snapshotFieldNames(), stdoutCap);
+                case OP_BATCH -> ENGINE.batch(
+                        classesDir,
+                        request.items(),
+                        request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 5,
+                        stdoutCap);
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
             };
         } catch (Exception e) {
@@ -62,6 +68,28 @@ public final class WorkerIpc {
         } catch (Exception e) {
             return "{\"kind\":\"ERROR\",\"errorMessage\":\"Failed to encode worker facts\",\"stdout\":\"\",\"stdoutTruncated\":false}";
         }
+    }
+
+    /**
+     * After a hang timeout the invoke thread may ignore interrupt; the process must exit
+     * so the API can respawn a clean worker for remaining work.
+     */
+    public static boolean shouldAbortSession(SerializedInvocationOutcome outcome) {
+        if (outcome == null || outcome.kind() == null) {
+            return false;
+        }
+        if (SerializedInvocationOutcome.KIND_TIMED_OUT.equals(outcome.kind())) {
+            return true;
+        }
+        if (outcome.batch() == null) {
+            return false;
+        }
+        for (SerializedInvocationOutcome item : outcome.batch()) {
+            if (item != null && SerializedInvocationOutcome.KIND_TIMED_OUT.equals(item.kind())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ObjectMapper createMapper() {
@@ -84,7 +112,9 @@ public final class WorkerIpc {
             CompareSpec compare,
             List<String> snapshotFieldNames,
             int stdoutCap,
-            List<ScenarioStepSpec> steps) {
+            List<ScenarioStepSpec> steps,
+            List<BatchItemSpec> items,
+            int timeoutSeconds) {
 
         public Request(String op,
                        String classesDir,
@@ -92,9 +122,24 @@ public final class WorkerIpc {
                        CompareSpec compare,
                        List<String> snapshotFieldNames,
                        int stdoutCap) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null, null, 0);
+        }
+
+        public Request(String op,
+                       String classesDir,
+                       InvokeSpec invoke,
+                       CompareSpec compare,
+                       List<String> snapshotFieldNames,
+                       int stdoutCap,
+                       List<ScenarioStepSpec> steps) {
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, null, 0);
         }
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record BatchItemSpec(
+            List<ScenarioStepSpec> steps,
+            List<String> snapshotFieldNames) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record InvokeSpec(

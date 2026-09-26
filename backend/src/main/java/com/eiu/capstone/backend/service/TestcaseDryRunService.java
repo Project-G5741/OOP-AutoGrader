@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 
 import javax.tools.JavaFileObject;
@@ -25,6 +26,7 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseR
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
+import com.eiu.capstone.backend.grading.testcase.DryRunWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
@@ -34,6 +36,7 @@ import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
 public class TestcaseDryRunService {
@@ -42,35 +45,41 @@ public class TestcaseDryRunService {
     private static final int MAX_REFERENCE_SOURCES = 20;
     private static final int MAX_SOURCE_BYTES = 256_000;
     private static final int MAX_TOTAL_BYTES = 512_000;
+    /** TEMP: remove after dry-run UX timing check */
+    private static final boolean TEMP_DRY_RUN_TIMING = true;
 
-    private final TestcaseRubricService testcaseRubricService;
     private final TestcaseRubricAssembler testcaseRubricAssembler;
     private final JavaCompilerService javaCompilerService;
     private final TestcaseGrader testcaseGrader;
     private final TestcaseResultMapper testcaseResultMapper;
     private final Semaphore workerJvmSlot;
     private final WorkerSessionFactory workerSessionFactory;
+    private final DryRunWorkerCache dryRunWorkerCache;
+    private final DryRunCompileCache dryRunCompileCache;
     private final int invokeTimeoutSeconds;
 
-    public TestcaseDryRunService(TestcaseRubricService testcaseRubricService,
-                                 TestcaseRubricAssembler testcaseRubricAssembler,
+    public TestcaseDryRunService(TestcaseRubricAssembler testcaseRubricAssembler,
                                  JavaCompilerService javaCompilerService,
                                  TestcaseGrader testcaseGrader,
                                  TestcaseResultMapper testcaseResultMapper,
                                  @org.springframework.beans.factory.annotation.Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
                                  WorkerSessionFactory workerSessionFactory,
+                                 DryRunWorkerCache dryRunWorkerCache,
+                                 DryRunCompileCache dryRunCompileCache,
                                  @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
-        this.testcaseRubricService = testcaseRubricService;
         this.testcaseRubricAssembler = testcaseRubricAssembler;
         this.javaCompilerService = javaCompilerService;
         this.testcaseGrader = testcaseGrader;
         this.testcaseResultMapper = testcaseResultMapper;
         this.workerJvmSlot = workerJvmSlot;
         this.workerSessionFactory = workerSessionFactory;
+        this.dryRunWorkerCache = dryRunWorkerCache;
+        this.dryRunCompileCache = dryRunCompileCache;
         this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
 
     public TestcaseResultDTO dryRun(UUID labId, UUID challengeId, TestcaseDryRunRequest request) {
+        long totalStarted = System.currentTimeMillis();
         if (request == null || request.testcase() == null) {
             throw unprocessable("Testcase payload is required");
         }
@@ -79,15 +88,14 @@ public class TestcaseDryRunService {
         }
         validateReferenceSources(request.referenceSources());
 
-        testcaseRubricService.loadForChallenge(labId, challengeId);
-
-        TestcaseRubric rubric = testcaseRubricAssembler.assemble(challengeId, request.testcase());
-        Path tempRoot = null;
+        // No standalone Neon access check: lab ownership is enforced on cold assemble only.
+        // Warm catalog hits are in-memory (compile + worker + grade only).
+        long assembleStarted = System.currentTimeMillis();
+        TestcaseRubric rubric = testcaseRubricAssembler.assemble(labId, challengeId, request.testcase());
+        long assembleMs = System.currentTimeMillis() - assembleStarted;
+        Path requestTempRoot = null;
+        boolean classesFromCache = false;
         try {
-            tempRoot = Files.createTempDirectory("testcase-dry-run-");
-            Path classesDir = tempRoot.resolve("classes");
-            Files.createDirectories(classesDir);
-
             List<SourceEntry> rawSources = new ArrayList<>();
             for (ReferenceSourceDTO source : request.referenceSources()) {
                 if (source.className() == null || source.className().isBlank()
@@ -99,16 +107,39 @@ public class TestcaseDryRunService {
             }
 
             NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(rawSources);
-            List<JavaFileObject> sources = new ArrayList<>();
-            for (SourceEntry entry : normalization.sources()) {
-                sources.add(new MemorySourceJavaFileObject(
-                        entry.logicalPath(),
-                        entry.source().getBytes(StandardCharsets.UTF_8)));
+            String compileKey = DryRunCompileCache.fingerprint(normalization.sources());
+            DryRunCompileCache.Hit compileHit = dryRunCompileCache.getIfFresh(compileKey);
+
+            Path classesDir;
+            CompileOutcome outcome;
+            List<SourceEntry> normalizedSources;
+            long compileMs;
+            if (compileHit != null) {
+                classesDir = compileHit.classesDir();
+                outcome = compileHit.outcome();
+                normalizedSources = compileHit.normalizedSources();
+                compileMs = 0;
+                classesFromCache = true;
+            } else {
+                requestTempRoot = Files.createTempDirectory("testcase-dry-run-");
+                classesDir = requestTempRoot.resolve("classes");
+                Files.createDirectories(classesDir);
+                List<JavaFileObject> sources = new ArrayList<>();
+                for (SourceEntry entry : normalization.sources()) {
+                    sources.add(new MemorySourceJavaFileObject(
+                            entry.logicalPath(),
+                            entry.source().getBytes(StandardCharsets.UTF_8)));
+                }
+                long compileStarted = System.currentTimeMillis();
+                outcome = javaCompilerService.compileSources(sources, classesDir);
+                compileMs = System.currentTimeMillis() - compileStarted;
+                normalizedSources = normalization.sources();
+                dryRunCompileCache.put(compileKey, classesDir, outcome, normalizedSources);
+                classesFromCache = true;
             }
 
-            CompileOutcome outcome = javaCompilerService.compileSources(sources, classesDir);
             CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
-                    outcome, normalization.sources());
+                    outcome, normalizedSources);
 
             ChallengeRubric stubRubric = new ChallengeRubric(
                     challengeId,
@@ -118,23 +149,43 @@ public class TestcaseDryRunService {
                     List.of(),
                     List.of(rubric),
                     true);
-            if (workerSessionFactory.isSandboxEnabled()) {
-                WorkerSessionHandle workerSession = workerSessionFactory.open(tempRoot, invokeTimeoutSeconds);
-                try {
-                    acquireWorkerSlot();
-                    try {
-                        return gradeDryRun(stubRubric, classesDir, attributed, rubric, workerSession);
-                    } finally {
-                        workerJvmSlot.release();
-                    }
-                } finally {
-                    workerSession.close();
-                }
+
+            boolean sandbox = workerSessionFactory.isSandboxEnabled();
+            Path openRoot = classesDir.getParent() != null ? classesDir.getParent() : classesDir;
+            CompletableFuture<WorkerSessionHandle> localOpen = null;
+            if (!sandbox && !dryRunWorkerCache.hasIdleLocal()) {
+                localOpen = CompletableFuture.supplyAsync(
+                        () -> workerSessionFactory.open(openRoot, invokeTimeoutSeconds));
             }
+
+            long workerStarted = System.currentTimeMillis();
             acquireWorkerSlot();
-            try (WorkerSessionHandle workerSession = workerSessionFactory.open(tempRoot, invokeTimeoutSeconds)) {
-                return gradeDryRun(stubRubric, classesDir, attributed, rubric, workerSession);
+            long slotMs = System.currentTimeMillis() - workerStarted;
+            WorkerSessionHandle workerSession = null;
+            long openMs = 0;
+            long gradeMs = 0;
+            try {
+                long openStarted = System.currentTimeMillis();
+                if (localOpen != null) {
+                    workerSession = localOpen.join();
+                } else {
+                    workerSession = dryRunWorkerCache.borrow(workerSessionFactory, openRoot, invokeTimeoutSeconds);
+                }
+                openMs = System.currentTimeMillis() - openStarted;
+                long gradeStarted = System.currentTimeMillis();
+                TestcaseResultDTO result = gradeDryRun(stubRubric, classesDir, attributed, rubric, workerSession);
+                gradeMs = System.currentTimeMillis() - gradeStarted;
+                // spawn is diagnostic only (may overlap compile); not part of the wall-clock sum
+                TimingLog.block(TEMP_DRY_RUN_TIMING, "OT dry-run",
+                        "assemble", assembleMs,
+                        "compile", compileMs,
+                        "slot", slotMs,
+                        "worker", openMs,
+                        "grade", gradeMs,
+                        "total", System.currentTimeMillis() - totalStarted);
+                return result;
             } finally {
+                dryRunWorkerCache.release(workerSessionFactory, workerSession);
                 workerJvmSlot.release();
             }
         } catch (ResponseStatusException ex) {
@@ -143,9 +194,10 @@ public class TestcaseDryRunService {
             log.warn("Dry-run failed for challenge {}", challengeId, ex);
             throw unprocessable("Dry-run failed. Check reference Java and testcase configuration.");
         } finally {
-            if (tempRoot != null) {
+            // Cache owns successful compile dirs. Only delete a request temp root that was never cached.
+            if (requestTempRoot != null && !classesFromCache) {
                 try {
-                    deleteRecursively(tempRoot);
+                    deleteRecursively(requestTempRoot);
                 } catch (Exception ignored) {
                     // best effort cleanup
                 }

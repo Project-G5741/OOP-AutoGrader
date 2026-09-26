@@ -30,6 +30,7 @@ import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.rubric.RelationStructureDTO;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
+import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
@@ -91,7 +92,8 @@ class LabStructureServiceSaveTest {
 
     @BeforeEach
     void setUp() {
-        rubricCacheInvalidationSupport = new RubricCacheInvalidationSupport(labRubricCache);
+        rubricCacheInvalidationSupport = new RubricCacheInvalidationSupport(
+                labRubricCache, new DryRunChallengeCatalogCache());
         labStructureService = new LabStructureService(
                 labRepository,
                 termRepository,

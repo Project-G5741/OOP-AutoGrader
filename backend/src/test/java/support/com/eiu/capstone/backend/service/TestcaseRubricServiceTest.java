@@ -39,6 +39,7 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.Challenge;
@@ -106,7 +107,8 @@ class TestcaseRubricServiceTest {
 
     @BeforeEach
     void setUp() {
-        RubricCacheInvalidationSupport cacheSupport = new RubricCacheInvalidationSupport(labRubricCache);
+        DryRunChallengeCatalogCache catalogCache = new DryRunChallengeCatalogCache();
+        RubricCacheInvalidationSupport cacheSupport = new RubricCacheInvalidationSupport(labRubricCache, catalogCache);
         when(classRelationRepository.findByClassEntityInWithEndpoints(any())).thenReturn(List.of());
         service = new TestcaseRubricService(
                 challengeRepository,
@@ -120,6 +122,7 @@ class TestcaseRubricServiceTest {
                 testcaseInvocationRepository,
                 testcaseAssertionRepository,
                 cacheSupport,
+                catalogCache,
                 entityManager);
 
         storedTestcases.clear();

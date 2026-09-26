@@ -35,7 +35,13 @@ public final class WorkerMain {
                 new java.io.InputStreamReader(ipcIn, StandardCharsets.UTF_8));
         String line;
         while ((line = reader.readLine()) != null) {
-            ipcOut.println(WorkerIpc.writeLine(WorkerIpc.handleLine(line)));
+            var outcome = WorkerIpc.handleLine(line);
+            ipcOut.println(WorkerIpc.writeLine(outcome));
+            ipcOut.flush();
+            if (WorkerIpc.shouldAbortSession(outcome)) {
+                // Halt so tight-loop threads that ignore interrupt die with the process.
+                Runtime.getRuntime().halt(0);
+            }
         }
     }
 

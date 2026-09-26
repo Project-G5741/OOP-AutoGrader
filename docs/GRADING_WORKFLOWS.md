@@ -585,7 +585,7 @@ There is no `testcase_instance` table and no `COMPARISON_RESULT` kind.
 
 ### 9.2 `TestcaseGrader` (dry-run)
 
-`GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and `invokeScenario` for both UNIT and COMPOSITION.
+`GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Lecturer dry-run uses `TestcaseGrader.gradeSingle()` (one-item batch) for both UNIT and COMPOSITION.
 
 For each testcase:
 
@@ -600,8 +600,8 @@ For each testcase:
 Each dry-run or student-upload OT batch:
 
 1. Acquires the host `workerJvmSlot` (one process). Student upload acquires the slot when any challenge in the upload batch has operational testcases; dry-run always acquires.
-2. Sends one NDJSON `scenario` request; the worker loads target classes with a platform-parent `URLClassLoader`, invokes, and returns snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
-3. The API waits up to `app.grading.testcase-invoke-timeout-seconds` (default **5s**), then tree-kills and respawns without releasing the host slot.
+2. Sends one NDJSON `batch` request for all runnable OT in the challenge (one item for dry-run); the worker runs each item as a scenario under the execution timeout, loads target classes with a platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
+3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **5s**) per batch item as **execution** wall-clock; the API transport wait adds 30s return slack. On outer hang the API tree-kills and respawns without releasing the host slot.
 
 At most one worker session runs on the host slot (local JVM or remote sandbox session when `app.grading.sandbox.enabled=true`). Other dry-runs wait for that slot on the HTTP thread (`worker_slot_wait_ms`). Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
@@ -718,7 +718,7 @@ Student upload always sets `testcaseApplicable` false and `testcases: []`. The s
 | (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped). Upload does not schedule TestcaseGrader |
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; lecturer dry-run acquires on the HTTP thread. Student upload does not |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, plagiarism inspect, temp delete |
-| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-invocation timeout (process kill) |
+| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-batch-item student-code execution timeout (transport wait adds 30s slack) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
 | `app.grading.worker-java` | `java` | — | Java binary used to spawn the worker |
 | `app.grading.rubric-cache-ttl-minutes` | 30 | `LabRubricCache` | Rubric cache TTL |
