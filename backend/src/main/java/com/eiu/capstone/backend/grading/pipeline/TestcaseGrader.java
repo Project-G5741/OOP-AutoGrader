@@ -30,6 +30,7 @@ import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
+import com.eiu.capstone.backend.utility.TimingLog;
 
 @Component
 public class TestcaseGrader {
@@ -50,7 +51,13 @@ public class TestcaseGrader {
     }
 
     public PendingTestcaseResult gradeSingle(TestcaseRubric testcase, ChallengeGradingContext context) {
-        return evaluate(testcase, context).pending();
+        long started = System.currentTimeMillis();
+        try {
+            return evaluate(testcase, context).pending();
+        } finally {
+            // TEMP: remove after OT warm-path timing check
+            TimingLog.line(true, "OT single " + testcaseLabel(testcase), System.currentTimeMillis() - started);
+        }
     }
 
     public TestcasePillarResult grade(ChallengeGradingContext context) {
@@ -70,8 +77,14 @@ public class TestcaseGrader {
 
         List<List<InvocationOutcome>> batchOutcomes = List.of();
         if (!runnable.isEmpty()) {
+            long invokeStarted = System.currentTimeMillis();
             batchOutcomes = invocationRunner.invokeBatch(
                     context, runnable.stream().map(this::toBatchItem).toList());
+            // TEMP: remove after OT warm-path timing check
+            if (runnable.size() == 1) {
+                TimingLog.line(true, "OT single invoke " + testcaseLabel(runnable.get(0)),
+                        System.currentTimeMillis() - invokeStarted);
+            }
         }
 
         int runnableIndex = 0;
@@ -104,6 +117,16 @@ public class TestcaseGrader {
         List<List<InvocationOutcome>> batch = invocationRunner.invokeBatch(context, List.of(toBatchItem(testcase)));
         List<InvocationOutcome> outcomes = batch.isEmpty() ? List.of() : batch.get(0);
         return finishEvaluate(testcase, outcomes);
+    }
+
+    private static String testcaseLabel(TestcaseRubric testcase) {
+        if (testcase == null) {
+            return "?";
+        }
+        if (testcase.name() != null && !testcase.name().isBlank()) {
+            return testcase.name();
+        }
+        return testcase.id() != null ? testcase.id().toString() : "?";
     }
 
     private Evaluation earlyShortCircuit(TestcaseRubric testcase, ChallengeGradingContext context) {

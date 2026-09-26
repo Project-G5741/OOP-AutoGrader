@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
-import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ReferenceSourceDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseDryRunRequest;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
@@ -35,6 +35,7 @@ import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
+import com.eiu.capstone.backend.grading.testcase.DryRunWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
@@ -52,7 +53,6 @@ import com.eiu.capstone.backend.model.TestcaseType;
 @ExtendWith(MockitoExtension.class)
 class TestcaseDryRunServiceTest {
 
-    @Mock private TestcaseRubricService testcaseRubricService;
     @Mock private TestcaseRubricAssembler testcaseRubricAssembler;
     @Mock private JavaCompilerService javaCompilerService;
 
@@ -92,9 +92,7 @@ class TestcaseDryRunServiceTest {
                 testcase);
         TestcaseRubric rubric = minimalRubric();
 
-        when(testcaseRubricService.loadForChallenge(labId, challengeId))
-                .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
-        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
+        when(testcaseRubricAssembler.assemble(labId, challengeId, testcase)).thenReturn(rubric);
 
         JavaCompilerService realCompiler = new JavaCompilerService();
         realCompiler.initCompiler();
@@ -115,7 +113,6 @@ class TestcaseDryRunServiceTest {
                 .thenReturn(pending);
 
         TestcaseDryRunService wired = new TestcaseDryRunService(
-                testcaseRubricService,
                 testcaseRubricAssembler,
                 realCompiler,
                 graderSpy,
@@ -124,6 +121,8 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
+                new DryRunWorkerCache(),
+                new DryRunCompileCache(),
                 5);
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
@@ -143,9 +142,7 @@ class TestcaseDryRunServiceTest {
                 testcase);
         TestcaseRubric rubric = minimalRubric();
 
-        when(testcaseRubricService.loadForChallenge(labId, challengeId))
-                .thenReturn(new ChallengeTestcasesResponse(labId, challengeId, List.of()));
-        when(testcaseRubricAssembler.assemble(challengeId, testcase)).thenReturn(rubric);
+        when(testcaseRubricAssembler.assemble(eq(labId), eq(challengeId), eq(testcase))).thenReturn(rubric);
         when(javaCompilerService.compileSources(any(), any())).thenReturn(CompileOutcome.skipped());
 
         TestcaseGrader graderSpy = mock(TestcaseGrader.class);
@@ -168,7 +165,7 @@ class TestcaseDryRunServiceTest {
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
 
-        verify(testcaseRubricService).loadForChallenge(labId, challengeId);
+        verify(testcaseRubricAssembler).assemble(labId, challengeId, testcase);
         assertEquals("preview", result.getTestcaseName());
         assertEquals("PASS", result.getResult());
         assertEquals("expected", result.getExpectedOutput());
@@ -181,7 +178,6 @@ class TestcaseDryRunServiceTest {
     private TestcaseDryRunService newService(TestcaseGrader grader) {
         TestcaseResultMapper mapper = new TestcaseResultMapper(displayFormatter, primaryAssertionSelector);
         return new TestcaseDryRunService(
-                testcaseRubricService,
                 testcaseRubricAssembler,
                 javaCompilerService,
                 grader,
@@ -190,6 +186,8 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
+                new DryRunWorkerCache(),
+                new DryRunCompileCache(),
                 5);
     }
 

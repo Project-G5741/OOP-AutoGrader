@@ -573,6 +573,27 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void batch_warmSingleUnitUnder300ms() {
+        WorkerIpc.BatchItemSpec unit = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Car", "getSpeed", List.of(), "[]",
+                        "Car", List.of("int", "String"), "[2020,\"X\"]", null, null)), List.of("speed"));
+        // Warm classloader / executor path once so the measured call excludes cold JIT.
+        engine.batch(classesDir, List.of(unit), 5, WorkerIpc.DEFAULT_STDOUT_CAP);
+
+        long started = System.nanoTime();
+        SerializedInvocationOutcome result = engine.batch(
+                classesDir, List.of(unit), 5, WorkerIpc.DEFAULT_STDOUT_CAP);
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(1, result.batch().size());
+        assertEquals("0", result.batch().get(0).steps().get(0).returnValueJson());
+        assertTrue(elapsedMs < 300,
+                () -> "warm one-item UNIT batch took " + elapsedMs + "ms (budget 300ms)");
+    }
+
+    @Test
     void batch_timesOutStopsWithoutRunningLaterItemsInSameJvm() throws Exception {
         Path hangDir = compileSources(Map.of(
                 "Hang.java", """

@@ -30,7 +30,9 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
 | `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / persisted testcase rows + `TestcaseResultMapper`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher`; student GET `/testcases` returns `[]` when no persisted OT results |
-| `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan |
+| `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan; `requireChallengeAccessible` for dry-run |
+| `TestcaseDryRunService` | Reference Java compile + `gradeSingle` preview; reuses local worker (`DryRunWorkerCache`) and compiled classes (`DryRunCompileCache`, 60s TTL) |
+| `DryRunCompileCache` | Fingerprint-keyed classes dir reuse for unchanged dry-run reference sources |
 
 ## Local Contracts
 

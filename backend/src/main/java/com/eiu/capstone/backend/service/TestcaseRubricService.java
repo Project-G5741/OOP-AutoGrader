@@ -27,6 +27,7 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
+import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.grading.rubric.RubricParameterMaps;
 import com.eiu.capstone.backend.model.AssertionKind;
@@ -85,6 +86,7 @@ public class TestcaseRubricService {
     private final TestcaseInvocationRepository testcaseInvocationRepository;
     private final TestcaseAssertionRepository testcaseAssertionRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
+    private final DryRunChallengeCatalogCache dryRunChallengeCatalogCache;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final EntityManager entityManager;
 
@@ -99,6 +101,7 @@ public class TestcaseRubricService {
                                    TestcaseInvocationRepository testcaseInvocationRepository,
                                    TestcaseAssertionRepository testcaseAssertionRepository,
                                    RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
+                                   DryRunChallengeCatalogCache dryRunChallengeCatalogCache,
                                    EntityManager entityManager) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
@@ -111,6 +114,7 @@ public class TestcaseRubricService {
         this.testcaseInvocationRepository = testcaseInvocationRepository;
         this.testcaseAssertionRepository = testcaseAssertionRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
+        this.dryRunChallengeCatalogCache = dryRunChallengeCatalogCache;
         this.entityManager = entityManager;
     }
 
@@ -119,6 +123,12 @@ public class TestcaseRubricService {
         Challenge challenge = requireChallengeInLab(labId, challengeId);
         List<TestcaseStructureDTO> testcases = loadDtosForChallenge(challenge.getId());
         return new ChallengeTestcasesResponse(labId, challengeId, testcases);
+    }
+
+    /** Existence check only — dry-run must not load the full OT graph. */
+    @Transactional(readOnly = true)
+    public void requireChallengeAccessible(UUID labId, UUID challengeId) {
+        requireChallengeInLab(labId, challengeId);
     }
 
     /**
@@ -193,7 +203,15 @@ public class TestcaseRubricService {
 
     @Transactional(readOnly = true)
     public void validatePayload(UUID challengeId, TestcaseStructureDTO dto) {
-        validateTestcaseDto(dto, loadChallengeMemberIds(challengeId));
+        validatePayload(null, challengeId, dto);
+    }
+
+    /**
+     * When {@code labId} is set, ownership is enforced on cold catalog load only.
+     */
+    @Transactional(readOnly = true)
+    public void validatePayload(UUID labId, UUID challengeId, TestcaseStructureDTO dto) {
+        validateTestcaseDto(dto, loadChallengeMemberIds(labId, challengeId));
     }
 
     public static List<InvocationStructureDTO> resolvedInvocations(TestcaseStructureDTO dto) {
@@ -1152,9 +1170,18 @@ public class TestcaseRubricService {
     }
 
     private ChallengeMemberIds loadChallengeMemberIds(UUID challengeId) {
-        Map<UUID, ChallengeMemberIds> grouped = loadChallengeMemberIdsGrouped(List.of(challengeId));
-        ChallengeMemberIds memberIds = grouped.get(challengeId);
-        return memberIds != null ? memberIds : emptyChallengeMemberIds();
+        return loadChallengeMemberIds(null, challengeId);
+    }
+
+    private ChallengeMemberIds loadChallengeMemberIds(UUID labId, UUID challengeId) {
+        return dryRunChallengeCatalogCache.getMemberIds(labId, challengeId, () -> {
+            if (labId != null) {
+                requireChallengeAccessible(labId, challengeId);
+            }
+            Map<UUID, ChallengeMemberIds> grouped = loadChallengeMemberIdsGrouped(List.of(challengeId));
+            ChallengeMemberIds memberIds = grouped.get(challengeId);
+            return memberIds != null ? memberIds : emptyChallengeMemberIds();
+        });
     }
 
     /**

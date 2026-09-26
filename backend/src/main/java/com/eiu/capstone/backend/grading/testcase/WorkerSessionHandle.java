@@ -109,6 +109,12 @@ public final class WorkerSessionHandle implements AutoCloseable {
         return timeoutSeconds;
     }
 
+    public boolean isAlive() {
+        synchronized (lock) {
+            return session != null && session.isAlive();
+        }
+    }
+
     public SerializedInvocationOutcome invoke(String classesDir,
                                               InvocationRubric invocation,
                                               List<String> snapshotFieldNames) {

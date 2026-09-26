@@ -50,7 +50,7 @@ public final class ProcessWorkerTransport implements WorkerTransport {
             try {
                 while (System.nanoTime() < deadline) {
                     if (ipcStdout.available() <= 0 && process.isAlive()) {
-                        TimeUnit.MILLISECONDS.sleep(10);
+                        TimeUnit.MILLISECONDS.sleep(1);
                         continue;
                     }
                     int next = ipcStdout.read();
