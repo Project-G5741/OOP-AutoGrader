@@ -191,6 +191,7 @@ public class TestcaseRubricService {
         entityManager.flush();
     }
 
+    @Transactional(readOnly = true)
     public void validatePayload(UUID challengeId, TestcaseStructureDTO dto) {
         validateTestcaseDto(dto, loadChallengeMemberIds(challengeId));
     }
@@ -1178,6 +1179,12 @@ public class TestcaseRubricService {
         List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
         Map<UUID, List<ClassEntity>> classesByChallenge = classes.stream()
                 .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        // classEntity on Constructor/Method/Field is often an uninitialized proxy (OSIV off).
+        // Resolve challenge via class id — do not call getChallenge() on that proxy.
+        Map<UUID, UUID> challengeIdByClassId = new HashMap<>();
+        for (ClassEntity cls : classes) {
+            challengeIdByClassId.put(cls.getId(), cls.getChallenge().getId());
+        }
 
         Map<UUID, Set<UUID>> heritageChildrenByParentId = new HashMap<>();
         if (!classes.isEmpty()) {
@@ -1211,16 +1218,22 @@ public class TestcaseRubricService {
         Map<UUID, List<Method>> methodsByChallenge = new HashMap<>();
         Map<UUID, List<Field>> fieldsByChallenge = new HashMap<>();
         for (Constructor ctor : allConstructors) {
-            UUID challengeId = ctor.getClassEntity().getChallenge().getId();
-            ctorsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(ctor);
+            UUID challengeId = challengeIdByClassId.get(ctor.getClassEntity().getId());
+            if (challengeId != null) {
+                ctorsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(ctor);
+            }
         }
         for (Method method : allMethods) {
-            UUID challengeId = method.getClassEntity().getChallenge().getId();
-            methodsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(method);
+            UUID challengeId = challengeIdByClassId.get(method.getClassEntity().getId());
+            if (challengeId != null) {
+                methodsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(method);
+            }
         }
         for (Field field : allFields) {
-            UUID challengeId = field.getClassEntity().getChallenge().getId();
-            fieldsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(field);
+            UUID challengeId = challengeIdByClassId.get(field.getClassEntity().getId());
+            if (challengeId != null) {
+                fieldsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(field);
+            }
         }
 
         for (Challenge challenge : challenges) {
