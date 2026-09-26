@@ -1,6 +1,8 @@
 package com.eiu.capstone.backend.service;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -119,6 +121,76 @@ public class TestcaseRubricService {
         return new ChallengeTestcasesResponse(labId, challengeId, testcases);
     }
 
+    /**
+     * Batch-load OT DTOs for many challenges in a few queries (clone/read paths).
+     * Keys with no testcases are omitted from the map.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, List<TestcaseStructureDTO>> loadDtosGroupedByChallengeIds(Collection<UUID> challengeIds) {
+        if (challengeIds == null || challengeIds.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = challengeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<Testcase> testcases = testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(ids);
+        if (testcases.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> testcaseIds = testcases.stream().map(Testcase::getId).collect(Collectors.toSet());
+        Map<UUID, List<TestcaseInvocation>> invocationsByTestcaseId = testcaseInvocationRepository
+                .findByTestcase_IdIn(testcaseIds).stream()
+                .collect(Collectors.groupingBy(inv -> inv.getTestcase().getId()));
+        Map<UUID, List<TestcaseAssertion>> assertionsByTestcaseId = testcaseAssertionRepository
+                .findByTestcase_IdInOrderByOrderIndexAsc(testcaseIds).stream()
+                .collect(Collectors.groupingBy(a -> a.getTestcase().getId()));
+
+        Map<UUID, List<TestcaseStructureDTO>> byChallenge = new LinkedHashMap<>();
+        for (Testcase tc : testcases) {
+            UUID challengeId = tc.getChallenge().getId();
+            TestcaseStructureDTO dto = toDto(
+                    tc,
+                    invocationsByTestcaseId.getOrDefault(tc.getId(), List.of()),
+                    List.of(),
+                    assertionsByTestcaseId.getOrDefault(tc.getId(), List.of()));
+            byChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(dto);
+        }
+        return byChallenge;
+    }
+
+    /**
+     * Delete all OT rows for the given challenges (invocations/assertions then testcases).
+     * Set-based SQL — prefer over per-testcase entity deletes on Neon.
+     */
+    @Transactional
+    public void deleteAllForChallenges(Collection<UUID> challengeIds) {
+        if (challengeIds == null || challengeIds.isEmpty()) {
+            return;
+        }
+        List<UUID> ids = challengeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        entityManager.createNativeQuery("""
+                        DELETE FROM testcase_assertion
+                        WHERE testcase_id IN (SELECT id FROM testcase WHERE challenge_id IN (:challengeIds))
+                        """)
+                .setParameter("challengeIds", ids)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                        DELETE FROM testcase_invocation
+                        WHERE testcase_id IN (SELECT id FROM testcase WHERE challenge_id IN (:challengeIds))
+                        """)
+                .setParameter("challengeIds", ids)
+                .executeUpdate();
+        entityManager.createNativeQuery(
+                        "DELETE FROM testcase WHERE challenge_id IN (:challengeIds)")
+                .setParameter("challengeIds", ids)
+                .executeUpdate();
+        entityManager.flush();
+    }
+
     public void validatePayload(UUID challengeId, TestcaseStructureDTO dto) {
         validateTestcaseDto(dto, loadChallengeMemberIds(challengeId));
     }
@@ -136,7 +208,126 @@ public class TestcaseRubricService {
     @Transactional
     public ChallengeTestcasesResponse saveForChallenge(UUID labId,
                                                        UUID challengeId,
-                                                       List<TestcaseStructureDTO> payloads) {
+                                                       List<TestcaseStructureDTO> testcases) {
+        persistTestcases(labId, challengeId, testcases, true);
+        return new ChallengeTestcasesResponse(labId, challengeId, loadDtosForChallenge(challengeId));
+    }
+
+    /**
+     * Insert-only OT write for a freshly cloned lab. Skips find/delete/reload/invalidate and
+     * defers flush so Neon does not pay a round-trip per entity.
+     * Keys are the new challenge ids already saved into {@code labId}.
+     */
+    @Transactional
+    public void persistClonedTestcasesBatch(UUID labId, Map<UUID, List<TestcaseStructureDTO>> byChallenge) {
+        if (byChallenge == null || byChallenge.isEmpty()) {
+            return;
+        }
+        Map<UUID, List<TestcaseStructureDTO>> payloads = new LinkedHashMap<>();
+        for (Map.Entry<UUID, List<TestcaseStructureDTO>> entry : byChallenge.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            List<TestcaseStructureDTO> rows = entry.getValue() != null ? entry.getValue() : List.of();
+            if (!rows.isEmpty()) {
+                payloads.put(entry.getKey(), rows);
+            }
+        }
+        if (payloads.isEmpty()) {
+            return;
+        }
+
+        // saveLabStructure may still hold unflushed inserts in this same TX; IN queries
+        // would miss them without an explicit flush.
+        entityManager.flush();
+
+        List<Challenge> challenges = challengeRepository.findAllById(payloads.keySet());
+        if (challenges.size() != payloads.size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found");
+        }
+        Map<UUID, Challenge> byId = new HashMap<>();
+        for (Challenge challenge : challenges) {
+            if (challenge.getLab() == null || !labId.equals(challenge.getLab().getId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found in lab");
+            }
+            byId.put(challenge.getId(), challenge);
+        }
+
+        // One batched member-id load for the whole lab — not per-challenge Neon round-trips.
+        Map<UUID, ChallengeMemberIds> memberIdsByChallenge =
+                loadChallengeMemberIdsGrouped(payloads.keySet());
+
+        for (Map.Entry<UUID, List<TestcaseStructureDTO>> entry : payloads.entrySet()) {
+            Challenge challenge = byId.get(entry.getKey());
+            ChallengeMemberIds memberIds = memberIdsByChallenge.get(entry.getKey());
+            if (memberIds == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found");
+            }
+            for (TestcaseStructureDTO dto : entry.getValue()) {
+                validateTestcaseDto(dto, memberIds);
+                insertClonedTestcaseGraph(challenge, dto, memberIds);
+            }
+        }
+        entityManager.flush();
+    }
+
+    private void insertClonedTestcaseGraph(Challenge challenge,
+                                           TestcaseStructureDTO dto,
+                                           ChallengeMemberIds memberIds) {
+        UUID testcaseId = dto.id() != null ? dto.id() : UUID.randomUUID();
+        Testcase testcase = new Testcase();
+        testcase.setId(testcaseId);
+        testcase.setChallenge(challenge);
+        testcase.setName(dto.name().trim());
+        testcase.setTestcaseType(dto.testcaseType());
+        testcase.setOrderIndex(dto.orderIndex());
+        testcase.setHidden(dto.hidden());
+        entityManager.persist(testcase);
+
+        List<InvocationStructureDTO> steps = resolvedInvocations(dto);
+        Map<UUID, TestcaseInvocation> invocationsById = new LinkedHashMap<>();
+        int orderIndex = 0;
+        for (InvocationStructureDTO step : steps) {
+            UUID invocationId = step.id() != null ? step.id() : UUID.randomUUID();
+            TestcaseInvocation invocation = new TestcaseInvocation();
+            invocation.setId(invocationId);
+            invocation.setTestcase(testcase);
+            applyInvocation(invocation, step, orderIndex++, memberIds);
+            entityManager.persist(invocation);
+            invocationsById.put(invocationId, invocation);
+        }
+
+        if (dto.assertions() == null || dto.assertions().isEmpty()) {
+            return;
+        }
+        for (AssertionStructureDTO assertionDto : dto.assertions()) {
+            UUID assertionId = assertionDto.id() != null ? assertionDto.id() : UUID.randomUUID();
+            TestcaseAssertion assertion = new TestcaseAssertion();
+            assertion.setId(assertionId);
+            assertion.setTestcase(testcase);
+            assertion.setAssertionKind(assertionDto.assertionKind());
+            assertion.setExpectedValue(normalizeExpectedValue(assertionDto.expectedValue()));
+            assertion.setComparisonMode(
+                    assertionDto.comparisonMode() != null ? assertionDto.comparisonMode() : ComparisonMode.EXACT);
+            assertion.setOrderIndex(assertionDto.orderIndex());
+            if (assertionDto.assertionKind() == AssertionKind.FIELD_STATE) {
+                assertion.setField(requireField(assertionDto.fieldId(), memberIds));
+            } else {
+                assertion.setField(null);
+            }
+            if (assertionDto.invocationId() != null && invocationsById.containsKey(assertionDto.invocationId())) {
+                assertion.setInvocation(invocationsById.get(assertionDto.invocationId()));
+            } else {
+                assertion.setInvocation(null);
+            }
+            entityManager.persist(assertion);
+        }
+    }
+
+    private void persistTestcases(UUID labId,
+                                  UUID challengeId,
+                                  List<TestcaseStructureDTO> payloads,
+                                  boolean invalidateCache) {
         Challenge challenge = requireChallengeInLab(labId, challengeId);
         ChallengeMemberIds memberIds = loadChallengeMemberIds(challenge.getId());
         List<TestcaseStructureDTO> testcasePayloads = payloads != null ? payloads : List.of();
@@ -170,8 +361,9 @@ public class TestcaseRubricService {
             syncAssertions(testcase, dto.assertions(), memberIds, invocations);
         }
 
-        rubricCacheInvalidationSupport.invalidateLab(labId);
-        return new ChallengeTestcasesResponse(labId, challengeId, loadDtosForChallenge(challenge.getId()));
+        if (invalidateCache) {
+            rubricCacheInvalidationSupport.invalidateLab(labId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -959,19 +1151,34 @@ public class TestcaseRubricService {
     }
 
     private ChallengeMemberIds loadChallengeMemberIds(UUID challengeId) {
-        List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
-        Set<UUID> classIds = new HashSet<>();
-        Set<String> rubricClassNames = new HashSet<>();
-        Map<UUID, String> classNameByClassId = new HashMap<>();
-        Map<String, UUID> classIdByName = new HashMap<>();
-        for (ClassEntity cls : classes) {
-            classIds.add(cls.getId());
-            classNameByClassId.put(cls.getId(), cls.getName());
-            if (cls.getName() != null && !cls.getName().isBlank()) {
-                rubricClassNames.add(cls.getName());
-                classIdByName.put(cls.getName(), cls.getId());
-            }
+        Map<UUID, ChallengeMemberIds> grouped = loadChallengeMemberIdsGrouped(List.of(challengeId));
+        ChallengeMemberIds memberIds = grouped.get(challengeId);
+        return memberIds != null ? memberIds : emptyChallengeMemberIds();
+    }
+
+    /**
+     * Batch-load OT membership sets for many challenges (clone path — one query set, not N).
+     */
+    private Map<UUID, ChallengeMemberIds> loadChallengeMemberIdsGrouped(Collection<UUID> challengeIds) {
+        if (challengeIds == null || challengeIds.isEmpty()) {
+            return Map.of();
         }
+        List<UUID> ids = challengeIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<Challenge> challenges = challengeRepository.findAllById(ids);
+        Map<UUID, ChallengeMemberIds> result = new HashMap<>();
+        for (UUID id : ids) {
+            result.put(id, emptyChallengeMemberIds());
+        }
+        if (challenges.isEmpty()) {
+            return result;
+        }
+        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
+        Map<UUID, List<ClassEntity>> classesByChallenge = classes.stream()
+                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+
         Map<UUID, Set<UUID>> heritageChildrenByParentId = new HashMap<>();
         if (!classes.isEmpty()) {
             for (ClassRelation relation : classRelationRepository.findByClassEntityInWithEndpoints(classes)) {
@@ -986,63 +1193,126 @@ public class TestcaseRubricService {
                         .add(childId);
             }
         }
-        Set<UUID> constructorIds = new HashSet<>();
-        Set<UUID> methodIds = new HashSet<>();
-        Set<UUID> fieldIds = new HashSet<>();
-        Map<UUID, String> classNameByConstructorId = new HashMap<>();
-        Map<UUID, UUID> classIdByMethodId = new HashMap<>();
-        Map<UUID, Boolean> methodStaticById = new HashMap<>();
-        Map<UUID, String> methodReturnTypeById = new HashMap<>();
-        List<Constructor> constructors = List.of();
-        List<Method> methods = List.of();
-        if (!classes.isEmpty()) {
-            constructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
-            for (Constructor ctor : constructors) {
+
+        List<Constructor> allConstructors = classes.isEmpty() ? List.of()
+                : constructorRepository.findByClassEntityInWithDeclaration(classes);
+        List<Method> allMethods = classes.isEmpty() ? List.of()
+                : methodRepository.findByClassEntityInWithDeclaration(classes);
+        List<Field> allFields = classes.isEmpty() ? List.of()
+                : fieldRepository.findByClassEntityInWithDeclaration(classes);
+        List<Parameter> constructorParams = allConstructors.isEmpty() ? List.of()
+                : parameterRepository.findByConstructorEntityIn(allConstructors);
+        List<Parameter> methodParams = allMethods.isEmpty() ? List.of()
+                : parameterRepository.findByMethodIn(allMethods);
+        Map<UUID, List<String>> paramTypesByConstructorId = RubricParameterMaps.byConstructor(constructorParams);
+        Map<UUID, List<String>> paramTypesByMethodId = RubricParameterMaps.byMethod(methodParams);
+
+        Map<UUID, List<Constructor>> ctorsByChallenge = new HashMap<>();
+        Map<UUID, List<Method>> methodsByChallenge = new HashMap<>();
+        Map<UUID, List<Field>> fieldsByChallenge = new HashMap<>();
+        for (Constructor ctor : allConstructors) {
+            UUID challengeId = ctor.getClassEntity().getChallenge().getId();
+            ctorsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(ctor);
+        }
+        for (Method method : allMethods) {
+            UUID challengeId = method.getClassEntity().getChallenge().getId();
+            methodsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(method);
+        }
+        for (Field field : allFields) {
+            UUID challengeId = field.getClassEntity().getChallenge().getId();
+            fieldsByChallenge.computeIfAbsent(challengeId, ignored -> new ArrayList<>()).add(field);
+        }
+
+        for (Challenge challenge : challenges) {
+            UUID challengeId = challenge.getId();
+            List<ClassEntity> challengeClasses = classesByChallenge.getOrDefault(challengeId, List.of());
+            Set<UUID> classIds = new HashSet<>();
+            Set<String> rubricClassNames = new HashSet<>();
+            Map<UUID, String> classNameByClassId = new HashMap<>();
+            Map<String, UUID> classIdByName = new HashMap<>();
+            for (ClassEntity cls : challengeClasses) {
+                classIds.add(cls.getId());
+                classNameByClassId.put(cls.getId(), cls.getName());
+                if (cls.getName() != null && !cls.getName().isBlank()) {
+                    rubricClassNames.add(cls.getName());
+                    classIdByName.put(cls.getName(), cls.getId());
+                }
+            }
+
+            Set<UUID> constructorIds = new HashSet<>();
+            Set<UUID> methodIds = new HashSet<>();
+            Set<UUID> fieldIds = new HashSet<>();
+            Map<UUID, String> classNameByConstructorId = new HashMap<>();
+            Map<UUID, UUID> classIdByMethodId = new HashMap<>();
+            Map<UUID, Boolean> methodStaticById = new HashMap<>();
+            Map<UUID, String> methodReturnTypeById = new HashMap<>();
+            Set<UUID> noArgConstructorClassIds = new HashSet<>();
+            Map<UUID, List<String>> challengeCtorParams = new HashMap<>();
+            Map<UUID, List<String>> challengeMethodParams = new HashMap<>();
+
+            for (Constructor ctor : ctorsByChallenge.getOrDefault(challengeId, List.of())) {
                 constructorIds.add(ctor.getId());
                 classNameByConstructorId.put(
                         ctor.getId(),
                         classNameByClassId.get(ctor.getClassEntity().getId()));
+                List<String> types = paramTypesByConstructorId.getOrDefault(ctor.getId(), List.of());
+                challengeCtorParams.put(ctor.getId(), types);
+                if (types.isEmpty()) {
+                    noArgConstructorClassIds.add(ctor.getClassEntity().getId());
+                }
             }
-            methods = methodRepository.findByClassEntityInWithDeclaration(classes);
-            for (Method method : methods) {
+            for (Method method : methodsByChallenge.getOrDefault(challengeId, List.of())) {
                 methodIds.add(method.getId());
                 classIdByMethodId.put(method.getId(), method.getClassEntity().getId());
                 if (method.getMethodDeclaration() != null) {
                     methodStaticById.put(method.getId(), method.getMethodDeclaration().isStatic());
                     methodReturnTypeById.put(method.getId(), method.getMethodDeclaration().getReturnType());
                 }
+                challengeMethodParams.put(
+                        method.getId(),
+                        paramTypesByMethodId.getOrDefault(method.getId(), List.of()));
             }
-            for (Field field : fieldRepository.findByClassEntityInWithDeclaration(classes)) {
+            for (Field field : fieldsByChallenge.getOrDefault(challengeId, List.of())) {
                 fieldIds.add(field.getId());
             }
+
+            // Heritage map is lab-wide parent→children; ChallengeMemberIds only walks within
+            // ids present in this challenge's classIdByName, so shared map is fine.
+            result.put(challengeId, new ChallengeMemberIds(
+                    constructorIds,
+                    methodIds,
+                    fieldIds,
+                    classIds,
+                    rubricClassNames,
+                    classIdByName,
+                    heritageChildrenByParentId,
+                    classNameByConstructorId,
+                    classIdByMethodId,
+                    methodStaticById,
+                    methodReturnTypeById,
+                    noArgConstructorClassIds,
+                    challengeCtorParams,
+                    challengeMethodParams));
         }
-        List<Parameter> constructorParams = constructors.isEmpty() ? List.of()
-                : parameterRepository.findByConstructorEntityIn(constructors);
-        List<Parameter> methodParams = methods.isEmpty() ? List.of()
-                : parameterRepository.findByMethodIn(methods);
-        Map<UUID, List<String>> paramTypesByConstructorId = RubricParameterMaps.byConstructor(constructorParams);
-        Set<UUID> noArgConstructorClassIds = new HashSet<>();
-        for (Constructor ctor : constructors) {
-            List<String> types = paramTypesByConstructorId.getOrDefault(ctor.getId(), List.of());
-            if (types.isEmpty()) {
-                noArgConstructorClassIds.add(ctor.getClassEntity().getId());
-            }
-        }
+        return result;
+    }
+
+    private static ChallengeMemberIds emptyChallengeMemberIds() {
         return new ChallengeMemberIds(
-                constructorIds,
-                methodIds,
-                fieldIds,
-                classIds,
-                rubricClassNames,
-                classIdByName,
-                heritageChildrenByParentId,
-                classNameByConstructorId,
-                classIdByMethodId,
-                methodStaticById,
-                methodReturnTypeById,
-                noArgConstructorClassIds,
-                paramTypesByConstructorId,
-                RubricParameterMaps.byMethod(methodParams));
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of());
     }
 
     private static boolean isHeritageRelationType(String relationTypeName) {
@@ -1075,24 +1345,22 @@ public class TestcaseRubricService {
         if (id == null || !memberIds.constructorIds().contains(id)) {
             throw unprocessable("Invalid constructor for this challenge");
         }
-        return constructorRepository.findById(id)
-                .orElseThrow(() -> unprocessable("Constructor not found"));
+        // Membership already proven from the challenge graph — avoid a Neon SELECT per FK.
+        return entityManager.getReference(Constructor.class, id);
     }
 
     private Method requireMethod(UUID id, ChallengeMemberIds memberIds) {
         if (id == null || !memberIds.methodIds().contains(id)) {
             throw unprocessable("Invalid method for this challenge");
         }
-        return methodRepository.findById(id)
-                .orElseThrow(() -> unprocessable("Method not found"));
+        return entityManager.getReference(Method.class, id);
     }
 
     private Field requireField(UUID id, ChallengeMemberIds memberIds) {
         if (id == null || !memberIds.fieldIds().contains(id)) {
             throw unprocessable("Invalid field for this challenge");
         }
-        return fieldRepository.findById(id)
-                .orElseThrow(() -> unprocessable("Field not found"));
+        return entityManager.getReference(Field.class, id);
     }
 
     private ClassEntity requireClass(UUID id, ChallengeMemberIds memberIds) {
@@ -1102,8 +1370,7 @@ public class TestcaseRubricService {
         if (!memberIds.classIds().contains(id)) {
             throw unprocessable("Dispatch class does not belong to this challenge");
         }
-        return classEntityRepository.findById(id)
-                .orElseThrow(() -> unprocessable("Dispatch class not found"));
+        return entityManager.getReference(ClassEntity.class, id);
     }
 
     private static String blankToNull(String value) {

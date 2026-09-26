@@ -17,6 +17,7 @@ const EMPTY_FORM = {
   startDate: '',
   endDate: '',
   setCurrent: false,
+  copyLabIds: [],
 };
 
 function matchesStudentSearch(student, query) {
@@ -86,6 +87,8 @@ export default function TermManagement() {
   const [importResult, setImportResult] = useState(null);
   const [importDialog, setImportDialog] = useState(null);
   const [confirmDeleteTerm, setConfirmDeleteTerm] = useState(null);
+  const [copySourceLabs, setCopySourceLabs] = useState([]);
+  const [copySourcesLoading, setCopySourcesLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -202,6 +205,36 @@ export default function TermManagement() {
     }
   };
 
+  const openCreateForm = async () => {
+    setForm(EMPTY_FORM);
+    setShowCreate(true);
+    setCopySourcesLoading(true);
+    setCopySourceLabs([]);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      if (!response.ok) {
+        setCopySourceLabs([]);
+        return;
+      }
+      const data = await response.json();
+      setCopySourceLabs(Array.isArray(data) ? data.map((lab) => ({ id: lab.id, name: lab.name })) : []);
+    } catch {
+      setCopySourceLabs([]);
+    } finally {
+      setCopySourcesLoading(false);
+    }
+  };
+
+  const toggleCopyLabId = (labId) => {
+    setForm((prev) => {
+      const selected = new Set(prev.copyLabIds || []);
+      const key = String(labId);
+      if (selected.has(key)) selected.delete(key);
+      else selected.add(key);
+      return { ...prev, copyLabIds: [...selected] };
+    });
+  };
+
   const handleCreate = async () => {
     if (!form.yearLabel.trim()) {
       showToast({ message: 'Year is required', type: 'error' });
@@ -219,6 +252,7 @@ export default function TermManagement() {
           startDate: form.startDate || null,
           endDate: form.endDate || null,
           setCurrent: form.setCurrent,
+          copyLabIds: form.copyLabIds || [],
         }),
       });
       if (!response.ok) {
@@ -227,10 +261,22 @@ export default function TermManagement() {
       const created = await response.json();
       setShowCreate(false);
       setForm(EMPTY_FORM);
+      setCopySourceLabs([]);
       const nextId = created?.id ?? null;
       setSelectedTermId(nextId);
       await Promise.all([loadTerms(), loadTermStudents(nextId)]);
-      showToast({ message: 'Saved successfully.', type: 'success' });
+      const cloneErrors = Array.isArray(created?.cloneErrors) ? created.cloneErrors : [];
+      if (cloneErrors.length > 0) {
+        const detail = typeof cloneErrors[0] === 'string' && cloneErrors[0]
+          ? ` ${cloneErrors[0]}`
+          : '';
+        showToast({
+          message: `Quarter created. ${cloneErrors.length} lab copy failed.${detail}`,
+          type: 'error',
+        });
+      } else {
+        showToast({ message: 'Saved successfully.', type: 'success' });
+      }
     } catch (err) {
       const message = toFriendlyError(err, 'save');
       setError(message);
@@ -473,7 +519,7 @@ export default function TermManagement() {
         </div>
         <button
           type="button"
-          onClick={() => setShowCreate(true)}
+          onClick={openCreateForm}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
         >
           <Plus className="h-4 w-4" />
@@ -538,6 +584,35 @@ export default function TermManagement() {
             />
             Set as current quarter
           </label>
+          <div className="mt-4 rounded-xl border border-border bg-surface-secondary/60 p-3">
+            <p className="text-sm font-medium text-foreground">Copy labs from current quarter (optional)</p>
+            <p className="mt-1 text-xs text-foreground-muted">
+              Select labs to deep-copy into this new quarter. Rubric and operational testcases are copied; deadlines and student visibility start fresh.
+            </p>
+            {copySourcesLoading ? (
+              <p className="mt-3 text-xs text-foreground-muted">Loading labs…</p>
+            ) : copySourceLabs.length === 0 ? (
+              <p className="mt-3 text-xs text-foreground-muted">No labs in the current quarter to copy.</p>
+            ) : (
+              <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                {copySourceLabs.map((lab) => {
+                  const checked = (form.copyLabIds || []).includes(String(lab.id));
+                  return (
+                    <li key={lab.id}>
+                      <label className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCopyLabId(lab.id)}
+                        />
+                        <span>{lab.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
           <div className="mt-4 flex gap-2">
             <button
               type="button"
@@ -549,7 +624,7 @@ export default function TermManagement() {
             </button>
             <button
               type="button"
-              onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); }}
+              onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setCopySourceLabs([]); }}
               className="rounded-lg border border-border px-4 py-2 text-sm"
             >
               Cancel
@@ -873,7 +948,7 @@ export default function TermManagement() {
             </h3>
             <p className="mb-6 text-center text-sm text-foreground-muted">
               Delete <strong className="text-foreground-secondary">{confirmDeleteTerm.label}</strong>?
-              Enrolled students are removed from this quarter only. This cannot be undone.
+              Labs in this quarter and enrollments are removed. This cannot be undone.
             </p>
             <div className="flex gap-3">
               <button

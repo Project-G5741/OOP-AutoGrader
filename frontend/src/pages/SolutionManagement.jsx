@@ -78,6 +78,13 @@ export default function SolutionManagement() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showCreateLab, setShowCreateLab] = useState(false);
+  const [showCopyLab, setShowCopyLab] = useState(false);
+  const [copySourceLabs, setCopySourceLabs] = useState([]);
+  const [copySourceLabel, setCopySourceLabel] = useState('');
+  const [copySelectedIds, setCopySelectedIds] = useState([]);
+  const [copyTargetTermId, setCopyTargetTermId] = useState('');
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copySaving, setCopySaving] = useState(false);
   const [newLabName, setNewLabName] = useState('');
   const [newLabTermId, setNewLabTermId] = useState('');
   const [newLabDeadline, setNewLabDeadline] = useState('');
@@ -328,6 +335,83 @@ export default function SolutionManagement() {
     }
   };
 
+  const openCopyLab = async () => {
+    setShowCopyLab(true);
+    setCopySelectedIds([]);
+    setCopyLoading(true);
+    const currentTerm = terms.find((term) => term.current);
+    setCopyTargetTermId(currentTerm?.id ? String(currentTerm.id) : '');
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/clone-sources`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
+      const data = await res.json();
+      setCopySourceLabel(data?.sourceTerm?.label || '');
+      setCopySourceLabs(Array.isArray(data?.labs) ? data.labs : []);
+    } catch (e) {
+      setCopySourceLabs([]);
+      setCopySourceLabel('');
+      showToast({ message: toFriendlyError(e, 'read'), type: 'error' });
+    } finally {
+      setCopyLoading(false);
+    }
+  };
+
+  const toggleCopySelected = (labId) => {
+    const key = String(labId);
+    setCopySelectedIds((prev) => (
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+    ));
+  };
+
+  const handleCopyLabs = async () => {
+    if (!copyTargetTermId || copySelectedIds.length === 0) return;
+    setCopySaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/clone`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          sourceLabIds: copySelectedIds,
+          targetTermId: copyTargetTermId,
+        }),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const data = await res.json();
+      const created = Array.isArray(data?.created) ? data.created : [];
+      const errors = Array.isArray(data?.errors) ? data.errors : [];
+      const currentTerm = terms.find((term) => term.current);
+      const targetIsCurrent = currentTerm && String(currentTerm.id) === String(copyTargetTermId);
+      if (targetIsCurrent && created.length > 0) {
+        setLabs((prev) => {
+          const existing = new Set(prev.map((lab) => String(lab.id)));
+          const additions = created
+            .filter((lab) => lab?.id && !existing.has(String(lab.id)))
+            .map((lab) => ({ id: lab.id, name: lab.name }));
+          return additions.length > 0 ? [...prev, ...additions] : prev;
+        });
+        if (created[0]?.id) {
+          await selectLab(created[0].id, true);
+        }
+      }
+      setShowCopyLab(false);
+      if (errors.length > 0) {
+        showToast({
+          message: `Copied ${created.length} lab(s). ${errors.length} failed.`,
+          type: 'error',
+        });
+      } else {
+        showToast({
+          message: created.length === 1 ? 'Lab copied.' : `${created.length} labs copied.`,
+          type: 'success',
+        });
+      }
+    } catch (e) {
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    } finally {
+      setCopySaving(false);
+    }
+  };
+
   const applyDeadlineToSelectedLab = (labId, deadlineDate) => {
     const normalized = toDateInputValue(deadlineDate) || null;
     setDraft((prev) => (prev ? { ...prev, deadlineDate: normalized } : prev));
@@ -528,6 +612,7 @@ export default function SolutionManagement() {
         selectedLabId={selectedLabId}
         onSelectLab={(labId) => selectLab(labId)}
         onAddLab={() => setShowCreateLab(true)}
+        onCopyLab={openCopyLab}
         onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
       />
       <SidebarInset>
@@ -756,6 +841,75 @@ export default function SolutionManagement() {
             <div className="flex gap-2">
               <button type="button" onClick={handleCreateLab} className="rounded-lg bg-primary px-4 py-2 text-sm text-white">Create</button>
               <button type="button" onClick={() => setShowCreateLab(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showCopyLab && (
+        <Modal onClose={() => setShowCopyLab(false)} showClose={false}>
+          <h3 className="mb-2 text-lg font-semibold text-foreground">Copy lab</h3>
+          <p className="mb-4 text-sm text-foreground-secondary">
+            Copy selected labs from the previous current quarter into a target quarter. Rubric and operational testcases are copied; deadlines and visibility start fresh.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs text-foreground-muted">Target quarter</label>
+              <select
+                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                value={copyTargetTermId}
+                onChange={(e) => setCopyTargetTermId(e.target.value)}
+              >
+                <option value="">Select quarter</option>
+                {terms.map((term) => (
+                  <option key={term.id} value={term.id}>{term.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-foreground-muted">
+                Source{copySourceLabel ? `: ${copySourceLabel}` : ''}
+              </p>
+              {copyLoading ? (
+                <p className="text-sm text-foreground-muted">Loading labs…</p>
+              ) : copySourceLabs.length === 0 ? (
+                <p className="text-sm text-foreground-muted">No labs available from the previous current quarter.</p>
+              ) : (
+                <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border bg-surface-secondary p-3">
+                  {copySourceLabs.map((lab) => {
+                    const checked = copySelectedIds.includes(String(lab.id));
+                    return (
+                      <li key={lab.id}>
+                        <label className="flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCopySelected(lab.id)}
+                          />
+                          <span>{lab.name}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={copySaving || !copyTargetTermId || copySelectedIds.length === 0}
+                onClick={handleCopyLabs}
+                className="rounded-lg bg-primary px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {copySaving ? 'Copying…' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCopyLab(false)}
+                className="rounded-lg border border-border px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </Modal>

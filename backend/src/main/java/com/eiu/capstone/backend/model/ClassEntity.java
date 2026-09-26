@@ -7,8 +7,8 @@ import java.util.UUID;
 @Table(name = "class_entity")
 public class ClassEntity {
 
+    /** Client/clone assigned — no {@code @GeneratedValue} (persist with preset UUID). */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false)

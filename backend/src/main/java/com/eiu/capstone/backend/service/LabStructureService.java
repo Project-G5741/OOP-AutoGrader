@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,6 +14,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import jakarta.persistence.EntityManager;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -65,6 +68,9 @@ import com.eiu.capstone.backend.utility.TimingLog;
 @Service
 public class LabStructureService {
 
+    /** When true, structure sync skips intermediate flushes (clone insert path — Neon RTT). */
+    private final ThreadLocal<Boolean> deferStructureFlush = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     private final LabRepository labRepository;
     private final TermRepository termRepository;
     private final ChallengeRepository challengeRepository;
@@ -82,6 +88,7 @@ public class LabStructureService {
     private final TestcaseRubricService testcaseRubricService;
     private final LabStatisticsCache labStatisticsCache;
     private final LabDeadlineHelper labDeadlineHelper;
+    private final EntityManager entityManager;
     private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
@@ -101,6 +108,7 @@ public class LabStructureService {
                                TestcaseRubricService testcaseRubricService,
                                LabStatisticsCache labStatisticsCache,
                                LabDeadlineHelper labDeadlineHelper,
+                               EntityManager entityManager,
                                @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
@@ -119,6 +127,7 @@ public class LabStructureService {
         this.testcaseRubricService = testcaseRubricService;
         this.labStatisticsCache = labStatisticsCache;
         this.labDeadlineHelper = labDeadlineHelper;
+        this.entityManager = entityManager;
         this.timingLog = timingLog;
     }
 
@@ -185,8 +194,28 @@ public class LabStructureService {
                 challengeDtos);
     }
 
+    /**
+     * Clone insert path: same as {@link #saveLabStructure} but skips loading an empty tree
+     * and defers flushes to one commit flush (Neon RTT).
+     */
+    @Transactional
+    public LabStructureResponse saveLabStructureInsertOnly(UUID labId, LabStructureResponse payload) {
+        deferStructureFlush.set(Boolean.TRUE);
+        try {
+            LabStructureResponse saved = saveLabStructure(labId, payload, true);
+            entityManager.flush();
+            return saved;
+        } finally {
+            deferStructureFlush.remove();
+        }
+    }
+
     @Transactional
     public LabStructureResponse saveLabStructure(UUID labId, LabStructureResponse payload) {
+        return saveLabStructure(labId, payload, false);
+    }
+
+    private LabStructureResponse saveLabStructure(UUID labId, LabStructureResponse payload, boolean insertOnly) {
         long startedAt = System.currentTimeMillis();
         Lab lab = labRepository.findById(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
@@ -196,21 +225,23 @@ public class LabStructureService {
 
         List<ChallengeStructureDTO> challengePayloads = payload.challenges() != null ? payload.challenges() : List.of();
         long loadStartedAt = System.currentTimeMillis();
-        SaveContext ctx = loadSaveContext(labId);
+        SaveContext ctx = insertOnly ? emptySaveContextForInsert() : loadSaveContext(labId);
         long loadMs = System.currentTimeMillis() - loadStartedAt;
         Set<UUID> keptChallengeIds = new HashSet<>();
 
-        Set<UUID> payloadChallengeIds = challengePayloads.stream()
-                .map(ChallengeStructureDTO::id)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        if (!insertOnly) {
+            Set<UUID> payloadChallengeIds = challengePayloads.stream()
+                    .map(ChallengeStructureDTO::id)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
 
-        for (Challenge existing : List.copyOf(ctx.challengesById.values())) {
-            if (!payloadChallengeIds.contains(existing.getId())) {
-                deleteChallengeCascade(ctx, existing);
+            for (Challenge existing : List.copyOf(ctx.challengesById.values())) {
+                if (!payloadChallengeIds.contains(existing.getId())) {
+                    deleteChallengeCascade(ctx, existing);
+                }
             }
+            flushStructure();
         }
-        challengeRepository.flush();
 
         Set<Integer> usedChallengeNumbers = ctx.challengesById.values().stream()
                 .map(Challenge::getChallengeNumber)
@@ -253,7 +284,7 @@ public class LabStructureService {
                             saved.getTestcaseWeight());
                 })
                 .toList();
-        TimingLog.block(timingLog, "Save lab structure",
+        TimingLog.block(timingLog, insertOnly ? "Save lab structure (insert-only)" : "Save lab structure",
                 "load", loadMs,
                 "sync", syncMs,
                 "total", System.currentTimeMillis() - startedAt);
@@ -340,6 +371,25 @@ public class LabStructureService {
                 constructorsByClassId,
                 relationsById,
                 relationsByChallengeId,
+                masterDataById);
+    }
+
+    /** Empty tree + master data only — clone insert path skips empty Neon lookups. */
+    private SaveContext emptySaveContextForInsert() {
+        Map<Integer, MasterData> masterDataById = masterDataRepository.findAll().stream()
+                .collect(Collectors.toMap(MasterData::getId, Function.identity()));
+        return new SaveContext(
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
                 masterDataById);
     }
 
@@ -508,14 +558,179 @@ public class LabStructureService {
 
     @Transactional
     public void deleteLabCascade(UUID labId) {
-        Lab lab = labRepository.findById(labId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
-        SaveContext ctx = loadSaveContext(labId);
-        for (Challenge challenge : List.copyOf(ctx.challengesById.values())) {
-            deleteChallengeCascade(ctx, challenge);
+        deleteLabsCascadeBulk(List.of(labId));
+    }
+
+    /**
+     * Deletes labs and all dependent rows with a fixed sequence of set-based SQL statements
+     * (Neon RTT-friendly). Prefer this for term delete over per-entity cascades.
+     */
+    @Transactional
+    public void deleteLabsCascadeBulk(Collection<UUID> labIds) {
+        long startedAt = System.currentTimeMillis();
+        List<UUID> ids = labIds == null
+                ? List.of()
+                : labIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return;
         }
-        labRepository.delete(lab);
-        rubricCacheInvalidationSupport.invalidateLab(labId);
+        deleteLabsByIdsNative(ids);
+        for (UUID id : ids) {
+            rubricCacheInvalidationSupport.invalidateLab(id);
+            labStatisticsCache.invalidate(id);
+        }
+        TimingLog.block(timingLog, "Delete labs cascade (bulk)",
+                "labs", ids.size(),
+                "total", System.currentTimeMillis() - startedAt);
+    }
+
+    /**
+     * Set-based wipe for one or more labs. Order respects FKs; no per-row entity deletes.
+     */
+    private void deleteLabsByIdsNative(List<UUID> labIds) {
+        // --- runtime / grading residuals (by lab_id) ---
+        execDelete("DELETE FROM submission_plagiarism_match WHERE lab_id IN (:labIds)", labIds);
+        execDelete("DELETE FROM submission_plagiarism_fingerprint WHERE lab_id IN (:labIds)", labIds);
+        execDelete("""
+                DELETE FROM submission_testcase_assertion_result
+                WHERE submission_testcase_result_id IN (
+                    SELECT str.id
+                    FROM submission_testcase_result str
+                    JOIN lab_submission s ON s.id = str.submission_id
+                    WHERE s.lab_id IN (:labIds)
+                )
+                """, labIds);
+        for (String table : List.of(
+                "submission_testcase_result",
+                "submission_field_result",
+                "submission_method_result",
+                "submission_constructor_result",
+                "submission_challenge_result",
+                "submission_relation_result")) {
+            execDelete(
+                    "DELETE FROM " + table
+                            + " WHERE submission_id IN (SELECT id FROM lab_submission WHERE lab_id IN (:labIds))",
+                    labIds);
+        }
+        execDelete("DELETE FROM student_lab_progress WHERE lab_id IN (:labIds)", labIds);
+        execDelete("DELETE FROM lab_deadline_email_sent WHERE lab_id IN (:labIds)", labIds);
+        execDelete("DELETE FROM lab_submission WHERE lab_id IN (:labIds)", labIds);
+
+        // --- operational testcases ---
+        execDelete("""
+                DELETE FROM testcase_assertion
+                WHERE testcase_id IN (
+                    SELECT tc.id FROM testcase tc
+                    JOIN challenge ch ON ch.id = tc.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        execDelete("""
+                DELETE FROM testcase_invocation
+                WHERE testcase_id IN (
+                    SELECT tc.id FROM testcase tc
+                    JOIN challenge ch ON ch.id = tc.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        execDelete("""
+                DELETE FROM testcase
+                WHERE challenge_id IN (SELECT id FROM challenge WHERE lab_id IN (:labIds))
+                """, labIds);
+
+        // --- rubric members + declarations ---
+        execDelete("""
+                DELETE FROM parameter
+                WHERE method_id IN (
+                    SELECT m.id FROM method m
+                    JOIN class_entity ce ON ce.id = m.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                OR constructor_id IN (
+                    SELECT c.id FROM constructor c
+                    JOIN class_entity ce ON ce.id = c.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        execDelete("""
+                WITH doomed AS (
+                    SELECT f.id AS field_id, f.field_declaration_id AS decl_id
+                    FROM field f
+                    JOIN class_entity ce ON ce.id = f.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                ),
+                del_f AS (
+                    DELETE FROM field WHERE id IN (SELECT field_id FROM doomed) RETURNING field_declaration_id
+                )
+                DELETE FROM field_declaration WHERE id IN (SELECT field_declaration_id FROM del_f)
+                """, labIds);
+        execDelete("""
+                WITH doomed AS (
+                    SELECT m.id AS method_id, m.method_declaration_id AS decl_id
+                    FROM method m
+                    JOIN class_entity ce ON ce.id = m.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                ),
+                del_m AS (
+                    DELETE FROM method WHERE id IN (SELECT method_id FROM doomed) RETURNING method_declaration_id
+                )
+                DELETE FROM method_declaration WHERE id IN (SELECT method_declaration_id FROM del_m)
+                """, labIds);
+        execDelete("""
+                WITH doomed AS (
+                    SELECT c.id AS ctor_id, c.constructor_declaration_id AS decl_id
+                    FROM constructor c
+                    JOIN class_entity ce ON ce.id = c.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                ),
+                del_c AS (
+                    DELETE FROM constructor WHERE id IN (SELECT ctor_id FROM doomed)
+                    RETURNING constructor_declaration_id
+                )
+                DELETE FROM constructor_declaration WHERE id IN (SELECT constructor_declaration_id FROM del_c)
+                """, labIds);
+        execDelete("""
+                DELETE FROM class_relation
+                WHERE class_id IN (
+                    SELECT ce.id FROM class_entity ce
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                OR target_class_id IN (
+                    SELECT ce.id FROM class_entity ce
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        // Break nested-class self-FK before deleting shells.
+        execDelete("""
+                UPDATE class_entity SET outer_class_id = NULL
+                WHERE challenge_id IN (SELECT id FROM challenge WHERE lab_id IN (:labIds))
+                """, labIds);
+        execDelete("""
+                DELETE FROM class_entity
+                WHERE challenge_id IN (SELECT id FROM challenge WHERE lab_id IN (:labIds))
+                """, labIds);
+        execDelete("DELETE FROM challenge WHERE lab_id IN (:labIds)", labIds);
+        execDelete("DELETE FROM lab WHERE id IN (:labIds)", labIds);
+    }
+
+    private void execDelete(String sql, List<UUID> labIds) {
+        entityManager.createNativeQuery(sql)
+                .setParameter("labIds", labIds)
+                .executeUpdate();
+    }
+
+    private void flushStructure() {
+        if (Boolean.TRUE.equals(deferStructureFlush.get())) {
+            return;
+        }
+        entityManager.flush();
     }
 
     private Challenge upsertChallenge(SaveContext ctx, Lab lab, ChallengeStructureDTO dto,
@@ -568,7 +783,16 @@ public class LabStructureService {
                 usedChallengeNumbers.add(currentNumber);
             }
         }
-        challenge = challengeRepository.save(challenge);
+        if (isNew) {
+            if (challenge.getId() == null) {
+                challenge.setId(UUID.randomUUID());
+            }
+            // Client/clone UUIDs must not go through Spring Data save→merge (can replace the id).
+            entityManager.persist(challenge);
+        } else {
+            challenge = challengeRepository.save(challenge);
+        }
+        flushStructure();
         ctx.putChallenge(challenge);
         keptChallengeIds.add(challenge.getId());
         return challenge;
@@ -592,19 +816,41 @@ public class LabStructureService {
         Set<UUID> keptClassIds = new HashSet<>();
         List<ClassStructureDTO> payloads = classDtos != null ? classDtos : List.of();
 
-        List<ClassEntity> classesToSave = new ArrayList<>();
+        // Prepare shells first (no outer yet) so same-save nested classes can resolve outer from the batch.
+        List<ClassEntity> prepared = new ArrayList<>(payloads.size());
+        List<Boolean> isNewFlags = new ArrayList<>(payloads.size());
+        Map<UUID, ClassEntity> batchById = new LinkedHashMap<>();
         for (ClassStructureDTO classDto : payloads) {
-            classesToSave.add(prepareClass(ctx, challenge, classDto));
-        }
-        if (!classesToSave.isEmpty()) {
-            List<ClassEntity> savedClasses = classEntityRepository.saveAll(classesToSave);
-            for (ClassEntity classEntity : savedClasses) {
-                ctx.putClass(classEntity);
-                keptClassIds.add(classEntity.getId());
+            boolean isNew = classDto.id() == null || !ctx.classesById.containsKey(classDto.id());
+            ClassEntity shell = prepareClassShell(ctx, challenge, classDto);
+            if (shell.getId() == null) {
+                shell.setId(UUID.randomUUID());
             }
-            syncFieldsBatch(ctx, savedClasses, payloads);
-            syncMethodsBatch(ctx, savedClasses, payloads);
-            syncConstructorsBatch(ctx, savedClasses, payloads);
+            prepared.add(shell);
+            isNewFlags.add(isNew);
+            batchById.put(shell.getId(), shell);
+        }
+        for (int i = 0; i < payloads.size(); i++) {
+            applyOuterClass(ctx, batchById, challenge, prepared.get(i), payloads.get(i));
+        }
+
+        for (int i = 0; i < prepared.size(); i++) {
+            ClassEntity classEntity = prepared.get(i);
+            if (isNewFlags.get(i)) {
+                entityManager.persist(classEntity);
+            } else {
+                classEntityRepository.save(classEntity);
+            }
+        }
+        flushStructure();
+        for (ClassEntity classEntity : prepared) {
+            ctx.putClass(classEntity);
+            keptClassIds.add(classEntity.getId());
+        }
+        if (!prepared.isEmpty()) {
+            syncFieldsBatch(ctx, prepared, payloads);
+            syncMethodsBatch(ctx, prepared, payloads);
+            syncConstructorsBatch(ctx, prepared, payloads);
         }
 
         for (ClassEntity existing : existingClasses) {
@@ -639,26 +885,37 @@ public class LabStructureService {
             }
 
             ClassRelation relation;
+            boolean isNew;
             if (dto.id() != null) {
                 relation = ctx.relationsById.get(dto.id());
                 if (relation == null) {
                     relation = new ClassRelation();
                     relation.setId(dto.id());
+                    isNew = true;
+                } else {
+                    isNew = false;
                 }
             } else {
                 relation = new ClassRelation();
+                relation.setId(UUID.randomUUID());
+                isNew = true;
             }
             relation.setClassEntity(source);
             relation.setTargetClassEntity(target);
             relation.setRelationType(resolveMasterData(ctx, dto.relationTypeId(), "relation type"));
+            if (isNew) {
+                entityManager.persist(relation);
+            } else {
+                classRelationRepository.save(relation);
+            }
             relationsToSave.add(relation);
         }
 
         rejectExtraHeritagePairs(relationsToSave);
 
         if (!relationsToSave.isEmpty()) {
-            List<ClassRelation> savedRelations = classRelationRepository.saveAll(relationsToSave);
-            for (ClassRelation relation : savedRelations) {
+            flushStructure();
+            for (ClassRelation relation : relationsToSave) {
                 ctx.putRelation(relation);
                 kept.add(relation.getId());
             }
@@ -673,26 +930,27 @@ public class LabStructureService {
     }
 
     private void rejectExtraHeritagePairs(List<ClassRelation> relationsToSave) {
-        Map<UUID, Integer> heritageCountBySource = new HashMap<>();
+        // Java: one extends (inheritance), many implements (realization). Class-shell grading
+        // still picks at most one heritage row; MMD grades each relation independently.
+        Map<UUID, Integer> inheritanceCountBySource = new HashMap<>();
         for (ClassRelation relation : relationsToSave) {
-            if (!isHeritageRelation(relation.getRelationType())) {
+            if (!isInheritanceRelation(relation.getRelationType())) {
                 continue;
             }
             UUID sourceId = relation.getClassEntity().getId();
-            int count = heritageCountBySource.merge(sourceId, 1, Integer::sum);
+            int count = inheritanceCountBySource.merge(sourceId, 1, Integer::sum);
             if (count > 1) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "A class can have at most one inheritance or implementation relationship");
+                        "A class can have at most one inheritance (extends) relationship");
             }
         }
     }
 
-    private static boolean isHeritageRelation(MasterData relationType) {
+    private static boolean isInheritanceRelation(MasterData relationType) {
         if (relationType == null || relationType.getName() == null) {
             return false;
         }
-        String canonical = MmdComparisonService.normalizeRelationTypeName(relationType.getName());
-        return "inheritance".equals(canonical) || "realization".equals(canonical);
+        return "inheritance".equals(MmdComparisonService.normalizeRelationTypeName(relationType.getName()));
     }
 
     private void deleteRelationsForClass(SaveContext ctx, UUID classId) {
@@ -713,7 +971,7 @@ public class LabStructureService {
         }
     }
 
-    private ClassEntity prepareClass(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
+    private ClassEntity prepareClassShell(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
         ClassEntity classEntity;
         if (dto.id() != null) {
             classEntity = ctx.classesById.get(dto.id());
@@ -736,32 +994,45 @@ public class LabStructureService {
         classEntity.setDeclaringType(resolveMasterData(ctx, dto.declaringTypeId(), "declaring type"));
         classEntity.setAbstract(dto.isAbstract());
         classEntity.setWeight(normalizeWeight(dto.weight()));
-        if (dto.outerClassId() != null) {
-            if (dto.id() != null && dto.id().equals(dto.outerClassId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class cannot be its own outer class");
-            }
-            ClassEntity outer = ctx.classesById.get(dto.outerClassId());
-            if (outer == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid outer class id: " + dto.outerClassId());
-            }
-            if (outer.getChallenge() == null || !outer.getChallenge().getId().equals(challenge.getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must belong to the same problem");
-            }
-            if (outer.getOuterClass() != null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must be a top-level class");
-            }
-            classEntity.setOuterClass(outer);
-            classEntity.setStatic(dto.isStatic());
-        } else {
+        classEntity.setOuterClass(null);
+        classEntity.setStatic(false);
+        return classEntity;
+    }
+
+    private void applyOuterClass(SaveContext ctx,
+                                 Map<UUID, ClassEntity> batchById,
+                                 Challenge challenge,
+                                 ClassEntity classEntity,
+                                 ClassStructureDTO dto) {
+        if (dto.outerClassId() == null) {
             classEntity.setOuterClass(null);
             classEntity.setStatic(false);
+            return;
         }
-        return classEntity;
+        if (dto.id() != null && dto.id().equals(dto.outerClassId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class cannot be its own outer class");
+        }
+        ClassEntity outer = ctx.classesById.get(dto.outerClassId());
+        if (outer == null) {
+            outer = batchById.get(dto.outerClassId());
+        }
+        if (outer == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid outer class id: " + dto.outerClassId());
+        }
+        if (outer.getChallenge() == null || !outer.getChallenge().getId().equals(challenge.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must belong to the same problem");
+        }
+        if (outer.getOuterClass() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Outer class must be a top-level class");
+        }
+        classEntity.setOuterClass(outer);
+        classEntity.setStatic(dto.isStatic());
     }
 
     private void syncFieldsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
         List<FieldDeclaration> declarationsToSave = new ArrayList<>();
         List<Field> fieldsToSave = new ArrayList<>();
+        List<Boolean> isNewFlags = new ArrayList<>();
         Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
         for (int i = 0; i < classes.size(); i++) {
@@ -773,6 +1044,7 @@ public class LabStructureService {
             for (FieldStructureDTO dto : fieldDtos) {
                 Field field;
                 FieldDeclaration declaration;
+                boolean isNew;
                 if (dto.id() != null) {
                     field = ctx.fieldsById.get(dto.id());
                     if (field == null) {
@@ -780,6 +1052,7 @@ public class LabStructureService {
                         field.setId(dto.id());
                         field.setClassEntity(classEntity);
                         declaration = new FieldDeclaration();
+                        isNew = true;
                     } else {
                         if (field.getClassEntity() != null
                                 && !field.getClassEntity().getId().equals(classEntity.getId())) {
@@ -792,29 +1065,41 @@ public class LabStructureService {
                         if (declaration == null) {
                             declaration = new FieldDeclaration();
                         }
+                        isNew = false;
                     }
                 } else {
                     field = new Field();
+                    field.setId(UUID.randomUUID());
                     field.setClassEntity(classEntity);
                     declaration = new FieldDeclaration();
+                    isNew = true;
                 }
                 declaration.setName(requireNonBlank(dto.name(), "Field name"));
                 declaration.setDataType(requireNonBlank(dto.dataType(), "Field type"));
                 declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
                 declarationsToSave.add(declaration);
                 fieldsToSave.add(field);
+                isNewFlags.add(isNew);
             }
         }
 
         if (!declarationsToSave.isEmpty()) {
-            fieldDeclarationRepository.saveAll(declarationsToSave);
             for (int i = 0; i < fieldsToSave.size(); i++) {
                 FieldDeclaration declaration = declarationsToSave.get(i);
                 Field field = fieldsToSave.get(i);
-                field.setFieldDeclaration(declaration);
-                field.setName(declaration.getName());
+                if (isNewFlags.get(i)) {
+                    entityManager.persist(declaration);
+                    field.setFieldDeclaration(declaration);
+                    field.setName(declaration.getName());
+                    entityManager.persist(field);
+                } else {
+                    FieldDeclaration savedDecl = fieldDeclarationRepository.save(declaration);
+                    field.setFieldDeclaration(savedDecl);
+                    field.setName(savedDecl.getName());
+                    fieldRepository.save(field);
+                }
             }
-            fieldRepository.saveAll(fieldsToSave);
+            flushStructure();
             for (Field field : fieldsToSave) {
                 ctx.putField(field);
                 keptByClassId.computeIfAbsent(field.getClassEntity().getId(), ignored -> new HashSet<>())
@@ -836,6 +1121,7 @@ public class LabStructureService {
     private void syncMethodsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
         List<MethodDeclaration> declarationsToSave = new ArrayList<>();
         List<Method> methodsToSave = new ArrayList<>();
+        List<Boolean> isNewFlags = new ArrayList<>();
         List<List<ParameterStructureDTO>> parameterPayloads = new ArrayList<>();
         Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
@@ -848,6 +1134,7 @@ public class LabStructureService {
             for (MethodStructureDTO dto : methodDtos) {
                 Method method;
                 MethodDeclaration declaration;
+                boolean isNew;
                 if (dto.id() != null) {
                     method = ctx.methodsById.get(dto.id());
                     if (method == null) {
@@ -855,6 +1142,7 @@ public class LabStructureService {
                         method.setId(dto.id());
                         method.setClassEntity(classEntity);
                         declaration = new MethodDeclaration();
+                        isNew = true;
                     } else {
                         if (method.getClassEntity() != null
                                 && !method.getClassEntity().getId().equals(classEntity.getId())) {
@@ -867,11 +1155,14 @@ public class LabStructureService {
                         if (declaration == null) {
                             declaration = new MethodDeclaration();
                         }
+                        isNew = false;
                     }
                 } else {
                     method = new Method();
+                    method.setId(UUID.randomUUID());
                     method.setClassEntity(classEntity);
                     declaration = new MethodDeclaration();
+                    isNew = true;
                 }
                 declaration.setName(requireNonBlank(dto.name(), "Method name"));
                 declaration.setReturnType(requireNonBlank(dto.returnType(), "Return type"));
@@ -881,28 +1172,38 @@ public class LabStructureService {
                 declaration.setFinal(false);
                 declarationsToSave.add(declaration);
                 methodsToSave.add(method);
+                isNewFlags.add(isNew);
                 parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
             }
         }
 
         if (!declarationsToSave.isEmpty()) {
-            methodDeclarationRepository.saveAll(declarationsToSave);
             for (int i = 0; i < methodsToSave.size(); i++) {
                 MethodDeclaration declaration = declarationsToSave.get(i);
                 Method method = methodsToSave.get(i);
-                method.setMethodDeclaration(declaration);
-                method.setName(declaration.getName());
+                if (isNewFlags.get(i)) {
+                    entityManager.persist(declaration);
+                    method.setMethodDeclaration(declaration);
+                    method.setName(declaration.getName());
+                    entityManager.persist(method);
+                } else {
+                    MethodDeclaration savedDecl = methodDeclarationRepository.save(declaration);
+                    method.setMethodDeclaration(savedDecl);
+                    method.setName(savedDecl.getName());
+                    methodRepository.save(method);
+                }
             }
-            methodRepository.saveAll(methodsToSave);
+            flushStructure();
             List<UUID> methodIds = methodsToSave.stream().map(Method::getId).toList();
             parameterRepository.deleteByMethod_IdIn(methodIds);
             List<Parameter> newParameters = new ArrayList<>();
             for (int i = 0; i < methodsToSave.size(); i++) {
                 newParameters.addAll(buildParameters(parameterPayloads.get(i), methodsToSave.get(i), null));
             }
-            if (!newParameters.isEmpty()) {
-                parameterRepository.saveAll(newParameters);
+            for (Parameter parameter : newParameters) {
+                entityManager.persist(parameter);
             }
+            flushStructure();
             for (Method method : methodsToSave) {
                 ctx.putMethod(method);
                 keptByClassId.computeIfAbsent(method.getClassEntity().getId(), ignored -> new HashSet<>())
@@ -924,6 +1225,7 @@ public class LabStructureService {
     private void syncConstructorsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {
         List<ConstructorDeclaration> declarationsToSave = new ArrayList<>();
         List<Constructor> constructorsToSave = new ArrayList<>();
+        List<Boolean> isNewFlags = new ArrayList<>();
         List<List<ParameterStructureDTO>> parameterPayloads = new ArrayList<>();
         Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
@@ -936,6 +1238,7 @@ public class LabStructureService {
             for (ConstructorStructureDTO dto : constructorDtos) {
                 Constructor constructor;
                 ConstructorDeclaration declaration;
+                boolean isNew;
                 if (dto.id() != null) {
                     constructor = ctx.constructorsById.get(dto.id());
                     if (constructor == null) {
@@ -943,6 +1246,7 @@ public class LabStructureService {
                         constructor.setId(dto.id());
                         constructor.setClassEntity(classEntity);
                         declaration = new ConstructorDeclaration();
+                        isNew = true;
                     } else {
                         if (constructor.getClassEntity() != null
                                 && !constructor.getClassEntity().getId().equals(classEntity.getId())) {
@@ -955,11 +1259,14 @@ public class LabStructureService {
                         if (declaration == null) {
                             declaration = new ConstructorDeclaration();
                         }
+                        isNew = false;
                     }
                 } else {
                     constructor = new Constructor();
+                    constructor.setId(UUID.randomUUID());
                     constructor.setClassEntity(classEntity);
                     declaration = new ConstructorDeclaration();
+                    isNew = true;
                 }
                 String constructorName = dto.name() != null && !dto.name().isBlank()
                         ? dto.name().trim()
@@ -969,28 +1276,38 @@ public class LabStructureService {
                 declaration.setDefault(dto.isDefault());
                 declarationsToSave.add(declaration);
                 constructorsToSave.add(constructor);
+                isNewFlags.add(isNew);
                 parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
             }
         }
 
         if (!declarationsToSave.isEmpty()) {
-            constructorDeclarationRepository.saveAll(declarationsToSave);
             for (int i = 0; i < constructorsToSave.size(); i++) {
                 ConstructorDeclaration declaration = declarationsToSave.get(i);
                 Constructor constructor = constructorsToSave.get(i);
-                constructor.setConstructorDeclaration(declaration);
-                constructor.setName(declaration.getName());
+                if (isNewFlags.get(i)) {
+                    entityManager.persist(declaration);
+                    constructor.setConstructorDeclaration(declaration);
+                    constructor.setName(declaration.getName());
+                    entityManager.persist(constructor);
+                } else {
+                    ConstructorDeclaration savedDecl = constructorDeclarationRepository.save(declaration);
+                    constructor.setConstructorDeclaration(savedDecl);
+                    constructor.setName(savedDecl.getName());
+                    constructorRepository.save(constructor);
+                }
             }
-            constructorRepository.saveAll(constructorsToSave);
+            flushStructure();
             List<UUID> constructorIds = constructorsToSave.stream().map(Constructor::getId).toList();
             parameterRepository.deleteByConstructorEntity_IdIn(constructorIds);
             List<Parameter> newParameters = new ArrayList<>();
             for (int i = 0; i < constructorsToSave.size(); i++) {
                 newParameters.addAll(buildParameters(parameterPayloads.get(i), null, constructorsToSave.get(i)));
             }
-            if (!newParameters.isEmpty()) {
-                parameterRepository.saveAll(newParameters);
+            for (Parameter parameter : newParameters) {
+                entityManager.persist(parameter);
             }
+            flushStructure();
             for (Constructor constructor : constructorsToSave) {
                 ctx.putConstructor(constructor);
                 keptByClassId.computeIfAbsent(constructor.getClassEntity().getId(), ignored -> new HashSet<>())
@@ -1030,15 +1347,23 @@ public class LabStructureService {
     }
 
     private void deleteChallengeCascade(SaveContext ctx, Challenge challenge) {
+        deleteChallengeCascade(ctx, challenge, false);
+    }
+
+    private void deleteChallengeCascade(SaveContext ctx, Challenge challenge, boolean skipTestcaseGuards) {
         List<ClassEntity> classes = ctx.classesByChallengeId.getOrDefault(challenge.getId(), List.of());
         for (ClassEntity classEntity : List.copyOf(classes)) {
-            deleteClassCascade(ctx, classEntity);
+            deleteClassCascade(ctx, classEntity, skipTestcaseGuards);
         }
         challengeRepository.delete(challenge);
         ctx.removeChallenge(challenge.getId());
     }
 
     private void deleteClassCascade(SaveContext ctx, ClassEntity classEntity) {
+        deleteClassCascade(ctx, classEntity, false);
+    }
+
+    private void deleteClassCascade(SaveContext ctx, ClassEntity classEntity, boolean skipTestcaseGuards) {
         UUID classId = classEntity.getId();
         UUID challengeId = classEntity.getChallenge().getId();
         List<ClassEntity> nestedDependents = ctx.classesByChallengeId.getOrDefault(challengeId, List.of()).stream()
@@ -1046,26 +1371,34 @@ public class LabStructureService {
                         && classId.equals(candidate.getOuterClass().getId()))
                 .toList();
         for (ClassEntity nested : nestedDependents) {
-            deleteClassCascade(ctx, nested);
+            deleteClassCascade(ctx, nested, skipTestcaseGuards);
         }
-        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CLASS, classId);
+        if (!skipTestcaseGuards) {
+            guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CLASS, classId);
+        }
         deleteRelationsForClass(ctx, classId);
         for (Field field : List.copyOf(ctx.fieldsByClassId.getOrDefault(classId, List.of()))) {
-            deleteField(ctx, field);
+            deleteField(ctx, field, skipTestcaseGuards);
         }
         for (Method method : List.copyOf(ctx.methodsByClassId.getOrDefault(classId, List.of()))) {
-            deleteMethod(ctx, method);
+            deleteMethod(ctx, method, skipTestcaseGuards);
         }
         for (Constructor constructor : List.copyOf(ctx.constructorsByClassId.getOrDefault(classId, List.of()))) {
-            deleteConstructor(ctx, constructor);
+            deleteConstructor(ctx, constructor, skipTestcaseGuards);
         }
         classEntityRepository.delete(classEntity);
         ctx.removeClass(classId, challengeId);
     }
 
     private void deleteField(SaveContext ctx, Field field) {
+        deleteField(ctx, field, false);
+    }
+
+    private void deleteField(SaveContext ctx, Field field, boolean skipTestcaseGuards) {
         UUID challengeId = field.getClassEntity().getChallenge().getId();
-        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.FIELD, field.getId());
+        if (!skipTestcaseGuards) {
+            guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.FIELD, field.getId());
+        }
         UUID classId = field.getClassEntity().getId();
         UUID declarationId = field.getFieldDeclaration().getId();
         fieldRepository.delete(field);
@@ -1074,8 +1407,14 @@ public class LabStructureService {
     }
 
     private void deleteMethod(SaveContext ctx, Method method) {
+        deleteMethod(ctx, method, false);
+    }
+
+    private void deleteMethod(SaveContext ctx, Method method, boolean skipTestcaseGuards) {
         UUID challengeId = method.getClassEntity().getChallenge().getId();
-        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.METHOD, method.getId());
+        if (!skipTestcaseGuards) {
+            guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.METHOD, method.getId());
+        }
         UUID classId = method.getClassEntity().getId();
         parameterRepository.deleteByMethod_IdIn(List.of(method.getId()));
         UUID declarationId = method.getMethodDeclaration().getId();
@@ -1085,8 +1424,14 @@ public class LabStructureService {
     }
 
     private void deleteConstructor(SaveContext ctx, Constructor constructor) {
+        deleteConstructor(ctx, constructor, false);
+    }
+
+    private void deleteConstructor(SaveContext ctx, Constructor constructor, boolean skipTestcaseGuards) {
         UUID challengeId = constructor.getClassEntity().getChallenge().getId();
-        guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CONSTRUCTOR, constructor.getId());
+        if (!skipTestcaseGuards) {
+            guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CONSTRUCTOR, constructor.getId());
+        }
         UUID classId = constructor.getClassEntity().getId();
         parameterRepository.deleteByConstructorEntity_IdIn(List.of(constructor.getId()));
         UUID declarationId = constructor.getConstructorDeclaration().getId();

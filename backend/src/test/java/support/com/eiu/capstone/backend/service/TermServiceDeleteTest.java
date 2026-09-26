@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,8 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
@@ -41,6 +44,12 @@ class TermServiceDeleteTest {
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
     @Mock
     private com.eiu.capstone.backend.service.SessionValidityService sessionValidityService;
+    @Mock
+    private com.eiu.capstone.backend.service.LabCloneService labCloneService;
+    @Mock
+    private com.eiu.capstone.backend.service.LabStructureService labStructureService;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private TermService termService;
     private UUID termId;
@@ -54,7 +63,10 @@ class TermServiceDeleteTest {
                 userAccountRepository,
                 labRepository,
                 lecturerOverviewCache,
-                sessionValidityService);
+                sessionValidityService,
+                labCloneService,
+                labStructureService,
+                transactionManager);
         termId = UUID.randomUUID();
     }
 
@@ -71,16 +83,27 @@ class TermServiceDeleteTest {
     }
 
     @Test
-    void deleteTerm_hasLabs_throws409() {
+    void deleteTerm_hasLabs_cascadesLabDeletesThenRemovesTerm() {
         Term term = new Term();
         term.setCurrent(false);
+        UUID labId = UUID.randomUUID();
+        Lab lab = new Lab();
+        try {
+            var field = Lab.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(lab, labId);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
         when(termRepository.findById(termId)).thenReturn(Optional.of(term));
-        when(labRepository.countByTerm_Id(termId)).thenReturn(2L);
+        when(labRepository.findByTerm_Id(termId)).thenReturn(List.of(lab));
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> termService.deleteTerm(termId));
-        assertEquals(409, ex.getStatusCode().value());
-        verify(termRepository, never()).delete(term);
+        termService.deleteTerm(termId);
+
+        verify(labStructureService).deleteLabsCascadeBulk(List.of(labId));
+        verify(termEnrollmentRepository).deleteByTerm_Id(termId);
+        verify(termRepository).delete(term);
+        verify(lecturerOverviewCache).invalidate();
     }
 
     @Test
@@ -88,10 +111,11 @@ class TermServiceDeleteTest {
         Term term = new Term();
         term.setCurrent(false);
         when(termRepository.findById(termId)).thenReturn(Optional.of(term));
-        when(labRepository.countByTerm_Id(termId)).thenReturn(0L);
+        when(labRepository.findByTerm_Id(termId)).thenReturn(List.of());
 
         termService.deleteTerm(termId);
 
+        verify(labStructureService).deleteLabsCascadeBulk(List.of());
         verify(termEnrollmentRepository).deleteByTerm_Id(termId);
         verify(termRepository).delete(term);
         verify(lecturerOverviewCache).invalidate();

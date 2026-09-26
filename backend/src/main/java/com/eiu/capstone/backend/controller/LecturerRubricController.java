@@ -14,7 +14,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.CloneLabsRequest;
+import com.eiu.capstone.backend.DTO.CloneLabsResponse;
+import com.eiu.capstone.backend.DTO.CloneSourcesResponse;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
@@ -23,6 +27,8 @@ import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseDryRunRequest;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
+import com.eiu.capstone.backend.model.Term;
+import com.eiu.capstone.backend.service.LabCloneService;
 import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseDryRunService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
@@ -34,13 +40,32 @@ public class LecturerRubricController {
     private final LabStructureService labStructureService;
     private final TestcaseRubricService testcaseRubricService;
     private final TestcaseDryRunService testcaseDryRunService;
+    private final LabCloneService labCloneService;
 
     public LecturerRubricController(LabStructureService labStructureService,
                                     TestcaseRubricService testcaseRubricService,
-                                    TestcaseDryRunService testcaseDryRunService) {
+                                    TestcaseDryRunService testcaseDryRunService,
+                                    LabCloneService labCloneService) {
         this.labStructureService = labStructureService;
         this.testcaseRubricService = testcaseRubricService;
         this.testcaseDryRunService = testcaseDryRunService;
+        this.labCloneService = labCloneService;
+    }
+
+    @GetMapping("/clone-sources")
+    public CloneSourcesResponse listCloneSources() {
+        return labCloneService.listCloneSources();
+    }
+
+    @PostMapping("/clone")
+    public CloneLabsResponse cloneLabs(@RequestBody CloneLabsRequest request) {
+        Term previous = labCloneService.findPreviousCurrentTerm()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "No previous current quarter to copy from"));
+        return labCloneService.cloneLabs(
+                request.sourceLabIds(),
+                request.targetTermId(),
+                previous.getId());
     }
 
     @GetMapping("/{labId}/structure")

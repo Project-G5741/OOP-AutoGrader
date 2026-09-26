@@ -13,11 +13,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.eiu.capstone.backend.service.LabCloneService;
+import com.eiu.capstone.backend.service.LabStructureService;
+import com.eiu.capstone.backend.service.SessionValidityService;
+import com.eiu.capstone.backend.service.TermService;
 
 @ExtendWith(MockitoExtension.class)
 class TermServiceCurrentTermTest {
@@ -36,6 +41,12 @@ class TermServiceCurrentTermTest {
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
     @Mock
     private SessionValidityService sessionValidityService;
+    @Mock
+    private LabCloneService labCloneService;
+    @Mock
+    private LabStructureService labStructureService;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private TermService termService;
 
@@ -48,7 +59,10 @@ class TermServiceCurrentTermTest {
                 userAccountRepository,
                 labRepository,
                 lecturerOverviewCache,
-                sessionValidityService);
+                sessionValidityService,
+                labCloneService,
+                labStructureService,
+                transactionManager);
     }
 
     @Test

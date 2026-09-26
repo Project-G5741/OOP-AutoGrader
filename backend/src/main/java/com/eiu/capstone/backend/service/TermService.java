@@ -14,9 +14,13 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.CloneLabErrorDTO;
+import com.eiu.capstone.backend.DTO.CloneLabsResponse;
 import com.eiu.capstone.backend.DTO.CreateTermRequest;
 import com.eiu.capstone.backend.DTO.ImportStudentRow;
 import com.eiu.capstone.backend.DTO.ImportStudentsRequest;
@@ -26,6 +30,7 @@ import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
 import com.eiu.capstone.backend.model.AcademicYear;
+import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.TermEnrollment;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -46,6 +51,9 @@ public class TermService {
     private final LabRepository labRepository;
     private final LecturerOverviewCache lecturerOverviewCache;
     private final SessionValidityService sessionValidityService;
+    private final LabCloneService labCloneService;
+    private final LabStructureService labStructureService;
+    private final TransactionTemplate transactionTemplate;
 
     public TermService(TermRepository termRepository,
                        AcademicYearRepository academicYearRepository,
@@ -53,7 +61,10 @@ public class TermService {
                        UserAccountRepository userAccountRepository,
                        LabRepository labRepository,
                        LecturerOverviewCache lecturerOverviewCache,
-                       SessionValidityService sessionValidityService) {
+                       SessionValidityService sessionValidityService,
+                       LabCloneService labCloneService,
+                       LabStructureService labStructureService,
+                       PlatformTransactionManager transactionManager) {
         this.termRepository = termRepository;
         this.academicYearRepository = academicYearRepository;
         this.termEnrollmentRepository = termEnrollmentRepository;
@@ -61,6 +72,9 @@ public class TermService {
         this.labRepository = labRepository;
         this.lecturerOverviewCache = lecturerOverviewCache;
         this.sessionValidityService = sessionValidityService;
+        this.labCloneService = labCloneService;
+        this.labStructureService = labStructureService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Transactional(readOnly = true)
@@ -74,8 +88,41 @@ public class TermService {
                 .toList();
     }
 
-    @Transactional
     public TermSummaryDTO createTerm(CreateTermRequest request) {
+        Optional<Term> outgoingCurrent = findCurrentTerm();
+        List<UUID> copyLabIds = request.copyLabIds() != null ? request.copyLabIds() : List.of();
+        if (!copyLabIds.isEmpty()) {
+            if (outgoingCurrent.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No current quarter to copy labs from");
+            }
+            labCloneService.requireLabsInTerm(copyLabIds, outgoingCurrent.get().getId());
+        }
+
+        TermSummaryDTO summary = transactionTemplate.execute(status -> persistNewTerm(request));
+        if (summary == null) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create quarter");
+        }
+        if (copyLabIds.isEmpty()) {
+            return summary;
+        }
+        CloneLabsResponse cloneResult = labCloneService.cloneLabs(
+                copyLabIds, summary.id(), outgoingCurrent.get().getId());
+        List<String> cloneErrors = cloneResult.errors().stream()
+                .map(CloneLabErrorDTO::message)
+                .toList();
+        return new TermSummaryDTO(
+                summary.id(),
+                summary.label(),
+                summary.endDate(),
+                summary.yearLabel(),
+                summary.termNumber(),
+                summary.current(),
+                summary.studentCount(),
+                cloneErrors);
+    }
+
+    private TermSummaryDTO persistNewTerm(CreateTermRequest request) {
         String yearLabel = request.yearLabel().trim();
         int termNumber = request.termNumber();
         AcademicYear year = academicYearRepository.findByYearLabel(yearLabel)
@@ -98,7 +145,10 @@ public class TermService {
         term.setCurrent(false);
         term = termRepository.save(term);
         if (request.setCurrent()) {
-            return setCurrentTerm(term.getId());
+            termRepository.clearOtherCurrent(term.getId());
+            term.setCurrent(true);
+            term = termRepository.save(term);
+            lecturerOverviewCache.invalidate();
         }
         return toSummary(term);
     }
@@ -295,10 +345,12 @@ public class TermService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Cannot delete the current quarter. Set another quarter as current first.");
         }
-        if (labRepository.countByTerm_Id(termId) > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This quarter still has labs. Delete them in Solution Management first.");
-        }
+        // Non-current quarters are hidden from Solution Management, so leftover clone shells
+        // would otherwise block delete forever. Bulk SQL wipe (few Neon RTTs) then enrollments.
+        List<UUID> labIds = labRepository.findByTerm_Id(termId).stream()
+                .map(Lab::getId)
+                .toList();
+        labStructureService.deleteLabsCascadeBulk(labIds);
         termEnrollmentRepository.deleteByTerm_Id(termId);
         termRepository.delete(term);
         lecturerOverviewCache.invalidate();

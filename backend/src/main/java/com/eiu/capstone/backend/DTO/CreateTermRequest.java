@@ -1,6 +1,8 @@
 package com.eiu.capstone.backend.DTO;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -12,5 +14,6 @@ public record CreateTermRequest(
         @NotNull @Min(1) @Max(4) Integer termNumber,
         LocalDate startDate,
         LocalDate endDate,
-        boolean setCurrent) {
+        boolean setCurrent,
+        List<UUID> copyLabIds) {
 }

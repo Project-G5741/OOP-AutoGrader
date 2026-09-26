@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.eiu.capstone.backend.DTO.ImportStudentRow;
 import com.eiu.capstone.backend.DTO.ImportStudentsRequest;
@@ -48,6 +49,12 @@ class TermServiceImportTest {
     private com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache lecturerOverviewCache;
     @Mock
     private SessionValidityService sessionValidityService;
+    @Mock
+    private LabCloneService labCloneService;
+    @Mock
+    private LabStructureService labStructureService;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private TermService termService;
     private UUID termId;
@@ -63,7 +70,10 @@ class TermServiceImportTest {
                 userAccountRepository,
                 labRepository,
                 lecturerOverviewCache,
-                sessionValidityService);
+                sessionValidityService,
+                labCloneService,
+                labStructureService,
+                transactionManager);
         termId = UUID.randomUUID();
         userId = UUID.randomUUID();
         term = new Term();

@@ -78,6 +78,14 @@ public class GlobalExceptionHandler {
             return "Database schema is missing testcase invocation receiver columns. Run docs/sql/2026-08-11-testcase-invocation-receiver.sql.";
         }
         if (detail.contains("violates foreign key constraint")) {
+            if (detail.contains("lab_submission") || detail.contains("student_lab_progress")
+                    || detail.contains("lab_deadline_email_sent")
+                    || detail.contains("submission_plagiarism")) {
+                return "Cannot delete: related submissions or progress still reference this lab.";
+            }
+            if (detail.contains("testcase") || detail.contains("challenge") || detail.contains("class_entity")) {
+                return "Cannot delete: related grading or testcase data still references this lab.";
+            }
             return "A referenced constructor, method, or field does not exist. Save lab structure first, then retry.";
         }
         return "Could not save testcase data. Check assertion kinds, field references, and JSON values.";

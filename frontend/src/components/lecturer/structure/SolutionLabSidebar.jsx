@@ -1,4 +1,4 @@
-import { BookOpen, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Copy, Plus, Trash2 } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +44,7 @@ export default function SolutionLabSidebar({
   selectedLabId = null,
   onSelectLab = () => {},
   onAddLab = () => {},
+  onCopyLab = () => {},
   onDeleteLab = () => {},
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -61,14 +62,26 @@ export default function SolutionLabSidebar({
             <p className="text-sm font-semibold text-foreground">Labs</p>
             <p className="text-xs text-foreground-muted">Manage rubrics and deadlines</p>
           </div>
-          <button
-            type="button"
-            onClick={onAddLab}
-            className="rounded-md p-1.5 text-foreground-muted transition-colors hover:bg-surface-secondary hover:text-primary"
-            aria-label="Add lab"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onCopyLab}
+              className="rounded-md p-1.5 text-foreground-muted transition-colors hover:bg-surface-secondary hover:text-primary"
+              aria-label="Copy lab"
+              title="Copy lab from previous quarter"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onAddLab}
+              className="rounded-md p-1.5 text-foreground-muted transition-colors hover:bg-surface-secondary hover:text-primary"
+              aria-label="Add lab"
+              title="Create blank lab"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
