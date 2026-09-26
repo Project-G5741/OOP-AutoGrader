@@ -120,7 +120,7 @@ Grading tuning properties (`application.properties`):
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
 | `app.grading.sandbox.runner-token` | _(empty)_ | Bearer token shared with runner (`SANDBOX_RUNNER_TOKEN`) |
 | `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `TestcaseDryRunService` and `GradingService.gradeSubmission` when OT applies. Capacity stays 1. |
-| `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
+| Pillar order (upload) | class → MMD → OT per challenge | OT challenges: all class+MMD on `gradingExecutor` first, then one worker JVM; pillars are sequential (no MMD∥OT) to spare CPU/RAM on small hosts |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, compile, each challenge, grade submission, structure save, and read paths |

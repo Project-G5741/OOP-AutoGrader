@@ -4,12 +4,9 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +15,7 @@ import com.eiu.capstone.backend.grading.ReflectionClassParser;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -30,24 +28,21 @@ public class GradingPipeline {
     private final ClassReflectionGrader classReflectionGrader;
     private final MmdPillarGrader mmdPillarGrader;
     private final TestcaseGrader testcaseGrader;
-    private final ExecutorService pillarExecutor;
     private final boolean timingLog;
 
     public GradingPipeline(ReflectionClassParser reflectionClassParser,
                            ClassReflectionGrader classReflectionGrader,
                            MmdPillarGrader mmdPillarGrader,
                            TestcaseGrader testcaseGrader,
-                           @Qualifier("pillarExecutor") ExecutorService pillarExecutor,
                            @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.reflectionClassParser = reflectionClassParser;
         this.classReflectionGrader = classReflectionGrader;
         this.mmdPillarGrader = mmdPillarGrader;
         this.testcaseGrader = testcaseGrader;
-        this.pillarExecutor = pillarExecutor;
         this.timingLog = timingLog;
     }
 
-    /** Grades one challenge without a shared worker session (null handle). */
+    /** Grades one challenge without a shared worker session (operational testcases deferred). */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
@@ -59,7 +54,26 @@ public class GradingPipeline {
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
             List<MultipartFile> mmdFiles,
-            com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle workerSession) {
+            WorkerSessionHandle workerSession) {
+
+        ClassMmdPhaseResult phase = gradeClassAndMmd(rubric, folderResult, mmdFiles);
+        if (phase == null) {
+            return null;
+        }
+        if (!phase.testcaseApplicable() || workerSession == null) {
+            return toPipelineResult(phase, TestcaseGrader.TestcasePillarResult.empty(), phase.context());
+        }
+        return completeOperationalTestcases(phase, workerSession);
+    }
+
+    /**
+     * Class reflection, then MMD when applicable. Operational testcases are intentionally omitted
+     * so upload grading can finish this phase before opening the isolated worker JVM.
+     */
+    public ClassMmdPhaseResult gradeClassAndMmd(
+            LabRubricSnapshot rubric,
+            SubmissionStorageService.ChallengeResult folderResult,
+            List<MultipartFile> mmdFiles) {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
@@ -90,77 +104,105 @@ public class GradingPipeline {
                 parsedClasses,
                 folderResult.failedClassNames,
                 folderResult.compileErrorsByClassName,
-                workerSession);
+                null);
 
         long classStart = System.currentTimeMillis();
         ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);
         long classMs = System.currentTimeMillis() - classStart;
 
-        long[] mmdMs = {0};
-        long[] testcaseMs = {0};
+        long mmdStart = System.currentTimeMillis();
+        MmdPillarGrader.MmdPillarResult mmdResult = mmdApplicable
+                ? mmdPillarGrader.grade(challengeRubric, mmdFiles)
+                : MmdPillarGrader.notApplicable();
+        long mmdMs = System.currentTimeMillis() - mmdStart;
 
-        CompletableFuture<MmdPillarGrader.MmdPillarResult> mmdFuture = mmdApplicable
-                ? CompletableFuture.supplyAsync(() -> {
-                    long started = System.currentTimeMillis();
-                    MmdPillarGrader.MmdPillarResult result = mmdPillarGrader.grade(challengeRubric, mmdFiles);
-                    mmdMs[0] = System.currentTimeMillis() - started;
-                    return result;
-                }, pillarExecutor)
-                : CompletableFuture.completedFuture(MmdPillarGrader.notApplicable());
-        CompletableFuture<TestcaseGrader.TestcasePillarResult> testcaseFuture = testcaseApplicable
-                ? CompletableFuture.supplyAsync(() -> {
-                    long started = System.currentTimeMillis();
-                    TestcaseGrader.TestcasePillarResult result = testcaseGrader.grade(context);
-                    testcaseMs[0] = System.currentTimeMillis() - started;
-                    return result;
-                }, pillarExecutor)
-                : CompletableFuture.completedFuture(TestcaseGrader.TestcasePillarResult.empty());
-
-        CompletableFuture.allOf(mmdFuture, testcaseFuture).join();
-        MmdPillarGrader.MmdPillarResult mmdResult = mmdFuture.join();
-        TestcaseGrader.TestcasePillarResult testcaseResult = testcaseFuture.join();
-
-        long scoreStart = System.currentTimeMillis();
-        BigDecimal challengePct = PillarScoreAggregator.challengePercentage(
-                classResult.pillarPercentage(),
-                challengeRubric.classWeight(),
-                mmdResult.pillarPercentage(),
-                mmdApplicable,
-                challengeRubric.mmdWeight(),
-                testcaseResult.pillarPercentage(),
-                testcaseApplicable,
-                challengeRubric.testcaseWeight());
-        long scoreMs = System.currentTimeMillis() - scoreStart;
-        TimingLog.block(timingLog, "Challenge " + challengeKey,
+        TimingLog.block(timingLog, "Challenge " + challengeKey + " (class+mmd)",
                 "parse", parseMs,
                 "class", classMs,
-                "mmd", mmdMs[0],
-                "testcase", testcaseMs[0],
-                "score", scoreMs,
+                "mmd", mmdMs,
                 "total", System.currentTimeMillis() - challengeStart);
 
-        boolean fullyCorrect = classResult.pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0
-                && (!mmdApplicable || mmdResult.pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0)
-                && (!testcaseApplicable || testcaseResult.pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0);
-
-        return new ChallengePipelineResult(
+        return new ClassMmdPhaseResult(
                 challengeNumber,
                 challengeRubric.challengeId(),
                 challengeRubric.name(),
-                challengePct,
-                fullyCorrect,
+                challengeRubric,
                 mmdApplicable,
                 testcaseApplicable,
                 classResult,
                 mmdResult,
-                testcaseResult,
                 context);
+    }
+
+    /** Runs operational testcases after class and MMD pillars have finished for this challenge. */
+    public ChallengePipelineResult completeOperationalTestcases(
+            ClassMmdPhaseResult phase,
+            WorkerSessionHandle workerSession) {
+
+        long challengeStart = System.currentTimeMillis();
+        long testcaseStart = System.currentTimeMillis();
+        ChallengeGradingContext context = phase.context().withWorkerSession(workerSession);
+        TestcaseGrader.TestcasePillarResult testcaseResult = testcaseGrader.grade(context);
+        long testcaseMs = System.currentTimeMillis() - testcaseStart;
+
+        TimingLog.block(timingLog, "Challenge " + phase.challengeNumber() + " (testcase)",
+                "testcase", testcaseMs,
+                "total", System.currentTimeMillis() - challengeStart);
+
+        return toPipelineResult(phase, testcaseResult, context);
+    }
+
+    private ChallengePipelineResult toPipelineResult(
+            ClassMmdPhaseResult phase,
+            TestcaseGrader.TestcasePillarResult testcaseResult,
+            ChallengeGradingContext gradingContext) {
+
+        ChallengeRubric challengeRubric = phase.challengeRubric();
+        BigDecimal challengePct = PillarScoreAggregator.challengePercentage(
+                phase.classResult().pillarPercentage(),
+                challengeRubric.classWeight(),
+                phase.mmdResult().pillarPercentage(),
+                phase.mmdApplicable(),
+                challengeRubric.mmdWeight(),
+                testcaseResult.pillarPercentage(),
+                phase.testcaseApplicable(),
+                challengeRubric.testcaseWeight());
+
+        boolean fullyCorrect = phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0
+                && (!phase.mmdApplicable()
+                || phase.mmdResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0)
+                && (!phase.testcaseApplicable()
+                || testcaseResult.pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0);
+
+        return new ChallengePipelineResult(
+                phase.challengeNumber(),
+                phase.challengeId(),
+                phase.challengeName(),
+                challengePct,
+                fullyCorrect,
+                phase.mmdApplicable(),
+                phase.testcaseApplicable(),
+                phase.classResult(),
+                phase.mmdResult(),
+                testcaseResult,
+                gradingContext);
     }
 
     private Integer extractChallengeNumber(String challengeFolderKey) {
         Matcher m = CHALLENGE_NUMBER_PATTERN.matcher(challengeFolderKey);
         return m.matches() ? Integer.parseInt(m.group(1)) : null;
     }
+
+    public record ClassMmdPhaseResult(
+            int challengeNumber,
+            java.util.UUID challengeId,
+            String challengeName,
+            ChallengeRubric challengeRubric,
+            boolean mmdApplicable,
+            boolean testcaseApplicable,
+            ClassReflectionGrader.ClassPillarResult classResult,
+            MmdPillarGrader.MmdPillarResult mmdResult,
+            ChallengeGradingContext context) {}
 
     public record ChallengePipelineResult(
             int challengeNumber,

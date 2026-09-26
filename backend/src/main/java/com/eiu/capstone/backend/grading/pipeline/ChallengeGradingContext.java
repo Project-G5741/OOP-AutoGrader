@@ -59,6 +59,19 @@ public record ChallengeGradingContext(
                 workerSession);
     }
 
+    public ChallengeGradingContext withWorkerSession(WorkerSessionHandle workerSession) {
+        return new ChallengeGradingContext(
+                challengeRubric,
+                classesDir,
+                compileError,
+                parsedClasses,
+                parsedByName,
+                parsedByQualifiedName,
+                failedClassNames,
+                compileErrorsByClassName,
+                workerSession);
+    }
+
     public ParsedClass resolve(ClassRubric expectedClass) {
         if (expectedClass.isNested()) {
             return parsedByQualifiedName.get(expectedClass.qualifiedName());

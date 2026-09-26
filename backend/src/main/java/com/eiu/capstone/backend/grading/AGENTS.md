@@ -9,7 +9,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | File | Role |
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, `lab_result` assembly (persist is `UploadPersistService`) |
-| `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
+| `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then MMD, then operational testcase pillar (sequential per challenge) |
 | `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0%; otherwise members are all-or-nothing (every graded attribute must match); leftover snapshot `"partial"` labels display as fail and are not rewritten; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
@@ -62,9 +62,8 @@ SubmissionController
   → SubmissionStorageService.processUpload()
   → assign lab_submission.id in memory
       → GradingService.gradeSubmission()   (compute + assemble only)
-          → GradingPipeline.gradeChallenge() per folder
-              → ClassReflectionGrader (sync)
-              → MmdPillarGrader + TestcaseGrader on `pillarExecutor` when applicable
+          → When any challenge has OT: parallel `gradeClassAndMmd()` per folder, then worker slot + session, then sequential `completeOperationalTestcases()` per OT challenge
+              → Otherwise `gradeChallenge()` per folder: ClassReflectionGrader → MmdPillarGrader → TestcaseGrader when applicable
           → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
               → skip MMD/testcase trees when pillar not applicable
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)

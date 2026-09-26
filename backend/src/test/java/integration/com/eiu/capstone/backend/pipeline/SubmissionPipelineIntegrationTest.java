@@ -18,8 +18,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
@@ -54,18 +52,6 @@ class SubmissionPipelineIntegrationTest {
 
     @TempDir
     Path tempDir;
-
-    private ExecutorService pillarExecutor;
-
-    @BeforeEach
-    void startPillarExecutor() {
-        pillarExecutor = Executors.newSingleThreadExecutor();
-    }
-
-    @AfterEach
-    void stopPillarExecutor() {
-        pillarExecutor.shutdownNow();
-    }
 
     @Test
     void happyPathCompilesThenGradesClassPillar() throws IOException {
@@ -207,7 +193,6 @@ class SubmissionPipelineIntegrationTest {
                     new ClassReflectionGrader(),
                     new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                     grader,
-                    pillarExecutor,
                     false);
             GradingPipeline.ChallengePipelineResult graded = pipeline.gradeChallenge(
                     new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
@@ -276,7 +261,6 @@ class SubmissionPipelineIntegrationTest {
                 new ClassReflectionGrader(),
                 new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                 new TestcaseGrader(null, null, null, null),
-                pillarExecutor,
                 false);
     }
 
@@ -293,7 +277,6 @@ class SubmissionPipelineIntegrationTest {
                 new ClassReflectionGrader(),
                 new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                 grader,
-                pillarExecutor,
                 false);
     }
 

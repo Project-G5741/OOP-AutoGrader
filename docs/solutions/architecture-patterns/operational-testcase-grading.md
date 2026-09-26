@@ -38,7 +38,7 @@ This learning captures the layered shape and the non-obvious failures hit during
 | `AssertionEvaluator` | One evaluator per `AssertionKind`; FIELD_STATE and EXCEPTION use serialized snapshots, not live student objects. |
 | `GradingService.buildTestcaseResult` | Upsert `submission_testcase_result` and child `submission_testcase_assertion_result` rows by natural keys (testcase id, assertion id). |
 
-Pillar execution still runs on `pillarExecutor` inside `GradingPipeline`. The host allows at most one worker JVM; `GradingService` / `TestcaseDryRunService` acquire that slot on the HTTP request thread. Invokes of one request share that JVM under a per-session mutex.
+Per challenge, pillars run in order: class reflection, then MMD (when applicable), then operational testcase (when applicable). MMD and OT never run in parallel on the same challenge. Uploads with OT finish class+MMD for all challenges on `gradingExecutor`, then acquire the host worker slot and open the isolated JVM before any OT invoke. `TestcaseDryRunService` still acquires the slot on the HTTP thread. Invokes of one request share that JVM under a per-session mutex.
 
 ### Invocation runner — isolated worker
 

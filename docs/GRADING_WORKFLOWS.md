@@ -300,15 +300,15 @@ Step 3: classesDir = folderResult.folder.resolve("classes")
 Step 4: reflectionClassParser.parseClasses(classesDir) → List<ParsedClass>
 Step 5: ChallengeGradingContext.of(rubric, classesDir, compileError, parsedClasses, failedClassNames, compileErrorsByClassName)
 Step 6: classReflectionGrader.grade(context)          ← SYNCHRONOUS
-Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← ASYNC on pillarExecutor
-Step 8: student upload: testcase pillar skipped (no worker). Lecturer dry-run: TestcaseGrader.gradeSingle()
-Step 9: join MMD future (upload does not join a testcase future)
-Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase) — upload treats testcase as not applicable
+Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← SYNCHRONOUS after class (when has_mmd)
+Step 8: (upload with OT) GradingService finishes class+Mmd for all challenges, then opens worker session
+Step 9: testcaseGrader.grade(context)                 ← SYNCHRONOUS after MMD; never parallel with MMD
+Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase)
 Step 11: fullyCorrect = all **applicable** pillars == 100%
 Step 12: return ChallengePipelineResult(...)
 ```
 
-**Threading note:** MMD still runs on `pillarExecutor` (separate from `gradingExecutor`) to avoid deadlock when challenge workers block waiting for pillar tasks on a small pool (e.g. Render free tier with 1–2 CPUs). Student upload does not schedule `TestcaseGrader`. Lecturer dry-run acquires `workerJvmSlot` on the HTTP thread.
+**Threading note:** Class, MMD, and OT for one challenge run sequentially on a `gradingExecutor` worker (no nested pillar pool). Uploads that need OT defer the worker JVM until every challenge has finished class+Mmd. Lecturer dry-run acquires `workerJvmSlot` on the HTTP thread before invokes.
 
 ### 6.2 `ChallengeGradingContext` (record)
 
