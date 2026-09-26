@@ -18,7 +18,8 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
-| `TermService` | Create terms by year, set current term, enroll/remove students, delete empty non-current quarters |
+| `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
+| `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
@@ -81,6 +82,7 @@ Per upload request (unique `requestId` prevents collisions):
 ### Terms
 
 - Lecturers create a term under an academic year label (reused if it exists) and optional dates
+- Optional `copyLabIds` on create: validated against the outgoing current quarter before the term is saved; after create (and optional set-current), labs are deep-cloned best-effort onto the new term (`LabCloneService`); per-lab clone errors are returned on `TermSummaryDTO.cloneErrors` without rolling back the quarter
 - One term is current (`is_current`); set via `POST /api/lecturer/terms/{id}/current`
 - Enroll only active students; out-of-term active students can still log in and read history, not submit
 - Remove from the **current** term bumps `session_version` (force logout of live JWT); remove from a non-current term does not
@@ -91,8 +93,14 @@ Per upload request (unique `requestId` prevents collisions):
 - `GET /{termId}/roster` loads enrolled + available students in one enrollment fetch plus `findActiveStudents`
 - Set current term uses one bulk `UPDATE` (`clearOtherCurrent`) instead of loading every current row; student account expiry purge runs on the daily scheduler only (not when the current quarter changes)
 - Term roster enrolled list includes only active students; available list is active students not yet enrolled
-- `DELETE /api/lecturer/terms/{termId}` removes enrollments then the quarter; blocked when the quarter is current or still has labs
+- `DELETE /api/lecturer/terms/{termId}` removes enrollments then the quarter; blocked when the quarter is current. Non-current quarters cascade-delete their labs first (Solution Management is current-term only, so leftover clone shells would otherwise trap the quarter).
 - Lecturer grade overview (`GET /api/lecturer/grade-overview`) scopes to the current quarter: active enrolled students and that quarter's labs only
+
+### Lab clone
+
+- `GET /api/lecturer/labs/clone-sources` — labs from the previous-current quarter (ordinal: yearLabel desc, termNumber desc; entry after current). Empty when none.
+- `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
+- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied.
 
 ### Operational testcase save
 
@@ -103,6 +111,9 @@ Per upload request (unique `requestId` prevents collisions):
 - `$instance` args (Composition only) must name an earlier constructor or named static return and match the rubric parameter type (class simple name). Failures are HTTP 422
 - GET returns `testcaseType` plus ordered `invocations`. No `oopPrincipleTag`, COMPARISON instances, or per-testcase weight
 - `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
+- `LabStructureService.deleteLabsCascadeBulk` / `deleteLabCascade` wipe labs with ~20 set-based SQL statements (runtime → OT → members → classes → challenges → lab) — do not use per-entity cascades for term delete on Neon
+- `LabStructureService.saveLabStructureInsertOnly` (clone path) uses an empty save context (master data only) and defers intermediate flushes to one commit flush; editor saves keep load + per-batch flush
+- Clone OT write batches membership loads for all challenges and sets FKs via `EntityManager.getReference` (no per-member SELECT)
 
 ## Work Guidance
 
@@ -134,6 +145,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
 - Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 

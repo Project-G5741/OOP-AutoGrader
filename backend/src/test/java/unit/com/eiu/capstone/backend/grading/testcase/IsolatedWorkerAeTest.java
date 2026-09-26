@@ -477,7 +477,7 @@ class IsolatedWorkerAeTest {
 
     private static WorkerSessionHandle startWorker(int timeoutSeconds) {
         return WorkerSessionHandle.startCommand(
-                new WorkerProcessClient("java", "missing-worker.jar"),
+                new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                 timeoutSeconds,
                 WorkerTestSupport.javaCommand());
     }

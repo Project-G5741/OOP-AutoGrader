@@ -22,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.persistence.EntityManager;
+
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
@@ -73,6 +75,7 @@ class LabStructureServiceSaveTest {
     @Mock private TestcaseRubricService testcaseRubricService;
     @Mock private LabStatisticsCache labStatisticsCache;
     @Mock private LabDeadlineHelper labDeadlineHelper;
+    @Mock private EntityManager entityManager;
 
     private RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
 
@@ -107,6 +110,7 @@ class LabStructureServiceSaveTest {
                 testcaseRubricService,
                 labStatisticsCache,
                 labDeadlineHelper,
+                entityManager,
                 false);
 
         labId = UUID.randomUUID();
@@ -159,7 +163,6 @@ class LabStructureServiceSaveTest {
         when(classEntityRepository.findById(classId)).thenReturn(Optional.empty());
         when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
         when(masterDataRepository.findById(2)).thenReturn(Optional.of(scope));
-        when(classEntityRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fieldRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
         when(methodRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
         when(constructorRepository.findByClassEntity_Id(classId)).thenReturn(List.of());
@@ -168,9 +171,9 @@ class LabStructureServiceSaveTest {
 
         labStructureService.saveLabStructure(labId, payload);
 
-        ArgumentCaptor<List<ClassEntity>> classCaptor = ArgumentCaptor.forClass(List.class);
-        verify(classEntityRepository).saveAll(classCaptor.capture());
-        assertEquals(classId, classCaptor.getValue().get(0).getId());
+        ArgumentCaptor<ClassEntity> classCaptor = ArgumentCaptor.forClass(ClassEntity.class);
+        verify(entityManager).persist(classCaptor.capture());
+        assertEquals(classId, classCaptor.getValue().getId());
     }
 
     @Test
@@ -251,7 +254,7 @@ class LabStructureServiceSaveTest {
     }
 
     @Test
-    void saveLabStructure_twoRealizationRowsFromSameSource_throwsBadRequest() {
+    void saveLabStructure_twoRealizationRowsFromSameSource_persistsBoth() {
         TwoClassSaveFixture fx = twoClassFixture();
         MasterData realization = relationType(10, "REALIZATION");
         stubMasterData(realization);
@@ -272,6 +275,39 @@ class LabStructureServiceSaveTest {
                 classDto(fx.sourceId, "EmailSubscriber"),
                 classDto(fx.targetId, "Observer"),
                 classDto(fx.otherTargetId, "Logger")));
+
+        labStructureService.saveLabStructure(labId, payload);
+
+        ArgumentCaptor<Object> persistCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).persist(persistCaptor.capture());
+        long relationCount = persistCaptor.getAllValues().stream()
+                .filter(ClassRelation.class::isInstance)
+                .count();
+        assertEquals(2, relationCount);
+    }
+
+    @Test
+    void saveLabStructure_twoInheritanceRowsFromSameSource_throwsBadRequest() {
+        TwoClassSaveFixture fx = twoClassFixture();
+        MasterData inheritance = relationType(10, "INHERITANCE");
+        stubMasterData(inheritance);
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                fx.challengeId,
+                "Shapes",
+                1,
+                List.of(
+                        classDto(fx.sourceId, "Square"),
+                        classDto(fx.targetId, "Rectangle"),
+                        classDto(fx.otherTargetId, "Shape")),
+                List.of(
+                        new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
+                        new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 10)));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, List.of(challengeDto));
+        stubTwoClassSave(fx, List.of(
+                classDto(fx.sourceId, "Square"),
+                classDto(fx.targetId, "Rectangle"),
+                classDto(fx.otherTargetId, "Shape")));
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
@@ -305,9 +341,12 @@ class LabStructureServiceSaveTest {
 
         labStructureService.saveLabStructure(labId, payload);
 
-        ArgumentCaptor<List<ClassRelation>> relationCaptor = ArgumentCaptor.forClass(List.class);
-        verify(classRelationRepository).saveAll(relationCaptor.capture());
-        assertEquals(2, relationCaptor.getValue().size());
+        ArgumentCaptor<Object> persistCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).persist(persistCaptor.capture());
+        long relationCount = persistCaptor.getAllValues().stream()
+                .filter(ClassRelation.class::isInstance)
+                .count();
+        assertEquals(2, relationCount);
     }
 
     @Test
@@ -383,16 +422,6 @@ class LabStructureServiceSaveTest {
             return saved;
         });
         when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of());
-        when(classEntityRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(classRelationRepository.saveAll(any())).thenAnswer(invocation -> {
-            List<ClassRelation> relations = invocation.getArgument(0);
-            for (ClassRelation relation : relations) {
-                if (relation.getId() == null) {
-                    relation.setId(UUID.randomUUID());
-                }
-            }
-            return relations;
-        });
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(fx.challenge()));
     }
 }

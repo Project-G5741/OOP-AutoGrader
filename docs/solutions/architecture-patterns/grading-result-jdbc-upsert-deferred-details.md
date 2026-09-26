@@ -27,7 +27,7 @@ Upload `grade` time is almost entirely Postgres writes of per-field, per-method,
 ## Guidance
 
 1. **Hot path:** `INSERT … ON CONFLICT` into `submission_challenge_result` only, plus the parsed snapshot files. Return `lab_result` from in-memory compute.
-2. **After the request is scheduled:** `GradingResultJdbcWriter` UPSERTs member and testcase rows on `persistExecutor` using the same unique constraint names as the JPA entities (`submission_field_result_key`, etc.).
+2. **After the request is scheduled:** `GradingResultJdbcWriter` UPSERTs member and testcase rows on `persistExecutor`. Prefer `ON CONFLICT (submission_id, testcase_id)` (or the matching unique columns) over `ON CONFLICT ON CONSTRAINT <name>` when the live DB may still have Postgres-default names from unnamed `UNIQUE (...)` DDL. Named constraints must match JPA (`submission_testcase_result_key`, etc.) — Neon historically had `submission_testcase_result_submission_id_testcase_id_key`, which made deferred OT detail persist fail after a successful upload score write.
 3. **Revisit:** `GET /class`, `/mmd`, `/testcases` call `SubmissionDetailPersistGate.await` (60s) so tabs do not read an empty member set.
 4. **Sidebar:** `ChallengeService.getChallengesForLab` uses stored challenge scores when those rows exist so dashboard refresh does not wait on details.
 5. Do **not** `loadExisting` to merge entity IDs; UPSERT owns re-upload.

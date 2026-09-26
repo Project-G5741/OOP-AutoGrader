@@ -20,4 +20,7 @@ COPY --from=build /build/target/backend-1.0.0-worker.jar worker.jar
 EXPOSE 8080
 # API heap only. The testcase worker is spawned with hardcoded -Xmx64m and does not inherit JAVA_OPTS.
 ENV JAVA_OPTS="-Xmx256m"
+# Image layout path. Do not override on Render with the local Maven path (target/...).
+# WorkerProcessClient also falls back to /app/worker.jar if a stale WORKER_JAR is set.
+ENV WORKER_JAR=/app/worker.jar
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

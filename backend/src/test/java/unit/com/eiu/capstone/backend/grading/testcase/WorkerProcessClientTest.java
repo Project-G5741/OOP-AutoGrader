@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.io.TempDir;
 
 import com.eiu.capstone.backend.grading.testcase.ProcessTreeKiller;
 import com.eiu.capstone.backend.grading.testcase.WorkerEnvironment;
@@ -26,7 +28,7 @@ import support.com.eiu.capstone.backend.grading.testcase.WorkerTestSupport;
 
 class WorkerProcessClientTest {
 
-    private final WorkerProcessClient client = new WorkerProcessClient("java", "missing-worker.jar");
+    private final WorkerProcessClient client = new WorkerProcessClient("java", Path.of("missing-worker.jar"));
 
     @Test
     void missingWorkerJarIsSpawnFailure() {
@@ -35,9 +37,38 @@ class WorkerProcessClientTest {
     }
 
     @Test
+    void resolvePrefersConfiguredPathWhenPresent(@TempDir Path temp) throws Exception {
+        Path configured = temp.resolve("configured-worker.jar");
+        Path fallback = temp.resolve("fallback-worker.jar");
+        Files.writeString(configured, "configured");
+        Files.writeString(fallback, "fallback");
+        Path resolved = WorkerProcessClient.resolveWorkerJar(
+                configured.toString(), List.of(fallback.toString()));
+        assertEquals(configured.toAbsolutePath().normalize(), resolved);
+    }
+
+    @Test
+    void resolveFallsBackWhenConfiguredMissingLikeRenderLocalEnv(@TempDir Path temp) throws Exception {
+        Path missing = temp.resolve("target").resolve("backend-1.0.0-worker.jar");
+        Path dockerLayout = temp.resolve("worker.jar");
+        Files.writeString(dockerLayout, "docker");
+        Path resolved = WorkerProcessClient.resolveWorkerJar(
+                missing.toString(), List.of(dockerLayout.toString()));
+        assertEquals(dockerLayout.toAbsolutePath().normalize(), resolved);
+    }
+
+    @Test
+    void resolveKeepsConfiguredPathWhenNothingExists(@TempDir Path temp) {
+        Path missing = temp.resolve("missing-worker.jar");
+        Path resolved = WorkerProcessClient.resolveWorkerJar(
+                missing.toString(), List.of(temp.resolve("also-missing.jar").toString()));
+        assertEquals(missing, resolved);
+    }
+
+    @Test
     void productionCommandContainsHeapFlags() {
         Path jar = Path.of("target/backend-1.0.0-worker.jar");
-        WorkerProcessClient packaged = new WorkerProcessClient("java", jar.toString());
+        WorkerProcessClient packaged = new WorkerProcessClient("java", jar);
         if (!jar.toFile().isFile()) {
             WorkerSpawnException ex = assertThrows(WorkerSpawnException.class, packaged::productionCommand);
             assertTrue(ex.getMessage().contains("Missing worker jar"));

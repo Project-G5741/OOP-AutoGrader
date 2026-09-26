@@ -120,9 +120,9 @@ export async function readFriendlyApiError(response, context = 'read') {
   }
 
   if (
-    (response.status === 400 || response.status === 422)
+    (response.status === 400 || response.status === 422 || response.status === 409)
     && backendMessage
-    && TESTCASE_API_CONTEXTS.has(context)
+    && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save')
   ) {
     return backendMessage;
   }
@@ -151,6 +151,9 @@ export async function readFriendlyApiError(response, context = 'read') {
     case 'save':
       return FRIENDLY.SAVE_FAILED;
     case 'delete':
+      if (response.status === 409 && backendMessage) {
+        return backendMessage;
+      }
       return FRIENDLY.DELETE_FAILED;
     case 'upload':
       return FRIENDLY.UPLOAD_FAILED;
@@ -182,7 +185,8 @@ export function toFriendlyError(error, context = 'read') {
     return message;
   }
 
-  if (message && TESTCASE_API_CONTEXTS.has(context)) {
+  // Already resolved by readFriendlyApiError (or a client-thrown Error with that text).
+  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save')) {
     return message;
   }
 

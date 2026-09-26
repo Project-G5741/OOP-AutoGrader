@@ -7,8 +7,8 @@ import java.util.UUID;
 @Table(name = "class_relation")
 public class ClassRelation {
 
+    /** Client/clone assigned — no {@code @GeneratedValue} (persist with preset UUID). */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -6,6 +6,7 @@ import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
 import DatePicker from '../components/ui/DatePicker';
 import Modal from '../components/ui/Modal';
+import ModalOverlay from '../components/ui/ModalOverlay';
 import { useToast } from '../components/ui/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -16,6 +17,7 @@ const EMPTY_FORM = {
   startDate: '',
   endDate: '',
   setCurrent: false,
+  copyLabIds: [],
 };
 
 function matchesStudentSearch(student, query) {
@@ -81,9 +83,12 @@ export default function TermManagement() {
   const [rosterSearch, setRosterSearch] = useState('');
   const [termSearch, setTermSearch] = useState('');
   const [termFilter, setTermFilter] = useState('all');
-  const [termSortOrder, setTermSortOrder] = useState('desc');
+  const [termSortOrder, setTermSortOrder] = useState('asc');
   const [importResult, setImportResult] = useState(null);
   const [importDialog, setImportDialog] = useState(null);
+  const [confirmDeleteTerm, setConfirmDeleteTerm] = useState(null);
+  const [copySourceLabs, setCopySourceLabs] = useState([]);
+  const [copySourcesLoading, setCopySourcesLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -200,6 +205,36 @@ export default function TermManagement() {
     }
   };
 
+  const openCreateForm = async () => {
+    setForm(EMPTY_FORM);
+    setShowCreate(true);
+    setCopySourcesLoading(true);
+    setCopySourceLabs([]);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      if (!response.ok) {
+        setCopySourceLabs([]);
+        return;
+      }
+      const data = await response.json();
+      setCopySourceLabs(Array.isArray(data) ? data.map((lab) => ({ id: lab.id, name: lab.name })) : []);
+    } catch {
+      setCopySourceLabs([]);
+    } finally {
+      setCopySourcesLoading(false);
+    }
+  };
+
+  const toggleCopyLabId = (labId) => {
+    setForm((prev) => {
+      const selected = new Set(prev.copyLabIds || []);
+      const key = String(labId);
+      if (selected.has(key)) selected.delete(key);
+      else selected.add(key);
+      return { ...prev, copyLabIds: [...selected] };
+    });
+  };
+
   const handleCreate = async () => {
     if (!form.yearLabel.trim()) {
       showToast({ message: 'Year is required', type: 'error' });
@@ -217,6 +252,7 @@ export default function TermManagement() {
           startDate: form.startDate || null,
           endDate: form.endDate || null,
           setCurrent: form.setCurrent,
+          copyLabIds: form.copyLabIds || [],
         }),
       });
       if (!response.ok) {
@@ -225,10 +261,22 @@ export default function TermManagement() {
       const created = await response.json();
       setShowCreate(false);
       setForm(EMPTY_FORM);
+      setCopySourceLabs([]);
       const nextId = created?.id ?? null;
       setSelectedTermId(nextId);
       await Promise.all([loadTerms(), loadTermStudents(nextId)]);
-      showToast({ message: 'Saved successfully.', type: 'success' });
+      const cloneErrors = Array.isArray(created?.cloneErrors) ? created.cloneErrors : [];
+      if (cloneErrors.length > 0) {
+        const detail = typeof cloneErrors[0] === 'string' && cloneErrors[0]
+          ? ` ${cloneErrors[0]}`
+          : '';
+        showToast({
+          message: `Quarter created. ${cloneErrors.length} lab copy failed.${detail}`,
+          type: 'error',
+        });
+      } else {
+        showToast({ message: 'Saved successfully.', type: 'success' });
+      }
     } catch (err) {
       const message = toFriendlyError(err, 'save');
       setError(message);
@@ -239,11 +287,6 @@ export default function TermManagement() {
   };
 
   const handleDeleteTerm = async (termId) => {
-    const term = terms.find((item) => String(item.id) === String(termId));
-    const label = term?.label ?? 'this quarter';
-    if (!window.confirm(`Delete ${label}? Enrolled students are removed from this quarter only. This cannot be undone.`)) {
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -254,6 +297,7 @@ export default function TermManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'delete'));
       }
+      setConfirmDeleteTerm(null);
       const data = await loadTerms();
       const next = data.find((item) => item.current) ?? data[0];
       const nextId = next?.id ?? null;
@@ -475,7 +519,7 @@ export default function TermManagement() {
         </div>
         <button
           type="button"
-          onClick={() => setShowCreate(true)}
+          onClick={openCreateForm}
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
         >
           <Plus className="h-4 w-4" />
@@ -540,6 +584,35 @@ export default function TermManagement() {
             />
             Set as current quarter
           </label>
+          <div className="mt-4 rounded-xl border border-border bg-surface-secondary/60 p-3">
+            <p className="text-sm font-medium text-foreground">Copy labs from current quarter (optional)</p>
+            <p className="mt-1 text-xs text-foreground-muted">
+              Select labs to deep-copy into this new quarter. Rubric and operational testcases are copied; deadlines and student visibility start fresh.
+            </p>
+            {copySourcesLoading ? (
+              <p className="mt-3 text-xs text-foreground-muted">Loading labs…</p>
+            ) : copySourceLabs.length === 0 ? (
+              <p className="mt-3 text-xs text-foreground-muted">No labs in the current quarter to copy.</p>
+            ) : (
+              <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                {copySourceLabs.map((lab) => {
+                  const checked = (form.copyLabIds || []).includes(String(lab.id));
+                  return (
+                    <li key={lab.id}>
+                      <label className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCopyLabId(lab.id)}
+                        />
+                        <span>{lab.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
           <div className="mt-4 flex gap-2">
             <button
               type="button"
@@ -551,7 +624,7 @@ export default function TermManagement() {
             </button>
             <button
               type="button"
-              onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); }}
+              onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setCopySourceLabs([]); }}
               className="rounded-lg border border-border px-4 py-2 text-sm"
             >
               Cancel
@@ -662,7 +735,7 @@ export default function TermManagement() {
                   <button
                     type="button"
                     disabled={saving || selectedTerm.current}
-                    onClick={() => handleDeleteTerm(selectedTerm.id)}
+                    onClick={() => setConfirmDeleteTerm(selectedTerm)}
                     title={selectedTerm.current ? 'Set another quarter as current before deleting' : 'Delete quarter'}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-error/40 px-3 py-1.5 text-sm text-error-text hover:bg-error-bg disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -858,6 +931,46 @@ export default function TermManagement() {
           )}
         </div>
       </div>
+      {confirmDeleteTerm && (
+        <ModalOverlay onBackdropClick={() => !saving && setConfirmDeleteTerm(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-quarter-title"
+            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-error-bg">
+              <Trash2 className="h-6 w-6 text-error" aria-hidden="true" />
+            </div>
+            <h3 id="delete-quarter-title" className="mb-1 text-center font-semibold text-foreground">
+              Delete quarter
+            </h3>
+            <p className="mb-6 text-center text-sm text-foreground-muted">
+              Delete <strong className="text-foreground-secondary">{confirmDeleteTerm.label}</strong>?
+              Labs in this quarter and enrollments are removed. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirmDeleteTerm(null)}
+                className="flex-1 rounded-lg border border-border py-2.5 text-sm text-foreground-secondary transition-colors hover:bg-surface-secondary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleDeleteTerm(confirmDeleteTerm.id)}
+                className="flex-1 rounded-lg bg-error py-2.5 text-sm font-medium text-white transition-colors hover:bg-error-hover focus:outline-none focus:ring-2 focus:ring-error disabled:opacity-50"
+              >
+                {saving ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
       {importDialog === 'details' && importResult && (
         <Modal onClose={closeImportDialog} className="max-w-lg">
           <h3 className="mb-1 text-lg font-semibold text-foreground">Import details</h3>

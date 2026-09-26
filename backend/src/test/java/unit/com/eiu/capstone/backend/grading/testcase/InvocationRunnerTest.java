@@ -68,7 +68,7 @@ class InvocationRunnerTest {
         assertEquals(0, exitCode, () -> "javac failed: " + compileOutput);
 
         runner = new InvocationRunner(new JsonValueCoercer());
-        WorkerProcessClient client = new WorkerProcessClient("java", "missing-worker.jar");
+        WorkerProcessClient client = new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar"));
         handle = WorkerSessionHandle.startCommand(client, 5, WorkerTestSupport.javaCommand());
     }
 

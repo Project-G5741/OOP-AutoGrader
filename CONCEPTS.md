@@ -141,6 +141,9 @@ The unique set of enrolled/active students for a lab's term/course. Challenge an
 ### Lab deadline
 Optional calendar date on a lab, defaulting to the parent term's end date when set at creation. The effective cutoff is 23:59:59 Vietnam time (UTC+7) on that date. Lecturers manage it in Solution Management and may extend it to a later date.
 
+### Lab clone
+Deep-copy of a lab's rubric tree and operational testcases into another quarter as a **new** lab row (same name). Source lab, submissions, and progress stay on the original quarter. Deadline, student visibility, and release date use blank-lab defaults on the copy. Lecturers select labs from the outgoing current quarter on New quarter create (`copyLabIds`), or later via Copy lab from the previous-current quarter only (`GET /api/lecturer/labs/clone-sources`, `POST /api/lecturer/labs/clone`).
+
 ### Plagiarism check
 Three independent comparisons of one lab submission against other students in the same lab: (1) ordered git commit hashes from the uploaded `.git` must match 100% in the same order; (2) git metadata (config user plus ordered author name/email/timestamp) must match 100%; (3) SHA-256 hashes of `.java` and `.mmd` bytes use Jaccard similarity and flag above 90%. Any firing check marks the pair flagged. Fingerprint signals are snapshotted before the upload response; compare/persist runs off the student wait (typically ~1–3s). Students never see flags.
 

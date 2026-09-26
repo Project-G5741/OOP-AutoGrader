@@ -178,12 +178,13 @@ The table shows all users with their name, IRN/ID, email, role, and account stat
 
 #### Creating a Term
 
-1. Click **+ New Term** (top-right).
+1. Click **Add quarter** (top-right).
 2. Fill in:
    - **Year** — e.g., `2025-2026`.
-   - **Quarter** — 1, 2, or 3.
-   - **Start Date** and **End Date** — use the date picker.
+   - **Quarter** — 1–4.
+   - **Start Date** and **End Date** — optional; use the date picker.
    - **Set as Current Term** — check this to make the new term the active term immediately.
+   - **Copy labs from current quarter (optional)** — multi-select labs from the outgoing current quarter to deep-copy into the new quarter (rubric + operational testcases; deadlines and student visibility start fresh). Leave unchecked to create an empty quarter.
 3. Click **Create**.
 
 #### Setting the Current Term
@@ -226,9 +227,10 @@ The enrolled students list includes **Suspend** and **Restore** actions identica
 
 #### Left Sidebar — Lab List
 
-- Lists all labs in the system.
+- Lists labs for the **current quarter**.
 - Click a lab to load its structure.
-- Click **+ New Lab** to create a new lab shell (name + term assignment required).
+- Click **+** to create a blank lab shell (name + quarter assignment required).
+- Click the **copy** icon to copy one or more labs from the **previous current quarter** into a chosen target quarter (same deep-copy rules as New quarter: rubric + OT only; deadlines/visibility reset).
 
 #### Structure Tree (center panel)
 

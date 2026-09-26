@@ -262,7 +262,7 @@ public class GradingResultJdbcWriter {
                        x.feedback, x.input_display, x.expected_display, x.actual_display, now()
                 FROM unnest(?::uuid[], ?::text[], ?::text[], ?::text[], ?::text[], ?::text[])
                     AS x(testcase_id, result, feedback, input_display, expected_display, actual_display)
-                ON CONFLICT ON CONSTRAINT submission_testcase_result_key
+                ON CONFLICT (submission_id, testcase_id)
                 DO UPDATE SET
                     result = EXCLUDED.result,
                     feedback = EXCLUDED.feedback,

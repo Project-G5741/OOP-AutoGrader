@@ -16,7 +16,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
 | `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
-| `Modal.jsx` | Centered dialog shell built on `ModalOverlay` |
+| `Modal.jsx` | Centered dialog shell built on `ModalOverlay`; optional `showClose` (default true) hides the top Close when the dialog already has Cancel |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |

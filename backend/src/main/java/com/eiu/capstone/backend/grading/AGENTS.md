@@ -16,7 +16,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
 | `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
 | `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
-| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR locally, env allowlist, stderr cap, respawn without releasing the host slot |
+| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR locally, env allowlist, stderr cap, respawn without releasing the host slot; resolves jar path with Docker then local Maven fallbacks when configured path is missing |
 | `grading/testcase/WorkerSessionFactory.java` | `app.grading.sandbox.enabled` — local `WorkerProcessClient` or `RemoteWorkerSessionClient` |
 | `grading/testcase/RemoteWorkerSessionClient.java` | Tar submission root, `POST /sessions` to sandbox-runner |
 | `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON) or `HttpWorkerTransport` (remote REST invoke) |

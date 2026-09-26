@@ -52,7 +52,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `RootController` | `/` | `GET /` — liveness probe (Render health check) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
 | `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
+| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
 | `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | Master data lookup by category |
@@ -114,7 +114,7 @@ Grading tuning properties (`application.properties`):
 | `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
-| `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`) |
+| `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`). Local Maven: `target/backend-1.0.0-worker.jar`. Docker/Render image sets `/app/worker.jar`; if the configured path is missing, `WorkerProcessClient` falls back to `/app/worker.jar` then the local Maven path (so a Render env copied from local `target/...` still works). |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
 | `app.grading.sandbox.enabled` | `false` | Route testcase invoke/dry-run through remote `sandbox-runner` (`SANDBOX_ENABLED`) |
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
