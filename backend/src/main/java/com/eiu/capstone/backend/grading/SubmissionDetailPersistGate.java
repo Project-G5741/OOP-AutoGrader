@@ -27,6 +27,9 @@ public class SubmissionDetailPersistGate {
                 future.complete(null);
             } catch (Throwable t) {
                 System.out.printf("detail persist failed submission=%s: %s%n", submissionId, t);
+                if (t.getCause() != null) {
+                    System.out.printf("detail persist cause submission=%s: %s%n", submissionId, t.getCause());
+                }
                 future.completeExceptionally(t);
             } finally {
                 inflight.remove(submissionId, future);

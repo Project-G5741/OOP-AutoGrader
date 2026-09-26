@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS submission_testcase_result (
     result testcase_result_status NOT NULL,
     feedback TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (submission_id, testcase_id)
+    CONSTRAINT submission_testcase_result_key UNIQUE (submission_id, testcase_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_str_submission_id ON submission_testcase_result(submission_id);
