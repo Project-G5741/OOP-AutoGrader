@@ -6,6 +6,7 @@ import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
 import DatePicker from '../components/ui/DatePicker';
 import Modal from '../components/ui/Modal';
+import ModalOverlay from '../components/ui/ModalOverlay';
 import { useToast } from '../components/ui/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -81,9 +82,10 @@ export default function TermManagement() {
   const [rosterSearch, setRosterSearch] = useState('');
   const [termSearch, setTermSearch] = useState('');
   const [termFilter, setTermFilter] = useState('all');
-  const [termSortOrder, setTermSortOrder] = useState('desc');
+  const [termSortOrder, setTermSortOrder] = useState('asc');
   const [importResult, setImportResult] = useState(null);
   const [importDialog, setImportDialog] = useState(null);
+  const [confirmDeleteTerm, setConfirmDeleteTerm] = useState(null);
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -239,11 +241,6 @@ export default function TermManagement() {
   };
 
   const handleDeleteTerm = async (termId) => {
-    const term = terms.find((item) => String(item.id) === String(termId));
-    const label = term?.label ?? 'this quarter';
-    if (!window.confirm(`Delete ${label}? Enrolled students are removed from this quarter only. This cannot be undone.`)) {
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -254,6 +251,7 @@ export default function TermManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'delete'));
       }
+      setConfirmDeleteTerm(null);
       const data = await loadTerms();
       const next = data.find((item) => item.current) ?? data[0];
       const nextId = next?.id ?? null;
@@ -662,7 +660,7 @@ export default function TermManagement() {
                   <button
                     type="button"
                     disabled={saving || selectedTerm.current}
-                    onClick={() => handleDeleteTerm(selectedTerm.id)}
+                    onClick={() => setConfirmDeleteTerm(selectedTerm)}
                     title={selectedTerm.current ? 'Set another quarter as current before deleting' : 'Delete quarter'}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-error/40 px-3 py-1.5 text-sm text-error-text hover:bg-error-bg disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -858,6 +856,46 @@ export default function TermManagement() {
           )}
         </div>
       </div>
+      {confirmDeleteTerm && (
+        <ModalOverlay onBackdropClick={() => !saving && setConfirmDeleteTerm(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-quarter-title"
+            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-error-bg">
+              <Trash2 className="h-6 w-6 text-error" aria-hidden="true" />
+            </div>
+            <h3 id="delete-quarter-title" className="mb-1 text-center font-semibold text-foreground">
+              Delete quarter
+            </h3>
+            <p className="mb-6 text-center text-sm text-foreground-muted">
+              Delete <strong className="text-foreground-secondary">{confirmDeleteTerm.label}</strong>?
+              Enrolled students are removed from this quarter only. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirmDeleteTerm(null)}
+                className="flex-1 rounded-lg border border-border py-2.5 text-sm text-foreground-secondary transition-colors hover:bg-surface-secondary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleDeleteTerm(confirmDeleteTerm.id)}
+                className="flex-1 rounded-lg bg-error py-2.5 text-sm font-medium text-white transition-colors hover:bg-error-hover focus:outline-none focus:ring-2 focus:ring-error disabled:opacity-50"
+              >
+                {saving ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
       {importDialog === 'details' && importResult && (
         <Modal onClose={closeImportDialog} className="max-w-lg">
           <h3 className="mb-1 text-lg font-semibold text-foreground">Import details</h3>
