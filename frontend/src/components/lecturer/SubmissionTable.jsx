@@ -43,16 +43,16 @@ function RosterSummaryBar({ summary }) {
 
   return (
     <div className="border-t border-border bg-surface-secondary/50 px-4 py-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-        {items.map((item, index) => {
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
+        {items.map((item) => {
           const Icon = item.icon;
           const valueClass = item.valueClass?.(summary) ?? 'text-foreground';
-          const isLast = index === items.length - 1;
+          const isPlagiarism = item.key === 'plagiarismRate';
           return (
             <div
               key={item.key}
-              className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm ${
-                isLast
+              className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm ${
+                isPlagiarism
                   ? 'border-warning-bg/70 bg-warning-bg/30'
                   : 'border-border-subtle bg-surface'
               }`}

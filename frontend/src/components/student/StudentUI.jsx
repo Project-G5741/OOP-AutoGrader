@@ -346,7 +346,7 @@ export default function StudentUI({
 
         {/* Stats row — attempts/latest from DB; grade only after session upload */}
         <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
-          <div className="rounded-xl bg-gradient-to-br from-success-bg to-surface-secondary p-5 shadow-lg shadow-black/10">
+          <div className="rounded-xl bg-success-bg p-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 bg-success/15 rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5 text-success-text" />

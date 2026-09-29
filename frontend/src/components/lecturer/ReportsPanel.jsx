@@ -3,9 +3,9 @@ import { formatNumber, formatPercent, formatText, hasItems } from '../../utils/f
 
 function EmptyState({ message = 'Data not found' }) {
   return (
-    <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-dashed border-border bg-surface-secondary p-6 text-sm text-foreground-secondary dark:text-foreground-muted">
+    <p className="py-6 text-sm text-foreground-secondary dark:text-foreground-muted">
       {message}
-    </div>
+    </p>
   );
 }
 
@@ -29,25 +29,25 @@ export default function ReportsPanel({ reportData }) {
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+            <div className="p-1">
               <p className="text-xs text-foreground-muted">Overall average</p>
               <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatPercent(data.overallAverage)}
               </p>
             </div>
-            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+            <div className="p-1">
               <p className="text-xs text-foreground-muted">Lowest average lab</p>
               <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatText(data.lowestAverageLab)}
               </p>
             </div>
-            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+            <div className="p-1">
               <p className="text-xs text-foreground-muted">Lowest average score</p>
               <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatPercent(data.lowestAverageScore)}
               </p>
             </div>
-            <div className="rounded-3xl border border-border bg-surface-secondary p-4">
+            <div className="p-1">
               <p className="text-xs text-foreground-muted">Most difficult topic</p>
               <p className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                 {formatText(data.mostDifficultTopic)}
@@ -70,7 +70,7 @@ export default function ReportsPanel({ reportData }) {
           <div className="mt-6 space-y-3">
             {hasItems(data.labTrend) ? (
               data.labTrend.map((item) => (
-                <div key={item.labId ?? item.labName} className="flex items-center justify-between gap-4 rounded-3xl border border-border bg-surface-secondary p-4">
+                <div key={item.labId ?? item.labName} className="flex items-center justify-between gap-4 border-t border-border py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">{formatText(item.labName)}</p>
                     <p className="text-sm text-foreground-secondary">
@@ -107,7 +107,7 @@ export default function ReportsPanel({ reportData }) {
               <p className="text-xs text-foreground-muted">At-risk labs</p>
               {hasItems(data.atRiskLabs) ? (
                 data.atRiskLabs.map((lab) => (
-                  <div key={lab.labId ?? lab.labName} className="mt-3 rounded-3xl border border-border bg-surface-secondary p-4">
+                  <div key={lab.labId ?? lab.labName} className="mt-3 border-t border-border pt-3">
                     <p className="font-semibold text-foreground">{formatText(lab.labName)}</p>
                     <p className="text-sm text-foreground-secondary">{formatText(lab.reason)}</p>
                   </div>
@@ -121,7 +121,7 @@ export default function ReportsPanel({ reportData }) {
               <p className="text-xs text-foreground-muted">At-risk students</p>
               {hasItems(data.atRiskStudents) ? (
                 data.atRiskStudents.map((student) => (
-                  <div key={student.studentId ?? student.studentName} className="mt-3 rounded-3xl border border-border bg-surface-secondary p-4">
+                  <div key={student.studentId ?? student.studentName} className="mt-3 border-t border-border pt-3">
                     <p className="font-semibold text-foreground">{formatText(student.studentName)}</p>
                     <p className="text-sm text-foreground-secondary">
                       Current average: {formatPercent(student.currentAverage)}
@@ -156,7 +156,7 @@ export default function ReportsPanel({ reportData }) {
                     href={resource.url || '#'}
                     target="_blank"
                     rel="noreferrer"
-                    className="block rounded-2xl bg-surface-secondary px-4 py-3 text-sm text-primary-text transition hover:bg-surface-secondary"
+                    className="block py-2 text-sm text-primary-text underline-offset-2 hover:underline"
                   >
                     {formatText(resource.title)}
                   </a>

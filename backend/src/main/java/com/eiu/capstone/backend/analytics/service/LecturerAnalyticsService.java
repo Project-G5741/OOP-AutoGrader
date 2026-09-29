@@ -41,6 +41,7 @@ public class LecturerAnalyticsService {
 
     private static final DateTimeFormatter SUBMISSION_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("70");
 
     private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
     private final ChallengeService challengeService;
@@ -78,16 +79,10 @@ public class LecturerAnalyticsService {
         UUID termId = currentTerm.get().getId();
 
         Object[] metrics = lecturerAnalyticsRepository.findOverviewMetricsForTerm(termId);
-        long totalStudents = 0L;
-        long totalLabs = 0L;
         BigDecimal averageScore = null;
-        long atRiskStudents = 0L;
         long activeStudents = 0L;
         if (metrics != null && metrics.length >= 5) {
-            totalStudents = AnalyticsMapper.toLong(metrics[0]);
-            totalLabs = AnalyticsMapper.toLong(metrics[1]);
             averageScore = AnalyticsMapper.toBigDecimal(metrics[2]);
-            atRiskStudents = AnalyticsMapper.toLong(metrics[3]);
             activeStudents = AnalyticsMapper.toLong(metrics[4]);
         }
 
@@ -99,18 +94,76 @@ public class LecturerAnalyticsService {
             }
         }
 
+        List<LecturerOverviewResponse.OverviewStudentItem> students = loadOverviewStudents(termId);
+        List<LecturerOverviewResponse.OverviewLabItem> labs = loadOverviewLabs(termId);
+        List<LecturerOverviewResponse.OverviewScoreItem> scoreRows = loadOverviewScoreRows(termId);
+        long atRiskFromRoster = students.stream().filter(LecturerOverviewResponse.OverviewStudentItem::atRisk).count();
+
         return new LecturerOverviewResponse(
-                totalStudents,
-                totalLabs,
+                students.size(),
+                labs.size(),
                 averageScore,
-                atRiskStudents,
+                atRiskFromRoster,
                 recentSubmissions,
-                activeStudents
+                activeStudents,
+                students,
+                labs,
+                scoreRows
         );
     }
 
     private static LecturerOverviewResponse emptyOverview() {
-        return new LecturerOverviewResponse(0L, 0L, null, 0L, List.of(), 0L);
+        return new LecturerOverviewResponse(0L, 0L, null, 0L, List.of(), 0L, List.of(), List.of(), List.of());
+    }
+
+    private List<LecturerOverviewResponse.OverviewStudentItem> loadOverviewStudents(UUID termId) {
+        List<LecturerOverviewResponse.OverviewStudentItem> students = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewStudentsForTerm(termId)) {
+            if (row == null || row.length < 4) {
+                continue;
+            }
+            BigDecimal totalScore = AnalyticsMapper.toBigDecimal(row[3]);
+            boolean atRisk = totalScore != null && totalScore.compareTo(AT_RISK_TOTAL_BELOW) < 0;
+            students.add(new LecturerOverviewResponse.OverviewStudentItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toString(row[2]),
+                    totalScore,
+                    atRisk));
+        }
+        return students;
+    }
+
+    private List<LecturerOverviewResponse.OverviewLabItem> loadOverviewLabs(UUID termId) {
+        List<LecturerOverviewResponse.OverviewLabItem> labs = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewLabsForTerm(termId)) {
+            if (row == null || row.length < 4) {
+                continue;
+            }
+            labs.add(new LecturerOverviewResponse.OverviewLabItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toBigDecimal(row[2]),
+                    AnalyticsMapper.toLong(row[3])));
+        }
+        return labs;
+    }
+
+    private List<LecturerOverviewResponse.OverviewScoreItem> loadOverviewScoreRows(UUID termId) {
+        List<LecturerOverviewResponse.OverviewScoreItem> rows = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewScoreRowsForTerm(termId)) {
+            if (row == null || row.length < 6) {
+                continue;
+            }
+            rows.add(new LecturerOverviewResponse.OverviewScoreItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toString(row[2]),
+                    AnalyticsMapper.toString(row[3]),
+                    AnalyticsMapper.toString(row[4]),
+                    AnalyticsMapper.toBigDecimal(row[5])));
+        }
+        return rows;
     }
 
     public LabStatisticsResponse getLabStatistics(UUID labId) {
