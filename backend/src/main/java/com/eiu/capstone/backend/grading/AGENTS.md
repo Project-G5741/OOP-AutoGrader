@@ -23,7 +23,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
 | `grading/testcase/DryRunWorkerCache.java` | Reuses one local worker across lecturer dry-runs (60s idle TTL); sandbox never cached |
-| `grading/rubric/DryRunChallengeCatalogCache.java` | Caches dry-run validate/assemble Neon member graphs (60s); cleared on rubric invalidate |
+| `grading/rubric/DryRunChallengeCatalogCache.java` | One Neon load per challenge caches validate membership + assemble maps (60s); cleared on rubric invalidate |
+| `grading/rubric/RubricMemberMaps.java` | Lookup maps built from challenge members for OT rubric assembly |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE including object checks, FIELD_STATE, STDOUT, EXCEPTION) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |

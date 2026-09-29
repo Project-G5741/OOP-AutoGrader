@@ -20,8 +20,8 @@ import org.mockito.quality.Strictness;
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
-import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
+import com.eiu.capstone.backend.grading.rubric.RubricMemberMaps;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.model.AssertionKind;
@@ -31,36 +31,19 @@ import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.TestcaseType;
-import com.eiu.capstone.backend.repository.ClassEntityRepository;
-import com.eiu.capstone.backend.repository.ConstructorRepository;
-import com.eiu.capstone.backend.repository.FieldRepository;
-import com.eiu.capstone.backend.repository.MethodRepository;
-import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class TestcaseRubricAssemblerTest {
 
-    @Mock private ClassEntityRepository classEntityRepository;
-    @Mock private ConstructorRepository constructorRepository;
-    @Mock private MethodRepository methodRepository;
-    @Mock private FieldRepository fieldRepository;
-    @Mock private ParameterRepository parameterRepository;
     @Mock private TestcaseRubricService testcaseRubricService;
 
     private TestcaseRubricAssembler assembler;
 
     @BeforeEach
     void setUp() {
-        assembler = new TestcaseRubricAssembler(
-                classEntityRepository,
-                constructorRepository,
-                methodRepository,
-                fieldRepository,
-                parameterRepository,
-                testcaseRubricService,
-                new DryRunChallengeCatalogCache());
+        assembler = new TestcaseRubricAssembler(testcaseRubricService);
         doNothing().when(testcaseRubricService).validatePayload(any(), any());
     }
 
@@ -91,12 +74,13 @@ class TestcaseRubricAssemblerTest {
         method.setClassEntity(car);
         method.setName("getSpeed");
 
-        when(classEntityRepository.findByChallenge_Id(challengeId)).thenReturn(List.of(car, shape));
-        when(constructorRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of(constructor));
-        when(methodRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of(method));
-        when(fieldRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of());
-        when(parameterRepository.findByConstructorEntityIn(any())).thenReturn(List.of());
-        when(parameterRepository.findByMethodIn(any())).thenReturn(List.of());
+        when(testcaseRubricService.dryRunMemberMaps(any(), any())).thenReturn(RubricMemberMaps.fromEntities(
+                List.of(car, shape),
+                List.of(constructor),
+                List.of(method),
+                List.of(),
+                List.of(),
+                List.of()));
 
         InvocationStructureDTO construct = new InvocationStructureDTO(
                 ctorStepId, InvocationKind.CONSTRUCTOR, constructorId, null, "[]", null, "[]", "car", null);
