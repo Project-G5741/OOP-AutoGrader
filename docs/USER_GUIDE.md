@@ -64,7 +64,9 @@ The lecturer interface has a top navigation bar with six sections: **Dashboard**
 | Total Students | Number of students enrolled in the current term |
 | Average Score | Class-wide average across all graded labs |
 | Total Labs | Number of labs configured for the current term |
-| At-Risk Students | Students whose average is below the threshold |
+| At-Risk Students | Students whose total score is below 70 (missing labs count as 0) |
+
+Click a card to open the list behind the number: enrolled students, the lab scores that make the class average, the labs in the quarter, or the students below 70 (name, student ID, and score).
 
 #### Selecting a Lab
 
