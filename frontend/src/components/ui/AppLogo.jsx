@@ -2,7 +2,7 @@ import { brand } from '../../theme/brand';
 
 const VARIANTS = {
   header: {
-    box: 'flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-active shadow-sm shadow-primary/20',
+    box: 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary',
     icon: 'h-5 w-5 text-white',
   },
   login: {

@@ -67,13 +67,13 @@ function ScorePill({ score }) {
 function ScoreBar({ score }) {
   const numericScore = roundedScore(score);
   if (numericScore == null) return null;
-  const color = numericScore >= 90 
-    ? 'bg-gradient-to-r from-success to-success-hover' 
-    : numericScore >= 75 
-      ? 'bg-gradient-to-r from-info to-info-hover' 
-      : numericScore >= 60 
-        ? 'bg-gradient-to-r from-warning to-warning-hover' 
-        : 'bg-gradient-to-r from-error to-error-hover';
+  const color = numericScore >= 90
+    ? 'bg-success'
+    : numericScore >= 75
+      ? 'bg-info'
+      : numericScore >= 60
+        ? 'bg-warning'
+        : 'bg-error';
   return (
     <div className="h-2 overflow-hidden rounded-full bg-surface-tertiary">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(numericScore, 100)}%` }} />
@@ -463,7 +463,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         {/* Submissions Table */}
         <section className="relative rounded-3xl border border-border bg-surface p-6 overflow-hidden">
           {tableLoading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-surface/70 backdrop-blur-[1px]">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-surface/80">
               <RefreshCw className="h-6 w-6 animate-spin text-foreground-muted" />
             </div>
           )}

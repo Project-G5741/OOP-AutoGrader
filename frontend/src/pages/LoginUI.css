@@ -20,7 +20,7 @@
   justify-content: center;
   padding: 1.5rem;
   overflow: hidden;
-  background: var(--galaxy-base);
+  background: var(--background);
 }
 
 .dark .login-bg {
@@ -34,10 +34,7 @@
 }
 
 .login-bg-ornaments {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
+  display: none;
 }
 
 .galaxy-sky {
@@ -178,12 +175,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--primary), var(--primary-active));
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
-}
-
-.dark .logo-box {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  background: var(--primary);
 }
 
 .logo-icon { width: 32px; height: 32px; color: #fff; }
@@ -200,18 +192,10 @@
 }
 
 .card {
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--surface);
   border-radius: 20px;
   padding: 1.5rem;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, white);
-}
-
-.dark .card {
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
 }
 
 .login-form { display: flex; flex-direction: column; gap: 0.9rem; }
@@ -320,24 +304,15 @@
   padding: 0.9rem 1rem;
   border: none;
   border-radius: 0.8rem;
-  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  background: var(--primary);
   color: white;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease;
 }
 
 .primary-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
-}
-
-.dark .primary-btn {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.dark .primary-btn:hover:not(:disabled) {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: var(--primary-hover);
 }
 
 .primary-btn:disabled {
