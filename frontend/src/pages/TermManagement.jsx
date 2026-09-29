@@ -128,7 +128,7 @@ export default function TermManagement() {
   }, [terms, termFilter, termSearch, termSortOrder]);
 
   const loadTerms = useCallback(async () => {
-    const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
+    const response = await apiFetch(`${API_BASE}/api/lecturer/terms/list`, { headers: authHeaders() });
     if (!response.ok) {
       throw new Error(await readFriendlyApiError(response, 'read'));
     }
@@ -211,7 +211,7 @@ export default function TermManagement() {
     setCopySourcesLoading(true);
     setCopySourceLabs([]);
     try {
-      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
       if (!response.ok) {
         setCopySourceLabs([]);
         return;
@@ -243,7 +243,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/create`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({

@@ -34,12 +34,12 @@ public class LecturerTermController {
         this.termService = termService;
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public List<TermSummaryDTO> listTerms() {
         return termService.listTerms();
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public TermSummaryDTO createTerm(@Valid @RequestBody CreateTermRequest request) {
         return termService.createTerm(request);
     }

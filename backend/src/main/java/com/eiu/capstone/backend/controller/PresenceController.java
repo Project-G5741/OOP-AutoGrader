@@ -24,7 +24,7 @@ public class PresenceController {
         this.presenceService = presenceService;
     }
 
-    @GetMapping
+    @GetMapping("/count")
     public ActiveUsersDTO activeUsers(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             HttpServletRequest request) {
@@ -38,7 +38,7 @@ public class PresenceController {
         return new ActiveUsersDTO(presenceService.countActive());
     }
 
-    @DeleteMapping
+    @DeleteMapping("/leave")
     public ActiveUsersDTO leave(@AuthenticationPrincipal JwtUserPrincipal principal) {
         if (principal != null) {
             presenceService.leave(principal.email());

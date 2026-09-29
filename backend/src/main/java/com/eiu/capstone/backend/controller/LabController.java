@@ -65,7 +65,7 @@ public class LabController {
         this.studentTermAccessService = studentTermAccessService;
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public List<LabSummary> listLabs(@AuthenticationPrincipal JwtUserPrincipal principal) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         List<Lab> labs = labsVisibleToCaller(principal, user).stream()

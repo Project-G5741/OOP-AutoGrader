@@ -20,7 +20,7 @@ public class MasterDataController {
         this.masterDataRepository = masterDataRepository;
     }
 
-    @GetMapping
+    @GetMapping("/by-category")
     public List<MasterDataItemDTO> listByCategory(@RequestParam String category) {
         return masterDataRepository.findByCategoryOrderByNameAsc(category).stream()
                 .map(row -> new MasterDataItemDTO(row.getId(), row.getName(), row.getCategory()))

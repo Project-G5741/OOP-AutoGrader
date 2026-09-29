@@ -51,17 +51,17 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 |---|---|---|
 | `RootController` | `/` | `GET /` — liveness probe (Render health check) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
-| `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
-| `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
+| `LabController` | `/api/labs` | `GET /list` — labs (with `deadlineDate`, `urgencyState`, natural name sort); lab stats, lecturer lab statistics/submissions |
+| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
+| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
-| `MasterDataController` | `/api/master-data` | Master data lookup by category |
-| `TermController` | `/api/terms` | Academic term list for lab creation |
+| `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
+| `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
 | `StudentAccessController` | `/api/students` | `GET /term-access` — whether the student is in the current term |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
-| `UserController` | `/api/users` | CRUD + bulk create; `DELETE /{id}` hard-deletes user and related rows; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
+| `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
-| `PresenceController` | `/api/presence` | `GET` — public active-user count; a valid JWT records a heartbeat. `DELETE` — signed-in leave (JWT required) |
+| `PresenceController` | `/api/presence` | `GET /count` — public active-user count; a valid JWT records a heartbeat. `DELETE /leave` — signed-in leave (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated locally when `SPRINGDOC_ENABLED` is true; omit or set `false` in production)
 
@@ -72,7 +72,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
-- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
+- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence/count`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
 - `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
@@ -93,7 +93,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - `Lab.release_date` (optional `DATE`) — when set, students see the lab from 00:00 Vietnam time on that date (requires `student_visible=true`); operator SQL `docs/sql/2026-09-09-lab-student-visibility.sql`
 - `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely). Candidate selection is one anti-join (`findActiveStudentIdsForDeadlineEmail`); save-after-each-send stays for retry safety
 - Soft-delete (inactive login): users set `isActive=false` via suspend or restore; inactive accounts cannot log in
-- Lecturer **delete** (`DELETE /api/users/{id}`) permanently removes the user and bulk-deletes related submissions, grading result rows, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens (no per-submission delete loop)
+- Lecturer **delete** (`DELETE /api/users/deleteUser/{id}`) permanently removes the user and bulk-deletes related submissions, grading result rows, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens (no per-submission delete loop)
 - Lecturer **suspend** (`POST /api/users/{id}/suspend`) is student-only `isActive=false`; restore via `POST /api/users/{id}/unsuspend`. Lecturer and dual-role accounts cannot be suspended this way.
 - `term.is_current` — lecturer-selected current term; operator SQL `docs/sql/2026-08-19-term-current.sql`. Students in that term may submit; others only use history.
 
@@ -103,7 +103,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs`) → rubric cache load **overlaps** compile on `persistExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
+Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs/list`) → rubric cache load **overlaps** compile on `persistExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -124,7 +124,7 @@ Grading tuning properties (`application.properties`):
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, compile, each challenge, grade submission, structure save, and read paths |
-| `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs` warms it. Denials are not cached. `0` disables. |
+| `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs/list` warms it. Denials are not cached. `0` disables. |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set |
@@ -148,7 +148,8 @@ Grading tuning properties (`application.properties`):
 - Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static plus declared superclass and interfaces. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match. A matching shell with no fields/constructors/methods is card status `success`, not `info`. Inheritance/realization pairs are graded on the Java shell independently of the MMD pillar.
-- `GET /api/labs` — lab list (`deadlineDate`, `urgencyState`) scoped to the **current quarter** for lecturers and enrolled students; students also require `student_visible` + `release_date` (`LabDeadlineHelper.isOpenForStudentSubmission`); empty when no current quarter is set. Student JWT also receives per-lab `challenges` (names/ids/weights, scores omitted) plus `totalSubmissions` / `latestSubmission` in the same response so the dashboard does not wait on follow-up `/challenges` and `/stats` calls. Upload access is `UserAccountRepository.findUploadAccess` (user + lab + term + enrollment in one query).
+- `GET /api/labs/list` — lab list (`deadlineDate`, `urgencyState`) scoped to the **current quarter** for lecturers and enrolled students; students also require `student_visible` + `release_date` (`LabDeadlineHelper.isOpenForStudentSubmission`); empty when no current quarter is set. Student JWT also receives per-lab `challenges` (names/ids/weights, scores omitted) plus `totalSubmissions` / `latestSubmission` in the same response so the dashboard does not wait on follow-up `GET .../challenges/list` and `/stats` calls. Upload access is `UserAccountRepository.findUploadAccess` (user + lab + term + enrollment in one query).
+- `GET /api/labs/{labId}/challenges/list` — challenge list for a lab (same payload as before when the path was the collection root).
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution, `plagiarismRate` = unique flagged students ÷ students submitted)
 - `GET /api/labs/{labId}/submissions` — paginated roster of students who submitted for the lab (default page size 5); **score** is best qualifying submission before lab deadline (null when only late submissions); sort by `studentName` or `score`; optional `search` filters by name or student/teacher code (case-insensitive)
 - `GET /api/labs/{labId}/submissions/export` — full submitter roster in one query (lecturer export); same score semantics and `sort` param

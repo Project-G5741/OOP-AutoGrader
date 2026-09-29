@@ -188,7 +188,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingLabs(true);
     setLabsError(null);
     try {
-      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
       if (!response.ok) {
         setLabs([]);
         clearLabDetailState();
@@ -289,7 +289,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       return;
     }
     try {
-      const response = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges/list`, { headers: authHeaders() });
       if (!response.ok) {
         setChallenges([]);
         setChallengesLabId(null);

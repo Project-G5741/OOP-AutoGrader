@@ -54,7 +54,7 @@ public class UserController {
         return ResponseEntity.ok(userList);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/getUser/{id}")
     public ResponseEntity<UserAccount> getUser(@PathVariable UUID id) {
         UserAccount user = userService.getUser(id);
         return ResponseEntity.ok(user);
@@ -72,7 +72,7 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(results);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/deleteUser/{id}")
     public ResponseEntity<UserDTO.UserResponse> deleteUser(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.deleteUser(id));
     }
@@ -87,7 +87,7 @@ public class UserController {
         return ResponseEntity.ok(userService.restoreStudent(id));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/updateUser/{id}")
     public ResponseEntity<UserDTO.UserResponse> updateUser(
             @PathVariable("id") UUID id,
             @Valid @RequestBody UserDTO.UpdateUserRequest request) {

@@ -116,10 +116,10 @@ export default function SolutionManagement() {
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
-      apiFetch(`${API_BASE}/api/master-data?category=SCOPE`, { headers: authHeaders() }),
-      apiFetch(`${API_BASE}/api/master-data?category=DECLARING_TYPE`, { headers: authHeaders() }),
-      apiFetch(`${API_BASE}/api/master-data?category=RELATION_TYPE`, { headers: authHeaders() }),
-      apiFetch(`${API_BASE}/api/terms`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data/by-category?category=SCOPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data/by-category?category=DECLARING_TYPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/master-data/by-category?category=RELATION_TYPE`, { headers: authHeaders() }),
+      apiFetch(`${API_BASE}/api/terms/list`, { headers: authHeaders() }),
     ]);
     if (scopeRes.ok) setScopeOptions(await scopeRes.json());
     if (declaringRes.ok) setDeclaringTypeOptions(await declaringRes.json());
@@ -128,7 +128,7 @@ export default function SolutionManagement() {
   }, []);
 
   const loadLabs = useCallback(async () => {
-    const res = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
     if (!res.ok) throw new Error(await readFriendlyApiError(res, 'read'));
     return res.json();
   }, []);
@@ -316,7 +316,7 @@ export default function SolutionManagement() {
     const body = { name: newLabName.trim(), termId: newLabTermId };
     if (newLabDeadline) body.deadlineDate = newLabDeadline;
     try {
-      const res = await apiFetch(`${API_BASE}/api/lecturer/labs`, {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/create`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),

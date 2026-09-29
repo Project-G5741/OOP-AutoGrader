@@ -10,7 +10,7 @@ export const PRESENCE_POLL_MS = 10_000;
  */
 export async function fetchPresenceCount() {
   const headers = authHeaders();
-  const response = await fetch(`${API_BASE}/api/presence`, { headers });
+  const response = await fetch(`${API_BASE}/api/presence/count`, { headers });
   if (response.status === 401 && headers.Authorization) {
     clearSessionAndRedirectToLogin();
     return null;
@@ -28,7 +28,7 @@ export function leavePresence() {
   if (!headers.Authorization) {
     return;
   }
-  fetch(`${API_BASE}/api/presence`, {
+  fetch(`${API_BASE}/api/presence/leave`, {
     method: 'DELETE',
     headers,
     keepalive: true,

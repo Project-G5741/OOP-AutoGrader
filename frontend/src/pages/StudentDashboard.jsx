@@ -242,7 +242,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
     setChallengesError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges`, { headers: authHeaders() });
+      const res = await apiFetch(`${API_BASE}/api/labs/${labId}/challenges/list`, { headers: authHeaders() });
       if (!res.ok) {
         throw new Error(await friendlyLoadErrorFromResponse(res));
       }
@@ -471,7 +471,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
       setIsLoadingLabs(true);
       try {
-        const res = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+        const res = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }

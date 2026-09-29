@@ -80,7 +80,7 @@ public class LecturerRubricController {
         return labStructureService.saveLabStructure(labId, payload);
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<LabStructureResponse> createLab(@RequestBody CreateLabRequest request) {
         LabStructureResponse created = labStructureService.createLab(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
