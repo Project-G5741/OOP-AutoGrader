@@ -6,6 +6,7 @@ import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import DashboardSection from '../components/lecturer/DashboardSection';
 import OverviewPanel from '../components/lecturer/OverviewPanel';
+import OverviewDetailDialog from '../components/lecturer/OverviewDetailDialog';
 import ReportsPage from './Reports';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
@@ -39,6 +40,9 @@ const EMPTY_OVERVIEW = {
   atRiskStudents: 0,
   recentSubmissions: [],
   activeStudents: 0,
+  students: [],
+  labs: [],
+  scoreRows: [],
 };
 
 function LoadingSpinner() {
@@ -168,6 +172,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [challenges, setChallenges] = useState([]);
   const [challengesLabId, setChallengesLabId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [overviewDetail, setOverviewDetail] = useState(null);
 
   const clearLabDetailState = useCallback(() => {
     setSelectedLabId(null);
@@ -273,6 +278,9 @@ export default function LecturerDashboard({ user, onLogout }) {
         ...EMPTY_OVERVIEW,
         ...data,
         recentSubmissions: data.recentSubmissions ?? [],
+        students: data.students ?? [],
+        labs: data.labs ?? [],
+        scoreRows: data.scoreRows ?? [],
       });
     } catch (err) {
       setOverview(EMPTY_OVERVIEW);
@@ -724,24 +732,28 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const overviewCards = useMemo(() => [
     {
+      id: 'students',
       title: 'Total Students',
       value: formatNumber(overview.totalStudents),
       icon: <Users className="h-5 w-5 text-chart-amber" />,
       accent: 'bg-warning-bg text-warning-text',
     },
     {
+      id: 'average',
       title: 'Average Score',
       value: formatNumber(overview.averageScore),
       icon: <BarChart3 className="h-5 w-5 text-chart-green" />,
       accent: 'bg-success-bg text-success-text',
     },
     {
+      id: 'labs',
       title: 'Total Labs',
       value: formatNumber(overview.totalLabs),
       icon: <FolderKanban className="h-5 w-5 text-primary" />,
       accent: 'bg-primary-light text-primary ',
     },
     {
+      id: 'atRisk',
       title: 'At-Risk Students',
       value: formatNumber(overview.atRiskStudents),
       icon: <FileText className="h-5 w-5 text-chart-blue" />,
@@ -782,7 +794,14 @@ export default function LecturerDashboard({ user, onLogout }) {
               </div>
             )}
 
-            <OverviewPanel overviewCards={overviewCards} />
+            <OverviewPanel overviewCards={overviewCards} onSelect={setOverviewDetail} />
+            {overviewDetail && (
+              <OverviewDetailDialog
+                detailId={overviewDetail}
+                overview={overview}
+                onClose={() => setOverviewDetail(null)}
+              />
+            )}
 
             <DashboardSection
               title="Grading overview"

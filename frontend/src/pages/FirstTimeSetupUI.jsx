@@ -66,7 +66,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-surface-secondary flex items-center justify-center p-6 transition-colors relative">
+    <div className="relative flex min-h-screen items-center justify-center bg-background p-6 transition-colors">
       <ThemeToggle className="absolute top-6 right-6 z-10" />
 
       <div className="absolute inset-0 bg-black/40 dark:bg-black/60" />
@@ -80,7 +80,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
         </div>
 
         <div className="bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden">
-          <div className="bg-gradient-to-r from-primary to-primary-hover px-6 py-5">
+          <div className="bg-primary px-6 py-5">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-xl">
                 <CheckCircle2 className="w-5 h-5 text-white" />
@@ -176,7 +176,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
 
               {formError && <p className="text-xs text-error">{formError}</p>}
 
-              <button type="submit" disabled={!canSubmit || isSubmitting} className="w-full py-3 bg-gradient-to-r from-primary to-primary-hover text-white rounded-lg font-medium hover:from-primary-hover hover:to-primary-active transition-all duration-200 shadow-md disabled:opacity-40 disabled:cursor-not-allowed mt-2">
+              <button type="submit" disabled={!canSubmit || isSubmitting} className="mt-2 w-full rounded-lg bg-primary py-3 font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40">
                 {isSubmitting ? 'Processing...' : 'Complete Setup'}
               </button>
             </form>

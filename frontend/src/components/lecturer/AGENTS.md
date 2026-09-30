@@ -20,6 +20,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `DashboardSection.jsx` | Main grading overview layout |
 
+| `OverviewPanel.jsx` | Clickable summary stat cards; **View list** opens `OverviewDetailDialog` |
+| `OverviewDetailDialog.jsx` | Dialog for the four overview cards: enrolled students, at-risk students (total under 70), labs, and qualifying scores behind the average |
 | `LecturerOverviewCard.jsx` | Summary stat cards |
 
 | `SubmissionTable.jsx` | Lab submitter roster / challenge submission table |
@@ -68,6 +70,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 
 - `LecturerDashboard.jsx` fetches overview, lab statistics, submitter roster (`GET /api/labs/{labId}/submissions`), per-challenge roster (`GET /api/labs/{labId}/challenges/{challengeId}/students`), and grade overview (`GET /api/lecturer/grade-overview`)
+- Overview card click uses `students`, `labs`, and `scoreRows` already on `GET /api/lecturer/overview` (no second request). At-risk rows are `atRisk` (total under 70, missing labs as 0).
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
 
@@ -111,6 +114,7 @@ LecturerDashboard
   → DashboardSection (activeNav === 'dashboard')
 
        → OverviewPanel
+       → OverviewDetailDialog (card click)
 
        → DashboardSection (grading overview — lab stats, roster, challenge tabs)
 
