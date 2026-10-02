@@ -1,8 +1,10 @@
 package com.eiu.capstone.backend.service;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
+@Profile("!desktop")
 public class PasswordResetEmailService {
 
     private final TransactionalEmailSender emailSender;

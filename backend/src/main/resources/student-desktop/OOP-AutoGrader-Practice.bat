@@ -24,6 +24,7 @@ if exist "%APP_DESKTOP_HOME%\runtime\jdk\bin\java.exe" (
     exit /b 1
   )
 )
+set "DESKTOP_WORKER_JAVA=%JAVA_EXE%"
 echo Starting OOP AutoGrader offline practice...
 echo Keep this window open while you practice. Close it to stop the grader.
 echo For the practice window, run OOP-AutoGrader-Practice.exe in this folder.

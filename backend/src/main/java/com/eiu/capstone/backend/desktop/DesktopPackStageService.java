@@ -72,15 +72,47 @@ public class DesktopPackStageService {
             }
             Path target = rubricDir.resolve(parsed.filename());
             Files.write(target, bytes);
-            bootstrapService.clearImportFingerprint();
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to save practice pack");
         }
+
+        // Eager materialization: load DB + write fingerprint now so restart is fingerprint-cheap.
+        DesktopPackBootstrapService.BootstrapResult materialize;
+        try {
+            materialize = bootstrapService.bootstrap();
+        } catch (Exception e) {
+            rollbackFailedMaterialization();
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Practice pack saved but could not load into the local database. Try again or restart.");
+        }
+        if (!materialize.ready()) {
+            rollbackFailedMaterialization();
+            String detail = materialize.error() != null && !materialize.error().isBlank()
+                    ? materialize.error()
+                    : "Practice pack could not be loaded.";
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, detail);
+        }
+
         String kindLabel = parsed.kind() == DesktopPackFileNames.PackKind.TERM ? "Quarter pack" : "Lab pack";
         return new StageResult(
                 parsed.kind(),
                 parsed.filename(),
-                kindLabel + " saved. Close and restart the practice app to load it.");
+                kindLabel + " imported. Close and restart the practice app to use it.");
+    }
+
+    /** Clear partial H2 state and fingerprint so a failed import does not look settled. */
+    private void rollbackFailedMaterialization() {
+        try {
+            importService.wipePracticeData();
+        } catch (Exception ignored) {
+            // best effort
+        }
+        try {
+            bootstrapService.clearImportFingerprint();
+        } catch (Exception ignored) {
+            // best effort
+        }
     }
 
     public record StageResult(

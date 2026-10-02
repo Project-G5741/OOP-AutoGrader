@@ -8,6 +8,7 @@ import java.util.List;
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.model.GoogleTokenInfo;
@@ -19,6 +20,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
 @Service
+@Profile("!desktop")
 public class JwtService {
 
     private static final int MIN_HS256_KEY_BYTES = 32;

@@ -46,7 +46,10 @@ export default function DesktopRubricPackImport({ onToast }) {
     try {
       const result = await upload(file, false);
       if (result) {
-        onToast?.({ message: result.message || 'Pack saved. Restart the app to apply.', type: 'success' });
+        onToast?.({
+          message: result.message || 'Pack imported. Close and restart the practice app to use it.',
+          type: 'success',
+        });
       }
     } catch (err) {
       onToast?.({ message: toFriendlyError(err, 'import'), type: 'error' });
@@ -64,7 +67,10 @@ export default function DesktopRubricPackImport({ onToast }) {
       if (result) {
         setConflicts(null);
         setPendingFile(null);
-        onToast?.({ message: result.message || 'Pack saved. Restart the app to apply.', type: 'success' });
+        onToast?.({
+          message: result.message || 'Pack imported. Close and restart the practice app to use it.',
+          type: 'success',
+        });
       }
     } catch (err) {
       onToast?.({ message: toFriendlyError(err, 'import'), type: 'error' });
@@ -92,10 +98,12 @@ export default function DesktopRubricPackImport({ onToast }) {
         disabled={busy}
         onClick={() => inputRef.current?.click()}
         className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-light px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-light/80 disabled:opacity-50"
-        title="Import Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack — restart required"
+        title={busy
+          ? 'Importing pack into local practice…'
+          : 'Import Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack — restart required after import'}
       >
-        <FolderOpen className="h-4 w-4" />
-        Import rubric pack
+        <FolderOpen className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />
+        {busy ? 'Importing…' : 'Import rubric pack'}
       </button>
 
       {conflicts?.length > 0 && (

@@ -9,7 +9,7 @@ StudentPractice/
   OOP-AutoGrader-Practice.exe   # WebView2 launcher
   backend.jar
   worker.jar
-  runtime/jdk/                  # optional portable JRE 17
+  runtime/jdk/                  # portable jlink JDK (compiler included; assemble builds this)
   ui/dist-desktop/              # `npm run build:desktop` output (copy into install)
   rubric/
     Rubric_2026-2027_Q1.agpack  # quarter pack (optional if using lab packs only)
@@ -30,7 +30,7 @@ Lab names are at most **50 characters** and cannot contain Windows-illegal chara
 
 Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded. Invalid packs show a specific rejection reason (not a generic busy message).
 
-Every import (UI or manual copy) takes effect only after a **full app restart**. The UI clears `data/desktop-pack-fingerprint.txt` when you import via **Import rubric pack** so the next startup re-imports. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
+**UI import** materializes the pack into the local DB and writes `data/desktop-pack-fingerprint.txt` before asking you to restart (restart still required so the window reloads a settled labs view). **Manual** `rubric/` copy still needs fingerprint clear + restart so bootstrap can import. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
 
 If multiple quarter packs are present (manual copies), newest-by-mtime wins. UI term import still removes sibling quarter packs.
 
@@ -79,12 +79,14 @@ From repo root:
 .\scripts\assemble-student-desktop.ps1 -OutputDir "D:\dist\StudentPractice"
 ```
 
-Copies shaded `backend.jar`, `worker.jar`, and `frontend/dist-desktop`. Creates empty `rubric/` and `data/`. Publishes the WebView2 launcher when `dotnet` is available. Always writes the web download zip to the **fixed** path `backend/target/OOP-AutoGrader-Practice.zip` (API also accepts `OOP-AutoGrader-Practice.zip` next to `app.jar` in Docker). Packs are not embedded — lecturers distribute `.agpack` separately.
+Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and a **self-contained** WebView2 launcher when `dotnet` is available. Prints an on-disk size breakdown. Always writes the web download zip to the **fixed** path `backend/target/OOP-AutoGrader-Practice.zip` (API also accepts `OOP-AutoGrader-Practice.zip` next to `app.jar` in Docker). Packs are not embedded — lecturers distribute `.agpack` separately.
+
+Offline prerequisites: bundled `runtime/jdk` + self-contained EXE (no system Java/.NET). WebView2 Evergreen remains an OS dependency.
 
 ## API notes (desktop profile)
 
 - No login; fixed local student `practice@desktop.local`.
 - `GET /api/desktop/status` — `ready`, `packMissing`, `error`, `bootstrapComplete` (launcher and UI wait for `bootstrapComplete` before showing labs / settled banner).
-- `POST /api/desktop/packs/import` — multipart `file`, optional `confirmReplace=true` for lab name conflicts; saves under `rubric/` and clears import fingerprint.
-- Grading uses local `worker.jar` (Java on PATH if no bundled JRE). Operational testcases are **not** container-sandboxed; they use the same isolated worker JVM as dev.
+- `POST /api/desktop/packs/import` — multipart `file`, optional `confirmReplace=true` for lab name conflicts; stages under `rubric/`, **materializes** into H2, writes fingerprint; restart still required for UI.
+- Grading uses local `worker.jar` with `DESKTOP_WORKER_JAVA` pointing at bundled `runtime/jdk/bin/java.exe` when present. Operational testcases are **not** container-sandboxed; they use the same isolated worker JVM as dev.
 - H2 under `data/`; `LabStructureService` bulk deletes use portable SQL (no PostgreSQL-only CTE deletes).

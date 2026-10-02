@@ -37,6 +37,8 @@ internal static class BackendLauncher
         psi.Environment["APP_DESKTOP_HOME"] = installDir;
         psi.Environment["SPRING_PROFILES_ACTIVE"] = "desktop";
         psi.Environment["JWT_SECRET"] = "desktop-local-dev-secret-minimum-32-bytes!!";
+        // Worker OT must use the same portable JDK as the API on clean machines (no PATH java).
+        psi.Environment["DESKTOP_WORKER_JAVA"] = javaExe;
 
         Process = Process.Start(psi)
                   ?? throw new InvalidOperationException("Failed to start the Java backend process.");

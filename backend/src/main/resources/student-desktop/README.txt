@@ -9,14 +9,15 @@ Quick start
 
 Requirements
 - Windows 10/11 x64
-- Java 17+ on PATH, OR a portable JRE in runtime\jdk\ (optional; not included in this download)
+- Portable JDK under runtime\jdk\ (included when the folder was assembled with jlink)
 - Microsoft Edge WebView2 (usually already installed on Windows 11)
+- No separate Java or .NET install required for the EXE (self-contained launcher)
 
 If OOP-AutoGrader-Practice.exe does nothing, unzip a fresh copy from the website (all .dll files must sit next to the .exe), or run OOP-AutoGrader-Practice.bat and read the console. Check launcher-error.log in this folder for details.
 
 Updating rubrics
-- In the app: click Import rubric pack in the header, choose a file, then restart the app.
-- Or copy packs into rubric\ using names like Rubric_{year}_Q{n}.agpack (full quarter) or Rubric_{labName}.agpack (one lab).
+- In the app: click Import rubric pack in the header, choose a file, wait until import finishes, then restart the app.
+- Or copy packs into rubric\ using names like Rubric_{year}_Q{n}.agpack (full quarter) or Rubric_{labName}.agpack (one lab), delete data\desktop-pack-fingerprint.txt, and restart.
 - Quarter packs replace all labs; lab packs add or replace one lab. See docs\DESKTOP_STUDENT_DIST.md in the repo for details.
 
 Notes

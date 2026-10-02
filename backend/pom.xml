@@ -113,8 +113,9 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <shadedClassifierName>worker</shadedClassifierName>
+                            <!-- Write worker beside the main jar; do not replace the thin jar artifact
+                                 (shade otherwise leaves a ~59MB uber as the main artifact before Boot repackage). -->
+                            <outputFile>${project.build.directory}/${project.build.finalName}-worker.jar</outputFile>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
@@ -156,9 +157,32 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Shade replaces the main artifact even with outputFile; rewrite the thin jar before Boot repackage. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>restore-thin-jar-after-shade</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <jar destfile="${project.build.directory}/${project.build.finalName}.jar"
+                                     basedir="${project.build.outputDirectory}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.eiu.capstone.backend.EiuCapstoneBackendApplication</mainClass>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -170,4 +194,60 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- Practice assemble: additional fat JAR with classifier desktop (cloud package unchanged). -->
+    <profiles>
+        <profile>
+            <id>desktop-dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>repackage-desktop</id>
+                                <goals>
+                                    <goal>repackage</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>desktop</classifier>
+                                    <!-- Must restate: second repackage otherwise copies Start-Class from fat JarLauncher. -->
+                                    <mainClass>com.eiu.capstone.backend.EiuCapstoneBackendApplication</mainClass>
+                                    <!-- Nested BOOT-INF/lib only; starters resolve to transitive jars. -->
+                                    <excludeGroupIds>org.postgresql,org.springdoc,io.swagger.core.v3,org.webjars,io.jsonwebtoken</excludeGroupIds>
+                                    <excludes>
+                                        <exclude>
+                                            <groupId>org.springframework.boot</groupId>
+                                            <artifactId>spring-boot-starter-mail</artifactId>
+                                        </exclude>
+                                        <exclude>
+                                            <groupId>org.springframework</groupId>
+                                            <artifactId>spring-context-support</artifactId>
+                                        </exclude>
+                                        <exclude>
+                                            <groupId>org.eclipse.angus</groupId>
+                                            <artifactId>angus-mail</artifactId>
+                                        </exclude>
+                                        <exclude>
+                                            <groupId>org.eclipse.angus</groupId>
+                                            <artifactId>jakarta.mail</artifactId>
+                                        </exclude>
+                                        <exclude>
+                                            <groupId>com.sun.mail</groupId>
+                                            <artifactId>jakarta.mail</artifactId>
+                                        </exclude>
+                                        <exclude>
+                                            <groupId>jakarta.mail</groupId>
+                                            <artifactId>jakarta.mail-api</artifactId>
+                                        </exclude>
+                                    </excludes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

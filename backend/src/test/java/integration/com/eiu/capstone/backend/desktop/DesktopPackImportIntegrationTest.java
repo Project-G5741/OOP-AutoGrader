@@ -52,6 +52,7 @@ class DesktopPackImportIntegrationTest {
     private static final UUID LAB_ID = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static final UUID OTHER_LAB_ID = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static final UUID CHALLENGE_ID = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    private static final UUID OTHER_CHALLENGE_ID = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     private static Path home;
     private static Path rubricDir;
@@ -117,11 +118,12 @@ class DesktopPackImportIntegrationTest {
     }
 
     @Test
-    void labImport_confirmReplace_stagesFile() throws Exception {
+    void labImport_confirmReplace_materializesAndWritesFingerprint() throws Exception {
         loadTermWithLab("Shared Lab", LAB_ID);
 
         String filename = DesktopPackFileNames.labFilename("Shared Lab");
-        byte[] conflicting = buildLabPackBytes(TERM_ID, OTHER_LAB_ID, "Shared Lab", "replace-v1");
+        byte[] conflicting = buildLabPackBytes(
+                TERM_ID, OTHER_LAB_ID, "Shared Lab", "replace-v1", OTHER_CHALLENGE_ID);
         MockMultipartFile file = new MockMultipartFile(
                 "file", filename, "application/octet-stream", conflicting);
 
@@ -131,6 +133,11 @@ class DesktopPackImportIntegrationTest {
                 .andExpect(jsonPath("$.requiresRestart").value(true));
 
         assertTrue(Files.isRegularFile(rubricDir.resolve(filename)));
+        assertTrue(Files.isRegularFile(home.resolve("data").resolve("desktop-pack-fingerprint.txt")));
+        assertTrue(labRepository.findById(OTHER_LAB_ID).isPresent());
+
+        var skip = bootstrapService.bootstrap();
+        assertTrue(skip.ready(), () -> String.valueOf(skip.error()));
     }
 
     @Test
@@ -215,12 +222,17 @@ class DesktopPackImportIntegrationTest {
 
     private static byte[] buildTermPackBytes(UUID termId, UUID labId, String labName, String version)
             throws Exception {
-        return serialize(termId, "2026 — Quarter 1", labId, labName, version, List.of(labId));
+        return serialize(termId, "2026 — Quarter 1", labId, labName, version, List.of(labId), CHALLENGE_ID);
     }
 
     private static byte[] buildLabPackBytes(UUID termId, UUID labId, String labName, String version)
             throws Exception {
-        return serialize(termId, "2026 — Quarter 1", labId, labName, version, List.of(labId));
+        return buildLabPackBytes(termId, labId, labName, version, CHALLENGE_ID);
+    }
+
+    private static byte[] buildLabPackBytes(
+            UUID termId, UUID labId, String labName, String version, UUID challengeId) throws Exception {
+        return serialize(termId, "2026 — Quarter 1", labId, labName, version, List.of(labId), challengeId);
     }
 
     private static byte[] serialize(
@@ -229,13 +241,14 @@ class DesktopPackImportIntegrationTest {
             UUID labId,
             String labName,
             String version,
-            List<UUID> labIds) throws Exception {
+            List<UUID> labIds,
+            UUID challengeId) throws Exception {
         LabRubricSnapshot rubric = new LabRubricSnapshot(
                 labId,
                 Map.of(
                         1,
                         new ChallengeRubric(
-                                CHALLENGE_ID,
+                                challengeId,
                                 1,
                                 "Warmup",
                                 List.of(),

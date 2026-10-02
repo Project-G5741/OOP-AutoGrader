@@ -1,0 +1,4 @@
+# dotnet build / publish output (assemble recreates publish/)
+**/bin/
+**/obj/
+publish/
