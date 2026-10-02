@@ -3,6 +3,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import RequireRole from "./components/auth/RequireRole";
 import DesktopPracticeStatusBanner from "./components/student/DesktopPracticeStatusBanner";
 import { ROUTES } from "./utils/authRoutes";
+import { quitPracticeApp } from "./utils/desktopQuit";
 
 const DESKTOP_USER = {
   accessToken: "desktop-local",
@@ -17,13 +18,6 @@ const DESKTOP_USER = {
 function applyDesktopSession() {
   sessionStorage.setItem("accessToken", DESKTOP_USER.accessToken);
   sessionStorage.setItem("user", JSON.stringify(DESKTOP_USER));
-}
-
-function quitPracticeApp() {
-  const webview = window.chrome?.webview;
-  if (webview && typeof webview.postMessage === "function") {
-    webview.postMessage({ type: "practice-quit" });
-  }
 }
 
 applyDesktopSession();
