@@ -32,6 +32,7 @@ public class Term {
     public Term() {}
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public AcademicYear getAcademicYear() { return academicYear; }
     public void setAcademicYear(AcademicYear academicYear) { this.academicYear = academicYear; }

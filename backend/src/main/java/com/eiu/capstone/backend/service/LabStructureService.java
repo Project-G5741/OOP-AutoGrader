@@ -654,46 +654,9 @@ public class LabStructureService {
                     WHERE ch.lab_id IN (:labIds)
                 )
                 """, labIds);
-        execDelete("""
-                WITH doomed AS (
-                    SELECT f.id AS field_id, f.field_declaration_id AS decl_id
-                    FROM field f
-                    JOIN class_entity ce ON ce.id = f.class_id
-                    JOIN challenge ch ON ch.id = ce.challenge_id
-                    WHERE ch.lab_id IN (:labIds)
-                ),
-                del_f AS (
-                    DELETE FROM field WHERE id IN (SELECT field_id FROM doomed) RETURNING field_declaration_id
-                )
-                DELETE FROM field_declaration WHERE id IN (SELECT field_declaration_id FROM del_f)
-                """, labIds);
-        execDelete("""
-                WITH doomed AS (
-                    SELECT m.id AS method_id, m.method_declaration_id AS decl_id
-                    FROM method m
-                    JOIN class_entity ce ON ce.id = m.class_id
-                    JOIN challenge ch ON ch.id = ce.challenge_id
-                    WHERE ch.lab_id IN (:labIds)
-                ),
-                del_m AS (
-                    DELETE FROM method WHERE id IN (SELECT method_id FROM doomed) RETURNING method_declaration_id
-                )
-                DELETE FROM method_declaration WHERE id IN (SELECT method_declaration_id FROM del_m)
-                """, labIds);
-        execDelete("""
-                WITH doomed AS (
-                    SELECT c.id AS ctor_id, c.constructor_declaration_id AS decl_id
-                    FROM constructor c
-                    JOIN class_entity ce ON ce.id = c.class_id
-                    JOIN challenge ch ON ch.id = ce.challenge_id
-                    WHERE ch.lab_id IN (:labIds)
-                ),
-                del_c AS (
-                    DELETE FROM constructor WHERE id IN (SELECT ctor_id FROM doomed)
-                    RETURNING constructor_declaration_id
-                )
-                DELETE FROM constructor_declaration WHERE id IN (SELECT constructor_declaration_id FROM del_c)
-                """, labIds);
+        deleteFieldsAndDeclarationsForLabs(labIds);
+        deleteMethodsAndDeclarationsForLabs(labIds);
+        deleteConstructorsAndDeclarationsForLabs(labIds);
         execDelete("""
                 DELETE FROM class_relation
                 WHERE class_id IN (
@@ -723,6 +686,86 @@ public class LabStructureService {
     private void execDelete(String sql, List<UUID> labIds) {
         entityManager.createNativeQuery(sql)
                 .setParameter("labIds", labIds)
+                .executeUpdate();
+    }
+
+    /**
+     * Removes rubric field rows for the labs, then their declarations. Uses select-then-delete
+     * so the same path works on PostgreSQL and H2 (desktop); PG {@code WITH ... DELETE RETURNING}
+     * CTEs are not supported on H2.
+     */
+    private void deleteFieldsAndDeclarationsForLabs(List<UUID> labIds) {
+        @SuppressWarnings("unchecked")
+        List<UUID> declIds = entityManager.createNativeQuery("""
+                SELECT DISTINCT f.field_declaration_id
+                FROM field f
+                JOIN class_entity ce ON ce.id = f.class_id
+                JOIN challenge ch ON ch.id = ce.challenge_id
+                WHERE ch.lab_id IN (:labIds) AND f.field_declaration_id IS NOT NULL
+                """)
+                .setParameter("labIds", labIds)
+                .getResultList();
+        execDelete("""
+                DELETE FROM field WHERE id IN (
+                    SELECT f.id FROM field f
+                    JOIN class_entity ce ON ce.id = f.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        deleteDeclarationsByIds("field_declaration", declIds);
+    }
+
+    private void deleteMethodsAndDeclarationsForLabs(List<UUID> labIds) {
+        @SuppressWarnings("unchecked")
+        List<UUID> declIds = entityManager.createNativeQuery("""
+                SELECT DISTINCT m.method_declaration_id
+                FROM method m
+                JOIN class_entity ce ON ce.id = m.class_id
+                JOIN challenge ch ON ch.id = ce.challenge_id
+                WHERE ch.lab_id IN (:labIds) AND m.method_declaration_id IS NOT NULL
+                """)
+                .setParameter("labIds", labIds)
+                .getResultList();
+        execDelete("""
+                DELETE FROM method WHERE id IN (
+                    SELECT m.id FROM method m
+                    JOIN class_entity ce ON ce.id = m.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        deleteDeclarationsByIds("method_declaration", declIds);
+    }
+
+    private void deleteConstructorsAndDeclarationsForLabs(List<UUID> labIds) {
+        @SuppressWarnings("unchecked")
+        List<UUID> declIds = entityManager.createNativeQuery("""
+                SELECT DISTINCT c.constructor_declaration_id
+                FROM constructor c
+                JOIN class_entity ce ON ce.id = c.class_id
+                JOIN challenge ch ON ch.id = ce.challenge_id
+                WHERE ch.lab_id IN (:labIds) AND c.constructor_declaration_id IS NOT NULL
+                """)
+                .setParameter("labIds", labIds)
+                .getResultList();
+        execDelete("""
+                DELETE FROM constructor WHERE id IN (
+                    SELECT c.id FROM constructor c
+                    JOIN class_entity ce ON ce.id = c.class_id
+                    JOIN challenge ch ON ch.id = ce.challenge_id
+                    WHERE ch.lab_id IN (:labIds)
+                )
+                """, labIds);
+        deleteDeclarationsByIds("constructor_declaration", declIds);
+    }
+
+    private void deleteDeclarationsByIds(String table, List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        entityManager.createNativeQuery("DELETE FROM " + table + " WHERE id IN (:ids)")
+                .setParameter("ids", ids)
                 .executeUpdate();
     }
 

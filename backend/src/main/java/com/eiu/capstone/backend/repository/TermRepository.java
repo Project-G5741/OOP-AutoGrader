@@ -23,6 +23,9 @@ public interface TermRepository extends JpaRepository<Term, UUID> {
     @Query("SELECT t FROM Term t JOIN FETCH t.academicYear WHERE t.current = true")
     Optional<Term> findCurrentWithAcademicYear();
 
+    @Query("SELECT t FROM Term t JOIN FETCH t.academicYear WHERE t.id = :id")
+    Optional<Term> findByIdWithAcademicYear(@Param("id") UUID id);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Term t SET t.current = false WHERE t.current = true AND t.id <> :termId")
     int clearOtherCurrent(@Param("termId") UUID termId);

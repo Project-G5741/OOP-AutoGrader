@@ -221,6 +221,7 @@ public class StudentHistoryService {
                 submission.getScore(),
                 formatTimestamp(submission.getSubmittedAt()),
                 status,
+                submission.getDesktopPackVersion(),
                 challengeDtos);
     }
 

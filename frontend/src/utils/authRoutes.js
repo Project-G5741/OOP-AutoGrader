@@ -54,7 +54,13 @@ export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
 }
 
 export function readStoredUser() {
-  if (!sessionStorage.getItem('accessToken')) return null;
+  const token = sessionStorage.getItem('accessToken');
+  if (!token) return null;
+  if (import.meta.env.VITE_APP_MODE !== 'desktop' && token === 'desktop-local') {
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('user');
+    return null;
+  }
   try {
     const saved = sessionStorage.getItem('user');
     if (!saved) return null;

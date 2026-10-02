@@ -3,6 +3,9 @@ package com.eiu.capstone.backend.grading.rubric;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ChallengeRubric(
         UUID challengeId,
         int challengeNumber,

@@ -182,3 +182,11 @@ A named semantic color role (primary, secondary, success, surface, etc.) whose h
 
 ### Theme preference
 The user's light or dark mode choice. First visit follows OS `prefers-color-scheme`; an explicit toggle persists in `localStorage` and overrides system preference on later visits. `ThemeContext` applies the `dark` class on `<html>` for the whole app including auth screens.
+
+## Desktop local mode (student practice)
+
+### Local student desktop mode
+A Windows-portable student practice grader: one install folder, WebView2 launcher (or `.bat` fallback), bundled Java runtime optional, and local backend `desktop` profile. No login, no sync with production scores, and no plagiarism. Uses the same student dashboard UX as the web app for upload and result tabs; history and attempt numbers are machine-local only. Students obtain the folder from **Download practice folder** on the web submit dashboard (current quarter) or from lecturer/IT assembly; each attempt stores the rubric **pack version** that graded it.
+
+### Rubric pack
+Signed, encrypted `.agpack` files in the install `rubric/` folder. **Required names:** `{term-uuid}.term.agpack` (quarter; replaces all labs on restart) and `{lab-uuid}.lab.agpack` (single lab; adds or replaces by name). Lecturers export from Term Management or Solution Management; students import via **Import rubric pack** in the desktop header or copy files manually, then restart. Web **Download practice folder** embeds the current quarter `{termId}.term.agpack`. Invalid packs are rejected at import; failed optional lab packs at startup are skipped if the quarter pack loaded. Status: `GET /api/desktop/status`.

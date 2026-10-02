@@ -1,0 +1,118 @@
+using System.Diagnostics;
+using System.Net.Http;
+using System.Text.Json;
+
+namespace OopAutoGrader.Practice;
+
+internal static class BackendLauncher
+{
+    private const int Port = 18002;
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(2) };
+
+    internal static Process? Process { get; private set; }
+
+    internal static string HomeDirectory { get; private set; } = "";
+
+    internal static string AppUrl => $"http://127.0.0.1:{Port}/";
+
+    internal static void Start(string installDir)
+    {
+        HomeDirectory = installDir;
+        var backendJar = Path.Combine(installDir, "backend.jar");
+        if (!File.Exists(backendJar))
+        {
+            throw new FileNotFoundException("backend.jar was not found next to the launcher.", backendJar);
+        }
+
+        var javaExe = ResolveJava(installDir);
+        var psi = new ProcessStartInfo
+        {
+            FileName = javaExe,
+            Arguments = $"-jar \"{backendJar}\"",
+            WorkingDirectory = installDir,
+            UseShellExecute = false,
+            CreateNoWindow = false,
+        };
+        psi.Environment["APP_DESKTOP_HOME"] = installDir;
+        psi.Environment["SPRING_PROFILES_ACTIVE"] = "desktop";
+        psi.Environment["JWT_SECRET"] = "desktop-local-dev-secret-minimum-32-bytes!!";
+
+        Process = Process.Start(psi)
+                  ?? throw new InvalidOperationException("Failed to start the Java backend process.");
+    }
+
+    internal static async Task WaitUntilHealthyAsync(CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow.AddMinutes(2);
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                using var response = await Http.GetAsync($"{AppUrl}api/desktop/status", cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    using var doc = JsonDocument.Parse(json);
+                    // Confirm we are talking to the desktop backend, not the cloud/dev API on another port.
+                    if (doc.RootElement.TryGetProperty("packMissing", out _))
+                    {
+                        return;
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // backend still starting
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // HttpClient timeout while warming up
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        throw new TimeoutException("The practice backend did not become ready in time.");
+    }
+
+    internal static void Stop()
+    {
+        var process = Process;
+        if (process == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.CloseMainWindow();
+                if (!process.WaitForExit(3000))
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+        }
+        catch
+        {
+            // best effort shutdown
+        }
+        finally
+        {
+            Process = null;
+        }
+    }
+
+    private static string ResolveJava(string installDir)
+    {
+        var bundled = Path.Combine(installDir, "runtime", "jdk", "bin", "java.exe");
+        if (File.Exists(bundled))
+        {
+            return bundled;
+        }
+
+        return "java";
+    }
+}

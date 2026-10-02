@@ -1,9 +1,11 @@
 package com.eiu.capstone.backend.service;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!desktop")
 public class LabDeadlineReminderScheduler {
 
     private final LabDeadlineEmailService labDeadlineEmailService;

@@ -5,10 +5,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
 
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
@@ -31,18 +34,28 @@ public class StudentTermAccessService {
     private final UserAccountRepository userAccountRepository;
     private final long accessCacheTtlSeconds;
     private final ConcurrentHashMap<String, CachedAccess> accessCache = new ConcurrentHashMap<>();
+    private final DesktopLocalUserService desktopLocalUserService;
 
     public StudentTermAccessService(TermService termService,
                                     LabDeadlineHelper labDeadlineHelper,
                                     UserAccountRepository userAccountRepository,
-                                    @Value("${app.upload.access-cache-ttl-seconds:30}") long accessCacheTtlSeconds) {
+                                    @Value("${app.upload.access-cache-ttl-seconds:30}") long accessCacheTtlSeconds,
+                                    @Autowired(required = false) DesktopLocalUserService desktopLocalUserService) {
         this.termService = termService;
         this.labDeadlineHelper = labDeadlineHelper;
         this.userAccountRepository = userAccountRepository;
         this.accessCacheTtlSeconds = accessCacheTtlSeconds;
+        this.desktopLocalUserService = desktopLocalUserService;
+    }
+
+    private boolean isDesktopMode() {
+        return desktopLocalUserService != null;
     }
 
     public boolean isInCurrentTerm(UserAccount user) {
+        if (isDesktopMode()) {
+            return user != null && user.getIsActive();
+        }
         if (user == null || !user.getIsActive()) {
             return false;
         }
@@ -60,6 +73,9 @@ public class StudentTermAccessService {
      * first upload after opening the dashboard can skip that round-trip.
      */
     public UploadAccess requireUploadAccess(String email, UUID labId) {
+        if (isDesktopMode()) {
+            return desktopLocalUserService.requireUploadAccess(labId);
+        }
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
         }
@@ -138,6 +154,12 @@ public class StudentTermAccessService {
     }
 
     public void requireStudentLabAccess(UserAccount user, Lab lab) {
+        if (isDesktopMode()) {
+            if (user == null || !user.getIsActive() || lab == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+            }
+            return;
+        }
         if (user == null || !user.getIsActive()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
         }
@@ -156,6 +178,9 @@ public class StudentTermAccessService {
     }
 
     public void requireLabOpenForStudent(Lab lab) {
+        if (isDesktopMode()) {
+            return;
+        }
         if (!labDeadlineHelper.isOpenForStudentSubmission(
                 lab.isStudentVisible(), lab.getReleaseDate(), Instant.now())) {
             throw new ResponseStatusException(

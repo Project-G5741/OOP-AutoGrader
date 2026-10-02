@@ -40,7 +40,7 @@ class StudentTermAccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        accessService = new StudentTermAccessService(termService, labDeadlineHelper, userAccountRepository, 30);
+        accessService = new StudentTermAccessService(termService, labDeadlineHelper, userAccountRepository, 30, null);
     }
 
     @Test

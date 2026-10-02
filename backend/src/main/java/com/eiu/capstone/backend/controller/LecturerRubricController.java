@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +34,8 @@ import com.eiu.capstone.backend.service.LabCloneService;
 import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseDryRunService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
+import com.eiu.capstone.backend.desktop.pack.DesktopPackExportService;
+import com.eiu.capstone.backend.desktop.pack.DesktopPackFileNames;
 
 @RestController
 @RequestMapping("/api/lecturer/labs")
@@ -41,15 +45,18 @@ public class LecturerRubricController {
     private final TestcaseRubricService testcaseRubricService;
     private final TestcaseDryRunService testcaseDryRunService;
     private final LabCloneService labCloneService;
+    private final DesktopPackExportService desktopPackExportService;
 
     public LecturerRubricController(LabStructureService labStructureService,
                                     TestcaseRubricService testcaseRubricService,
                                     TestcaseDryRunService testcaseDryRunService,
-                                    LabCloneService labCloneService) {
+                                    LabCloneService labCloneService,
+                                    DesktopPackExportService desktopPackExportService) {
         this.labStructureService = labStructureService;
         this.testcaseRubricService = testcaseRubricService;
         this.testcaseDryRunService = testcaseDryRunService;
         this.labCloneService = labCloneService;
+        this.desktopPackExportService = desktopPackExportService;
     }
 
     @GetMapping("/clone-sources")
@@ -71,6 +78,16 @@ public class LecturerRubricController {
     @GetMapping("/{labId}/structure")
     public LabStructureResponse getStructure(@PathVariable UUID labId) {
         return labStructureService.loadForEditor(labId);
+    }
+
+    @GetMapping("/{labId}/desktop-pack")
+    public ResponseEntity<byte[]> downloadDesktopPack(@PathVariable UUID labId) {
+        byte[] body = desktopPackExportService.exportLabPack(labId);
+        String filename = DesktopPackFileNames.labFilename(labId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(body);
     }
 
     @PutMapping("/{labId}/structure")

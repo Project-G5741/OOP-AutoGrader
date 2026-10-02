@@ -113,7 +113,7 @@ SubmissionController
 
 ### Result persistence
 
-Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (one statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
+Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (PostgreSQL: one CTE statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT; **`desktop` profile:** `H2GradingResultJdbcWriter` uses transactional JDBC without `unnest`/`gen_random_uuid()`). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on PostgreSQL; H2 `MERGE` / batch inserts on desktop). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
 
 | Entity | Stores |
 |---|---|

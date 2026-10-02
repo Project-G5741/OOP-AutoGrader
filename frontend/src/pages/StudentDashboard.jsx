@@ -6,6 +6,8 @@ import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
+import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
+import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import { useToast } from '../components/ui/Toast';
 import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
@@ -14,6 +16,7 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiErro
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
 function normalizeChallengeScores(resultMap = {}) {
   const scores = {};
@@ -849,6 +852,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         onCommand={handleCommand}
         hideHome={!inCurrentTerm}
         className="!mt-0"
+        headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
+          <DesktopRubricPackImport onToast={showToast} />
+        ) : null}
         headerAddon={!showHistory ? (
           <div className="-my-2">
             <StudentFoxMascot size={96} />
@@ -856,6 +862,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         ) : null}
       >
         <div className="w-full">
+          {!showHistory && inCurrentTerm && !IS_DESKTOP_APP && (
+            <StudentOfflinePracticeDownload onToast={showToast} />
+          )}
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
               {labsError}

@@ -9,6 +9,7 @@
     "prebuild": "npm run theme:sync",
     "dev": "vite",
     "build": "vite build",
+    "build:desktop": "vite build --mode desktop",
     "preview": "vite preview"
   },
   "dependencies": {

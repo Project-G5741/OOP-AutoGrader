@@ -46,8 +46,8 @@ public class SubmissionTestcaseResult {
             foreignKey = @ForeignKey(name = "str_testcase_id_fkey"))
     private Testcase testcase;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "result", nullable = false, columnDefinition = "testcase_result_status")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "result", nullable = false, length = 64)
     private TestcaseResultStatus result;
 
     @Column(name = "feedback")

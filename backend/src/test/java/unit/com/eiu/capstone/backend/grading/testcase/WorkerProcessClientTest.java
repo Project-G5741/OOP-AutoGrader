@@ -66,6 +66,12 @@ class WorkerProcessClientTest {
     }
 
     @Test
+    void resolveJavaBinaryFallsBackWhenBundledPathMissing(@TempDir Path temp) {
+        Path missingBundled = temp.resolve("runtime").resolve("jdk").resolve("bin").resolve("java");
+        assertEquals("java", WorkerProcessClient.resolveJavaBinary(missingBundled.toString()));
+    }
+
+    @Test
     void productionCommandContainsHeapFlags() {
         Path jar = Path.of("target/backend-1.0.0-worker.jar");
         WorkerProcessClient packaged = new WorkerProcessClient("java", jar);

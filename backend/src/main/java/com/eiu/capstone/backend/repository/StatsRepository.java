@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.repository;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -36,13 +37,13 @@ public class StatsRepository {
                        COALESCE(latest_sub.submitted_at, p.last_submitted_at) AS latest_submitted_at,
                        COALESCE(counts.submission_count, 0) AS submission_count
                 FROM student_lab_progress p
-                LEFT JOIN LATERAL (
-                    SELECT s.score, s.submitted_at
+                LEFT JOIN (
+                    SELECT s.lab_id, s.score, s.submitted_at,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY s.user_id, s.lab_id ORDER BY s.attempt_number DESC) AS rn
                     FROM lab_submission s
-                    WHERE s.user_id = :studentId AND s.lab_id = p.lab_id
-                    ORDER BY s.attempt_number DESC
-                    LIMIT 1
-                ) latest_sub ON true
+                    WHERE s.user_id = :studentId
+                ) latest_sub ON latest_sub.lab_id = p.lab_id AND latest_sub.rn = 1
                 LEFT JOIN (
                     SELECT lab_id, COUNT(*) AS submission_count
                     FROM lab_submission
@@ -84,7 +85,7 @@ public class StatsRepository {
                            WHERE ls.user_id = :studentId AND ls.lab_id = :labId
                        ), 0) AS submission_count
                 FROM student_lab_progress p
-                LEFT JOIN LATERAL (
+                LEFT JOIN (
                     SELECT s.score, s.submitted_at
                     FROM lab_submission s
                     WHERE s.user_id = :studentId AND s.lab_id = :labId
@@ -119,6 +120,13 @@ public class StatsRepository {
         }
         if (value instanceof UUID uuid) {
             return uuid;
+        }
+        if (value instanceof byte[] bytes && bytes.length == 16) {
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            return new UUID(buffer.getLong(), buffer.getLong());
+        }
+        if (value instanceof String string) {
+            return UUID.fromString(string);
         }
         return UUID.fromString(value.toString());
     }

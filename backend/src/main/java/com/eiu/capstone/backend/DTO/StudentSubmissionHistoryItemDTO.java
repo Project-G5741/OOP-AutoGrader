@@ -11,5 +11,6 @@ public record StudentSubmissionHistoryItemDTO(
         BigDecimal score,
         String submittedAt,
         String status,
+        String desktopPackVersion,
         List<StudentChallengeResultDTO> challengeResults) {
 }

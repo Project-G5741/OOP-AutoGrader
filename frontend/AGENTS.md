@@ -27,9 +27,9 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Variable | Purpose |
 |---|---|
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `VITE_API_URL` | Backend base URL (default `http://localhost:8002`) |
+| `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
 
-`VITE_*` vars are baked in at build time. `VITE_GOOGLE_CLIENT_ID` is required for production builds; Vite dev falls back to the shared EIU client ID when unset.
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx`), `DesktopPracticeStatusBanner` polls `GET /api/desktop/status`. Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`).
 
 ### Run
 
@@ -82,7 +82,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
@@ -102,6 +102,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 ## Verification
 
 - `npm run build` must succeed
+- `npm run build:desktop` (`--mode desktop`) outputs `dist-desktop/` for the offline student bundle (`App.desktop.jsx`, no Google client required)
 - Manual: login flow (Google + IRN), role dashboards, user CRUD, student upload via `DropZone`
 
 ## Child DOX Index

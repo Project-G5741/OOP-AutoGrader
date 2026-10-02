@@ -115,6 +115,14 @@ async function readBackendErrorMessage(response) {
 export async function readFriendlyApiError(response, context = 'read') {
   const backendMessage = await readBackendErrorMessage(response);
 
+  if (
+    context === 'download'
+    && backendMessage
+    && (response.status === 403 || response.status === 404 || response.status === 503)
+  ) {
+    return backendMessage;
+  }
+
   if (isServerBusyStatus(response.status)) {
     return FRIENDLY.SERVER_BUSY;
   }
@@ -157,6 +165,8 @@ export async function readFriendlyApiError(response, context = 'read') {
       return FRIENDLY.DELETE_FAILED;
     case 'upload':
       return FRIENDLY.UPLOAD_FAILED;
+    case 'download':
+      return FRIENDLY.SERVER_BUSY;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;
@@ -186,7 +196,7 @@ export function toFriendlyError(error, context = 'read') {
   }
 
   // Already resolved by readFriendlyApiError (or a client-thrown Error with that text).
-  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save')) {
+  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'download')) {
     return message;
   }
 
@@ -205,6 +215,8 @@ export function toFriendlyError(error, context = 'read') {
       return FRIENDLY.DELETE_FAILED;
     case 'upload':
       return FRIENDLY.UPLOAD_FAILED;
+    case 'download':
+      return FRIENDLY.SERVER_BUSY;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;

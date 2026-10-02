@@ -27,8 +27,8 @@ public class Testcase {
             foreignKey = @ForeignKey(name = "testcase_challenge_id_fkey"))
     private Challenge challenge;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "testcase_type", nullable = false, columnDefinition = "testcase_type")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "testcase_type", nullable = false, length = 64)
     private TestcaseType testcaseType;
 
     @Column(name = "name", nullable = false)

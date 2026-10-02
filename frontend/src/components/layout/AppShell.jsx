@@ -15,6 +15,7 @@ export default function AppShell({
   hideHome = false,
   hideHistory = false,
   headerAddon = null,
+  headerUserSlot = null,
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground transition-colors">
@@ -29,6 +30,7 @@ export default function AppShell({
             hideHome={hideHome}
             hideHistory={hideHistory}
             headerAddon={headerAddon}
+            headerUserSlot={headerUserSlot}
           />
         </div>
 

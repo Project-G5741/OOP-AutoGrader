@@ -42,22 +42,25 @@ Password-reset emails use the request `Origin` when it matches an allowed fronte
 | `SPRINGDOC_ENABLED` | OpenAPI/Swagger. Default `true` locally. Set `false` in production so `/v3/api-docs` and `/swagger-ui/**` are not registered. |
 | `PORT` | Server port (default `8002`) |
 | `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx256m`). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
+| `DESKTOP_PACK_SIGNING_PRIVATE_KEY` | Optional Base64 PKCS#8 Ed25519 key for lecturer desktop practice pack export; pairs with `classpath:desktop-pack-public.key`. When unset, export returns 503. |
 
-Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path).
+Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path), `application-desktop.yml` (profile `desktop`: H2 file DB under `${APP_DESKTOP_HOME}/data`, bundled paths, Swagger off).
+
+**Desktop profile (`spring.profiles.active=desktop`):** Local student practice API on port **18002** (`server.port` in `application-desktop.yml`, override `DESKTOP_SERVER_PORT`) — avoids colliding with dev/cloud **8002**. H2 (PostgreSQL compatibility mode), no JWT (`DesktopSecurityConfig`), no plagiarism pipeline (`DesktopPlagiarismService`), no production schema migrators or term-enrollment backfill. Set `APP_DESKTOP_HOME` to the install folder; static UI from `app.desktop.ui-dir` (default `{home}/ui/dist-desktop`); operational testcases spawn `worker.jar` via `app.grading.worker-java` (defaults to `java` on PATH; optional bundled `runtime/jdk` via `DESKTOP_WORKER_JAVA`). Production cloud deploy keeps default profile (PostgreSQL + `SecurityConfig`).
 
 ### API surface
 
 | Controller | Base path | Notes |
 |---|---|---|
-| `RootController` | `/` | `GET /` — liveness probe (Render health check) |
+| `RootController` | `/` | `GET /` — liveness probe (Render health check); inactive on `desktop` profile (SPA served from `ui/dist-desktop`) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
 | `LabController` | `/api/labs` | `GET /list` — labs (with `deadlineDate`, `urgencyState`, natural name sort); lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
-| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
+| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run; `GET /{labId}/desktop-pack` → `{labId}.lab.agpack` |
+| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call), `GET /{termId}/desktop-pack` → `{termId}.term.agpack` (requires `DESKTOP_PACK_SIGNING_PRIVATE_KEY`) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
-| `StudentAccessController` | `/api/students` | `GET /term-access` — whether the student is in the current term |
+| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
@@ -83,7 +86,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 ### Persistence
 
 - JPA entities in `model/`, repositories in `repository/`
-- Schema managed externally — no Flyway/Liquibase migrations in repo
+- Schema managed externally — no Flyway/Liquibase migrations in repo; startup migrators (`SessionVersionSchemaMigrator`, `DesktopPackVersionSchemaMigrator`, `TestcaseSchemaMigrator`, …) patch older PostgreSQL when needed
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
 - Operational testcase persistence (operator SQL `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`; also applied on startup by `TestcaseSchemaMigrator` when leftover types/columns remain): wipe CASCADE of OT graphs, drop `testcase_instance` / `oop_principle_tag` / per-testcase `weight` / `COMPARISON_RESULT`, rewrite `testcase_type` to `UNIT` | `COMPOSITION`. After wipe the migrator calls `LabRubricCache.invalidateAll()`. Kept columns: `testcase_invocation.order_index` (unique `(testcase_id, order_index)`), `instance_name` (constructor/static product or Composition receiver). No per-testcase weight. Challenge `testcase_weight` is unchanged.
@@ -175,6 +178,8 @@ Grading tuning properties (`application.properties`):
 - `@WebMvcTest` classes under `authorization/` declare a nested `@SpringBootApplication` on the test class so Boot can find configuration outside `com.eiu.capstone.backend`.
 - Surefire sets `net.bytebuddy.experimental=true` so Mockito can run on a local JDK newer than 22; image builds use JDK 17.
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
+- Desktop pack: `unit` `DesktopPackCryptoTest`, `DesktopPackSerializerTest`; `authorization` `LecturerTermDesktopPackTest`; `integration` `DesktopProfileContextTest`, `DesktopPackBootstrapIntegrationTest`, `DesktopSubmissionPipelineIntegrationTest` (`@ActiveProfiles("desktop")`)
+- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`{uuid}.term.agpack`, `{uuid}.lab.agpack`); see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

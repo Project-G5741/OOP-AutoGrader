@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import com.eiu.capstone.backend.analytics.dto.LabAttemptHistoryItemDTO;
 import com.eiu.capstone.backend.analytics.dto.LabStatisticsResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
+import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -46,6 +48,7 @@ public class LabController {
     private final JwtAuthHelper jwtAuthHelper;
     private final TermService termService;
     private final StudentTermAccessService studentTermAccessService;
+    private final DesktopLocalUserService desktopLocalUserService;
 
     public LabController(LabRepository labRepository,
                          StatsService statsService,
@@ -54,7 +57,8 @@ public class LabController {
                          LabDeadlineHelper labDeadlineHelper,
                          JwtAuthHelper jwtAuthHelper,
                          TermService termService,
-                         StudentTermAccessService studentTermAccessService) {
+                         StudentTermAccessService studentTermAccessService,
+                         @Autowired(required = false) DesktopLocalUserService desktopLocalUserService) {
         this.labRepository = labRepository;
         this.statsService = statsService;
         this.challengeService = challengeService;
@@ -63,6 +67,7 @@ public class LabController {
         this.jwtAuthHelper = jwtAuthHelper;
         this.termService = termService;
         this.studentTermAccessService = studentTermAccessService;
+        this.desktopLocalUserService = desktopLocalUserService;
     }
 
     @GetMapping("/list")
@@ -95,6 +100,16 @@ public class LabController {
         Term current = termService.findCurrentTerm().orElse(null);
         if (current == null) {
             return List.of();
+        }
+        if (desktopLocalUserService != null) {
+            List<Lab> labs = labRepository.findByTerm_Id(current.getId());
+            for (Lab lab : labs) {
+                if (lab.getTerm() == null) {
+                    lab.setTerm(current);
+                }
+                studentTermAccessService.rememberSuccessfulAccess(user, lab);
+            }
+            return labs;
         }
         if (!principal.isStudentOnly()) {
             return labRepository.findByTerm_Id(current.getId());

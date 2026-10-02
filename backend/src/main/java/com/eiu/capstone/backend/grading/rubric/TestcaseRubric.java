@@ -3,10 +3,12 @@ package com.eiu.capstone.backend.grading.rubric;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.TestcaseComparisonMethod;
 import com.eiu.capstone.backend.model.TestcaseType;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record TestcaseRubric(
         UUID id,
         String name,

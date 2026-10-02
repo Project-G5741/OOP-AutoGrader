@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Download, Loader2 } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import ClassDetailPanel from '../components/lecturer/structure/ClassDetailPanel';
@@ -540,6 +540,28 @@ export default function SolutionManagement() {
     }
   };
 
+  const handleDownloadLabPracticePack = async () => {
+    if (!selectedLabId) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/desktop-pack`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'download'));
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${selectedLabId}.lab.agpack`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast({ message: 'Lab practice pack downloaded.', type: 'success' });
+    } catch (e) {
+      showToast({ message: toFriendlyError(e, 'download'), type: 'error' });
+    }
+  };
+
   const runDelete = async () => {
     if (!confirmDelete) return;
     const { type, labId, challengeId, classId } = confirmDelete;
@@ -630,7 +652,16 @@ export default function SolutionManagement() {
             )}
           </div>
           {selectedLab && (
-            <div className="flex shrink-0 flex-wrap gap-1.5">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleDownloadLabPracticePack}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface-secondary"
+                title="Single-lab offline practice pack for students"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Practice pack
+              </button>
               <Badge variant={accessBadge.variant}>{accessBadge.label}</Badge>
               {savedSnapshot?.deadlineDate && (
                 <Badge variant="outline">Deadline set</Badge>

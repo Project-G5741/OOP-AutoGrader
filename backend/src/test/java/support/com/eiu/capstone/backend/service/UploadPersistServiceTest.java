@@ -75,7 +75,7 @@ class UploadPersistServiceTest {
 
         OffsetDateTime submittedAt = TimeUtil.nowInVietnam();
         when(jdbcWriter.persistUpload(eq(submissionId), eq(userId), eq(labId),
-                eq(new BigDecimal("81.25")), any(), eq(List.of())))
+                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null)))
                 .thenAnswer(invocation -> {
                     submission.setSubmittedAt(invocation.getArgument(4));
                     return new UploadWriteResult(2, submittedAt);
@@ -89,7 +89,7 @@ class UploadPersistServiceTest {
         InOrder order = inOrder(jdbcWriter, parsedSubmissionSnapshotStore, gradingResultStore);
         order.verify(jdbcWriter).persistUpload(
                 eq(submissionId), eq(userId), eq(labId),
-                eq(new BigDecimal("81.25")), any(), eq(List.of()));
+                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null));
         order.verify(parsedSubmissionSnapshotStore).save(eq(submissionId), eq(Map.of()));
         order.verify(gradingResultStore).scheduleDetailPersist(submissionId, computed);
     }
