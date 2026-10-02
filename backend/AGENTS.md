@@ -60,7 +60,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
-| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` |
+| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/OOP-AutoGrader-Practice.zip` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no env) |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |

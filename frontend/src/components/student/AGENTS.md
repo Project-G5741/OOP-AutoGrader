@@ -15,7 +15,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right on the submit dashboard only |
 | `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; lab name conflict modal; restart required after save |
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; polls every 3s; API base defaults to `:18002` in desktop mode |
-| `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: zip download of practice folder (not rendered in desktop build) |
+| `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: runtime-only practice zip download (no pack; not rendered in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -90,7 +90,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 - Manual: log in as student, toggle history view, open profile modal
 - Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
-- Offline practice: web — **Download practice folder** on submit dashboard; desktop — **Import rubric pack** + restart; see `docs/DESKTOP_STUDENT_DIST.md`
+- Offline practice: web — **Download practice folder** (prebuilt runtime-only zip stream; lecturers distribute packs); desktop — **Import rubric pack** + restart; see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

@@ -7,6 +7,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $backendTarget = Join-Path $repoRoot "backend\target"
 $frontendDist = Join-Path $repoRoot "frontend\dist-desktop"
+# Fixed path the web API streams (cwd = backend/ → target/OOP-AutoGrader-Practice.zip)
+$webDownloadZip = Join-Path $backendTarget "OOP-AutoGrader-Practice.zip"
 
 if (-not (Test-Path (Join-Path $backendTarget "backend-1.0.0.jar"))) {
     Write-Host "Building backend..."
@@ -46,6 +48,19 @@ if (Get-Command dotnet -ErrorAction SilentlyContinue) {
     Write-Warning "dotnet SDK not found; only OOP-AutoGrader-Practice.bat was copied."
 }
 
+New-Item -ItemType Directory -Force -Path $backendTarget | Out-Null
+if (Test-Path $webDownloadZip) {
+    Remove-Item $webDownloadZip -Force
+}
+Write-Host "Creating web download zip at $webDownloadZip ..."
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory(
+    $OutputDir,
+    $webDownloadZip,
+    [System.IO.Compression.CompressionLevel]::Optimal,
+    $false)
+
 Write-Host "Assembled student desktop layout at $OutputDir"
+Write-Host "Web download zip: $webDownloadZip"
 Write-Host "Students: run OOP-AutoGrader-Practice.exe (preferred) or .bat — Java 17+ or runtime/jdk"
-Write-Host "Web download bundles rubric/term.agpack for the current quarter"
+Write-Host "Web download is runtime-only (no .agpack); lecturers distribute packs separately."

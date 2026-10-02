@@ -29,7 +29,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
 
-**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx`), `DesktopPracticeStatusBanner` polls `GET /api/desktop/status`. Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`).
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx`), `DesktopPracticeStatusBanner` polls `GET /api/desktop/status`. Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — streams prebuilt runtime-only zip; lecturers distribute packs.
 
 ### Run
 

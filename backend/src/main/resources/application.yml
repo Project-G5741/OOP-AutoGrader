@@ -34,12 +34,6 @@ cors:
   allowed-origins: ${FRONTEND_URL:http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
 
 app:
-  desktop:
-    student-practice:
-      backend-jar: ${STUDENT_PRACTICE_BACKEND_JAR:target/backend-1.0.0.jar}
-      worker-jar: ${STUDENT_PRACTICE_WORKER_JAR:target/backend-1.0.0-worker.jar}
-      ui-dir: ${STUDENT_PRACTICE_UI_DIR:../frontend/dist-desktop}
-      launcher-dir: ${STUDENT_PRACTICE_LAUNCHER_DIR:../desktop/launcher/publish}
   mail:
     provider: ${MAIL_PROVIDER:smtp}
     from: ${MAIL_FROM:projectg5741@gmail.com}

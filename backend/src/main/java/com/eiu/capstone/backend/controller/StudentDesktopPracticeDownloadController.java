@@ -1,6 +1,10 @@
 package com.eiu.capstone.backend.controller;
 
+import java.io.IOException;
+
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -31,13 +35,16 @@ public class StudentDesktopPracticeDownloadController {
     }
 
     @GetMapping("/desktop-practice-bundle")
-    public ResponseEntity<byte[]> downloadDesktopPracticeBundle(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public ResponseEntity<Resource> downloadDesktopPracticeBundle(
+            @AuthenticationPrincipal JwtUserPrincipal principal) throws IOException {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         BundleDownload bundle = desktopPracticeBundleService.buildForStudent(user);
+        FileSystemResource resource = new FileSystemResource(bundle.zipFile());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + bundle.filename() + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(bundle.bytes());
+                .contentLength(resource.contentLength())
+                .body(resource);
     }
 }

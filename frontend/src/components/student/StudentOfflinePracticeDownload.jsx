@@ -28,7 +28,7 @@ export default function StudentOfflinePracticeDownload({ onToast }) {
       link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
-      onToast?.({ message: 'Offline practice folder downloaded. Unzip and run OOP-AutoGrader-Practice.bat.', type: 'success' });
+      onToast?.({ message: 'Offline practice folder downloaded. Unzip and run OOP-AutoGrader-Practice.exe.', type: 'success' });
     } catch (err) {
       onToast?.({ message: toFriendlyError(err, 'download'), type: 'error' });
     } finally {
@@ -46,9 +46,8 @@ export default function StudentOfflinePracticeDownload({ onToast }) {
           <div>
             <h2 className="text-sm font-semibold text-foreground">Offline practice on your PC</h2>
             <p className="mt-1 max-w-2xl text-sm text-foreground-muted">
-              Download a Windows folder with the local grader, this quarter&apos;s rubric, and{' '}
-              <span className="font-medium text-foreground">OOP-AutoGrader-Practice.bat</span>
-              {' '}to start. Practice scores stay on your machine and are not submitted here.
+              Download a Windows folder with the local grader, and OOP-AutoGrader-Practice.exe to start.
+              Practice scores stay on your machine and are not submitted here.
             </p>
           </div>
         </div>
@@ -59,7 +58,7 @@ export default function StudentOfflinePracticeDownload({ onToast }) {
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
         >
           <Download className="h-4 w-4" aria-hidden />
-          {downloading ? 'Preparing…' : 'Download practice folder'}
+          {downloading ? 'Downloading…' : 'Download practice folder'}
         </button>
       </div>
     </div>

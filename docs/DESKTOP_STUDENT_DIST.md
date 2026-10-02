@@ -35,7 +35,7 @@ Every import (UI or manual copy) takes effect only after a **full app restart**.
 1. Set `DESKTOP_PACK_SIGNING_PRIVATE_KEY` on the server (pairs with `backend/src/main/resources/desktop-pack-public.key`).
 2. **Quarter:** Term Management → select quarter → **Download practice pack** → `{termId}.term.agpack`.
 3. **Single lab:** Solution Management → select lab → **Practice pack** → `{labId}.lab.agpack`.
-4. Student web **Download practice folder** zip includes `rubric/{currentTermId}.term.agpack`.
+4. Student web **Download practice folder** streams a **prebuilt** runtime-only zip (no `.agpack`); lecturers distribute packs separately.
 
 ## Student: run practice
 
@@ -73,7 +73,7 @@ From repo root:
 .\scripts\assemble-student-desktop.ps1 -OutputDir "D:\dist\StudentPractice"
 ```
 
-Copies shaded `backend.jar`, `worker.jar`, and `frontend/dist-desktop`. Creates empty `rubric/` and `data/`. Add launcher publish output and packs separately.
+Copies shaded `backend.jar`, `worker.jar`, and `frontend/dist-desktop`. Creates empty `rubric/` and `data/`. Publishes the WebView2 launcher when `dotnet` is available. Always writes the web download zip to the **fixed** path `backend/target/OOP-AutoGrader-Practice.zip` (API also accepts `OOP-AutoGrader-Practice.zip` next to `app.jar` in Docker). Packs are not embedded — lecturers distribute `.agpack` separately.
 
 ## API notes (desktop profile)
 
