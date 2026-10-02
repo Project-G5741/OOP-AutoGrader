@@ -257,14 +257,14 @@ public class LabStructureService {
         long syncMs = System.currentTimeMillis() - syncStartedAt;
 
         if (payload.name() != null && !payload.name().isBlank()) {
-            lab.setName(payload.name().trim());
+            lab.setName(com.eiu.capstone.backend.desktop.pack.LabNameRules.requireValid(payload.name()));
         }
         lab.setDeadlineDate(payload.deadlineDate());
         labRepository.save(lab);
         labStatisticsCache.invalidate(labId);
 
         rubricCacheInvalidationSupport.invalidateLab(labId);
-        String labName = payload.name() != null && !payload.name().isBlank() ? payload.name().trim() : lab.getName();
+        String labName = lab.getName();
         List<ChallengeStructureDTO> savedChallenges = challengePayloads.stream()
                 .map(dto -> {
                     Challenge saved = dto.id() != null ? ctx.challengesById.get(dto.id()) : null;
@@ -536,16 +536,14 @@ public class LabStructureService {
 
     @Transactional
     public LabStructureResponse createLab(CreateLabRequest request) {
-        if (request.name() == null || request.name().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab name is required");
-        }
+        String labName = com.eiu.capstone.backend.desktop.pack.LabNameRules.requireValid(request.name());
         if (request.termId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "termId is required");
         }
         Term term = termRepository.findById(request.termId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid termId"));
         Lab lab = new Lab();
-        lab.setName(request.name().trim());
+        lab.setName(labName);
         lab.setTerm(term);
         LocalDate deadline = request.deadlineDate() != null ? request.deadlineDate() : term.getEndDate();
         lab.setDeadlineDate(deadline);

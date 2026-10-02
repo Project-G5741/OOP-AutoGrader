@@ -80,7 +80,8 @@ class LecturerTermDesktopPackTest {
 
     @Test
     void lecturerDownload_returns200() throws Exception {
-        when(desktopPackExportService.exportTermPack(TERM_ID)).thenReturn(new byte[] { 1, 2, 3 });
+        when(desktopPackExportService.exportTermPack(TERM_ID))
+                .thenReturn(new DesktopPackExportService.DesktopPackDownload(new byte[] { 1, 2, 3 }, "Rubric_2026_Q1.agpack"));
         mockMvc.perform(get("/api/lecturer/terms/" + TERM_ID + "/desktop-pack")
                         .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
                 .andExpect(status().isOk());

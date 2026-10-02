@@ -58,7 +58,7 @@ export default function DesktopPracticeStatusBanner() {
 
   const message = state.error
     || (state.packMissing
-      ? 'Import a quarter or lab pack ({uuid}.term.agpack or {uuid}.lab.agpack) using the header button, then restart the app.'
+      ? 'Import a quarter or lab pack (Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack) using the header button, then restart the app.'
       : 'Practice rubric could not be loaded. Import a valid pack and restart the app.');
 
   return (

@@ -101,7 +101,7 @@ class DesktopPackBootstrapIntegrationTest {
                 List.of(LAB_ID),
                 "placeholder");
         DesktopPackFile pack = crypto.buildPack(privateKey, manifest, innerJson);
-        Files.write(installHome.resolve("rubric").resolve(DesktopPackFileNames.termFilename(TERM_ID)), crypto.serializeFile(pack));
+        Files.write(installHome.resolve("rubric").resolve(DesktopPackFileNames.termFilename("2026", 1)), crypto.serializeFile(pack));
     }
 
     @Autowired

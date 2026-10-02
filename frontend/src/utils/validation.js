@@ -12,6 +12,8 @@ export const MESSAGES = {
   emailInvalid: 'Please enter a valid email address',
   emailDomain: 'Email must end with @eiu.edu.vn',
   fullName: 'Full name is required',
+  labNameMax: 'Lab name must be at most 50 characters',
+  labNameIllegal: 'Lab name cannot contain \\ / : * ? " < > |',
 };
 
 const STUDENT_IRN_PATTERN = /^\d{10}$/;
@@ -20,6 +22,22 @@ const EIU_EMAIL_DOMAIN_BODY = 'eiu.edu.vn';
 export function validateRequired(value, message = MESSAGES.required) {
   if (value === null || value === undefined || String(value).trim() === '') {
     return message;
+  }
+  return '';
+}
+
+const LAB_NAME_ILLEGAL = /[\\/:*?"<>|\u0000-\u001F]/;
+
+export function validateLabName(value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    return MESSAGES.required;
+  }
+  if (trimmed.length > 50) {
+    return MESSAGES.labNameMax;
+  }
+  if (LAB_NAME_ILLEGAL.test(trimmed)) {
+    return MESSAGES.labNameIllegal;
   }
   return '';
 }

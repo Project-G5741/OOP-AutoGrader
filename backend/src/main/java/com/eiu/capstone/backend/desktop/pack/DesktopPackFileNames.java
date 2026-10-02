@@ -1,20 +1,21 @@
 package com.eiu.capstone.backend.desktop.pack;
 
-import java.util.Locale;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.service.TermService;
+
 /**
- * Canonical offline practice pack filenames: {@code {uuid}.term.agpack} and {@code {uuid}.lab.agpack}.
+ * Canonical offline practice pack filenames: {@code Rubric_{yearLabel}_Q{n}.agpack}
+ * and {@code Rubric_{labName}.agpack}.
  */
 public final class DesktopPackFileNames {
 
-    private static final Pattern FILE_PATTERN = Pattern.compile(
-            "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\.(term|lab)\\.agpack$");
+    private static final Pattern TERM_PATTERN = Pattern.compile("^Rubric_(.+)_Q(\\d+)\\.agpack$");
+    private static final Pattern LAB_PATTERN = Pattern.compile("^Rubric_(.+)\\.agpack$");
 
     public enum PackKind {
         TERM,
@@ -23,12 +24,17 @@ public final class DesktopPackFileNames {
 
     private DesktopPackFileNames() {}
 
-    public static String termFilename(UUID termId) {
-        return termId + ".term.agpack";
+    public static String termFilename(String yearLabel, int termNumber) {
+        String year = yearLabel == null ? "" : yearLabel.trim();
+        if (year.isEmpty() || termNumber < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid quarter for practice pack name");
+        }
+        return "Rubric_" + year + "_Q" + termNumber + ".agpack";
     }
 
-    public static String labFilename(UUID labId) {
-        return labId + ".lab.agpack";
+    public static String labFilename(String labName) {
+        String name = LabNameRules.requireValid(labName);
+        return "Rubric_" + name + ".agpack";
     }
 
     public static ParsedFilename parse(String filename) {
@@ -40,42 +46,58 @@ public final class DesktopPackFileNames {
         if (slash >= 0) {
             base = base.substring(slash + 1);
         }
-        Matcher matcher = FILE_PATTERN.matcher(base);
-        if (!matcher.matches()) {
-            throw invalidName(base);
+        Matcher termMatcher = TERM_PATTERN.matcher(base);
+        if (termMatcher.matches()) {
+            String yearLabel = termMatcher.group(1);
+            int termNumber = Integer.parseInt(termMatcher.group(2));
+            if (yearLabel.isBlank() || termNumber < 1) {
+                throw invalidName(base);
+            }
+            return new ParsedFilename(base, PackKind.TERM, yearLabel, termNumber, null);
         }
-        UUID id = UUID.fromString(matcher.group(1));
-        PackKind kind = "term".equalsIgnoreCase(matcher.group(2)) ? PackKind.TERM : PackKind.LAB;
-        return new ParsedFilename(base, kind, id);
+        Matcher labMatcher = LAB_PATTERN.matcher(base);
+        if (labMatcher.matches()) {
+            String labName = labMatcher.group(1);
+            LabNameRules.requireValid(labName);
+            return new ParsedFilename(base, PackKind.LAB, null, null, labName);
+        }
+        throw invalidName(base);
     }
 
     public static void assertMatchesPayload(ParsedFilename parsed, DesktopPackManifest manifest,
                                             DesktopPackInnerPayload inner) {
         if (parsed.kind() == PackKind.TERM) {
-            if (!parsed.id().equals(manifest.termId()) || !parsed.id().equals(inner.termId())) {
+            String expectedLabel = TermService.buildTermLabel(parsed.yearLabel(), parsed.termNumber());
+            String manifestLabel = manifest.termLabel() == null ? "" : manifest.termLabel();
+            String innerLabel = inner.termLabel() == null ? "" : inner.termLabel();
+            if (!expectedLabel.equals(manifestLabel) || !expectedLabel.equals(innerLabel)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Term pack filename must match the term id inside the pack");
+                        "Term pack filename must match the quarter inside the pack");
             }
             return;
         }
         if (manifest.labIds().size() != 1 || inner.labs().size() != 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab pack must contain exactly one lab");
         }
-        UUID labId = manifest.labIds().get(0);
-        UUID innerLabId = inner.labs().get(0).lab().id();
-        if (!parsed.id().equals(labId) || !parsed.id().equals(innerLabId)) {
+        String labName = inner.labs().get(0).lab().name();
+        if (labName == null || !labName.equals(parsed.labName())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Lab pack filename must match the lab id inside the pack");
+                    "Lab pack filename must match the lab name inside the pack");
         }
     }
 
     private static ResponseStatusException invalidName(String name) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "Invalid practice pack name. Use {term-uuid}.term.agpack or {lab-uuid}.lab.agpack (example: "
-                        + UUID.randomUUID() + ".term.agpack)");
+                "Invalid practice pack name. Use Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack "
+                        + "(example: Rubric_2026-2027_Q1.agpack)");
     }
 
-    public record ParsedFilename(String filename, PackKind kind, UUID id) {
+    public record ParsedFilename(
+            String filename,
+            PackKind kind,
+            String yearLabel,
+            Integer termNumber,
+            String labName) {
         public ParsedFilename {
             filename = filename == null ? "" : filename;
         }

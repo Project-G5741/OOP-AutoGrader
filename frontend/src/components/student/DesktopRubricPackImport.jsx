@@ -91,7 +91,7 @@ export default function DesktopRubricPackImport({ onToast }) {
         disabled={busy}
         onClick={() => inputRef.current?.click()}
         className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-light px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-light/80 disabled:opacity-50"
-        title="Import {uuid}.term.agpack or {uuid}.lab.agpack — restart required"
+        title="Import Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack — restart required"
       >
         <FolderOpen className="h-4 w-4" />
         Import rubric pack

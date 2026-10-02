@@ -70,7 +70,7 @@ public class DesktopPackBootstrapService {
             List<Path> labPacks = listPackFiles(DesktopPackFileNames.PackKind.LAB);
             if (termPacks.isEmpty() && labPacks.isEmpty()) {
                 return BootstrapResult.missing(
-                        "No practice packs found. Import a {uuid}.term.agpack or {uuid}.lab.agpack file and restart.");
+                        "No practice packs found. Import a Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack file and restart.");
             }
             String fingerprint = computeFingerprint(termPacks, labPacks);
             if (fingerprint.equals(readFingerprint())) {
@@ -114,7 +114,7 @@ public class DesktopPackBootstrapService {
     }
 
     /**
-     * Keeps a single quarter pack on disk so bootstrap does not load a stale {@code *.term.agpack}.
+     * Keeps a single quarter pack on disk so bootstrap does not load a stale {@code Rubric_*_Q*.agpack}.
      */
     public void deleteOtherTermPacks(String keepFilename) throws IOException {
         if (keepFilename == null || keepFilename.isBlank()) {

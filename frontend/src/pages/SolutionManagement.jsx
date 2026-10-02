@@ -16,6 +16,7 @@ import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
+import { validateLabName } from '../utils/validation';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -313,6 +314,11 @@ export default function SolutionManagement() {
 
   const handleCreateLab = async () => {
     if (!newLabName.trim() || !newLabTermId) return;
+    const nameError = validateLabName(newLabName);
+    if (nameError) {
+      showToast({ message: nameError, type: 'error' });
+      return;
+    }
     const body = { name: newLabName.trim(), termId: newLabTermId };
     if (newLabDeadline) body.deadlineDate = newLabDeadline;
     try {
@@ -549,11 +555,16 @@ export default function SolutionManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'download'));
       }
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const labName = labs.find((l) => l.id === selectedLabId)?.name || draft?.name || 'lab';
+      const fallback = `Rubric_${labName}.agpack`;
+      const filename = match?.[1] || fallback;
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${selectedLabId}.lab.agpack`;
+      link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
       showToast({ message: 'Lab practice pack downloaded.', type: 'success' });
@@ -839,6 +850,7 @@ export default function SolutionManagement() {
               <input
                 className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                 value={newLabName}
+                maxLength={50}
                 onChange={(e) => setNewLabName(e.target.value)}
               />
             </div>

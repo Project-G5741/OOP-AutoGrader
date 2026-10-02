@@ -24,7 +24,6 @@ import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackExportService;
-import com.eiu.capstone.backend.desktop.pack.DesktopPackFileNames;
 import com.eiu.capstone.backend.service.TermService;
 
 import jakarta.validation.Valid;
@@ -63,12 +62,11 @@ public class LecturerTermController {
 
     @GetMapping("/{termId}/desktop-pack")
     public ResponseEntity<byte[]> downloadDesktopPack(@PathVariable UUID termId) {
-        byte[] body = desktopPackExportService.exportTermPack(termId);
-        String filename = DesktopPackFileNames.termFilename(termId);
+        var download = desktopPackExportService.exportTermPack(termId);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.filename() + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(body);
+                .body(download.body());
     }
 
     @GetMapping("/{termId}/students")

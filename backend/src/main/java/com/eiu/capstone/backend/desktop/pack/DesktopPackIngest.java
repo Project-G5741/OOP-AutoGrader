@@ -39,7 +39,7 @@ public final class DesktopPackIngest {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     ex.getMessage() != null ? ex.getMessage() : "Invalid or tampered practice pack");
         }
-        DesktopPackFileNames.ParsedFilename parsed = resolveFilename(originalFilename, pack, inner);
+        DesktopPackFileNames.ParsedFilename parsed = DesktopPackFileNames.parse(originalFilename);
         DesktopPackFileNames.assertMatchesPayload(parsed, pack.manifest(), inner);
         return new OpenedPack(pack, inner, parsed, raw);
     }
@@ -51,58 +51,5 @@ public final class DesktopPackIngest {
             PublicKey verificationKey,
             DesktopPackSerializer serializer) {
         return open(raw, onDiskFileName, crypto, verificationKey, serializer);
-    }
-
-    static DesktopPackFileNames.ParsedFilename resolveFilename(
-            String originalFilename,
-            DesktopPackFile file,
-            DesktopPackInnerPayload inner) {
-        if (originalFilename != null && !originalFilename.isBlank()) {
-            try {
-                return DesktopPackFileNames.parse(originalFilename);
-            } catch (ResponseStatusException ignored) {
-                // fall through — browser may send a wrong name; infer from payload
-            }
-        }
-        return inferFromPayload(file, inner, originalFilename);
-    }
-
-    private static DesktopPackFileNames.ParsedFilename inferFromPayload(
-            DesktopPackFile file,
-            DesktopPackInnerPayload inner,
-            String originalFilename) {
-        String hint = originalFilename == null ? "" : originalFilename.toLowerCase();
-        boolean labHint = hint.endsWith(".lab.agpack");
-        boolean termHint = hint.endsWith(".term.agpack");
-
-        if (termHint) {
-            java.util.UUID termId = inner.termId();
-            return new DesktopPackFileNames.ParsedFilename(
-                    DesktopPackFileNames.termFilename(termId),
-                    DesktopPackFileNames.PackKind.TERM,
-                    termId);
-        }
-        if (labHint) {
-            if (inner.labs().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab pack is empty");
-            }
-            java.util.UUID labId = inner.labs().get(0).lab().id();
-            return new DesktopPackFileNames.ParsedFilename(
-                    DesktopPackFileNames.labFilename(labId),
-                    DesktopPackFileNames.PackKind.LAB,
-                    labId);
-        }
-        if (inner.labs().size() > 1) {
-            java.util.UUID termId = inner.termId();
-            return new DesktopPackFileNames.ParsedFilename(
-                    DesktopPackFileNames.termFilename(termId),
-                    DesktopPackFileNames.PackKind.TERM,
-                    termId);
-        }
-        throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Rename the file to {" + inner.termId() + "}.term.agpack (quarter) or {"
-                        + (inner.labs().isEmpty() ? "lab-uuid" : inner.labs().get(0).lab().id())
-                        + "}.lab.agpack (single lab) before importing");
     }
 }

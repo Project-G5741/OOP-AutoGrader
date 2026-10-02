@@ -35,7 +35,6 @@ import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseDryRunService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackExportService;
-import com.eiu.capstone.backend.desktop.pack.DesktopPackFileNames;
 
 @RestController
 @RequestMapping("/api/lecturer/labs")
@@ -82,12 +81,11 @@ public class LecturerRubricController {
 
     @GetMapping("/{labId}/desktop-pack")
     public ResponseEntity<byte[]> downloadDesktopPack(@PathVariable UUID labId) {
-        byte[] body = desktopPackExportService.exportLabPack(labId);
-        String filename = DesktopPackFileNames.labFilename(labId);
+        var download = desktopPackExportService.exportLabPack(labId);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.filename() + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(body);
+                .body(download.body());
     }
 
     @PutMapping("/{labId}/structure")

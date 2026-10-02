@@ -351,11 +351,17 @@ export default function TermManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'download'));
       }
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const year = selectedTerm.yearLabel || '';
+      const q = selectedTerm.termNumber;
+      const fallback = year && q != null ? `Rubric_${year}_Q${q}.agpack` : 'practice-term.agpack';
+      const filename = match?.[1] || fallback;
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${selectedTerm.id}.term.agpack`;
+      link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
       showToast({ message: 'Desktop practice pack downloaded.', type: 'success' });

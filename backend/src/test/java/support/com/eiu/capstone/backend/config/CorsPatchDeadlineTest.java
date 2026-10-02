@@ -30,5 +30,8 @@ class CorsPatchDeadlineTest {
         assertTrue(
                 cors.getAllowedMethods().contains("PATCH"),
                 "PATCH must be allowed so Solution Management can set/clear lab deadlines");
+        assertTrue(
+                cors.getExposedHeaders() != null && cors.getExposedHeaders().contains("Content-Disposition"),
+                "Content-Disposition must be exposed so lecturer pack downloads can use the server filename");
     }
 }

@@ -12,29 +12,31 @@ StudentPractice/
   runtime/jdk/                  # optional portable JRE 17
   ui/dist-desktop/              # `npm run build:desktop` output (copy into install)
   rubric/
-    {term-uuid}.term.agpack     # quarter pack (optional if using lab packs only)
-    {lab-uuid}.lab.agpack       # optional single-lab packs
+    Rubric_2026-2027_Q1.agpack  # quarter pack (optional if using lab packs only)
+    Rubric_Lab 2.agpack         # optional single-lab packs
   data/                         # H2 DB, submissions, pack fingerprint (created at run)
 ```
 
 ## Practice pack file names (required)
 
-Only these names are accepted (UUID must match the id inside the signed pack):
+Only these names are accepted (filename must match the signed pack contents):
 
-| Kind | Filename pattern | On restart |
-|---|---|---|
-| Quarter (term) | `{term-uuid}.term.agpack` | **Replaces all** local labs for that quarter |
-| Single lab | `{lab-uuid}.lab.agpack` | **Adds** a lab; same lab **name** as an existing row prompts replace before import |
+| Kind | Filename pattern | Example | On restart |
+|---|---|---|---|
+| Quarter (term) | `Rubric_{yearLabel}_Q{n}.agpack` | `Rubric_2026-2027_Q1.agpack` | **Replaces all** local labs for that quarter |
+| Single lab | `Rubric_{labName}.agpack` | `Rubric_Lab 2.agpack`, `Rubric_Midterm.agpack` | **Adds** a lab; same lab **name** as an existing row prompts replace before import |
 
-Legacy names (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded.
+Lab names are at most **50 characters** and cannot contain Windows-illegal characters (`\ / : * ? " < > |`). Spaces are allowed.
+
+Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded.
 
 Every import (UI or manual copy) takes effect only after a **full app restart**. The UI clears `data/desktop-pack-fingerprint.txt` when you import via **Import rubric pack** so the next startup re-imports.
 
 ## Lecturer: publish packs
 
 1. Set `DESKTOP_PACK_SIGNING_PRIVATE_KEY` on the server (pairs with `backend/src/main/resources/desktop-pack-public.key`).
-2. **Quarter:** Term Management → select quarter → **Download practice pack** → `{termId}.term.agpack`.
-3. **Single lab:** Solution Management → select lab → **Practice pack** → `{labId}.lab.agpack`.
+2. **Quarter:** Term Management → select quarter → **Download practice pack** → `Rubric_{yearLabel}_Q{n}.agpack`.
+3. **Single lab:** Solution Management → select lab → **Practice pack** → `Rubric_{labName}.agpack`.
 4. Student web **Download practice folder** streams a **prebuilt** runtime-only zip (no `.agpack`); lecturers distribute packs separately.
 
 ## Student: run practice
@@ -45,9 +47,9 @@ Every import (UI or manual copy) takes effect only after a **full app restart**.
 
 ## Student: import or update rubrics
 
-**In the app (recommended):** header → **Import rubric pack** → choose `.term.agpack` or `.lab.agpack` → confirm replace if prompted → **restart** the app.
+**In the app (recommended):** header → **Import rubric pack** → choose `Rubric_….agpack` → confirm replace if prompted → **restart** the app.
 
-**Manual:** copy packs into `rubric/` with exact names above, delete extra `*.term.agpack` files if you only want one quarter, delete `data/desktop-pack-fingerprint.txt`, restart.
+**Manual:** copy packs into `rubric/` with exact names above, delete extra quarter `Rubric_*_Q*.agpack` files if you only want one quarter, delete `data/desktop-pack-fingerprint.txt`, restart.
 
 If a lab pack fails validation at startup, it is skipped (logged); a successful quarter import still loads. Check `GET http://127.0.0.1:18002/api/desktop/status` — `"ready": true` when rubrics are usable.
 

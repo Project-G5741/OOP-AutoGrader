@@ -12,20 +12,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
-import com.eiu.capstone.backend.grading.rubric.LabRubricService;
 import com.eiu.capstone.backend.service.TermService;
 
 @Service
 public class DesktopPackExportService {
 
+    public record DesktopPackDownload(byte[] body, String filename) {}
+
     private final TermRepository termRepository;
     private final LabRepository labRepository;
-    private final LabRubricService labRubricService;
+    private final LabRubricCache labRubricCache;
     private final DesktopPackSerializer serializer;
     private final DesktopPackCrypto crypto;
     private final DesktopPackSigningKeys signingKeys;
@@ -33,33 +35,31 @@ public class DesktopPackExportService {
     public DesktopPackExportService(
             TermRepository termRepository,
             LabRepository labRepository,
-            LabRubricService labRubricService,
+            LabRubricCache labRubricCache,
             DesktopPackSerializer serializer,
             DesktopPackSigningKeys signingKeys) {
         this.termRepository = termRepository;
         this.labRepository = labRepository;
-        this.labRubricService = labRubricService;
+        this.labRubricCache = labRubricCache;
         this.serializer = serializer;
         this.signingKeys = signingKeys;
         this.crypto = DesktopPackCrypto.withDefaultEmbeddedKey();
     }
 
     @Transactional(readOnly = true)
-    public byte[] exportLabPack(UUID labId) {
-        PrivateKey privateKey = signingKeys.signingPrivateKey()
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                        "Desktop practice pack export is not configured on this server"));
+    public DesktopPackDownload exportLabPack(UUID labId) {
+        PrivateKey privateKey = requireSigningKey();
         Lab lab = labRepository.findByIdWithTerm(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
         Term term = lab.getTerm();
         if (term == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab is not assigned to a quarter");
         }
+        String labName = LabNameRules.requireValid(lab.getName());
         Instant createdAt = Instant.now();
         String termLabel = TermService.buildTermLabel(term);
         String packVersion = lab.getId() + "-" + createdAt.toEpochMilli();
-        DesktopPackLabEntry entry = toEntry(lab);
+        DesktopPackLabEntry entry = toEntry(lab, labName);
         DesktopPackInnerPayload inner =
                 new DesktopPackInnerPayload(packVersion, term.getId(), termLabel, List.of(entry));
         byte[] innerJson = serializer.toJson(inner);
@@ -71,20 +71,12 @@ public class DesktopPackExportService {
                 createdAt,
                 List.of(lab.getId()),
                 "placeholder");
-        try {
-            DesktopPackFile pack = crypto.buildPack(privateKey, manifest, innerJson);
-            return crypto.serializeFile(pack);
-        } catch (GeneralSecurityException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to build desktop pack");
-        }
+        return new DesktopPackDownload(serialize(privateKey, manifest, innerJson), DesktopPackFileNames.labFilename(labName));
     }
 
     @Transactional(readOnly = true)
-    public byte[] exportTermPack(UUID termId) {
-        PrivateKey privateKey = signingKeys.signingPrivateKey()
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                        "Desktop practice pack export is not configured on this server"));
+    public DesktopPackDownload exportTermPack(UUID termId) {
+        PrivateKey privateKey = requireSigningKey();
         Term term = termRepository.findByIdWithAcademicYear(termId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found"));
         List<Lab> labs = labRepository.findByTerm_Id(termId).stream()
@@ -93,11 +85,15 @@ public class DesktopPackExportService {
         if (labs.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter has no labs to export");
         }
+        for (Lab lab : labs) {
+            LabNameRules.requireValid(lab.getName());
+        }
+        String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
         Instant createdAt = Instant.now();
         String termLabel = TermService.buildTermLabel(term);
         String packVersion = term.getId() + "-" + createdAt.toEpochMilli();
         List<DesktopPackLabEntry> entries = labs.stream()
-                .map(lab -> toEntry(lab))
+                .map(lab -> toEntry(lab, LabNameRules.requireValid(lab.getName())))
                 .toList();
         DesktopPackInnerPayload inner = new DesktopPackInnerPayload(packVersion, term.getId(), termLabel, entries);
         byte[] innerJson = serializer.toJson(inner);
@@ -110,6 +106,18 @@ public class DesktopPackExportService {
                 createdAt,
                 labIds,
                 "placeholder");
+        String filename = DesktopPackFileNames.termFilename(yearLabel, term.getTermNumber());
+        return new DesktopPackDownload(serialize(privateKey, manifest, innerJson), filename);
+    }
+
+    private PrivateKey requireSigningKey() {
+        return signingKeys.signingPrivateKey()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "Desktop practice pack export is not configured on this server"));
+    }
+
+    private byte[] serialize(PrivateKey privateKey, DesktopPackManifest manifest, byte[] innerJson) {
         try {
             DesktopPackFile pack = crypto.buildPack(privateKey, manifest, innerJson);
             return crypto.serializeFile(pack);
@@ -118,11 +126,11 @@ public class DesktopPackExportService {
         }
     }
 
-    private DesktopPackLabEntry toEntry(Lab lab) {
-        LabRubricSnapshot rubric = labRubricService.loadForLab(lab);
+    private DesktopPackLabEntry toEntry(Lab lab, String validatedName) {
+        LabRubricSnapshot rubric = labRubricCache.get(lab);
         DesktopPackLabMeta meta = new DesktopPackLabMeta(
                 lab.getId(),
-                lab.getName(),
+                validatedName,
                 lab.isStudentVisible(),
                 lab.getReleaseDate(),
                 lab.getDeadlineDate());

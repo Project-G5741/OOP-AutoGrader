@@ -55,8 +55,8 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `RootController` | `/` | `GET /` — liveness probe (Render health check); inactive on `desktop` profile (SPA served from `ui/dist-desktop`) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
 | `LabController` | `/api/labs` | `GET /list` — labs (with `deadlineDate`, `urgencyState`, natural name sort); lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run; `GET /{labId}/desktop-pack` → `{labId}.lab.agpack` |
-| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call), `GET /{termId}/desktop-pack` → `{termId}.term.agpack` (requires `DESKTOP_PACK_SIGNING_PRIVATE_KEY`) |
+| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run; `GET /{labId}/desktop-pack` → `Rubric_{labName}.agpack` |
+| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call), `GET /{termId}/desktop-pack` → `Rubric_{yearLabel}_Q{n}.agpack` (requires `DESKTOP_PACK_SIGNING_PRIVATE_KEY`) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
@@ -179,7 +179,7 @@ Grading tuning properties (`application.properties`):
 - Surefire sets `net.bytebuddy.experimental=true` so Mockito can run on a local JDK newer than 22; image builds use JDK 17.
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
 - Desktop pack: `unit` `DesktopPackCryptoTest`, `DesktopPackSerializerTest`; `authorization` `LecturerTermDesktopPackTest`; `integration` `DesktopProfileContextTest`, `DesktopPackBootstrapIntegrationTest`, `DesktopSubmissionPipelineIntegrationTest` (`@ActiveProfiles("desktop")`)
-- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`{uuid}.term.agpack`, `{uuid}.lab.agpack`); see `docs/DESKTOP_STUDENT_DIST.md`
+- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`Rubric_{year}_Q{n}.agpack`, `Rubric_{name}.agpack`); see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 
