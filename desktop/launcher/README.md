@@ -17,7 +17,7 @@ Requires **WebView2 Runtime** (preinstalled on most Windows 10/11) and **Java 17
 ## Runtime behavior
 
 - Sets `APP_DESKTOP_HOME` to the executable directory.
-- Starts `java -jar backend.jar` with `SPRING_PROFILES_ACTIVE=desktop`.
+- Starts `java -jar backend.jar` with `SPRING_PROFILES_ACTIVE=desktop` (no console window / taskbar entry for the Java process).
 - Polls `GET /api/desktop/status` on port **18002** (desktop profile; does not use dev/cloud **8002**).
 - Opens a single WebView2 window at `http://127.0.0.1:18002/` (no external browser).
 - Stops the Java process when the window closes.

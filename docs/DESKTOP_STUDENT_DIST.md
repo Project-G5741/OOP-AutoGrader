@@ -46,7 +46,7 @@ In the practice EXE, **Logout** closes the window and stops the local backend (s
 ## Student: run practice
 
 1. Unzip the practice folder (website download or lecturer bundle).
-2. Start **`OOP-AutoGrader-Practice.exe`** (or `.bat` if the exe is missing).
+2. Start **`OOP-AutoGrader-Practice.exe`** (or `.bat` if the exe is missing). The EXE starts the local backend with no console window; the `.bat` fallback keeps a visible Java console by design.
 3. Use the local dashboard like the web submit view. Scores stay on your PC only.
 
 ## Student: import or update rubrics

@@ -31,7 +31,8 @@ internal static class BackendLauncher
             Arguments = $"-jar \"{backendJar}\"",
             WorkingDirectory = installDir,
             UseShellExecute = false,
-            CreateNoWindow = false,
+            // Hide the Java console from the desktop and taskbar; students use the WebView window only.
+            CreateNoWindow = true,
         };
         psi.Environment["APP_DESKTOP_HOME"] = installDir;
         psi.Environment["SPRING_PROFILES_ACTIVE"] = "desktop";
@@ -89,10 +90,13 @@ internal static class BackendLauncher
         {
             if (!process.HasExited)
             {
-                process.CloseMainWindow();
-                if (!process.WaitForExit(3000))
+                // Windowless java has no main window; CloseMainWindow is a no-op — kill the tree promptly.
+                if (!process.CloseMainWindow() || !process.WaitForExit(3000))
                 {
-                    process.Kill(entireProcessTree: true);
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
                 }
             }
         }
