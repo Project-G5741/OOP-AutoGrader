@@ -16,7 +16,8 @@ public class DesktopController {
             boolean ready,
             String packVersion,
             String error,
-            boolean packMissing) {}
+            boolean packMissing,
+            boolean bootstrapComplete) {}
 
     private final DesktopRuntimeState runtimeState;
 
@@ -30,6 +31,7 @@ public class DesktopController {
                 runtimeState.isReady(),
                 runtimeState.loadedPackVersion(),
                 runtimeState.bootstrapError(),
-                runtimeState.isPackMissing());
+                runtimeState.isPackMissing(),
+                runtimeState.isBootstrapComplete());
     }
 }

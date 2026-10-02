@@ -165,7 +165,7 @@ public class SubmissionController {
         if (desktopRuntimeState != null && !desktopRuntimeState.isReady()) {
             String detail = desktopRuntimeState.bootstrapError();
             if (detail == null || detail.isBlank()) {
-                detail = "Practice rubric is not loaded. Check rubric/term.agpack and restart.";
+                detail = "Practice rubric is not loaded. Import a Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack pack and restart.";
             }
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, detail);
         }

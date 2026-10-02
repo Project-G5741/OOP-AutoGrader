@@ -16,7 +16,7 @@ If OOP-AutoGrader-Practice.exe does nothing, unzip a fresh copy from the website
 
 Updating rubrics
 - In the app: click Import rubric pack in the header, choose a file, then restart the app.
-- Or copy packs into rubric\ using names like {uuid}.term.agpack (full quarter) or {uuid}.lab.agpack (one lab).
+- Or copy packs into rubric\ using names like Rubric_{year}_Q{n}.agpack (full quarter) or Rubric_{labName}.agpack (one lab).
 - Quarter packs replace all labs; lab packs add or replace one lab. See docs\DESKTOP_STUDENT_DIST.md in the repo for details.
 
 Notes

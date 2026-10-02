@@ -63,12 +63,14 @@ public class DesktopPackBootstrapService {
     public BootstrapResult bootstrap() {
         localUserService.ensureLocalStudent(termRepository.findCurrent().orElse(null));
         if (!Files.isDirectory(rubricDir)) {
+            clearPracticeWhenNoPacks();
             return BootstrapResult.missing("Practice rubric folder not found. Import a pack and restart.");
         }
         try {
             List<Path> termPacks = listPackFiles(DesktopPackFileNames.PackKind.TERM);
             List<Path> labPacks = listPackFiles(DesktopPackFileNames.PackKind.LAB);
             if (termPacks.isEmpty() && labPacks.isEmpty()) {
+                clearPracticeWhenNoPacks();
                 return BootstrapResult.missing(
                         "No practice packs found. Import a Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack file and restart.");
             }
@@ -109,6 +111,17 @@ public class DesktopPackBootstrapService {
         }
     }
 
+    private void clearPracticeWhenNoPacks() {
+        importService.wipePracticeData();
+        try {
+            clearImportFingerprint();
+        } catch (IOException ex) {
+            log.warn("Could not clear desktop pack fingerprint after empty rubric wipe: {}",
+                    ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName());
+        }
+        localUserService.ensureLocalStudent(null);
+    }
+
     public void clearImportFingerprint() throws IOException {
         Files.deleteIfExists(fingerprintFile);
     }
@@ -132,6 +145,29 @@ public class DesktopPackBootstrapService {
                 try {
                     DesktopPackFileNames.ParsedFilename parsed = DesktopPackFileNames.parse(name);
                     if (parsed.kind() == DesktopPackFileNames.PackKind.TERM) {
+                        Files.deleteIfExists(path);
+                    }
+                } catch (Exception ignored) {
+                    // leave non-pack files untouched
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes single-lab packs from {@code rubric/} so a UI term import alone defines the lab set.
+     * Not used on bootstrap for manually placed packs (those may overlay after term apply).
+     */
+    public void deleteLabPacks() throws IOException {
+        if (!Files.isDirectory(rubricDir)) {
+            return;
+        }
+        try (Stream<Path> stream = Files.list(rubricDir)) {
+            for (Path path : stream.filter(Files::isRegularFile).toList()) {
+                try {
+                    DesktopPackFileNames.ParsedFilename parsed =
+                            DesktopPackFileNames.parse(path.getFileName().toString());
+                    if (parsed.kind() == DesktopPackFileNames.PackKind.LAB) {
                         Files.deleteIfExists(path);
                     }
                 } catch (Exception ignored) {

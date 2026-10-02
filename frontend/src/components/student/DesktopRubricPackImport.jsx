@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { toFriendlyError } from '../../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:18002';
+const API_BASE = import.meta.env.VITE_API_URL
+  || (import.meta.env.VITE_APP_MODE === 'desktop' ? 'http://127.0.0.1:18002' : 'http://localhost:18002');
 
 export default function DesktopRubricPackImport({ onToast }) {
   const inputRef = useRef(null);
@@ -20,19 +21,19 @@ export default function DesktopRubricPackImport({ onToast }) {
     });
     if (response.status === 409) {
       const body = await response.json().catch(() => ({}));
-      setConflicts(body.conflicts || []);
-      setPendingFile(file);
-      return null;
+      const list = Array.isArray(body.conflicts) ? body.conflicts : [];
+      if (list.length > 0) {
+        setConflicts(list);
+        setPendingFile(file);
+        return null;
+      }
+      throw new Error(
+        (typeof body.message === 'string' && body.message.trim())
+          || 'A lab with the same name already exists in offline practice',
+      );
     }
     if (!response.ok) {
-      let message = '';
-      try {
-        const body = await response.json();
-        message = body.message || body.error || body.detail || '';
-      } catch {
-        message = await response.text().catch(() => '');
-      }
-      throw new Error(message || 'Import failed');
+      throw new Error(await readFriendlyApiError(response, 'import'));
     }
     return response.json();
   };

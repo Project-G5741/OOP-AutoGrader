@@ -31,17 +31,22 @@ public class DesktopPackBootstrapper {
     @Order(100)
     @EventListener(ApplicationReadyEvent.class)
     public void onReady() {
+        runtimeState.setBootstrapComplete(false);
         runtimeState.setBootstrapError(null);
         runtimeState.setPackMissing(false);
-        DesktopPackBootstrapService.BootstrapResult result = bootstrapService.bootstrap();
-        runtimeState.setPackMissing(result.packMissing());
-        if (result.ready()) {
-            runtimeState.setBootstrapError(null);
-            runtimeState.setLoadedPackVersion(result.packVersion());
-        } else {
-            runtimeState.setBootstrapError(result.error());
-            runtimeState.setLoadedPackVersion(null);
-            localUserService.ensureLocalStudent(termRepository.findCurrent().orElse(null));
+        try {
+            DesktopPackBootstrapService.BootstrapResult result = bootstrapService.bootstrap();
+            runtimeState.setPackMissing(result.packMissing());
+            if (result.ready()) {
+                runtimeState.setBootstrapError(null);
+                runtimeState.setLoadedPackVersion(result.packVersion());
+            } else {
+                runtimeState.setBootstrapError(result.error());
+                runtimeState.setLoadedPackVersion(null);
+                localUserService.ensureLocalStudent(termRepository.findCurrent().orElse(null));
+            }
+        } finally {
+            runtimeState.setBootstrapComplete(true);
         }
     }
 }

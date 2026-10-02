@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.file.Files;
@@ -120,6 +121,9 @@ class DesktopPackBootstrapIntegrationTest {
         assertEquals(1, labRepository.findAll().size());
 
         mockMvc.perform(get("/api/desktop/status"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bootstrapComplete").value(true))
+                .andExpect(jsonPath("$.ready").value(true));
+        assertTrue(runtimeState.isBootstrapComplete());
     }
 }

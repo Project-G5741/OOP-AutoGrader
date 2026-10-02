@@ -8,6 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ public class DesktopPackImportService {
     private final DesktopPackStructureMapper structureMapper;
     private final DesktopLocalUserService localUserService;
     private final LabRubricCache labRubricCache;
+    private final JdbcTemplate jdbcTemplate;
 
     public DesktopPackImportService(
             LabRepository labRepository,
@@ -53,7 +55,8 @@ public class DesktopPackImportService {
             TestcaseRubricService testcaseRubricService,
             DesktopPackStructureMapper structureMapper,
             DesktopLocalUserService localUserService,
-            LabRubricCache labRubricCache) {
+            LabRubricCache labRubricCache,
+            JdbcTemplate jdbcTemplate) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
         this.academicYearRepository = academicYearRepository;
@@ -63,6 +66,7 @@ public class DesktopPackImportService {
         this.structureMapper = structureMapper;
         this.localUserService = localUserService;
         this.labRubricCache = labRubricCache;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -123,13 +127,18 @@ public class DesktopPackImportService {
         importTermPack(payload);
     }
 
-    private void wipePracticeData() {
+    /**
+     * Clears all practice labs, enrollments, and terms (same scope as a term-pack import wipe).
+     */
+    @Transactional
+    public void wipePracticeData() {
         List<UUID> labIds = labRepository.findAll().stream().map(Lab::getId).toList();
         if (!labIds.isEmpty()) {
             labStructureService.deleteLabsCascadeBulk(labIds);
         }
         termEnrollmentRepository.deleteAllInBatch();
         termRepository.deleteAllInBatch();
+        labRubricCache.invalidateAll();
     }
 
     private Term ensureTerm(DesktopPackInnerPayload payload) {
@@ -141,15 +150,25 @@ public class DesktopPackImportService {
                     created.setYearLabel(yearLabel);
                     return academicYearRepository.save(created);
                 });
-        termRepository.clearOtherCurrent(payload.termId());
-        Term term = termRepository.findById(payload.termId()).orElseGet(Term::new);
-        if (term.getId() == null) {
-            term.setId(payload.termId());
+        UUID packTermId = payload.termId();
+        termRepository.clearOtherCurrent(packTermId);
+        Term existing = termRepository.findById(packTermId).orElse(null);
+        if (existing != null) {
+            existing.setAcademicYear(year);
+            existing.setTermNumber(termNumber);
+            existing.setCurrent(true);
+            return termRepository.save(existing);
         }
-        term.setAcademicYear(year);
-        term.setTermNumber(termNumber);
-        term.setCurrent(true);
-        return termRepository.save(term);
+        // Term.@GeneratedValue(UUID) would replace a manually set id on JPA save/merge.
+        // Pack import must keep the signed payload term id for conflict checks and stable joins.
+        jdbcTemplate.update(
+                "INSERT INTO term (id, academic_year_id, term_number, is_current) VALUES (?, ?, ?, ?)",
+                packTermId,
+                year.getId(),
+                termNumber,
+                true);
+        return termRepository.findById(packTermId)
+                .orElseThrow(() -> new IllegalStateException("Failed to insert desktop pack term " + packTermId));
     }
 
     private void importLab(DesktopPackLabEntry entry, UUID termId) {

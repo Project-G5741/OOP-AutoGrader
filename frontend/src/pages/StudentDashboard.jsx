@@ -14,6 +14,7 @@ import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
+import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -474,6 +475,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
       setIsLoadingLabs(true);
       try {
+        if (IS_DESKTOP_APP) {
+          await waitForDesktopBootstrap();
+        }
         const res = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));

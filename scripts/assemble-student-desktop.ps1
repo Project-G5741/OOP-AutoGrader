@@ -62,5 +62,5 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 Write-Host "Assembled student desktop layout at $OutputDir"
 Write-Host "Web download zip: $webDownloadZip"
-Write-Host "Students: run OOP-AutoGrader-Practice.exe (preferred) or .bat — Java 17+ or runtime/jdk"
+Write-Host "Students: run OOP-AutoGrader-Practice.exe (preferred) or .bat - Java 17+ or runtime/jdk"
 Write-Host "Web download is runtime-only (no .agpack); lecturers distribute packs separately."

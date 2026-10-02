@@ -21,16 +21,20 @@ StudentPractice/
 
 Only these names are accepted (filename must match the signed pack contents):
 
-| Kind | Filename pattern | Example | On restart |
+| Kind | Filename pattern | Example | On restart / UI import |
 |---|---|---|---|
-| Quarter (term) | `Rubric_{yearLabel}_Q{n}.agpack` | `Rubric_2026-2027_Q1.agpack` | **Replaces all** local labs for that quarter |
-| Single lab | `Rubric_{labName}.agpack` | `Rubric_Lab 2.agpack`, `Rubric_Midterm.agpack` | **Adds** a lab; same lab **name** as an existing row prompts replace before import |
+| Quarter (term) | `Rubric_{yearLabel}_Q{n}.agpack` | `Rubric_2026-2027_Q1.agpack` | **Replaces all** local labs. **UI import** also deletes leftover lab pack files in `rubric/` so the quarter pack alone defines the lab set |
+| Single lab | `Rubric_{labName}.agpack` | `Rubric_Lab 2.agpack`, `Rubric_Midterm.agpack` | **Adds** a lab; same lab **name** (different id) in that quarter → UI asks to **replace**; same id updates silently. Manual folder copy applies without that prompt |
 
 Lab names are at most **50 characters** and cannot contain Windows-illegal characters (`\ / : * ? " < > |`). Spaces are allowed.
 
-Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded.
+Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded. Invalid packs show a specific rejection reason (not a generic busy message).
 
-Every import (UI or manual copy) takes effect only after a **full app restart**. The UI clears `data/desktop-pack-fingerprint.txt` when you import via **Import rubric pack** so the next startup re-imports.
+Every import (UI or manual copy) takes effect only after a **full app restart**. The UI clears `data/desktop-pack-fingerprint.txt` when you import via **Import rubric pack** so the next startup re-imports. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
+
+If multiple quarter packs are present (manual copies), newest-by-mtime wins. UI term import still removes sibling quarter packs.
+
+In the practice EXE, **Logout** closes the window and stops the local backend (same as the window **X**). Cloud/web Logout is unchanged.
 
 ## Lecturer: publish packs
 
@@ -80,7 +84,7 @@ Copies shaded `backend.jar`, `worker.jar`, and `frontend/dist-desktop`. Creates 
 ## API notes (desktop profile)
 
 - No login; fixed local student `practice@desktop.local`.
-- `GET /api/desktop/status` — `ready`, `packMissing`, `error` (drives offline banner).
+- `GET /api/desktop/status` — `ready`, `packMissing`, `error`, `bootstrapComplete` (launcher and UI wait for `bootstrapComplete` before showing labs / settled banner).
 - `POST /api/desktop/packs/import` — multipart `file`, optional `confirmReplace=true` for lab name conflicts; saves under `rubric/` and clears import fingerprint.
 - Grading uses local `worker.jar` (Java on PATH if no bundled JRE). Operational testcases are **not** container-sandboxed; they use the same isolated worker JVM as dev.
 - H2 under `data/`; `LabStructureService` bulk deletes use portable SQL (no PostgreSQL-only CTE deletes).

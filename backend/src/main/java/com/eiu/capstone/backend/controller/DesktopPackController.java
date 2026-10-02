@@ -50,6 +50,6 @@ public class DesktopPackController {
     @ExceptionHandler(LabNameConflictException.class)
     public ResponseEntity<ImportConflictDTO> handleConflict(LabNameConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ImportConflictDTO(ex.conflicts(), ex.getReason()));
+                .body(new ImportConflictDTO(ex.conflicts(), ex.getMessage()));
     }
 }

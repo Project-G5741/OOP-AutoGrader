@@ -27,6 +27,7 @@ public final class DesktopPackIngest {
         if (raw == null || raw.length == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a practice pack file to import");
         }
+        DesktopPackFileNames.ParsedFilename parsed = DesktopPackFileNames.parse(originalFilename);
         DesktopPackFile pack;
         DesktopPackInnerPayload inner;
         try {
@@ -36,10 +37,8 @@ public final class DesktopPackIngest {
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    ex.getMessage() != null ? ex.getMessage() : "Invalid or tampered practice pack");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or tampered practice pack");
         }
-        DesktopPackFileNames.ParsedFilename parsed = DesktopPackFileNames.parse(originalFilename);
         DesktopPackFileNames.assertMatchesPayload(parsed, pack.manifest(), inner);
         return new OpenedPack(pack, inner, parsed, raw);
     }

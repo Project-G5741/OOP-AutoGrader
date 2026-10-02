@@ -1,56 +1,34 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL
-  || (import.meta.env.VITE_APP_MODE === 'desktop' ? 'http://127.0.0.1:18002' : 'http://localhost:8002');
-
-async function fetchDesktopStatus() {
-  const response = await fetch(`${API_BASE}/api/desktop/status`);
-  if (!response.ok) {
-    throw new Error('Could not read desktop status.');
-  }
-  return response.json();
-}
+import { waitForDesktopBootstrap } from '../../utils/desktopBootstrap';
 
 export default function DesktopPracticeStatusBanner() {
   const [state, setState] = useState({ loading: true, ready: false, error: '', packMissing: false });
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchDesktopStatus();
-      setState({
-        loading: false,
-        ready: Boolean(data.ready),
-        error: data.error || '',
-        packMissing: Boolean(data.packMissing),
-      });
-    } catch {
-      setState({
-        loading: false,
-        ready: false,
-        error: 'Practice backend is not responding.',
-        packMissing: false,
-      });
-    }
-  }, []);
-
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     (async () => {
-      await refresh();
-      if (cancelled) return;
+      try {
+        const data = await waitForDesktopBootstrap({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setState({
+          loading: false,
+          ready: Boolean(data.ready),
+          error: data.error || '',
+          packMissing: Boolean(data.packMissing),
+        });
+      } catch (err) {
+        if (controller.signal.aborted || err?.name === 'AbortError') return;
+        setState({
+          loading: false,
+          ready: false,
+          error: err?.message || 'Practice backend is not responding.',
+          packMissing: false,
+        });
+      }
     })();
-    const interval = window.setInterval(() => {
-      refresh();
-    }, 3000);
-    const onFocus = () => refresh();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [refresh]);
+    return () => controller.abort();
+  }, []);
 
   if (state.loading || state.ready) {
     return null;

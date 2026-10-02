@@ -130,7 +130,7 @@ export async function readFriendlyApiError(response, context = 'read') {
   if (
     (response.status === 400 || response.status === 422 || response.status === 409)
     && backendMessage
-    && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save')
+    && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'import')
   ) {
     return backendMessage;
   }
@@ -167,6 +167,8 @@ export async function readFriendlyApiError(response, context = 'read') {
       return FRIENDLY.UPLOAD_FAILED;
     case 'download':
       return FRIENDLY.SERVER_BUSY;
+    case 'import':
+      return FRIENDLY.SOMETHING_WRONG;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;
@@ -187,6 +189,9 @@ export async function friendlyLoadErrorFromResponse(response) {
 
 export function toFriendlyError(error, context = 'read') {
   if (isNetworkError(error)) {
+    if (context === 'import') {
+      return 'Practice backend is not running. Start OOP-AutoGrader-Practice and try again.';
+    }
     return FRIENDLY.SERVER_BUSY;
   }
 
@@ -196,7 +201,7 @@ export function toFriendlyError(error, context = 'read') {
   }
 
   // Already resolved by readFriendlyApiError (or a client-thrown Error with that text).
-  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'download')) {
+  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'download' || context === 'import')) {
     return message;
   }
 
@@ -217,6 +222,8 @@ export function toFriendlyError(error, context = 'read') {
       return FRIENDLY.UPLOAD_FAILED;
     case 'download':
       return FRIENDLY.SERVER_BUSY;
+    case 'import':
+      return FRIENDLY.SOMETHING_WRONG;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;

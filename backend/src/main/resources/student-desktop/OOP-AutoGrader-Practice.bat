@@ -13,7 +13,7 @@ if not exist "%APP_DESKTOP_HOME%\backend.jar" (
 if not exist "%APP_DESKTOP_HOME%\rubric" (
   mkdir "%APP_DESKTOP_HOME%\rubric"
 )
-echo Import packs from the app header: {uuid}.term.agpack or {uuid}.lab.agpack — restart after import.
+echo Import packs from the app header: Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack - restart after import.
 if exist "%APP_DESKTOP_HOME%\runtime\jdk\bin\java.exe" (
   set "JAVA_EXE=%APP_DESKTOP_HOME%\runtime\jdk\bin\java.exe"
 ) else (

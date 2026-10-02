@@ -178,8 +178,8 @@ Grading tuning properties (`application.properties`):
 - `@WebMvcTest` classes under `authorization/` declare a nested `@SpringBootApplication` on the test class so Boot can find configuration outside `com.eiu.capstone.backend`.
 - Surefire sets `net.bytebuddy.experimental=true` so Mockito can run on a local JDK newer than 22; image builds use JDK 17.
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
-- Desktop pack: `unit` `DesktopPackCryptoTest`, `DesktopPackSerializerTest`; `authorization` `LecturerTermDesktopPackTest`; `integration` `DesktopProfileContextTest`, `DesktopPackBootstrapIntegrationTest`, `DesktopSubmissionPipelineIntegrationTest` (`@ActiveProfiles("desktop")`)
-- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`Rubric_{year}_Q{n}.agpack`, `Rubric_{name}.agpack`); see `docs/DESKTOP_STUDENT_DIST.md`
+- Desktop pack: `unit` `DesktopPackCryptoTest`, `DesktopPackSerializerTest`; `authorization` `LecturerTermDesktopPackTest`; `integration` `DesktopProfileContextTest`, `DesktopPackBootstrapIntegrationTest`, `DesktopPackImportIntegrationTest`, `DesktopSubmissionPipelineIntegrationTest` (`@ActiveProfiles("desktop")`)
+- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`Rubric_{year}_Q{n}.agpack`, `Rubric_{name}.agpack`); UI term import deletes lab packs on disk; lab name conflicts return 409 with `conflicts`; pack term ids are inserted via JDBC so `@GeneratedValue` cannot replace them — see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

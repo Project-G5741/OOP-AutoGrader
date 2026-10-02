@@ -10,6 +10,7 @@ public class DesktopRuntimeState {
     private volatile String loadedPackVersion;
     private volatile String bootstrapError;
     private volatile boolean packMissing;
+    private volatile boolean bootstrapComplete;
 
     public String loadedPackVersion() {
         return loadedPackVersion;
@@ -33,6 +34,14 @@ public class DesktopRuntimeState {
 
     public void setPackMissing(boolean packMissing) {
         this.packMissing = packMissing;
+    }
+
+    public boolean isBootstrapComplete() {
+        return bootstrapComplete;
+    }
+
+    public void setBootstrapComplete(boolean bootstrapComplete) {
+        this.bootstrapComplete = bootstrapComplete;
     }
 
     public boolean isReady() {

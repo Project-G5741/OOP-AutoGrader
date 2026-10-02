@@ -54,8 +54,9 @@ internal static class BackendLauncher
                 {
                     var json = await response.Content.ReadAsStringAsync(cancellationToken);
                     using var doc = JsonDocument.Parse(json);
-                    // Confirm we are talking to the desktop backend, not the cloud/dev API on another port.
-                    if (doc.RootElement.TryGetProperty("packMissing", out _))
+                    // Wait until pack bootstrap finished — Tomcat accepts traffic before ApplicationReadyEvent.
+                    if (doc.RootElement.TryGetProperty("bootstrapComplete", out var complete)
+                        && complete.ValueKind == JsonValueKind.True)
                     {
                         return;
                     }
@@ -70,7 +71,7 @@ internal static class BackendLauncher
                 // HttpClient timeout while warming up
             }
 
-            await Task.Delay(500, cancellationToken);
+            await Task.Delay(250, cancellationToken);
         }
 
         throw new TimeoutException("The practice backend did not become ready in time.");

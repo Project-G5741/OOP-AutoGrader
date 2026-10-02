@@ -19,12 +19,17 @@ function applyDesktopSession() {
   sessionStorage.setItem("user", JSON.stringify(DESKTOP_USER));
 }
 
+function quitPracticeApp() {
+  const webview = window.chrome?.webview;
+  if (webview && typeof webview.postMessage === "function") {
+    webview.postMessage({ type: "practice-quit" });
+  }
+}
+
 applyDesktopSession();
 
 export default function AppDesktop() {
   const user = DESKTOP_USER;
-
-  const noopLogout = () => {};
 
   return (
     <>
@@ -35,7 +40,7 @@ export default function AppDesktop() {
         path={ROUTES.studentDashboard}
         element={
           <RequireRole anyOf={["STUDENT"]}>
-            <StudentDashboard user={user} onLogout={noopLogout} view="dashboard" />
+            <StudentDashboard user={user} onLogout={quitPracticeApp} view="dashboard" />
           </RequireRole>
         }
       />
@@ -43,7 +48,7 @@ export default function AppDesktop() {
         path={ROUTES.studentHistory}
         element={
           <RequireRole anyOf={["STUDENT"]}>
-            <StudentDashboard user={user} onLogout={noopLogout} view="history" />
+            <StudentDashboard user={user} onLogout={quitPracticeApp} view="history" />
           </RequireRole>
         }
       />

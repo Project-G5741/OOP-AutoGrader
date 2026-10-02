@@ -68,6 +68,7 @@ public class DesktopPackStageService {
             Files.createDirectories(rubricDir);
             if (parsed.kind() == DesktopPackFileNames.PackKind.TERM) {
                 bootstrapService.deleteOtherTermPacks(parsed.filename());
+                bootstrapService.deleteLabPacks();
             }
             Path target = rubricDir.resolve(parsed.filename());
             Files.write(target, bytes);
@@ -87,11 +88,15 @@ public class DesktopPackStageService {
             String filename,
             String message) {}
 
-    public static class LabNameConflictException extends ResponseStatusException {
+    /**
+     * Not a {@link ResponseStatusException} so {@code GlobalExceptionHandler}'s generic
+     * ResponseStatus mapping cannot strip the {@code conflicts} payload into {@code ErrorResponse}.
+     */
+    public static class LabNameConflictException extends RuntimeException {
         private final List<DesktopPackImportService.LabNameConflict> conflicts;
 
         public LabNameConflictException(List<DesktopPackImportService.LabNameConflict> conflicts) {
-            super(HttpStatus.CONFLICT, "A lab with the same name already exists in offline practice");
+            super("A lab with the same name already exists in offline practice");
             this.conflicts = conflicts;
         }
 
