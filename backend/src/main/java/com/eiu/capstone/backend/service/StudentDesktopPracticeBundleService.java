@@ -15,7 +15,8 @@ import com.eiu.capstone.backend.model.UserAccount;
 
 /**
  * Serves the offline practice folder as a prebuilt runtime-only zip (no rubric pack).
- * Fixed locations only — no env config. Assemble writes {@code backend/target/OOP-AutoGrader-Practice.zip}.
+ * Fixed paths only ({@code target/…} locally, cwd next to {@code app.jar} in Docker).
+ * No runtime env — image packaging is in {@code DEPLOY_RENDER.md}.
  */
 @Service
 @Profile("!desktop")
