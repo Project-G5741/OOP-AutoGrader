@@ -11,6 +11,7 @@ Render deployment steps (Docker)
    - `GOOGLE_CLIENT_ID` = <google client id>
    - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
    - `JAVA_OPTS` = `-Xmx256m` (image default; the Dockerfile entrypoint expands this. Do **not** set `-Xmx512m`.)
+   - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); build-time only
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
@@ -30,11 +31,16 @@ Render deployment steps (Docker)
    - `SANDBOX_RUNNER_URL` = `https://<runner-host>`
    - `SANDBOX_RUNNER_TOKEN` = shared secret (same as runner VM)
    When enabled, testcase invoke and dry-run use remote containers; the API image still has **no** Docker socket. Runner outages surface as testcase infrastructure errors (no silent fallback to local worker).
-8. Deploy. Check logs for successful startup.
+8. **Offline practice zip (Download practice folder):** Assemble on Windows (`scripts/assemble-student-desktop.ps1`) → `backend/target/OOP-AutoGrader-Practice.zip` (~160MB; do not commit). Publish it as a **GitHub Release** asset (tag e.g. `practice-bundle-v1`). Set `PRACTICE_BUNDLE_URL` to the asset URL, then **rebuild** the Render image (restart alone is not enough):
 
-Local build & test (image build runs `mvn test`; no database env vars are required for that step):
+   `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/<tag>/OOP-AutoGrader-Practice.zip`
+
+   The URL must download with no login (public repo/asset). Do not put a token in the URL. The Dockerfile copies it to `/app/OOP-AutoGrader-Practice.zip` and fails the build if the file is not a zip larger than 1MB. Unset → student download returns 503.
+9. Deploy. Check logs for successful startup.
+
+Local image (omit `--build-arg` to skip the practice zip; `mvn test` runs in the build stage):
 ```
 cd backend
-docker build -t eiu-backend:latest .
+docker build --build-arg PRACTICE_BUNDLE_URL=<release-asset-url> -t eiu-backend:latest .
 docker run -e DB_USERNAME=<user> -e DB_PASSWORD=<pass> -e SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/<db>?sslmode=require" -e JWT_SECRET="<at-least-32-byte-secret>" -e PORT=8002 -p 8002:8002 eiu-backend:latest
 ```

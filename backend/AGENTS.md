@@ -18,7 +18,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
 - Practice assemble: `mvn -DskipTests package -Pdesktop-dist` also builds classifier `desktop` → `target/backend-1.0.0-desktop.jar` (excludes PostgreSQL driver, springdoc, mail, jjwt). Default `package` still produces the full `backend-1.0.0.jar` + worker. `scripts/assemble-student-desktop.ps1` copies the desktop classifier to `backend.jar`.
-- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; optional build-arg `PRACTICE_BUNDLE_URL` → `/app/OOP-AutoGrader-Practice.zip`; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md`
 - Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
@@ -61,7 +61,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
-| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/OOP-AutoGrader-Practice.zip` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no env) |
+| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/…` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no runtime env; image packaging in `DEPLOY_RENDER.md`) |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
