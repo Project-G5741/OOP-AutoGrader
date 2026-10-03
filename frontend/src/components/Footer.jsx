@@ -66,6 +66,9 @@ function ActiveUsersCount() {
 }
 
 export default function Footer({ variant = 'default' }) {
+  if (import.meta.env.VITE_APP_MODE === 'desktop') {
+    return null;
+  }
   if (variant === 'login') {
     return (
       <div className="mt-5 text-center text-[0.95rem] text-foreground-muted">

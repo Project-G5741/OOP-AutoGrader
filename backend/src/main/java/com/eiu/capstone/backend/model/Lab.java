@@ -9,8 +9,8 @@ import java.util.UUID;
 @Table(name = "lab")
 public class Lab {
 
+    /** Preset id allowed for desktop pack import (see {@code Challenge}). */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false)
@@ -32,6 +32,7 @@ public class Lab {
     public Lab() {}
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

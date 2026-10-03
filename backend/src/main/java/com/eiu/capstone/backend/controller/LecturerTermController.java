@@ -3,7 +3,10 @@ package com.eiu.capstone.backend.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +23,7 @@ import com.eiu.capstone.backend.DTO.ImportStudentsResult;
 import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
+import com.eiu.capstone.backend.desktop.pack.DesktopPackExportService;
 import com.eiu.capstone.backend.service.TermService;
 
 import jakarta.validation.Valid;
@@ -29,17 +33,19 @@ import jakarta.validation.Valid;
 public class LecturerTermController {
 
     private final TermService termService;
+    private final DesktopPackExportService desktopPackExportService;
 
-    public LecturerTermController(TermService termService) {
+    public LecturerTermController(TermService termService, DesktopPackExportService desktopPackExportService) {
         this.termService = termService;
+        this.desktopPackExportService = desktopPackExportService;
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public List<TermSummaryDTO> listTerms() {
         return termService.listTerms();
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public TermSummaryDTO createTerm(@Valid @RequestBody CreateTermRequest request) {
         return termService.createTerm(request);
     }
@@ -52,6 +58,15 @@ public class LecturerTermController {
     @GetMapping("/{termId}/roster")
     public TermRosterDTO listRoster(@PathVariable UUID termId) {
         return termService.listRoster(termId);
+    }
+
+    @GetMapping("/{termId}/desktop-pack")
+    public ResponseEntity<byte[]> downloadDesktopPack(@PathVariable UUID termId) {
+        var download = desktopPackExportService.exportTermPack(termId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.filename() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(download.body());
     }
 
     @GetMapping("/{termId}/students")

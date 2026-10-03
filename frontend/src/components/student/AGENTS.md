@@ -13,6 +13,9 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
 | `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right on the submit dashboard only |
+| `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; same-name lab conflict modal (`confirmReplace`); term import clears lab packs on disk; after success a blocking **Okay**-only dialog closes the app via `quitPracticeApp` (no submit until reopen); friendly errors via `apiError` context `import` |
+| `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
+| `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: runtime-only practice zip download (no pack; not rendered in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -87,6 +90,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 - Manual: log in as student, toggle history view, open profile modal
 - Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
+- Offline practice: web — **Download practice folder** (prebuilt runtime-only zip stream; lecturers distribute packs); desktop — **Import rubric pack** then **Okay** (app closes; reopen manually); see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ChallengePipelineResult;
+import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ClassMmdPhaseResult;
 import com.eiu.capstone.backend.grading.pipeline.MmdPillarGrader;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
@@ -138,14 +139,16 @@ public class GradingService {
             computed = computeAgainstSnapshot(
                     rubric, challengeFolderResults, mmdByChallenge, submission, existing, null);
         } else {
+            List<ClassMmdWork> classMmdWork = computeClassAndMmdPhase(
+                    rubric, challengeFolderResults, mmdByChallenge);
             long slotAcquireStart = System.currentTimeMillis();
             acquireWorkerSlot();
             slotWaitMs = System.currentTimeMillis() - slotAcquireStart;
             long spawnStart = System.currentTimeMillis();
             try (WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds)) {
                 workerSpawnMs = System.currentTimeMillis() - spawnStart;
-                computed = computeAgainstSnapshot(
-                        rubric, challengeFolderResults, mmdByChallenge, submission, existing, workerSession);
+                computed = completeOperationalTestcasePhase(
+                        rubric, submission, existing, classMmdWork, workerSession);
             } finally {
                 workerJvmSlot.release();
             }
@@ -186,6 +189,75 @@ public class GradingService {
         return existing;
     }
 
+    private List<ClassMmdWork> computeClassAndMmdPhase(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+            Map<String, List<MultipartFile>> mmdByChallenge) {
+
+        List<CompletableFuture<ClassMmdWork>> futures = challengeFolderResults.stream()
+                .map(folderResult -> CompletableFuture.supplyAsync(
+                        () -> {
+                            ClassMmdPhaseResult phase = gradingPipeline.gradeClassAndMmd(
+                                    rubric,
+                                    folderResult,
+                                    mmdByChallenge.getOrDefault(folderResult.challengeName, List.of()));
+                            return new ClassMmdWork(folderResult, phase);
+                        },
+                        gradingExecutor))
+                .collect(Collectors.toList());
+        return CompletableFutures.joinAll(futures);
+    }
+
+    private GradingComputationResult completeOperationalTestcasePhase(
+            LabRubricSnapshot rubric,
+            LabSubmission submission,
+            ExistingResults existing,
+            List<ClassMmdWork> classMmdWork,
+            WorkerSessionHandle workerSession) {
+
+        List<ChallengeComputation> challengeComputations = new ArrayList<>();
+        for (ClassMmdWork work : classMmdWork) {
+            if (work.phase == null) {
+                challengeComputations.add(null);
+                continue;
+            }
+            ChallengePipelineResult pipelineResult = work.phase.testcaseApplicable()
+                    ? gradingPipeline.completeOperationalTestcases(work.phase, workerSession)
+                    : pipelineResultFromClassMmd(work.phase);
+            challengeComputations.add(gradeChallengeFolderFromPipeline(rubric, pipelineResult));
+        }
+        return aggregateChallengeComputations(rubric, submission, existing, challengeComputations);
+    }
+
+    private record ClassMmdWork(
+            SubmissionStorageService.ChallengeResult folderResult,
+            ClassMmdPhaseResult phase) {}
+
+    private static ChallengePipelineResult pipelineResultFromClassMmd(ClassMmdPhaseResult phase) {
+        return new ChallengePipelineResult(
+                phase.challengeNumber(),
+                phase.challengeId(),
+                phase.challengeName(),
+                PillarScoreAggregator.challengePercentage(
+                        phase.classResult().pillarPercentage(),
+                        phase.challengeRubric().classWeight(),
+                        phase.mmdResult().pillarPercentage(),
+                        phase.mmdApplicable(),
+                        phase.challengeRubric().mmdWeight(),
+                        BigDecimal.ZERO,
+                        false,
+                        phase.challengeRubric().testcaseWeight()),
+                phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0
+                        && (!phase.mmdApplicable()
+                        || phase.mmdResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0),
+                phase.mmdApplicable(),
+                phase.testcaseApplicable(),
+                phase.classResult(),
+                phase.mmdResult(),
+                com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.TestcasePillarResult.empty(),
+                phase.context());
+    }
+
     private GradingComputationResult computeAgainstSnapshot(
             LabRubricSnapshot rubric,
             List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
@@ -203,6 +275,14 @@ public class GradingService {
                 .collect(Collectors.toList());
 
         List<ChallengeComputation> challengeComputations = CompletableFutures.joinAll(futures);
+        return aggregateChallengeComputations(rubric, submission, existing, challengeComputations);
+    }
+
+    private GradingComputationResult aggregateChallengeComputations(
+            LabRubricSnapshot rubric,
+            LabSubmission submission,
+            ExistingResults existing,
+            List<ChallengeComputation> challengeComputations) {
 
         GradingComputationResult result = new GradingComputationResult();
         result.fieldResults = new ArrayList<>();
@@ -299,6 +379,12 @@ public class GradingService {
 
         ChallengePipelineResult pipelineResult = gradingPipeline.gradeChallenge(
                 rubric, folderResult, mmdFiles, workerSession);
+        return gradeChallengeFolderFromPipeline(rubric, pipelineResult);
+    }
+
+    private ChallengeComputation gradeChallengeFolderFromPipeline(
+            LabRubricSnapshot rubric,
+            ChallengePipelineResult pipelineResult) {
         if (pipelineResult == null) {
             return null;
         }

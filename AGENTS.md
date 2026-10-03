@@ -93,6 +93,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes) — relevant when orienting to grading or submission flows |
 | `docs/USER_GUIDE.md` | End-user guide for lecturers and students: all features, navigation, upload workflow, results interpretation |
 | `docs/LECTURER_OPERATIONAL_TESTCASE_GUIDE.md` | Lecturer-focused operational testcase authoring: Unit worksheet, Composition script, Call as (override), assertions, object checks, dry-run; student OT pillar dark |
+| `docs/DESKTOP_STUDENT_DIST.md` | Windows offline student practice: pack naming, import/restart, lecturer export, assemble script, desktop API |
 
 ### Project facts
 

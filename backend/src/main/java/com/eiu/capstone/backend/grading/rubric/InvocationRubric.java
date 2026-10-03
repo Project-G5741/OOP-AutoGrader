@@ -6,6 +6,9 @@ import java.util.UUID;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Method;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record InvocationRubric(
         UUID id,
         InvocationKind kind,

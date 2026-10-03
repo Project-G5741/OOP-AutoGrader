@@ -2,11 +2,13 @@ package com.eiu.capstone.backend.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!desktop")
 @ConditionalOnProperty(name = "app.mail.provider", havingValue = "smtp", matchIfMissing = true)
 public class SmtpTransactionalEmailSender implements TransactionalEmailSender {
 

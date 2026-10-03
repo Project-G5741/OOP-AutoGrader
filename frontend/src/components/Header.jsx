@@ -13,6 +13,7 @@ export default function Header({
   hideHome = false,
   hideHistory = false,
   headerAddon = null,
+  headerUserSlot = null,
 }) {
   const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
@@ -56,11 +57,11 @@ export default function Header({
         </div>
 
         <div className="flex items-center gap-2">
-          {user?.fullName && (
+          {headerUserSlot ?? (user?.fullName && (
             <span className="hidden rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-sm text-foreground sm:inline-block">
               {user.fullName}
             </span>
-          )}
+          ))}
           <button
             onClick={onLogout}
             className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:flex"

@@ -50,15 +50,15 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` (enrolled students, at-risk students below 70, labs, qualifying scores behind the average) from the overview payload | Live `/api/lecturer/overview` (`students`, `labs`, `scoreRows`), `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` (includes `plagiarismFlagged` + `plagiarismRole`), `/api/labs/{id}/challenges/{id}/students`, `GET /api/lecturer/plagiarism/flags`, `GET /api/lecturer/labs/{labId}/students/{studentId}/plagiarism` |
 | `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/lecturer/plagiarism/flags`, `GET /api/analytics/student/{studentId}` |
 | `users` | `UserManagement` | Live `/api/users/*` |
-| `terms` | `TermManagement` | Live `/api/lecturer/terms` create (optional `copyLabIds`)/set current/delete/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |
-| `projects` | `SolutionManagement` | Live API (`/api/lecturer/labs/*`, `GET /clone-sources`, `POST /clone`, `PATCH /api/lecturer/labs/{labId}/deadline` and `PATCH /api/lecturer/labs/{labId}/student-access` for the selected lab, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `/api/terms`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight; Copy lab appends created labs to the sidebar when the target is the current quarter |
+| `terms` | `TermManagement` | Live `GET /api/lecturer/terms/list`, `POST /api/lecturer/terms/create` (optional `copyLabIds`)/set current/delete/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |
+| `projects` | `SolutionManagement` | Live API (`POST /api/lecturer/labs/create`, `/api/lecturer/labs/*`, `GET /clone-sources`, `POST /clone`, `PATCH /api/lecturer/labs/{labId}/deadline` and `PATCH /api/lecturer/labs/{labId}/student-access` for the selected lab, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data/by-category?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `GET /api/terms/list`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight; Copy lab appends created labs to the sidebar when the target is the current quarter |
 | `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
 
 ### Student in-dashboard sections
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results) | Full-page spinner waits only for `GET /api/labs` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `/challenges` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
+| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results) | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` + `my-labs` (all quarters, `termLabel` on each lab/submission) |
 
 ### Header commands (`Header.jsx` → `onCommand`)
@@ -76,19 +76,19 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `POST /api/auth/google/upsert` | `FirstTimeSetupUI.jsx` |
 | `GET /api/users/getAllUser` | `UserManagement.jsx` |
 | `POST /api/users/addUser` | `UserManagement.jsx` |
-| `PUT /api/users/{id}` | `UserManagement.jsx` — body: `roleNames`, `studentCode`, `teacherCode`, optional `password` |
-| `DELETE /api/users/{id}` | `UserManagement.jsx` |
+| `PUT /api/users/updateUser/{id}` | `UserManagement.jsx` — body: `roleNames`, `studentCode`, `teacherCode`, optional `password` |
+| `DELETE /api/users/deleteUser/{id}` | `UserManagement.jsx` |
 | `POST /api/users/{id}/suspend` | `UserManagement.jsx`, `TermManagement.jsx` — student-only; blocks login |
 | `POST /api/users/{id}/unsuspend` | `UserManagement.jsx`, `TermManagement.jsx` — restores login |
-| `GET /api/labs` | `StudentDashboard.jsx` (student JWT; current-term labs only, with embedded challenges + attempt stats; skipped when out of term) |
+| `GET /api/labs/list` | `StudentDashboard.jsx` (student JWT; current-term labs only, with embedded challenges + attempt stats; skipped when out of term) |
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
-| `GET /api/lecturer/terms` | `TermManagement.jsx` |
+| `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
-| `GET /api/labs/{labId}/challenges?studentId=` | `StudentDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges/list?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{id}/mmd?studentId=` | `StudentDashboard.jsx` |

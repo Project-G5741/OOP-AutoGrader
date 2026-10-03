@@ -42,12 +42,12 @@ public class SubmissionTestcaseAssertionResult {
             foreignKey = @ForeignKey(name = "staresult_assertion_id_fkey"))
     private TestcaseAssertion testcaseAssertion;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "result", nullable = false, columnDefinition = "testcase_result_status")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "result", nullable = false, length = 64)
     private TestcaseResultStatus result;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "actual_value", columnDefinition = "jsonb")
+    @Column(name = "actual_value")
     private String actualValue;
 
     @Column(name = "feedback")

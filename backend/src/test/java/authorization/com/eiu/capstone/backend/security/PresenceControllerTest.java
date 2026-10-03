@@ -71,25 +71,25 @@ class PresenceControllerTest {
 
     @Test
     void signedInGetHeartbeatsOnceAndAnonymousCanReadCount() throws Exception {
-        mockMvc.perform(get("/api/presence"))
+        mockMvc.perform(get("/api/presence/count"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(0));
 
         String token = jwtService.createToken(
                 "user@eiu.edu.vn", "User", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN001");
-        mockMvc.perform(get("/api/presence").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/presence/count").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1));
-        mockMvc.perform(get("/api/presence").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/presence/count").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1));
-        mockMvc.perform(get("/api/presence"))
+        mockMvc.perform(get("/api/presence/count"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1));
-        mockMvc.perform(delete("/api/presence").header("Authorization", "Bearer " + token))
+        mockMvc.perform(delete("/api/presence/leave").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(0));
-        mockMvc.perform(get("/api/presence"))
+        mockMvc.perform(get("/api/presence/count"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(0));
     }
@@ -100,7 +100,7 @@ class PresenceControllerTest {
         when(sessionValidityService.isSessionValid(any(), isNull())).thenReturn(false);
         String token = jwtService.createToken(
                 "user@eiu.edu.vn", "User", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN001");
-        mockMvc.perform(get("/api/presence").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/presence/count").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 }

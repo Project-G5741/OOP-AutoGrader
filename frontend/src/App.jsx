@@ -36,7 +36,7 @@ export default function App() {
   const navigate = useNavigate();
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [loginMessage, setLoginMessage] = useState(null);
-  const [user, setUser] = useState(readStoredUser);
+  const sessionUser = readStoredUser();
 
   if (!GOOGLE_CLIENT_ID) {
     return (
@@ -55,7 +55,6 @@ export default function App() {
     const userPayload = { ...data, roles };
     sessionStorage.setItem("accessToken", data.accessToken);
     sessionStorage.setItem("user", JSON.stringify(userPayload));
-    setUser(userPayload);
     navigate(defaultDashboardPath(roles, data.inCurrentTerm));
   }, [navigate]);
 
@@ -64,7 +63,6 @@ export default function App() {
     sessionStorage.removeItem("accessToken");
     sessionStorage.removeItem("user");
     localStorage.removeItem("token");
-    setUser(null);
     navigate(ROUTES.login);
   }, [navigate]);
 
@@ -75,7 +73,7 @@ export default function App() {
     navigate(ROUTES.login);
   };
 
-  if (resetToken && !user) {
+  if (resetToken && !sessionUser) {
     return (
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <ResetPasswordUI token={resetToken} onComplete={handleResetComplete} />
@@ -89,8 +87,8 @@ export default function App() {
           <Route
             path={ROUTES.login}
             element={
-              user ? (
-                <AuthenticatedLanding user={user} />
+              sessionUser ? (
+                <AuthenticatedLanding user={sessionUser} />
               ) : (
                 <Login
                   onLoginSuccess={handleLoginSuccess}
@@ -105,7 +103,7 @@ export default function App() {
             path={ROUTES.lecturerDashboard}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -113,7 +111,7 @@ export default function App() {
             path={ROUTES.lecturerGrading}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -121,7 +119,7 @@ export default function App() {
             path={ROUTES.lecturerUsers}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -129,7 +127,7 @@ export default function App() {
             path={ROUTES.lecturerSolution}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -137,7 +135,7 @@ export default function App() {
             path={ROUTES.lecturerReport}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -146,7 +144,7 @@ export default function App() {
             path={ROUTES.lecturerTerms}
             element={
               <RequireRole anyOf={["LECTURER"]}>
-                <LecturerDashboard user={user} onLogout={handleLogout} />
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
           />
@@ -155,7 +153,7 @@ export default function App() {
             path={ROUTES.studentDashboard}
             element={
               <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={user} onLogout={handleLogout} view="dashboard" />
+                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
               </RequireRole>
             }
           />
@@ -163,7 +161,7 @@ export default function App() {
             path={ROUTES.studentHistory}
             element={
               <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={user} onLogout={handleLogout} view="history" />
+                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
               </RequireRole>
             }
           />
@@ -171,8 +169,8 @@ export default function App() {
           <Route
             path={ROUTES.noAccess}
             element={
-              user ? (
-                <NoAccessPage user={user} />
+              sessionUser ? (
+                <NoAccessPage user={sessionUser} />
               ) : (
                 <Navigate to={ROUTES.login} replace />
               )
@@ -182,8 +180,8 @@ export default function App() {
           <Route
             path="*"
             element={
-              user ? (
-                <AuthenticatedLanding user={user} />
+              sessionUser ? (
+                <AuthenticatedLanding user={sessionUser} />
               ) : (
                 <Navigate to={ROUTES.login} replace />
               )

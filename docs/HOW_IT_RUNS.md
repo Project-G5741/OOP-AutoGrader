@@ -255,11 +255,13 @@ When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 #### Step 6 — Grading (`GradingService`)
 
-For each challenge folder, **in parallel** on `gradingExecutor`:
+When any challenge has operational testcases, grading runs in two phases: **(1)** parallel class + MMD per challenge on `gradingExecutor`; **(2)** acquire `workerJvmSlot`, open one worker session, then run the testcase pillar per OT challenge (sequential after class/MMD, not parallel with MMD). Labs without OT use a single parallel pass (`gradeChallenge`).
 
-1. **Class pillar**: `ReflectionClassParser` loads `.class` files via `URLClassLoader`; `ClassReflectionGrader` scores shells (binary, including Extends/Implements) and members (all-or-nothing: every graded attribute must match).
-2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService` on `pillarExecutor`.
-3. **Testcase pillar:** runs on student upload when the challenge has authored operational testcases (shared worker session + `workerJvmSlot` when any challenge in the upload batch needs OT). Skipped when the rubric has zero testcase rows. Lecturer dry-run uses the same `TestcaseGrader` path. Per-invocation timeout 5s; host slot of 1.
+Per challenge, pillar order is always **class → MMD (if `has_mmd`) → OT (if rubric rows exist)** on the same worker thread (no MMD∥OT overlap).
+
+1. **Class pillar**: `ReflectionClassParser` loads `.class` files; `ClassReflectionGrader` scores shells and members.
+2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService`.
+3. **Testcase pillar** (if authored rows): `TestcaseGrader` via isolated worker JVM. Lecturer dry-run uses `gradeSingle()`. Per-invocation timeout 5s; host slot of 1.
 4. **Scoring**: weighted mean of applicable pillars (`class_weight` / `mmd_weight` / `testcase_weight` when OT applies); lab score is the weighted mean of challenge scores (`challenge.weight`). Missing challenges count as 0%.
 5. **Persist**: challenge scores + parsed snapshot on the request thread; member/testcase rows UPSERT on `persistExecutor`. `LabResultAssembler` builds `lab_result` from the in-memory rubric snapshot.
 

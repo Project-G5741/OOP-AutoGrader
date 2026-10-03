@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.eiu.capstone.backend.grading.GradingDetailPersistPayload;
 import com.eiu.capstone.backend.grading.GradingResultJdbcWriter;
+import com.eiu.capstone.backend.grading.PostgresGradingResultJdbcWriter;
 import com.eiu.capstone.backend.grading.GradingService;
 
 import javax.sql.DataSource;
@@ -23,7 +24,7 @@ class GradingResultJdbcWriterTest {
 
     @Test
     void emptyListsDoNotOpenAConnection() {
-        GradingResultJdbcWriter writer = new GradingResultJdbcWriter(dataSource);
+        GradingResultJdbcWriter writer = new PostgresGradingResultJdbcWriter(dataSource);
         assertDoesNotThrow(() -> writer.upsertChallengeResults(List.of()));
         GradingService.GradingComputationResult computed = new GradingService.GradingComputationResult();
         computed.fieldResults = List.of();

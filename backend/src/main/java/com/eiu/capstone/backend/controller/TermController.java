@@ -19,7 +19,7 @@ public class TermController {
         this.termService = termService;
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public List<TermSummaryDTO> listTerms() {
         return termService.listTerms();
     }

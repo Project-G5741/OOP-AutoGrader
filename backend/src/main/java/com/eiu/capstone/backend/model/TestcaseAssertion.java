@@ -31,8 +31,8 @@ public class TestcaseAssertion {
             foreignKey = @ForeignKey(name = "testcase_assertion_invocation_id_fkey"))
     private TestcaseInvocation invocation;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "assertion_kind", nullable = false, columnDefinition = "assertion_kind")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "assertion_kind", nullable = false, length = 64)
     private AssertionKind assertionKind;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -41,11 +41,11 @@ public class TestcaseAssertion {
     private Field field;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "expected_value", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "expected_value", nullable = false)
     private String expectedValue;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "comparison_mode", nullable = false, columnDefinition = "comparison_mode")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "comparison_mode", nullable = false, length = 64)
     private ComparisonMode comparisonMode = ComparisonMode.EXACT;
 
     @Column(name = "order_index", nullable = false)

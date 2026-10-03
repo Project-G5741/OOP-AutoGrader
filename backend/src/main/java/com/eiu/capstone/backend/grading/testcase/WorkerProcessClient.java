@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.eiu.capstone.backend.grading.testcase.transport.ProcessWorkerTransport;
@@ -35,7 +36,7 @@ public class WorkerProcessClient {
     public WorkerProcessClient(
             @Value("${app.grading.worker-java:java}") String javaBinary,
             @Value("${app.grading.worker-jar:/app/worker.jar}") String workerJar) {
-        this(javaBinary, resolveWorkerJar(workerJar));
+        this(resolveJavaBinary(javaBinary), resolveWorkerJar(workerJar));
     }
 
     /** Explicit resolved path (tests); skips configured/fallback resolution. */
@@ -70,6 +71,32 @@ public class WorkerProcessClient {
             }
         }
         return configuredPath;
+    }
+
+    /**
+     * Use configured Java when present (e.g. bundled {@code runtime/jdk/bin/java.exe}); otherwise {@code java} on PATH.
+     * Desktop practice folders often omit a bundled JDK; the launcher .bat already falls back the same way.
+     */
+    public static String resolveJavaBinary(String configured) {
+        if (configured == null || configured.isBlank()) {
+            return "java";
+        }
+        String trimmed = configured.trim();
+        if ("java".equalsIgnoreCase(trimmed)) {
+            return "java";
+        }
+        Path path = Path.of(trimmed);
+        if (Files.isRegularFile(path)) {
+            return path.toAbsolutePath().normalize().toString();
+        }
+        String fileName = path.getFileName().toString();
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".exe")) {
+            Path withExe = path.resolveSibling(fileName + ".exe");
+            if (Files.isRegularFile(withExe)) {
+                return withExe.toAbsolutePath().normalize().toString();
+            }
+        }
+        return "java";
     }
 
     public List<String> productionCommand(String... workerArgs) {

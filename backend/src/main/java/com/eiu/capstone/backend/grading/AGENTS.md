@@ -9,7 +9,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | File | Role |
 |---|---|
 | `GradingService.java` | Thin orchestrator: parallel per-challenge grading, `lab_result` assembly (persist is `UploadPersistService`) |
-| `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then parallel MMD + testcase pillars |
+| `grading/pipeline/GradingPipeline.java` | Staged pipeline: class pillar, then MMD, then operational testcase pillar (sequential per challenge) |
 | `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0%; otherwise members are all-or-nothing (every graded attribute must match); leftover snapshot `"partial"` labels display as fail and are not rewritten; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
 | `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
 | `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
@@ -23,7 +23,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Per-request worker JVM; respawn keeps the host slot |
 | `grading/testcase/DryRunWorkerCache.java` | Reuses one local worker across lecturer dry-runs (60s idle TTL); sandbox never cached |
-| `grading/rubric/DryRunChallengeCatalogCache.java` | Caches dry-run validate/assemble Neon member graphs (60s); cleared on rubric invalidate |
+| `grading/rubric/DryRunChallengeCatalogCache.java` | One Neon load per challenge caches validate membership + assemble maps (60s); cleared on rubric invalidate |
+| `grading/rubric/RubricMemberMaps.java` | Lookup maps built from challenge members for OT rubric assembly |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
 | `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE including object checks, FIELD_STATE, STDOUT, EXCEPTION) |
 | `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
@@ -62,9 +63,8 @@ SubmissionController
   → SubmissionStorageService.processUpload()
   → assign lab_submission.id in memory
       → GradingService.gradeSubmission()   (compute + assemble only)
-          → GradingPipeline.gradeChallenge() per folder
-              → ClassReflectionGrader (sync)
-              → MmdPillarGrader + TestcaseGrader on `pillarExecutor` when applicable
+          → When any challenge has OT: parallel `gradeClassAndMmd()` per folder, then worker slot + session, then sequential `completeOperationalTestcases()` per OT challenge
+              → Otherwise `gradeChallenge()` per folder: ClassReflectionGrader → MmdPillarGrader → TestcaseGrader when applicable
           → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
               → skip MMD/testcase trees when pillar not applicable
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
@@ -113,7 +113,7 @@ SubmissionController
 
 ### Result persistence
 
-Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (one statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on the same unique keys). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
+Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (PostgreSQL: one CTE statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT; **`desktop` profile:** `H2GradingResultJdbcWriter` uses transactional JDBC without `unnest`/`gen_random_uuid()`). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter` (`ON CONFLICT` on PostgreSQL; H2 `MERGE` / batch inserts on desktop). `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
 
 | Entity | Stores |
 |---|---|

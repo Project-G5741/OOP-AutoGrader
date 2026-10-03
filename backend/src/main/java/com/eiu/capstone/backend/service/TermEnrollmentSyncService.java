@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import jakarta.persistence.PersistenceContext;
  * Idempotent — safe on every application start.
  */
 @Component
+@Profile("!desktop")
 public class TermEnrollmentSyncService {
 
   @PersistenceContext

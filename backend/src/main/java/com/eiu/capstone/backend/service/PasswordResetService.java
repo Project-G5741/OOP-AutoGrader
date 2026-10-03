@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,6 +27,7 @@ import com.eiu.capstone.backend.repository.UserAccountRepository;
 import jakarta.transaction.Transactional;
 
 @Service
+@Profile("!desktop")
 public class PasswordResetService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();

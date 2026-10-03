@@ -17,6 +17,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
+- Practice assemble: `mvn -DskipTests package -Pdesktop-dist` also builds classifier `desktop` → `target/backend-1.0.0-desktop.jar` (excludes PostgreSQL driver, springdoc, mail, jjwt). Default `package` still produces the full `backend-1.0.0.jar` + worker. `scripts/assemble-student-desktop.ps1` copies the desktop classifier to `backend.jar`.
 - Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md` for Render deploy
 - Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
@@ -42,26 +43,29 @@ Password-reset emails use the request `Origin` when it matches an allowed fronte
 | `SPRINGDOC_ENABLED` | OpenAPI/Swagger. Default `true` locally. Set `false` in production so `/v3/api-docs` and `/swagger-ui/**` are not registered. |
 | `PORT` | Server port (default `8002`) |
 | `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx256m`). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
+| `DESKTOP_PACK_SIGNING_PRIVATE_KEY` | Optional Base64 PKCS#8 Ed25519 key for lecturer desktop practice pack export; pairs with `classpath:desktop-pack-public.key`. When unset, export returns 503. |
 
-Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path).
+Config files: `src/main/resources/application.yml` (imports `.env`), `application.properties` (datasource, storage path), `application-desktop.yml` (profile `desktop`: H2 file DB under `${APP_DESKTOP_HOME}/data`, bundled paths, Swagger off).
+
+**Desktop profile (`spring.profiles.active=desktop`):** Local student practice API on port **18002** (`server.port` in `application-desktop.yml`, override `DESKTOP_SERVER_PORT`) — avoids colliding with dev/cloud **8002**. H2 (PostgreSQL compatibility mode), no JWT / OAuth / mail / Swagger beans (`DesktopSecurityConfig`; cloud-only `@Profile("!desktop")` on `JwtService`, `AuthController`, mail senders, `SwaggerConfig`, etc.), no plagiarism pipeline (`DesktopPlagiarismService`), no production schema migrators or term-enrollment backfill. Set `APP_DESKTOP_HOME` to the install folder; static UI from `app.desktop.ui-dir` (default `{home}/ui/dist-desktop`); operational testcases spawn `worker.jar` via `app.grading.worker-java` (defaults to `java` on PATH; optional bundled `runtime/jdk` via `DESKTOP_WORKER_JAVA`). UI pack import (`DesktopPackStageService`) stages the `.agpack` then eagerly runs the same bootstrap materialization + fingerprint write so restart is fingerprint-cheap; failed materialize wipes practice data and clears the fingerprint. `application-desktop.yml` enables `spring.main.lazy-initialization` with mail autoconfigure excluded; `DesktopPackBootstrapper` is `@Lazy(false)` so `bootstrapComplete` still runs on `ApplicationReadyEvent`. Production cloud deploy keeps default profile (PostgreSQL + `SecurityConfig`).
 
 ### API surface
 
 | Controller | Base path | Notes |
 |---|---|---|
-| `RootController` | `/` | `GET /` — liveness probe (Render health check) |
+| `RootController` | `/` | `GET /` — liveness probe (Render health check); inactive on `desktop` profile (SPA served from `ui/dist-desktop`) |
 | `AuthController` | `/api/auth` | Google login/upsert, IRN+password login, forgot/reset password. Unregistered Google users: 403 (frontend first-time setup). Inactive Google users: 423 (not setup). Inactive IRN login: 403. |
-| `LabController` | `/api/labs` | List labs (with `deadlineDate`, `urgencyState`, natural name sort), lab stats, lecturer lab statistics/submissions |
-| `LecturerRubricController` | `/api/lecturer/labs` | Lab structure read/save, create/delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run |
-| `LecturerTermController` | `/api/lecturer/terms` | Create term (year + term number), set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call) |
+| `LabController` | `/api/labs` | `GET /list` — labs (with `deadlineDate`, `urgencyState`, natural name sort); lab stats, lecturer lab statistics/submissions |
+| `LecturerRubricController` | `/api/lecturer/labs` | `POST /create` lab; structure read/save, delete, deep-clone (`GET /clone-sources`, `POST /clone`), `PATCH /{labId}/deadline`, `PATCH /{labId}/student-access`; challenge testcase CRUD + dry-run; `GET /{labId}/desktop-pack` → `Rubric_{labName}.agpack` |
+| `LecturerTermController` | `/api/lecturer/terms` | `GET /list`, `POST /create` term; set current term, delete non-current term (no labs), enroll/remove students, Excel import by IRN or email, `GET /{termId}/roster` (enrolled + available in one call), `GET /{termId}/desktop-pack` → `Rubric_{yearLabel}_Q{n}.agpack` (requires `DESKTOP_PACK_SIGNING_PRIVATE_KEY`) |
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
-| `MasterDataController` | `/api/master-data` | Master data lookup by category |
-| `TermController` | `/api/terms` | Academic term list for lab creation |
-| `StudentAccessController` | `/api/students` | `GET /term-access` — whether the student is in the current term |
+| `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
+| `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
+| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/OOP-AutoGrader-Practice.zip` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no env) |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
-| `UserController` | `/api/users` | CRUD + bulk create; `DELETE /{id}` hard-deletes user and related rows; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
+| `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
-| `PresenceController` | `/api/presence` | `GET` — public active-user count; a valid JWT records a heartbeat. `DELETE` — signed-in leave (JWT required) |
+| `PresenceController` | `/api/presence` | `GET /count` — public active-user count; a valid JWT records a heartbeat. `DELETE /leave` — signed-in leave (JWT required) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated locally when `SPRINGDOC_ENABLED` is true; omit or set `false` in production)
 
@@ -72,7 +76,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
-- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
+- **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence/count`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
 - `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
 - `JwtService` derives the HS256 signing key once at construction from `jwt.secret` (`JWT_SECRET`); missing, blank, or shorter-than-32-byte values fail startup (no random per-restart key)
 - `UserAccount.passwordHash` omitted from JSON (`@JsonIgnore`)
@@ -83,7 +87,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 ### Persistence
 
 - JPA entities in `model/`, repositories in `repository/`
-- Schema managed externally — no Flyway/Liquibase migrations in repo
+- Schema managed externally — no Flyway/Liquibase migrations in repo; startup migrators (`SessionVersionSchemaMigrator`, `DesktopPackVersionSchemaMigrator`, `TestcaseSchemaMigrator`, …) patch older PostgreSQL when needed
 - Rubric chain: `Lab` → `Challenge` → `ClassEntity` → `Field`/`Method`/`Constructor`; `ClassRelation` (MMD source→target + `RELATION_TYPE` master data) per challenge
 - Scoring weights (int, min 1, default 1): `challenge.weight`, `challenge.class_weight`, `challenge.mmd_weight`, `challenge.testcase_weight`, `class_entity.weight` — operator SQL `docs/sql/2026-08-19-scoring-weights.sql` and `docs/sql/2026-08-22-testcase-weight.sql`. Labs have no weight. Native lecturer SQL must use `CAST(l.deadline_date AS timestamp)`, not `::timestamp` (Hibernate treats `:` as a parameter).
 - Operational testcase persistence (operator SQL `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`; also applied on startup by `TestcaseSchemaMigrator` when leftover types/columns remain): wipe CASCADE of OT graphs, drop `testcase_instance` / `oop_principle_tag` / per-testcase `weight` / `COMPARISON_RESULT`, rewrite `testcase_type` to `UNIT` | `COMPOSITION`. After wipe the migrator calls `LabRubricCache.invalidateAll()`. Kept columns: `testcase_invocation.order_index` (unique `(testcase_id, order_index)`), `instance_name` (constructor/static product or Composition receiver). No per-testcase weight. Challenge `testcase_weight` is unchanged.
@@ -93,7 +97,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - `Lab.release_date` (optional `DATE`) — when set, students see the lab from 00:00 Vietnam time on that date (requires `student_visible=true`); operator SQL `docs/sql/2026-09-09-lab-student-visibility.sql`
 - `lab_deadline_email_sent` — ledger for 72h/24h reminder emails to enrolled non-submitters (`LabDeadlineReminderScheduler`, minutely). Candidate selection is one anti-join (`findActiveStudentIdsForDeadlineEmail`); save-after-each-send stays for retry safety
 - Soft-delete (inactive login): users set `isActive=false` via suspend or restore; inactive accounts cannot log in
-- Lecturer **delete** (`DELETE /api/users/{id}`) permanently removes the user and bulk-deletes related submissions, grading result rows, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens (no per-submission delete loop)
+- Lecturer **delete** (`DELETE /api/users/deleteUser/{id}`) permanently removes the user and bulk-deletes related submissions, grading result rows, enrollments, progress, plagiarism rows, deadline-email ledger entries, and password-reset tokens (no per-submission delete loop)
 - Lecturer **suspend** (`POST /api/users/{id}/suspend`) is student-only `isActive=false`; restore via `POST /api/users/{id}/unsuspend`. Lecturer and dual-role accounts cannot be suspended this way.
 - `term.is_current` — lecturer-selected current term; operator SQL `docs/sql/2026-08-19-term-current.sql`. Students in that term may submit; others only use history.
 
@@ -103,7 +107,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs`) → rubric cache load **overlaps** compile on `persistExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
+Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs/list`) → rubric cache load **overlaps** compile on `persistExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -120,11 +124,11 @@ Grading tuning properties (`application.properties`):
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
 | `app.grading.sandbox.runner-token` | _(empty)_ | Bearer token shared with runner (`SANDBOX_RUNNER_TOKEN`) |
 | `workerJvmSlot` bean | `Semaphore(1)` | Host-wide isolated worker JVM; acquire/release on the HTTP thread in `TestcaseDryRunService` and `GradingService.gradeSubmission` when OT applies. Capacity stays 1. |
-| `pillarExecutor` bean | `max(2, parallelism×2)` threads | MMD + testcase pillars inside each challenge; separate from `gradingExecutor` to avoid pool deadlock on 1–2 CPU hosts (Render) |
+| Pillar order (upload) | class → MMD → OT per challenge | OT challenges: all class+MMD on `gradingExecutor` first, then one worker JVM; pillars are sequential (no MMD∥OT) to spare CPU/RAM on small hosts |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, rubric overlap, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, compile, each challenge, grade submission, structure save, and read paths |
-| `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs` warms it. Denials are not cached. `0` disables. |
+| `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs/list` warms it. Denials are not cached. `0` disables. |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set |
@@ -148,7 +152,8 @@ Grading tuning properties (`application.properties`):
 - Per-challenge package-normalization notices (when student sources include `package` declarations) are stored in `{SUBMISSION_BASE_DIR}/_package_normalization/{submissionId}.json` and shown as a non-blocking warning on the student Class tab
 - Per-challenge MMD metadata (file presence, class-in-diagram, relation error labels) is stored in `{SUBMISSION_BASE_DIR}/_mmd_meta/{submissionId}.json` at upload; `ClassStructureService` infers MMD was submitted from persisted DB results when that file is missing (e.g. ephemeral storage wipe)
 - Parsed submission display snapshots for Class/MMD tabs are stored in `{SUBMISSION_BASE_DIR}/_parsed_snapshot/{submissionId}.json` at grade time; class shells capture student scope/type/abstract/static plus declared superclass and interfaces. When missing (legacy submissions or storage wipe), class type labels fall back to rubric and shell checks are omitted. When the class shell fails, member rows are shown as fail even if individual attributes would match. A matching shell with no fields/constructors/methods is card status `success`, not `info`. Inheritance/realization pairs are graded on the Java shell independently of the MMD pillar.
-- `GET /api/labs` — lab list (`deadlineDate`, `urgencyState`) scoped to the **current quarter** for lecturers and enrolled students; students also require `student_visible` + `release_date` (`LabDeadlineHelper.isOpenForStudentSubmission`); empty when no current quarter is set. Student JWT also receives per-lab `challenges` (names/ids/weights, scores omitted) plus `totalSubmissions` / `latestSubmission` in the same response so the dashboard does not wait on follow-up `/challenges` and `/stats` calls. Upload access is `UserAccountRepository.findUploadAccess` (user + lab + term + enrollment in one query).
+- `GET /api/labs/list` — lab list (`deadlineDate`, `urgencyState`) scoped to the **current quarter** for lecturers and enrolled students; students also require `student_visible` + `release_date` (`LabDeadlineHelper.isOpenForStudentSubmission`); empty when no current quarter is set. Student JWT also receives per-lab `challenges` (names/ids/weights, scores omitted) plus `totalSubmissions` / `latestSubmission` in the same response so the dashboard does not wait on follow-up `GET .../challenges/list` and `/stats` calls. Upload access is `UserAccountRepository.findUploadAccess` (user + lab + term + enrollment in one query).
+- `GET /api/labs/{labId}/challenges/list` — challenge list for a lab (same payload as before when the path was the collection root).
 - `GET /api/labs/{labId}/statistics` — lecturer lab analytics (scores, completion from active term enrollees, grade distribution, `plagiarismRate` = unique flagged students ÷ students submitted)
 - `GET /api/labs/{labId}/submissions` — paginated roster of students who submitted for the lab (default page size 5); **score** is best qualifying submission before lab deadline (null when only late submissions); sort by `studentName` or `score`; optional `search` filters by name or student/teacher code (case-insensitive)
 - `GET /api/labs/{labId}/submissions/export` — full submitter roster in one query (lecturer export); same score semantics and `sort` param
@@ -174,6 +179,8 @@ Grading tuning properties (`application.properties`):
 - `@WebMvcTest` classes under `authorization/` declare a nested `@SpringBootApplication` on the test class so Boot can find configuration outside `com.eiu.capstone.backend`.
 - Surefire sets `net.bytebuddy.experimental=true` so Mockito can run on a local JDK newer than 22; image builds use JDK 17.
 - Manual: Swagger UI, `GET /`, submission upload from frontend `DropZone`
+- Desktop pack: `unit` `DesktopPackCryptoTest`, `DesktopPackSerializerTest`; `authorization` `LecturerTermDesktopPackTest`; `integration` `DesktopProfileContextTest`, `DesktopPackBootstrapIntegrationTest`, `DesktopPackImportIntegrationTest`, `DesktopSubmissionPipelineIntegrationTest` (`@ActiveProfiles("desktop")`)
+- Desktop profile: `spring.profiles.active=desktop`, `APP_DESKTOP_HOME`, packs under `rubric/` (`Rubric_{year}_Q{n}.agpack`, `Rubric_{name}.agpack`); UI term import deletes lab packs on disk; lab name conflicts return 409 with `conflicts`; pack term ids are inserted via JDBC so `@GeneratedValue` cannot replace them — see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

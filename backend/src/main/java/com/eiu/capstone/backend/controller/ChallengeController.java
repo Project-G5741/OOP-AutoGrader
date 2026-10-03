@@ -50,7 +50,7 @@ public class ChallengeController {
         this.studentTermAccessService = studentTermAccessService;
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public List<ChallengeDTO> getChallenges(
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @PathVariable UUID labId,

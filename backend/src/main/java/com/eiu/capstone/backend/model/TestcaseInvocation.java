@@ -33,8 +33,8 @@ public class TestcaseInvocation {
             foreignKey = @ForeignKey(name = "testcase_invocation_testcase_id_fkey"))
     private Testcase testcase;
 
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "invocation_kind", nullable = false, columnDefinition = "invocation_kind")
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "invocation_kind", nullable = false, length = 64)
     private InvocationKind invocationKind;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -48,7 +48,7 @@ public class TestcaseInvocation {
     private Method method;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "params", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "params", nullable = false)
     private String params = "[]";
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -57,7 +57,7 @@ public class TestcaseInvocation {
     private Constructor receiverConstructor;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "receiver_params", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "receiver_params", nullable = false)
     private String receiverParams = "[]";
 
     @Column(name = "order_index", nullable = false)

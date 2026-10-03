@@ -28,6 +28,7 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
 import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
+import com.eiu.capstone.backend.grading.rubric.RubricMemberMaps;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.grading.rubric.RubricParameterMaps;
 import com.eiu.capstone.backend.model.AssertionKind;
@@ -1174,34 +1175,59 @@ public class TestcaseRubricService {
     }
 
     private ChallengeMemberIds loadChallengeMemberIds(UUID labId, UUID challengeId) {
-        return dryRunChallengeCatalogCache.getMemberIds(labId, challengeId, () -> {
+        return (ChallengeMemberIds) loadDryRunCatalogEntry(labId, challengeId).memberIds();
+    }
+
+    /**
+     * Member lookup maps for dry-run rubric assembly; shares one Neon load with {@link #validatePayload}.
+     */
+    @Transactional(readOnly = true)
+    public RubricMemberMaps dryRunMemberMaps(UUID labId, UUID challengeId) {
+        return loadDryRunCatalogEntry(labId, challengeId).memberMaps();
+    }
+
+    private DryRunChallengeCatalogCache.CatalogEntry loadDryRunCatalogEntry(UUID labId, UUID challengeId) {
+        return dryRunChallengeCatalogCache.getCatalog(labId, challengeId, () -> {
             if (labId != null) {
                 requireChallengeAccessible(labId, challengeId);
             }
-            Map<UUID, ChallengeMemberIds> grouped = loadChallengeMemberIdsGrouped(List.of(challengeId));
-            ChallengeMemberIds memberIds = grouped.get(challengeId);
-            return memberIds != null ? memberIds : emptyChallengeMemberIds();
+            ChallengeGraphBatch batch = loadChallengeGraphBatch(List.of(challengeId));
+            ChallengeMemberIds memberIds = batch.memberIdsByChallenge().get(challengeId);
+            RubricMemberMaps memberMaps = batch.memberMapsByChallenge().get(challengeId);
+            return new DryRunChallengeCatalogCache.CatalogEntry(
+                    memberIds != null ? memberIds : emptyChallengeMemberIds(),
+                    memberMaps != null ? memberMaps : RubricMemberMaps.empty());
         });
     }
+
+    private record ChallengeGraphBatch(
+            Map<UUID, ChallengeMemberIds> memberIdsByChallenge,
+            Map<UUID, RubricMemberMaps> memberMapsByChallenge) {}
 
     /**
      * Batch-load OT membership sets for many challenges (clone path — one query set, not N).
      */
     private Map<UUID, ChallengeMemberIds> loadChallengeMemberIdsGrouped(Collection<UUID> challengeIds) {
+        return loadChallengeGraphBatch(challengeIds).memberIdsByChallenge();
+    }
+
+    private ChallengeGraphBatch loadChallengeGraphBatch(Collection<UUID> challengeIds) {
         if (challengeIds == null || challengeIds.isEmpty()) {
-            return Map.of();
+            return new ChallengeGraphBatch(Map.of(), Map.of());
         }
         List<UUID> ids = challengeIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
-            return Map.of();
+            return new ChallengeGraphBatch(Map.of(), Map.of());
         }
         List<Challenge> challenges = challengeRepository.findAllById(ids);
         Map<UUID, ChallengeMemberIds> result = new HashMap<>();
+        Map<UUID, RubricMemberMaps> memberMapsResult = new HashMap<>();
         for (UUID id : ids) {
             result.put(id, emptyChallengeMemberIds());
+            memberMapsResult.put(id, RubricMemberMaps.empty());
         }
         if (challenges.isEmpty()) {
-            return result;
+            return new ChallengeGraphBatch(result, memberMapsResult);
         }
         List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
         Map<UUID, List<ClassEntity>> classesByChallenge = classes.stream()
@@ -1333,8 +1359,22 @@ public class TestcaseRubricService {
                     noArgConstructorClassIds,
                     challengeCtorParams,
                     challengeMethodParams));
+
+            List<Parameter> challengeConstructorParams = constructorParams.stream()
+                    .filter(p -> constructorIds.contains(p.getConstructorEntity().getId()))
+                    .toList();
+            List<Parameter> challengeMethodParamsList = methodParams.stream()
+                    .filter(p -> methodIds.contains(p.getMethod().getId()))
+                    .toList();
+            memberMapsResult.put(challengeId, RubricMemberMaps.fromEntities(
+                    challengeClasses,
+                    ctorsByChallenge.getOrDefault(challengeId, List.of()),
+                    methodsByChallenge.getOrDefault(challengeId, List.of()),
+                    fieldsByChallenge.getOrDefault(challengeId, List.of()),
+                    challengeConstructorParams,
+                    challengeMethodParamsList));
         }
-        return result;
+        return new ChallengeGraphBatch(result, memberMapsResult);
     }
 
     private static ChallengeMemberIds emptyChallengeMemberIds() {

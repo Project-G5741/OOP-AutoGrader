@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,7 @@ import jakarta.annotation.PostConstruct;
  * weight schema and rewrites testcase types to UNIT / COMPOSITION.
  */
 @Component
+@Profile("!desktop")
 public class TestcaseSchemaMigrator {
 
     private static final String ASSERTION_KIND_STAGING_COLUMN = "assertion_kind_staging";

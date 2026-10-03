@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.config;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -9,6 +10,7 @@ import jakarta.annotation.PostConstruct;
  * Ensures scoring-weight columns exist on older databases.
  */
 @Component
+@Profile("!desktop")
 public class ScoringWeightSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

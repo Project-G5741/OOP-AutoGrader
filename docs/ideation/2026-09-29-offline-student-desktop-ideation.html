@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Offline student desktop client</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --ink: #1a1f1c;
+    --muted: #5a635c;
+    --line: #d8d4cb;
+    --accent: #0d6e5f;
+    --accent-soft: #e4f3ef;
+    --accent-text: #0a5448;
+    --warn-soft: #f8efe2;
+    --warn-text: #7a4e12;
+    --chip: #eef1ec;
+    --radius: 10px;
+    --measure: 70ch;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #e8f2ee 0%, transparent 55%),
+      radial-gradient(900px 400px at 100% 0%, #f0ebe3 0%, transparent 50%),
+      var(--bg);
+    line-height: 1.55;
+  }
+  .page { max-width: 920px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header.doc-header {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.6rem;
+    margin-bottom: 1.75rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent-text);
+    margin: 0 0 0.4rem;
+  }
+  h1 { margin: 0 0 0.75rem; font-size: 1.65rem; line-height: 1.25; font-weight: 700; }
+  .meta { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+  .meta li {
+    background: var(--chip);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .meta strong { color: var(--ink); font-weight: 600; }
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.75rem;
+  }
+  nav.toc h2 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc a { color: var(--accent-text); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.35rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  section h2 { margin: 0 0 0.85rem; font-size: 1.15rem; }
+  section h3 { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
+  .idea-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    margin: 1rem 0;
+    background: linear-gradient(180deg, #fafaf8 0%, var(--surface) 100%);
+  }
+  .idea-card h3 { margin-top: 0; }
+  .idea-card dl { margin: 0.5rem 0 0; display: grid; grid-template-columns: 7rem 1fr; gap: 0.35rem 0.75rem; font-size: 0.92rem; }
+  .idea-card dt { color: var(--muted); font-weight: 500; }
+  .idea-card dd { margin: 0; }
+  .jump-list { margin: 0 0 1rem; padding-left: 1.2rem; font-size: 0.92rem; }
+  .jump-list a { color: var(--accent-text); }
+  ul.compact { margin: 0.4rem 0; padding-left: 1.2rem; }
+  ul.compact li { margin: 0.35rem 0; }
+  table.rejects { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.rejects th, table.rejects td { border: 1px solid var(--line); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+  table.rejects th { background: var(--chip); }
+  .blocker-grid {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0.5rem 0 0;
+  }
+  .blocker {
+    background: var(--warn-soft);
+    border: 1px solid #e8d5b8;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.92rem;
+  }
+  .blocker strong { color: var(--warn-text); }
+  footer.composition-signal {
+    margin-top: 2rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  svg.diagram { max-width: 100%; height: auto; display: block; margin: 1rem 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="doc-header">
+    <p class="eyebrow">Ideation</p>
+    <h1>Offline student desktop client</h1>
+    <ul class="meta">
+      <li><strong>Date:</strong> <time datetime="2026-09-29">2026-09-29</time></li>
+      <li><strong>Topic:</strong> offline-student-desktop</li>
+      <li><strong>Focus:</strong> executable student dashboard — submit, view results, history; no password change; no internet required</li>
+      <li><strong>Mode:</strong> repo-grounded</li>
+    </ul>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#grounding">Grounding context</a></li>
+      <li><a href="#blockers">Critical blockers</a></li>
+      <li><a href="#axes">Topic axes</a></li>
+      <li><a href="#ideas">Ranked ideas</a></li>
+      <li><a href="#rejects">Rejection summary</a></li>
+    </ol>
+  </nav>
+
+  <section id="grounding">
+    <h2>Grounding context</h2>
+    <p>Today the student experience is a Vite React SPA (<code>StudentDashboard.jsx</code>) that talks to Spring Boot on <code>VITE_API_URL</code>. Upload grading is server-side: compile per challenge, load rubric from <code>LabRubricCache</code> (PostgreSQL), reflection + MMD + operational testcases via <code>GradingService</code> and an isolated <code>backend-1.0.0-worker.jar</code> JVM. History and lab lists come from <code>/api/submissions/*</code> and <code>GET /api/labs</code>. Auth is Google OAuth or IRN/password → JWT with session version checked against the database on each request.</p>
+    <p>An offline executable must reproduce enough of that pipeline locally while respecting term enrollment, lab visibility, deadlines, and attempt numbering that today live only on the server.</p>
+  </section>
+
+  <section id="blockers">
+    <h2>Critical blockers</h2>
+    <p>Beyond remote rubric storage, these gaps block a faithful “same product, no network” clone unless explicitly designed around.</p>
+    <div class="blocker-grid">
+      <div class="blocker"><strong>Grading engine footprint</strong> — Upload requires a JDK (<code>JavaCompilerService</code>), parallel compile workers, and often a separate worker JVM for operational testcases. A desktop bundle must ship or detect Java 17+ and the worker JAR, not just a static UI.</div>
+      <div class="blocker"><strong>Master data + OT graphs</strong> — Rubrics reference <code>master_data</code> (scope, relation types, etc.) and deep operational testcase invocation trees. A rubric export must include these or local grades diverge from the server.</div>
+      <div class="blocker"><strong>Policy gates on upload</strong> — <code>StudentTermAccessService.requireUploadAccess</code> enforces current term, enrollment, active account, lab in current quarter, <code>student_visible</code>, and <code>release_date</code>. Offline logic needs a frozen policy snapshot or students could submit when the web app would 403.</div>
+      <div class="blocker"><strong>Deadline and “official” score semantics</strong> — Server scoring for records uses qualifying submissions before lab deadline (Vietnam end-of-day). Offline attempts after deadline or with stale deadline data would not match lecturer grade overview.</div>
+      <div class="blocker"><strong>Attempt identity and sync</strong> — Attempt numbers are <code>MAX+1</code> in a single JDBC transaction on the server. Offline grading creates local attempts that must merge without collisions when the machine reconnects.</div>
+      <div class="blocker"><strong>Result detail assembly</strong> — Class/MMD/testcase tabs combine rubric, element results, compile-error sidecars, parsed snapshots under <code>SUBMISSION_BASE_DIR</code>, and student disclosure rules. Missing snapshot files already force fallbacks on the server; offline must generate equivalent local artifacts.</div>
+      <div class="blocker"><strong>Authentication without Google</strong> — Google sign-in is unusable offline. IRN/password still expects a live <code>/api/auth/login</code> and JWT whose <code>sv</code> claim is validated against PostgreSQL unless you add device-bound offline credentials (new security model).</div>
+      <div class="blocker"><strong>History source of truth</strong> — <code>my-history</code> and <code>my-labs</code> are aggregate SQL over all quarters. Pure offline history is only what was synced or created locally unless you embed a database replica.</div>
+      <div class="blocker"><strong>Plagiarism and peer comparison</strong> — Post-upload plagiarism compares git metadata and file hashes to other students in the same lab. That cannot run meaningfully offline without a peer corpus; skipping it changes lecturer-facing integrity signals.</div>
+      <div class="blocker"><strong>Rubric mutability</strong> — Lecturers edit structure and testcases; cache TTL is 30 minutes in production. A stale local rubric produces scores the server would reject or recalculate differently after sync.</div>
+      <div class="blocker"><strong>Packaging size and platforms</strong> — Shipping Spring Boot + PostgreSQL/SQLite + JDK guidance for Windows (primary student OS) is hundreds of MB and needs code signing, updates, and AV false positives.</div>
+      <div class="blocker"><strong>Security of exported rubrics</strong> — Student disclosure hides some lecturer fields, but local rubric bundles still increase leakage risk if the executable is reverse-engineered (expected answers in OT assertions).</div>
+    </div>
+  </section>
+
+  <section id="axes">
+    <h2>Topic axes</h2>
+    <ul class="compact">
+      <li>Local grading parity (compile, reflection, MMD, worker OT)</li>
+      <li>Policy and rubric snapshots (term, labs, deadlines, visibility)</li>
+      <li>Identity and session without cloud auth</li>
+      <li>Persistence, history, and upload sync</li>
+      <li>Desktop shell and distribution</li>
+    </ul>
+  </section>
+
+  <section id="ideas">
+    <h2>Ranked ideas</h2>
+    <ol class="jump-list">
+      <li><a href="#idea-1">Signed term pack + slim local grading CLI</a></li>
+      <li><a href="#idea-2">Hybrid offline grade, online sync queue</a></li>
+      <li><a href="#idea-3">Embedded local API (mini Spring + SQLite)</a></li>
+      <li><a href="#idea-4">Tauri/Electron shell over existing SPA + localhost backend</a></li>
+      <li><a href="#idea-5">Pre-login online “bootstrap” only</a></li>
+      <li><a href="#idea-6">Offline history viewer + online submit split</a></li>
+    </ol>
+
+    <article class="idea-card" id="idea-1">
+      <h3>1. Signed term pack + slim local grading CLI</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Lecturer or ops publishes a signed <em>term pack</em> (rubrics, master data, lab policy, optional OT graphs) per current quarter. Desktop app imports pack, runs extracted grading kernel + worker JAR against student uploads, stores attempts in SQLite. Sync uploads when online.</dd>
+        <dt>Axis</dt>
+        <dd>Policy and rubric snapshots</dd>
+        <dt>Basis</dt>
+        <dd><code>direct:</code> <code>LabRubricCache</code> and <code>requireUploadAccess</code> today assume live PostgreSQL; pack replaces DB reads for grading session.</dd>
+        <dt>Rationale</dt>
+        <dd>Separates “what to grade against” from “where grades are recorded,” directly addressing the rubric blocker without cloning the full cloud database.</dd>
+        <dt>Downsides</dt>
+        <dd>New export/signing pipeline; pack refresh when lecturers edit labs; must keep pack format in lockstep with schema migrators.</dd>
+        <dt>Confidence</dt>
+        <dd>72%</dd>
+        <dt>Complexity</dt>
+        <dd>High</dd>
+      </dl>
+      <svg class="diagram" viewBox="0 0 520 120" role="img" aria-label="Term pack flows into local grader then optional sync">
+        <rect x="10" y="40" width="100" height="44" rx="6" fill="#e4f3ef" stroke="#0d6e5f"/>
+        <text x="60" y="66" text-anchor="middle" font-size="11" fill="#0a5448">Term pack</text>
+        <path d="M110 62h50" stroke="#5a635c" marker-end="url(#arr)"/>
+        <rect x="160" y="40" width="120" height="44" rx="6" fill="#eef1ec" stroke="#d8d4cb"/>
+        <text x="220" y="66" text-anchor="middle" font-size="11">Local grade</text>
+        <path d="M280 62h50" stroke="#5a635c"/>
+        <rect x="330" y="40" width="100" height="44" rx="6" fill="#f8efe2" stroke="#e8d5b8"/>
+        <text x="380" y="66" text-anchor="middle" font-size="11" fill="#7a4e12">SQLite</text>
+        <path d="M430 62h40" stroke="#5a635c" stroke-dasharray="4 3"/>
+        <rect x="470" y="40" width="40" height="44" rx="6" fill="#ffffff" stroke="#d8d4cb"/>
+        <text x="490" y="66" text-anchor="middle" font-size="10">Cloud</text>
+        <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#5a635c"/></marker></defs>
+      </svg>
+    </article>
+
+    <article class="idea-card" id="idea-2">
+      <h3>2. Hybrid offline grade, online sync queue</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Same UI as web wrapped in desktop; grading runs locally using last-synced rubric; submissions sit in an outbox (zip + metadata) until connectivity returns, then POST to existing <code>/api/submissions/.../upload</code>. Server remains authoritative for attempt numbers and plagiarism.</dd>
+        <dt>Axis</dt>
+        <dd>Persistence, history, and upload sync</dd>
+        <dt>Basis</dt>
+        <dd><code>direct:</code> Upload pipeline already persists atomically on server; queue preserves API contract.</dd>
+        <dt>Rationale</dt>
+        <dd>Smallest change to lecturer/analytics surfaces; students see immediate local feedback while official record catches up online.</dd>
+        <dt>Downsides</dt>
+        <dd>Duplicate work if local and server grades differ after rubric change; queue conflicts need UX.</dd>
+        <dt>Confidence</dt>
+        <dd>78%</dd>
+        <dt>Complexity</dt>
+        <dd>Medium</dd>
+      </dl>
+    </article>
+
+    <article class="idea-card" id="idea-3">
+      <h3>3. Embedded local API (mini Spring + SQLite)</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Ship <code>app.jar</code> + worker + embedded SQLite seeded from sync; React build points <code>VITE_API_URL</code> to <code>127.0.0.1</code>. Reuse controllers/services with a “local mode” profile.</dd>
+        <dt>Axis</dt>
+        <dd>Local grading parity</dd>
+        <dt>Basis</dt>
+        <dd><code>direct:</code> Backend AGENTS.md documents full pipeline in one JVM + worker; highest behavioral fidelity.</dd>
+        <dt>Rationale</dt>
+        <dd>Minimizes reimplementation of MMD/OT/disclosure edge cases already handled in Java.</dd>
+        <dt>Downsides</dt>
+        <dd>Largest download; two PostgreSQL dialect assumptions to abstract; startup time and RAM on low-end laptops.</dd>
+        <dt>Confidence</dt>
+        <dd>65%</dd>
+        <dt>Complexity</dt>
+        <dd>High</dd>
+      </dl>
+    </article>
+
+    <article class="idea-card" id="idea-4">
+      <h3>4. Tauri/Electron shell over existing SPA + localhost backend</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Package current frontend dist with a launcher that starts bundled backend process and opens a webview. Password change UI omitted per product rule.</dd>
+        <dt>Axis</dt>
+        <dd>Desktop shell and distribution</dd>
+        <dt>Basis</dt>
+        <dd><code>reasoned:</code> Fastest path to “executable” if backend+DB problem is solved separately (ideas 1–3).</dd>
+        <dt>Rationale</dt>
+        <dd>Reuses almost all React student flows documented in <code>frontend/src/pages/AGENTS.md</code>.</dd>
+        <dt>Downsides</dt>
+        <dd>Does not by itself solve rubric or auth offline; still two processes to manage.</dd>
+        <dt>Confidence</dt>
+        <dd>85% as packaging layer only</dd>
+        <dt>Complexity</dt>
+        <dd>Low–Medium</dd>
+      </dl>
+    </article>
+
+    <article class="idea-card" id="idea-5">
+      <h3>5. Pre-login online “bootstrap” only</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Require one online session per week (or per lab release) to refresh JWT, term pack, and history delta; all submit/grade sessions afterward are offline until pack expires.</dd>
+        <dt>Axis</dt>
+        <dd>Identity and session without cloud auth</dd>
+        <dt>Basis</dt>
+        <dd><code>direct:</code> JWT <code>sv</code> session validity and Google OAuth assume periodic server contact (<code>jwt-session-version-force-logout</code> learning).</dd>
+        <dt>Rationale</dt>
+        <dd>Relaxes pure-offline auth while keeping most study time disconnected.</dd>
+        <dt>Downsides</dt>
+        <dd>Violates strict “no internet” if bootstrap window is missed; needs clear expiry UX.</dd>
+        <dt>Confidence</dt>
+        <dd>70%</dd>
+        <dt>Complexity</dt>
+        <dd>Medium</dd>
+      </dl>
+    </article>
+
+    <article class="idea-card" id="idea-6">
+      <h3>6. Offline history viewer + online submit split</h3>
+      <dl>
+        <dt>Description</dt>
+        <dd>Export read-only history JSON/SQLite for offline browsing; keep submit on web only.</dd>
+        <dt>Axis</dt>
+        <dd>Persistence, history, and upload sync</dd>
+        <dt>Basis</dt>
+        <dd><code>reasoned:</code> Reduces scope when full offline grade is deferred.</dd>
+        <dt>Rationale</dt>
+        <dd>Unblocks history in dormitories with poor connectivity without local rubric.</dd>
+        <dt>Downsides</dt>
+        <dd>Does not meet stated goal of offline submit + live results.</dd>
+        <dt>Confidence</dt>
+        <dd>90% technically, 20% product fit</dd>
+        <dt>Complexity</dt>
+        <dd>Low</dd>
+      </dl>
+    </article>
+  </section>
+
+  <section id="rejects">
+    <h2>Rejection summary</h2>
+    <table class="rejects">
+      <thead><tr><th>#</th><th>Idea</th><th>Reason rejected</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Static PWA of student UI only</td><td>No local JDK/worker/rubric — upload cannot grade.</td></tr>
+        <tr><td>2</td><td>Full PostgreSQL replica on laptop</td><td>Secrets, size, and lecturer data exposure; ops nightmare.</td></tr>
+        <tr><td>3</td><td>Reimplement grader in JavaScript</td><td>OT worker, reflection parser, and MMD parity would fork production logic.</td></tr>
+        <tr><td>4</td><td>Offline Google OAuth cache</td><td>Google tokens expire; domain policy still needs network.</td></tr>
+        <tr><td>5</td><td>Skip plagiarism locally but claim parity</td><td>Lecturer workflows assume server-side inspect within seconds of upload.</td></tr>
+        <tr><td>6</td><td>Idea 6 as primary product</td><td>User asked for offline submit and results, not read-only history.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="composition-signal">Composed <time datetime="2026-09-29">2026-09-29</time> by ce-ideate from user prompt: offline executable student dashboard with submit, results, history (no password change).</footer>
+</div>
+</body>
+</html>

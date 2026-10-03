@@ -14,6 +14,7 @@ import { authHeaders } from '../../utils/authHeaders';
 const HISTORY_PAGE_SIZE = 10;
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
 function roundedScore(value) {
   if (value === null || value === undefined) return null;
@@ -488,6 +489,9 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                     <SortableTableHeader label="Attempt" field="attempt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
                     <SortableTableHeader label="Score" field="score" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
                     <SortableTableHeader label="Submitted" field="submittedAt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
+                    {IS_DESKTOP_APP && (
+                      <th className="px-4 py-3 font-medium">Rubric pack</th>
+                    )}
                     <SortableTableHeader label="Status" field="status" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
                     <SortableTableHeader label="" sortable={false} className="px-4 py-3" />
                   </tr>
@@ -520,6 +524,11 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                           <td className="px-4 py-4 text-foreground-secondary">
                             {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : '--'}
                           </td>
+                          {IS_DESKTOP_APP && (
+                            <td className="max-w-[12rem] truncate px-4 py-4 text-xs text-foreground-muted" title={item.desktopPackVersion || ''}>
+                              {item.desktopPackVersion || '—'}
+                            </td>
+                          )}
                           <td className="px-4 py-4">
                             <StatusBadge status={status} />
                           </td>
@@ -531,7 +540,7 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
                         {/* Expanded Details */}
                         {isExpanded && (
                           <tr className="bg-surface-secondary bg-surface-secondary">
-                            <td colSpan={6} className="px-4 py-4">
+                            <td colSpan={IS_DESKTOP_APP ? 7 : 6} className="px-4 py-4">
                               <div className="space-y-4">
                                 {/* Challenge Results */}
                                 {item.challengeResults && item.challengeResults.length > 0 && (

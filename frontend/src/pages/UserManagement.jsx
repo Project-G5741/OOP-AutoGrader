@@ -282,7 +282,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setFormError('');
 
       if (modal === 'edit' && selected) {
-        const resp = await apiFetch(`${API_BASE}/api/users/${selected.id}`, {
+        const resp = await apiFetch(`${API_BASE}/api/users/updateUser/${selected.id}`, {
           method: 'PUT',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(requestBody),
@@ -349,7 +349,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     if (!selected) return;
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-      const resp = await apiFetch(`${API_BASE}/api/users/${selected.id}`, {
+      const resp = await apiFetch(`${API_BASE}/api/users/deleteUser/${selected.id}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });

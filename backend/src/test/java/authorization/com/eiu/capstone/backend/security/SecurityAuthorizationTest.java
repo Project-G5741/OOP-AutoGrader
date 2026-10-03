@@ -92,6 +92,19 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentDesktopPracticeBundle_is403ForLecturerOnly() throws Exception {
+        mockMvc.perform(get("/api/students/desktop-practice-bundle")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousDesktopPracticeBundle_is401() throws Exception {
+        mockMvc.perform(get("/api/students/desktop-practice-bundle"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void lecturerUpload_is403() throws Exception {
         mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
                         .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
@@ -125,17 +138,17 @@ class SecurityAuthorizationTest {
 
     @Test
     void anonymousPresence_is200() throws Exception {
-        mockMvc.perform(get("/api/presence")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/presence/count")).andExpect(status().isOk());
     }
 
     @Test
     void anonymousPresenceLeave_is401() throws Exception {
-        mockMvc.perform(delete("/api/presence")).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/presence/leave")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void studentLabList_isNot403() throws Exception {
-        mockMvc.perform(get("/api/labs").header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+        mockMvc.perform(get("/api/labs/list").header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
                 .andExpect(status().isOk());
     }
 

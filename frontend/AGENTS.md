@@ -27,9 +27,9 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Variable | Purpose |
 |---|---|
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `VITE_API_URL` | Backend base URL (default `http://localhost:8002`) |
+| `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
 
-`VITE_*` vars are baked in at build time. `VITE_GOOGLE_CLIENT_ID` is required for production builds; Vite dev falls back to the shared EIU client ID when unset.
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-quit` so the app closes — student must reopen manually), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, **Logout** uses the same `quitPracticeApp` bridge (`utils/desktopQuit.js`) as post-import close. Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — streams prebuilt runtime-only zip; lecturers distribute packs.
 
 ### Run
 
@@ -82,7 +82,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
@@ -93,8 +93,8 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
-- API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy")
-- Default `Footer` (AppShell) polls `GET /api/presence` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login.
+- API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy"). **Exception:** context `import` (desktop rubric pack import) may show the backend message for HTTP 400/409/422 so students see pack name/conflict reasons instead of "Server Busy"; network failure on import → "Practice backend is not running…" (not "Server Busy").
+- Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login.
 - `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard uses it for the fox mascot.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
@@ -102,6 +102,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 ## Verification
 
 - `npm run build` must succeed
+- `npm run build:desktop` (`--mode desktop`) outputs `dist-desktop/` for the offline student bundle (`App.desktop.jsx`, no Google client required)
 - Manual: login flow (Google + IRN), role dashboards, user CRUD, student upload via `DropZone`
 
 ## Child DOX Index

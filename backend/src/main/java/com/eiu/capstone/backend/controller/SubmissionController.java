@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.eiu.capstone.backend.DTO.StudentHistoryResponse;
 import com.eiu.capstone.backend.DTO.StudentLabSummaryDTO;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
+import com.eiu.capstone.backend.desktop.DesktopRuntimeState;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.grading.GradingOutcome;
@@ -80,6 +82,7 @@ public class SubmissionController {
     private final UploadPersistService uploadPersistService;
     private final ExecutorService persistExecutor;
     private final boolean timingLog;
+    private final DesktopRuntimeState desktopRuntimeState;
 
     public SubmissionController(JwtAuthHelper jwtAuthHelper,
                                  SubmissionStorageService submissionStorageService,
@@ -97,7 +100,8 @@ public class SubmissionController {
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
                                  @Qualifier("persistExecutor") ExecutorService persistExecutor,
-                                 @Value("${app.grading.timing-log:false}") boolean timingLog) {
+                                 @Value("${app.grading.timing-log:false}") boolean timingLog,
+                                 @Autowired(required = false) DesktopRuntimeState desktopRuntimeState) {
         this.jwtAuthHelper = jwtAuthHelper;
         this.submissionStorageService = submissionStorageService;
         this.labRepository = labRepository;
@@ -115,6 +119,7 @@ public class SubmissionController {
         this.uploadPersistService = uploadPersistService;
         this.persistExecutor = persistExecutor;
         this.timingLog = timingLog;
+        this.desktopRuntimeState = desktopRuntimeState;
     }
 
     @GetMapping("/my-labs")
@@ -157,6 +162,13 @@ public class SubmissionController {
                 studentTermAccessService.requireUploadAccess(principal.email(), labId);
         UserAccount userAccount = access.user();
         Lab lab = access.lab();
+        if (desktopRuntimeState != null && !desktopRuntimeState.isReady()) {
+            String detail = desktopRuntimeState.bootstrapError();
+            if (detail == null || detail.isBlank()) {
+                detail = "Practice rubric is not loaded. Import a Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack pack and restart.";
+            }
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, detail);
+        }
         String irn = resolveSubmitterIrn(principal, userAccount);
         long accessMs = System.currentTimeMillis() - accessStart;
 
@@ -186,6 +198,9 @@ public class SubmissionController {
             submission.setLab(lab);
             submission.setScore(BigDecimal.ZERO);
             submission.setSubmittedAt(TimeUtil.nowInVietnam());
+            if (desktopRuntimeState != null && desktopRuntimeState.loadedPackVersion() != null) {
+                submission.setDesktopPackVersion(desktopRuntimeState.loadedPackVersion());
+            }
 
             long gradeStart = System.currentTimeMillis();
             GradingOutcome gradingOutcome = gradingService.gradeSubmission(

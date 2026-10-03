@@ -6,13 +6,18 @@ export function authHeaders(extra = {}) {
   };
 }
 
+import { ROUTES } from './authRoutes';
+
+let sessionRedirectPending = false;
+
 /** Clear stored session and return to login (e.g. expired JWT after backend restart). */
 export function clearSessionAndRedirectToLogin() {
+  if (sessionRedirectPending) {
+    return;
+  }
+  sessionRedirectPending = true;
   sessionStorage.removeItem('accessToken');
   sessionStorage.removeItem('user');
   localStorage.removeItem('token');
-  const path = window.location.pathname;
-  if (path !== '/' && path !== '') {
-    window.location.assign('/');
-  }
+  window.location.assign(ROUTES.login);
 }

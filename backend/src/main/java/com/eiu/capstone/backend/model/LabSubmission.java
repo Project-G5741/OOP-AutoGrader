@@ -46,6 +46,10 @@ public class LabSubmission {
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;
 
+    /** Set in desktop profile only — rubric pack version that graded this attempt. */
+    @Column(name = "desktop_pack_version")
+    private String desktopPackVersion;
+
     public LabSubmission() {}
 
     @PrePersist
@@ -78,4 +82,7 @@ public class LabSubmission {
 
     public OffsetDateTime getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(OffsetDateTime submittedAt) { this.submittedAt = submittedAt; }
+
+    public String getDesktopPackVersion() { return desktopPackVersion; }
+    public void setDesktopPackVersion(String desktopPackVersion) { this.desktopPackVersion = desktopPackVersion; }
 }

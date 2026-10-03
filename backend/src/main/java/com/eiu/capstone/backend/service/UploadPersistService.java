@@ -54,7 +54,8 @@ public class UploadPersistService {
                 submission.getLab().getId(),
                 score,
                 submission.getSubmittedAt(),
-                challengeRows);
+                challengeRows,
+                submission.getDesktopPackVersion());
         submission.setAttemptNumber(written.attemptNumber());
         parsedSubmissionSnapshotStore.save(submission.getId(), outcome.computed().snapshotsByChallengeId);
         StudentLabProgress progress = new StudentLabProgress();

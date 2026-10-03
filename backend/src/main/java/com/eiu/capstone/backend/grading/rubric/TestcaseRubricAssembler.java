@@ -1,7 +1,6 @@
 package com.eiu.capstone.backend.grading.rubric;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -13,45 +12,19 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
-import com.eiu.capstone.backend.model.ClassEntity;
-import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
-import com.eiu.capstone.backend.model.Parameter;
-import com.eiu.capstone.backend.repository.ClassEntityRepository;
-import com.eiu.capstone.backend.repository.ConstructorRepository;
-import com.eiu.capstone.backend.repository.FieldRepository;
-import com.eiu.capstone.backend.repository.MethodRepository;
-import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @Component
 public class TestcaseRubricAssembler {
 
-    private final ClassEntityRepository classEntityRepository;
-    private final ConstructorRepository constructorRepository;
-    private final MethodRepository methodRepository;
-    private final FieldRepository fieldRepository;
-    private final ParameterRepository parameterRepository;
     private final TestcaseRubricService testcaseRubricService;
-    private final DryRunChallengeCatalogCache dryRunChallengeCatalogCache;
 
-    public TestcaseRubricAssembler(ClassEntityRepository classEntityRepository,
-                                   ConstructorRepository constructorRepository,
-                                   MethodRepository methodRepository,
-                                   FieldRepository fieldRepository,
-                                   ParameterRepository parameterRepository,
-                                   TestcaseRubricService testcaseRubricService,
-                                   DryRunChallengeCatalogCache dryRunChallengeCatalogCache) {
-        this.classEntityRepository = classEntityRepository;
-        this.constructorRepository = constructorRepository;
-        this.methodRepository = methodRepository;
-        this.fieldRepository = fieldRepository;
-        this.parameterRepository = parameterRepository;
+    public TestcaseRubricAssembler(TestcaseRubricService testcaseRubricService) {
         this.testcaseRubricService = testcaseRubricService;
-        this.dryRunChallengeCatalogCache = dryRunChallengeCatalogCache;
     }
 
     public TestcaseRubric assemble(UUID challengeId, TestcaseStructureDTO dto) {
@@ -64,7 +37,7 @@ public class TestcaseRubricAssembler {
      */
     public TestcaseRubric assemble(UUID labId, UUID challengeId, TestcaseStructureDTO dto) {
         testcaseRubricService.validatePayload(labId, challengeId, dto);
-        MemberMaps maps = loadMemberMaps(labId, challengeId);
+        RubricMemberMaps maps = testcaseRubricService.dryRunMemberMaps(labId, challengeId);
         UUID testcaseId = dto.id() != null ? dto.id() : UUID.randomUUID();
 
         List<InvocationStructureDTO> steps = TestcaseRubricService.resolvedInvocations(dto);
@@ -83,8 +56,8 @@ public class TestcaseRubricAssembler {
                             inst.id() != null ? inst.id() : UUID.randomUUID(),
                             inst.label(),
                             constructorId,
-                            maps.classNameByConstructorId.get(constructorId),
-                            maps.paramTypesByConstructorId.getOrDefault(constructorId, List.of()),
+                            maps.classNameByConstructorId().get(constructorId),
+                            maps.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                             inst.params() != null ? inst.params() : "[]");
                 })
                 .toList();
@@ -110,10 +83,10 @@ public class TestcaseRubricAssembler {
     }
 
     private AssertionRubric toAssertionRubric(AssertionStructureDTO dto,
-                                              MemberMaps maps,
+                                              RubricMemberMaps maps,
                                               InvocationRubric singular,
                                               Map<UUID, InvocationRubric> invocationById) {
-        Field field = dto.fieldId() != null ? maps.fieldById.get(dto.fieldId()) : null;
+        Field field = dto.fieldId() != null ? maps.fieldById().get(dto.fieldId()) : null;
         UUID invocationId = dto.invocationId() != null && invocationById.containsKey(dto.invocationId())
                 ? dto.invocationId()
                 : (singular != null ? singular.id() : null);
@@ -129,15 +102,15 @@ public class TestcaseRubricAssembler {
                 dto.orderIndex());
     }
 
-    private InvocationRubric toInvocationRubric(InvocationStructureDTO dto, MemberMaps maps) {
+    private InvocationRubric toInvocationRubric(InvocationStructureDTO dto, RubricMemberMaps maps) {
         UUID invocationId = dto.id() != null ? dto.id() : UUID.randomUUID();
         UUID dispatchClassId = dto.dispatchClassId();
-        String dispatchClassName = dispatchClassId != null ? maps.classNameByClassId.get(dispatchClassId) : null;
+        String dispatchClassName = dispatchClassId != null ? maps.classNameByClassId().get(dispatchClassId) : null;
         String instanceName = dto.instanceName() != null && !dto.instanceName().isBlank()
                 ? dto.instanceName().trim() : null;
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = dto.constructorId();
-            String className = maps.classNameByConstructorId.get(constructorId);
+            String className = maps.classNameByConstructorId().get(constructorId);
             return new InvocationRubric(
                     invocationId,
                     dto.invocationKind(),
@@ -145,7 +118,7 @@ public class TestcaseRubricAssembler {
                     null,
                     className,
                     null,
-                    maps.paramTypesByConstructorId.getOrDefault(constructorId, List.of()),
+                    maps.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
                     dto.params() != null ? dto.params() : "[]",
                     null,
                     null,
@@ -157,22 +130,22 @@ public class TestcaseRubricAssembler {
                     InvocationRubric.resultTypeNameForConstructor(className));
         }
         UUID methodId = dto.methodId();
-        Method method = maps.methodById.get(methodId);
+        Method method = maps.methodById().get(methodId);
         UUID receiverConstructorId = dto.receiverConstructorId();
         return new InvocationRubric(
                 invocationId,
                 dto.invocationKind(),
                 null,
                 methodId,
-                maps.classNameByMethodId.get(methodId),
+                maps.classNameByMethodId().get(methodId),
                 method != null ? method.getName() : null,
-                maps.paramTypesByMethodId.getOrDefault(methodId, List.of()),
+                maps.paramTypesByMethodId().getOrDefault(methodId, List.of()),
                 dto.params() != null ? dto.params() : "[]",
                 receiverConstructorId,
                 receiverConstructorId != null
-                        ? maps.classNameByConstructorId.get(receiverConstructorId) : null,
+                        ? maps.classNameByConstructorId().get(receiverConstructorId) : null,
                 receiverConstructorId != null
-                        ? maps.paramTypesByConstructorId.getOrDefault(receiverConstructorId, List.of())
+                        ? maps.paramTypesByConstructorId().getOrDefault(receiverConstructorId, List.of())
                         : List.of(),
                 dto.receiverParams() != null ? dto.receiverParams() : "[]",
                 instanceName,
@@ -180,60 +153,4 @@ public class TestcaseRubricAssembler {
                 dispatchClassName,
                 InvocationRubric.resultTypeNameForMethod(method));
     }
-
-    private MemberMaps loadMemberMaps(UUID labId, UUID challengeId) {
-        return dryRunChallengeCatalogCache.getMemberMaps(labId, challengeId, () -> loadMemberMapsUncached(challengeId));
-    }
-
-    private MemberMaps loadMemberMapsUncached(UUID challengeId) {
-        List<ClassEntity> classes = classEntityRepository.findByChallenge_Id(challengeId);
-        List<Constructor> constructors = classes.isEmpty() ? List.of()
-                : constructorRepository.findByClassEntityInWithDeclaration(classes);
-        List<Method> methods = classes.isEmpty() ? List.of()
-                : methodRepository.findByClassEntityInWithDeclaration(classes);
-        List<Field> fields = classes.isEmpty() ? List.of()
-                : fieldRepository.findByClassEntityInWithDeclaration(classes);
-        List<Parameter> methodParams = methods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(methods);
-        List<Parameter> constructorParams = constructors.isEmpty() ? List.of()
-                : parameterRepository.findByConstructorEntityIn(constructors);
-
-        Map<UUID, String> classNameByClassId = new HashMap<>();
-        for (ClassEntity cls : classes) {
-            classNameByClassId.put(cls.getId(), cls.getName());
-        }
-        Map<UUID, String> classNameByConstructorId = new HashMap<>();
-        for (Constructor constructor : constructors) {
-            classNameByConstructorId.put(
-                    constructor.getId(),
-                    classNameByClassId.get(constructor.getClassEntity().getId()));
-        }
-        Map<UUID, String> classNameByMethodId = new HashMap<>();
-        Map<UUID, Method> methodById = new HashMap<>();
-        for (Method method : methods) {
-            methodById.put(method.getId(), method);
-            classNameByMethodId.put(method.getId(), classNameByClassId.get(method.getClassEntity().getId()));
-        }
-        Map<UUID, Field> fieldById = new HashMap<>();
-        for (Field field : fields) {
-            fieldById.put(field.getId(), field);
-        }
-
-        return new MemberMaps(
-                classNameByClassId,
-                classNameByConstructorId,
-                RubricParameterMaps.byConstructor(constructorParams),
-                RubricParameterMaps.byMethod(methodParams),
-                classNameByMethodId,
-                methodById,
-                fieldById);
-    }
-
-    private record MemberMaps(
-            Map<UUID, String> classNameByClassId,
-            Map<UUID, String> classNameByConstructorId,
-            Map<UUID, List<String>> paramTypesByConstructorId,
-            Map<UUID, List<String>> paramTypesByMethodId,
-            Map<UUID, String> classNameByMethodId,
-            Map<UUID, Method> methodById,
-            Map<UUID, Field> fieldById) {}
 }

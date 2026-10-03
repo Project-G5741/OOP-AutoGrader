@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
+import { CalendarDays, Download, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
@@ -128,7 +128,7 @@ export default function TermManagement() {
   }, [terms, termFilter, termSearch, termSortOrder]);
 
   const loadTerms = useCallback(async () => {
-    const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, { headers: authHeaders() });
+    const response = await apiFetch(`${API_BASE}/api/lecturer/terms/list`, { headers: authHeaders() });
     if (!response.ok) {
       throw new Error(await readFriendlyApiError(response, 'read'));
     }
@@ -211,7 +211,7 @@ export default function TermManagement() {
     setCopySourcesLoading(true);
     setCopySourceLabs([]);
     try {
-      const response = await apiFetch(`${API_BASE}/api/labs`, { headers: authHeaders() });
+      const response = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
       if (!response.ok) {
         setCopySourceLabs([]);
         return;
@@ -243,7 +243,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await apiFetch(`${API_BASE}/api/lecturer/terms`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/create`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
@@ -333,6 +333,40 @@ export default function TermManagement() {
       showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (err) {
       const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownloadDesktopPack = async () => {
+    if (!selectedTerm?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/lecturer/terms/${selectedTerm.id}/desktop-pack`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'download'));
+      }
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const year = selectedTerm.yearLabel || '';
+      const q = selectedTerm.termNumber;
+      const fallback = year && q != null ? `Rubric_${year}_Q${q}.agpack` : 'practice-term.agpack';
+      const filename = match?.[1] || fallback;
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast({ message: 'Desktop practice pack downloaded.', type: 'success' });
+    } catch (err) {
+      const message = toFriendlyError(err, 'download');
       setError(message);
       showToast({ message, type: 'error' });
     } finally {
@@ -722,6 +756,16 @@ export default function TermManagement() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleDownloadDesktopPack}
+                    title="Encrypted rubric pack for offline student practice app"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download practice pack
+                  </button>
                   {!selectedTerm.current && (
                     <button
                       type="button"

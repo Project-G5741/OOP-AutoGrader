@@ -4,6 +4,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record LabRubricSnapshot(UUID labId, Map<Integer, ChallengeRubric> byChallengeNumber) {
 
     public Optional<ChallengeRubric> challenge(int challengeNumber) {

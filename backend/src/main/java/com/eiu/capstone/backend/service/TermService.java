@@ -409,11 +409,16 @@ public class TermService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found"));
     }
 
-    static String formatQuarterLabel(int termNumber) {
+    public static String formatQuarterLabel(int termNumber) {
         if (termNumber == 4) {
             return "Quarter 4 (Summer Quarter)";
         }
         return "Quarter " + termNumber;
+    }
+
+    public static String buildTermLabel(String yearLabel, int termNumber) {
+        String year = yearLabel == null ? "" : yearLabel.trim();
+        return year + " — " + formatQuarterLabel(termNumber);
     }
 
     public static String buildTermLabel(Term term) {
@@ -421,7 +426,7 @@ public class TermService {
             return null;
         }
         String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
-        return yearLabel + " — " + formatQuarterLabel(term.getTermNumber());
+        return buildTermLabel(yearLabel, term.getTermNumber());
     }
 
     private TermSummaryDTO toSummary(Term term) {
