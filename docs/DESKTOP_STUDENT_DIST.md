@@ -6,7 +6,7 @@ Windows x64 offline practice grader: one folder, embedded WebView2 window, local
 
 ```
 StudentPractice/
-  OOP-AutoGrader-Practice.exe   # WebView2 launcher
+  OOP-AutoGrader-Practice.exe   # thin Rust + WebView2 host
   backend.jar
   worker.jar
   runtime/jdk/                  # portable jlink JDK (compiler included; assemble builds this)
@@ -79,9 +79,9 @@ From repo root:
 .\scripts\assemble-student-desktop.ps1 -OutputDir "D:\dist\StudentPractice"
 ```
 
-Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and a **self-contained** WebView2 launcher when `dotnet` is available. Prints an on-disk size breakdown. Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8). Packs are not embedded — lecturers distribute `.agpack` separately.
+Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and the **Rust** WebView2 host (`desktop/launcher/practice-host/` via `cargo build --release`). Assemble **requires** `cargo` + MSVC Build Tools; it fails if the host EXE cannot be built. Prints an on-disk size breakdown (host EXE is ~1–2 MB; recent assemble ~120 MB extracted vs ~281 MB with the old self-contained .NET host). Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8). Packs are not embedded — lecturers distribute `.agpack` separately.
 
-Offline prerequisites: bundled `runtime/jdk` + self-contained EXE (no system Java/.NET). WebView2 Evergreen remains an OS dependency.
+Offline prerequisites: bundled `runtime/jdk` + thin host EXE (no system Java, no .NET runtime). WebView2 Evergreen remains an OS dependency. Maintainer tools: Rust stable + MSVC Build Tools for assemble; students need neither.
 
 ## API notes (desktop profile)
 

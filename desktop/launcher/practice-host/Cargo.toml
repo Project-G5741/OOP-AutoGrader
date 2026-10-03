@@ -1,0 +1,17 @@
+[package]
+name = "practice-host"
+version = "0.1.0"
+edition = "2021"
+description = "Thin WebView2 host for OOP AutoGrader offline practice"
+publish = false
+
+[[bin]]
+name = "OOP-AutoGrader-Practice"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tao = "0.34"
+ureq = { version = "2.12", default-features = false, features = ["json"] }
+wry = "0.53"

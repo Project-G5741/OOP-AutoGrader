@@ -10,10 +10,10 @@ Quick start
 Requirements
 - Windows 10/11 x64
 - Portable JDK under runtime\jdk\ (included when the folder was assembled with jlink)
-- Microsoft Edge WebView2 (usually already installed on Windows 11)
-- No separate Java or .NET install required for the EXE (self-contained launcher)
+- Microsoft Edge WebView2 Runtime / Evergreen (usually already installed on Windows 11)
+- No separate Java or .NET install required (thin practice host EXE + bundled JDK)
 
-If OOP-AutoGrader-Practice.exe does nothing, unzip a fresh copy from the website (all .dll files must sit next to the .exe), or run OOP-AutoGrader-Practice.bat and read the console. Check launcher-error.log in this folder for details.
+If OOP-AutoGrader-Practice.exe does nothing, unzip a fresh copy from the website, or run OOP-AutoGrader-Practice.bat and read the console. Check launcher-error.log in this folder for details.
 
 Updating rubrics
 - In the app: click Import rubric pack in the header, choose a file, wait until import finishes, then restart the app.

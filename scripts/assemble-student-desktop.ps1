@@ -184,21 +184,19 @@ if ($jdkHome) {
     Write-Warning "No JDK with jlink found (set JAVA_HOME). Practice folder will not include runtime\jdk."
 }
 
-$launcherProj = Join-Path $repoRoot "desktop\launcher\OOPAutoGraderPractice\OOPAutoGraderPractice.csproj"
-$launcherPublish = Join-Path $repoRoot "desktop\launcher\publish"
-if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    Write-Host "Publishing WebView2 launcher (self-contained)..."
-    if (Test-Path $launcherPublish) {
-        Remove-Item $launcherPublish -Recurse -Force
-    }
-    dotnet publish $launcherProj -c Release -r win-x64 --self-contained true -o $launcherPublish
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $launcherPublish "OOP-AutoGrader-Practice.exe"))) {
-        throw "dotnet publish failed for the practice launcher"
-    }
-    Copy-Item (Join-Path $launcherPublish "*") $OutputDir -Recurse -Force
-} else {
-    Write-Warning "dotnet SDK not found; only OOP-AutoGrader-Practice.bat was copied."
+$practiceHostManifest = Join-Path $repoRoot "desktop\launcher\practice-host\Cargo.toml"
+$practiceHostTarget = Join-Path $repoRoot "desktop\launcher\practice-host\target"
+$practiceHostExe = Join-Path $practiceHostTarget "release\OOP-AutoGrader-Practice.exe"
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    throw "cargo not found. Install Rust stable (https://rustup.rs) and MSVC Build Tools, then re-run assemble."
 }
+Write-Host "Building Rust practice host (cargo --release)..."
+# --target-dir pins output even when the shell exports a sandbox CARGO_TARGET_DIR.
+cargo build --release --manifest-path $practiceHostManifest --target-dir $practiceHostTarget
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $practiceHostExe)) {
+    throw "cargo build failed for the practice host (expected $practiceHostExe)"
+}
+Copy-Item $practiceHostExe (Join-Path $OutputDir "OOP-AutoGrader-Practice.exe") -Force
 
 New-Item -ItemType Directory -Force -Path $backendTarget | Out-Null
 if (Test-Path $webDownloadZip) {
@@ -230,14 +228,15 @@ Write-Host ("  worker.jar:                  {0}" -f $workerMb)
 Write-Host ("  runtime/jdk:                 {0}" -f $runtimeMb)
 Write-Host ("  ui/:                         {0}" -f $uiMb)
 Write-Host ("  OOP-AutoGrader-Practice.exe: {0}" -f $exeMb)
-Write-Host ("  launcher + other (approx):   {0}" -f $otherMb)
+Write-Host ("  host + other (approx):       {0}" -f $otherMb)
 Write-Host ("  TOTAL extracted (approx):   {0}" -f $launcherMb)
 Write-Host ("  zip compressed:              {0}" -f $zipMb)
 Write-Host ("  EXE present:                 {0}" -f (Test-Path (Join-Path $OutputDir "OOP-AutoGrader-Practice.exe")))
+Write-Host ("  baseline (self-contained .NET era): ~281 MB extracted")
 Write-Host "=========================================="
 Write-Host ""
 Write-Host "Assembled student desktop layout at $OutputDir"
 Write-Host "Web download zip: $webDownloadZip"
 Write-Host "Students: run OOP-AutoGrader-Practice.exe (preferred) or .bat"
-Write-Host "Offline: bundled runtime\jdk + self-contained EXE; WebView2 Evergreen required on Windows."
+Write-Host "Offline: bundled runtime\jdk + thin Rust WebView2 host; WebView2 Evergreen required on Windows (no .NET runtime)."
 Write-Host "Web download has no .agpack; lecturers distribute packs separately."
