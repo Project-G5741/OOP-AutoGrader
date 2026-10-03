@@ -188,6 +188,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const showHistory = view === 'history';
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [foxCoverEyes, setFoxCoverEyes] = useState(false);
 
   const [labs, setLabs] = useState([]);
   const [labSummariesById, setLabSummariesById] = useState({});
@@ -859,11 +860,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
-        headerAddon={!showHistory ? (
+        headerAddon={
           <div className="-my-2">
-            <StudentFoxMascot size={96} />
+            <StudentFoxMascot size={96} coverEyes={foxCoverEyes} />
           </div>
-        ) : null}
+        }
       >
         <div className="w-full">
           {!showHistory && inCurrentTerm && !IS_DESKTOP_APP && (
@@ -917,7 +918,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       {showChangePassword && (
         <ChangePasswordModal
           isOpen={showChangePassword}
-          onClose={() => setShowChangePassword(false)}
+          onClose={() => {
+            setFoxCoverEyes(false);
+            setShowChangePassword(false);
+          }}
+          onPasswordFocusChange={setFoxCoverEyes}
           user={user}
         />
       )}

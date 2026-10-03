@@ -12,7 +12,13 @@ const EMPTY_TOUCHED = {
   confirmPassword: false,
 };
 
-export default function ChangePasswordModal({ isOpen, onClose, user, token: propToken }) {
+export default function ChangePasswordModal({
+  isOpen,
+  onClose,
+  user,
+  token: propToken,
+  onPasswordFocusChange,
+}) {
   const showToast = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -26,7 +32,10 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
   const [touchedFields, setTouchedFields] = useState(EMPTY_TOUCHED);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      onPasswordFocusChange?.(false);
+      return;
+    }
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -37,7 +46,19 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
     setError('');
     setHasAttemptedSubmit(false);
     setTouchedFields(EMPTY_TOUCHED);
-  }, [isOpen]);
+  }, [isOpen, onPasswordFocusChange]);
+
+  const syncPasswordFocus = (container) => {
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      const focused =
+        Boolean(active) &&
+        container.contains(active) &&
+        active instanceof HTMLInputElement &&
+        active.dataset.changePasswordField === 'true';
+      onPasswordFocusChange?.(focused);
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -140,7 +161,17 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
           </button>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
+        <div
+          className="space-y-5 px-6 py-6"
+          onFocusCapture={(event) => {
+            if (event.target instanceof HTMLInputElement && event.target.dataset.changePasswordField === 'true') {
+              onPasswordFocusChange?.(true);
+            }
+          }}
+          onBlurCapture={(event) => {
+            syncPasswordFocus(event.currentTarget);
+          }}
+        >
           {error && (
             <div className="flex items-start gap-2 rounded-lg bg-error-bg p-3 text-sm text-error">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -157,6 +188,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                 <input
                   type={showCurrent ? 'text' : 'password'}
+                  data-change-password-field="true"
                   value={currentPassword}
                   onChange={(e) => {
                     setCurrentPassword(e.target.value);
@@ -189,6 +221,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
                 <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                 <input
                   type={showNew ? 'text' : 'password'}
+                  data-change-password-field="true"
                   value={newPassword}
                   onChange={(e) => {
                     setNewPassword(e.target.value);
@@ -222,6 +255,7 @@ export default function ChangePasswordModal({ isOpen, onClose, user, token: prop
               </label>
               <input
                 type="password"
+                data-change-password-field="true"
                 value={confirmPassword}
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);
