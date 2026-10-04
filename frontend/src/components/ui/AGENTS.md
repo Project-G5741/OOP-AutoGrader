@@ -34,7 +34,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload` — `{attemptNumber}` is a positive placeholder; the server assigns `MAX(attempt)+1`
 - After HTTP 200, `onUploadComplete` is awaited even if the JSON body fails to parse (attempt count must still advance)
-- Header: `Authorization: Bearer ${authToken || sessionStorage accessToken}`
+- Header: `Authorization: Bearer ${authToken || getAccessToken()}` (`localStorage` session)
 - Errors surfaced in-component (`uploadError`) and as an error **Toast** via `useToast()`; API failures use friendly messages from `apiError.js` (never raw backend diagnostics)
 
 ### Toast persist feedback

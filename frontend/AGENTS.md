@@ -38,9 +38,12 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ### Auth and session
 
-- No `AuthContext` — auth state lives in `App.jsx` `useState` + `sessionStorage`
-- Keys: `accessToken`, `user` (JSON with `roles` array) — both in `sessionStorage`; `readStoredUser` requires a token
+- No `AuthContext` — auth state lives in `App.jsx` + durable browser storage
+- Keys: `accessToken`, `user` (JSON with `roles` array) — both in `localStorage` (survives F5 / hard refresh); `readStoredUser` requires a non-expired token
+- One-time migrate: if only `sessionStorage` still has those keys, they are copied to `localStorage` and removed from `sessionStorage`
 - Legacy `localStorage.token` cleared on logout only (not written)
+- Expired JWT (`exp` in the past) clears storage and counts as logged out; revoked sessions still hard-cut on presence/API **401**
+- Web entry (`main.jsx`) must not statically import `App.desktop.jsx` — that module’s top-level session seed would overwrite a real JWT with `desktop-local` on every reload
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
 - Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login.
 - `GoogleOAuthProvider` wraps the app in `App.jsx`

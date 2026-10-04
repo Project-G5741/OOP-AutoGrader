@@ -1,23 +1,21 @@
+import { ROUTES, clearAuthSession, getAccessToken } from './authRoutes';
+
 export function authHeaders(extra = {}) {
-  const token = sessionStorage.getItem('accessToken');
+  const token = getAccessToken();
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...extra,
   };
 }
 
-import { ROUTES } from './authRoutes';
-
 let sessionRedirectPending = false;
 
-/** Clear stored session and return to login (e.g. expired JWT after backend restart). */
+/** Clear stored session and return to login (e.g. expired or revoked JWT). */
 export function clearSessionAndRedirectToLogin() {
   if (sessionRedirectPending) {
     return;
   }
   sessionRedirectPending = true;
-  sessionStorage.removeItem('accessToken');
-  sessionStorage.removeItem('user');
-  localStorage.removeItem('token');
+  clearAuthSession();
   window.location.assign(ROUTES.login);
 }

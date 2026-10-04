@@ -12,6 +12,7 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
+import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
@@ -363,7 +364,7 @@ export default function StudentUI({
             buttonText="Select Project"
             labId={selectedLabId}
             attemptNumber={nextAttemptNumber}
-            authToken={sessionStorage.getItem('accessToken')}
+            authToken={getAccessToken()}
             onUploadComplete={onUploadComplete}
           />
         </div>

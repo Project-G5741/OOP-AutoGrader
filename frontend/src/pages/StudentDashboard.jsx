@@ -9,7 +9,7 @@ import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import { useToast } from '../components/ui/Toast';
-import { isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
+import { getAccessToken, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -444,7 +444,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [studentId, setSessionResultsByLab]);
 
   const fetchLabSummaries = useCallback(async () => {
-    const token = sessionStorage.getItem('accessToken');
+    const token = getAccessToken();
     if (!token) {
       setLabSummariesById({});
       return;

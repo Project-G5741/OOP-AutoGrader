@@ -27,7 +27,7 @@ export async function fetchPresenceCount() {
   return typeof body.count === 'number' ? body.count : null;
 }
 
-/** Call while the JWT is still in sessionStorage. */
+/** Call while the JWT is still in auth storage. */
 export function leavePresence() {
   if (IS_DESKTOP_APP) {
     return;

@@ -3,6 +3,7 @@ import { X, Eye, EyeOff, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getChangePasswordErrors, isFormValid } from '../../utils/validation';
 import { apiFetch } from '../../utils/apiFetch';
 import { readFriendlyAuthError, toFriendlyError } from '../../utils/apiError';
+import { getAccessToken } from '../../utils/authRoutes';
 import ModalOverlay from '../ui/ModalOverlay';
 import { useToast } from '../ui/Toast';
 
@@ -94,7 +95,7 @@ export default function ChangePasswordModal({
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-      const token = propToken || sessionStorage.getItem('accessToken');
+      const token = propToken || getAccessToken();
 
       if (!token) {
         const message = 'No authentication token found. Please login again.';
