@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 //! Thin Rust + WebView2 practice host (replaces self-contained .NET launcher).
 
 mod backend;
@@ -38,16 +39,28 @@ fn main() {
 
 fn run() -> Result<(), Box<dyn Error>> {
     let install_dir = install_dir_from_exe();
-    let mut backend = Backend::start(&install_dir)?;
-    backend.wait_until_healthy()?;
 
+    // Show a real HWND before starting Java. A GUI-subsystem host with no
+    // visible window is Efficiency-Mode throttled on Windows 11, which roughly
+    // doubles/triples Spring bootstrap time. Console builds avoided that only
+    // because the terminal window appeared immediately.
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
     let window = WindowBuilder::new()
-        .with_title("OOP AutoGrader — Practice")
+        .with_title("OOP AutoGrader — Starting…")
         .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
+        .with_visible(true)
         .build(&event_loop)?;
+    force_window_interactive(&window);
+
+    let mut backend = Backend::start(&install_dir)?;
+    if let Err(err) = backend.wait_until_healthy() {
+        backend.stop();
+        return Err(err.into());
+    }
+
+    window.set_title("OOP AutoGrader — Practice");
 
     let ipc_handler = move |req: Request<String>| {
         if is_practice_quit(req.body()) {
@@ -114,6 +127,34 @@ fn install_dir_from_exe() -> PathBuf {
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
 }
+
+/// Make the HWND visible/foreground before the blocking Java health wait so the
+/// process tree is not treated as a background workload.
+#[cfg(windows)]
+fn force_window_interactive(window: &tao::window::Window) {
+    use tao::platform::windows::WindowExtWindows;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn ShowWindow(hwnd: *mut std::ffi::c_void, cmd: i32) -> i32;
+        fn UpdateWindow(hwnd: *mut std::ffi::c_void) -> i32;
+        fn SetForegroundWindow(hwnd: *mut std::ffi::c_void) -> i32;
+    }
+
+    const SW_SHOW: i32 = 5;
+    let hwnd = window.hwnd() as *mut std::ffi::c_void;
+    if hwnd.is_null() {
+        return;
+    }
+    unsafe {
+        ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
+        SetForegroundWindow(hwnd);
+    }
+}
+
+#[cfg(not(windows))]
+fn force_window_interactive(_window: &tao::window::Window) {}
 
 #[cfg(windows)]
 fn show_fatal(message: &str) {

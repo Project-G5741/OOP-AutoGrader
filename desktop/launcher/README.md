@@ -18,10 +18,12 @@ Requires **WebView2 Runtime** (Evergreen; preinstalled on most Windows 10/11) an
 
 ## Runtime behavior
 
+- Release EXE uses the Windows GUI subsystem (no console on double-click).
+- Shows the host window immediately ("Starting…") **before** launching Java so Windows does not Efficiency-Mode throttle the backend during bootstrap.
 - Sets `APP_DESKTOP_HOME` to the executable directory.
 - Starts `java -jar backend.jar` with `SPRING_PROFILES_ACTIVE=desktop` (no console window / taskbar entry for the Java process).
 - Polls `GET /api/desktop/status` on port **18002** until `bootstrapComplete` (2-minute bound).
-- Opens a single WebView2 window at `http://127.0.0.1:18002/` (no external browser).
+- Loads the practice UI in the same WebView2 window at `http://127.0.0.1:18002/` (no external browser).
 - Stops the Java process tree when the window closes or the UI posts `practice-quit`.
 
 See `docs/DESKTOP_STUDENT_DIST.md` and `scripts/assemble-student-desktop.ps1`.
