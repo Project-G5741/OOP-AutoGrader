@@ -169,7 +169,11 @@ if (-not (Test-Path $workerJar)) {
 $shippedBackendJar = Join-Path $OutputDir "backend.jar"
 Copy-Item $desktopBackendJar $shippedBackendJar -Force
 Copy-Item $workerJar (Join-Path $OutputDir "worker.jar") -Force
-Copy-Item $frontendDist (Join-Path $OutputDir "ui\dist-desktop") -Recurse -Force
+$uiDest = Join-Path $OutputDir "ui\dist-desktop"
+if (Test-Path $uiDest) {
+    Remove-Item -LiteralPath $uiDest -Recurse -Force
+}
+Copy-Item $frontendDist $uiDest -Recurse -Force
 
 $launcherSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\OOP-AutoGrader-Practice.bat"
 $readmeSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\README.txt"

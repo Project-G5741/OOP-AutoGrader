@@ -63,7 +63,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** in the avatar menu (`hideHistory`); student shell may hide **Home** when out of term (`hideHome`).
+Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** in the avatar menu (`hideHistory`); student shell may hide **Home** when out of term (`hideHome`). Desktop practice build hides **Change Password** (`hideChangePassword`) — local synthetic session has no password change API.
 
 ### API endpoints used from pages
 

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
 
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
+
 export default function Header({
   onLogout,
   user,
@@ -12,12 +14,14 @@ export default function Header({
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  hideChangePassword = false,
   headerAddon = null,
   headerUserSlot = null,
 }) {
   const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
+  const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
 
   useEffect(() => {
     if (!openMenu) return undefined;
@@ -131,9 +135,11 @@ export default function Header({
                       <Clock className="h-4 w-4" /> History
                     </button>
                     )}
+                    {showChangePassword && (
                     <button onClick={() => handleMenu('changePassword')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Lock className="h-4 w-4" /> Change Password
                     </button>
+                    )}
                   </div>
                 </div>
               )}
