@@ -128,7 +128,7 @@ export async function readFriendlyApiError(response, context = 'read') {
   }
 
   if (
-    (response.status === 400 || response.status === 422 || response.status === 409)
+    (response.status === 400 || response.status === 413 || response.status === 422 || response.status === 409)
     && backendMessage
     && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'import')
   ) {

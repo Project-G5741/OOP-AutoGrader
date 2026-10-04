@@ -2,6 +2,11 @@ spring:
   config:
     activate:
       on-profile: desktop
+  servlet:
+    multipart:
+      # Quarter .agpack files are multi-MB; keep desktop aligned with base application.yml.
+      max-file-size: 50MB
+      max-request-size: 50MB
   main:
     lazy-initialization: true
   jmx:

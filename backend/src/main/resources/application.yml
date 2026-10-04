@@ -1,6 +1,11 @@
 spring:
   config:
     import: optional:dotenv:.env
+  servlet:
+    multipart:
+      # Practice packs and student project folders routinely exceed Boot's 1MB default.
+      max-file-size: 50MB
+      max-request-size: 50MB
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
