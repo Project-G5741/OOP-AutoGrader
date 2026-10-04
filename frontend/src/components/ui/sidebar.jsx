@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PanelLeft } from 'lucide-react';
 import { cn } from './cn';
 
@@ -119,13 +120,13 @@ export function Sidebar({
   }
 
   if (isMobile) {
-    return (
+    const mobileLayer = (
       <>
         {openMobile && (
           <button
             type="button"
             aria-label="Close lab list"
-            className="fixed inset-0 z-40 bg-background/60 md:hidden"
+            className="fixed inset-0 z-[100] bg-background/60 md:hidden"
             onClick={() => setOpenMobile(false)}
           />
         )}
@@ -134,7 +135,7 @@ export function Sidebar({
           data-mobile="true"
           data-side={side}
           className={cn(
-            'fixed inset-y-0 z-50 flex w-[var(--sidebar-width-mobile)] flex-col border-border bg-surface text-foreground shadow-lg transition-transform duration-200 ease-linear md:hidden',
+            'fixed inset-y-0 z-[101] flex w-[var(--sidebar-width-mobile)] max-w-[min(18rem,calc(100vw-3rem))] flex-col border-border bg-surface pt-[env(safe-area-inset-top)] text-foreground shadow-lg transition-transform duration-200 ease-linear md:hidden',
             side === 'left' ? 'left-0 border-r' : 'right-0 border-l',
             openMobile ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full',
             className,
@@ -145,6 +146,11 @@ export function Sidebar({
         </aside>
       </>
     );
+
+    if (typeof document !== 'undefined') {
+      return createPortal(mobileLayer, document.body);
+    }
+    return mobileLayer;
   }
 
   return (

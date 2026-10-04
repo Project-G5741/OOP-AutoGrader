@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, Loader2, Play, Plus, Save, Trash2 } from 'lucide-react';
 import { authHeaders } from '../../../utils/authHeaders';
 import { apiFetch } from '../../../utils/apiFetch';
@@ -6,19 +6,48 @@ import { readFriendlyApiError, toFriendlyError } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
 import CompositionTestcaseScript from './CompositionTestcaseScript';
 import UnitTestcaseWorksheet from './UnitTestcaseWorksheet';
-import { DryRunResultCard, DryRunStatusIcon } from './DryRunResultCard';
+import { DryRunResultCard } from './DryRunResultCard';
 import {
   buildMemberCatalog,
   emptyTestcase,
   FIELD_CLASS,
   hydrateTestcase,
   isComposition,
+  lecturerTestcaseShortLabels,
   normalizeTestcaseForApi,
   switchTestcaseType,
   validateTestcaseForDryRun,
 } from './testcaseAuthoring';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+
+const TESTCASE_LIST_WIDTH_DEFAULT = 260;
+const TESTCASE_LIST_WIDTH_MIN = 180;
+const TESTCASE_LIST_WIDTH_MAX = 520;
+const TESTCASE_EDITOR_MIN = 280;
+
+function testcaseListRowClass(isSelected, isRunning, tcResult) {
+  const base = 'group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors';
+  if (isRunning) {
+    return isSelected
+      ? `${base} bg-primary-light text-foreground`
+      : `${base} text-foreground-secondary hover:bg-surface-secondary hover:text-foreground`;
+  }
+  if (tcResult?.result === 'PASS') {
+    return `${base} bg-success-bg text-success-text ${
+      isSelected ? 'ring-2 ring-inset ring-success/50' : 'hover:brightness-[0.98]'
+    }`;
+  }
+  if (tcResult) {
+    return `${base} bg-error-bg text-error-text ${
+      isSelected ? 'ring-2 ring-inset ring-error/50' : 'hover:brightness-[0.98]'
+    }`;
+  }
+  if (isSelected) {
+    return `${base} bg-primary-light text-foreground`;
+  }
+  return `${base} text-foreground-secondary hover:bg-surface-secondary hover:text-foreground`;
+}
 
 function refStorageKey(labId, challengeId) {
   return `ref-java:${labId}:${challengeId}`;
@@ -41,6 +70,9 @@ export default function TestcasesPanel({
   const [referenceSources, setReferenceSources] = useState([]);
   const [dryRunResults, setDryRunResults] = useState({});
   const [warnStructure, setWarnStructure] = useState(false);
+  const [listWidth, setListWidth] = useState(TESTCASE_LIST_WIDTH_DEFAULT);
+  const splitContainerRef = useRef(null);
+  const listResizeRef = useRef(null);
 
   const isDirty = useMemo(
     () => JSON.stringify(testcases) !== snapshot,
@@ -72,6 +104,11 @@ export default function TestcasesPanel({
   const catalog = useMemo(
     () => buildMemberCatalog(challenge, relationTypeOptions, declaringTypeOptions),
     [challenge, relationTypeOptions, declaringTypeOptions],
+  );
+
+  const testcaseShortLabels = useMemo(
+    () => lecturerTestcaseShortLabels(testcases),
+    [testcases],
   );
 
   const dryRunPayloadSources = useMemo(
@@ -270,6 +307,37 @@ export default function TestcasesPanel({
     setSelectedId(tc.id);
   };
 
+  const handleListResizePointerDown = (event) => {
+    event.preventDefault();
+    const containerWidth = splitContainerRef.current?.offsetWidth ?? 0;
+    listResizeRef.current = {
+      startX: event.clientX,
+      startWidth: listWidth,
+      containerWidth,
+    };
+    const onPointerMove = (moveEvent) => {
+      const drag = listResizeRef.current;
+      if (!drag) return;
+      const delta = moveEvent.clientX - drag.startX;
+      const maxWidth = drag.containerWidth > 0
+        ? Math.min(TESTCASE_LIST_WIDTH_MAX, drag.containerWidth - TESTCASE_EDITOR_MIN)
+        : TESTCASE_LIST_WIDTH_MAX;
+      const next = Math.min(maxWidth, Math.max(TESTCASE_LIST_WIDTH_MIN, drag.startWidth + delta));
+      setListWidth(next);
+    };
+    const onPointerUp = () => {
+      listResizeRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
   if (!challenge) {
     return (
       <div className="flex h-full min-h-[24rem] items-center justify-center rounded-xl border border-dashed border-border text-foreground-secondary">
@@ -332,18 +400,45 @@ export default function TestcasesPanel({
         ) : testcases.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-foreground-secondary">No testcases yet.</p>
         ) : (
-          <div className="grid min-h-[22rem] min-w-0 lg:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]">
-            <aside className="border-b border-border-subtle p-2 lg:border-b-0 lg:border-r lg:border-border-subtle">
-              {(dryRunSummary.pass > 0 || dryRunSummary.fail > 0) && (
-                <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 px-2 text-[11px] text-foreground-muted">
+          <div
+            ref={splitContainerRef}
+            className="flex min-h-[22rem] min-w-0 flex-col lg:flex-row"
+          >
+            <aside
+              className="w-full shrink-0 border-b border-border-subtle p-2 lg:border-b-0 lg:[width:var(--tc-list-w)]"
+              style={{ '--tc-list-w': `${listWidth}px` }}
+            >
+              {(dryRunSummary.pass > 0 || dryRunSummary.fail > 0 || dryRunSummary.notRun > 0) && (
+                <div className="mb-3 flex flex-wrap gap-2 px-2">
                   {dryRunSummary.pass > 0 && (
-                    <span className="text-success-text">{dryRunSummary.pass} passed</span>
+                    <span className="inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border border-success/30 bg-success-bg px-2.5 py-1.5 text-center">
+                      <span className="text-lg font-bold tabular-nums leading-none text-success-text">
+                        {dryRunSummary.pass}
+                      </span>
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-success-text">
+                        Passed
+                      </span>
+                    </span>
                   )}
                   {dryRunSummary.fail > 0 && (
-                    <span className="text-error-text">{dryRunSummary.fail} failed</span>
+                    <span className="inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border border-error/30 bg-error-bg px-2.5 py-1.5 text-center">
+                      <span className="text-lg font-bold tabular-nums leading-none text-error-text">
+                        {dryRunSummary.fail}
+                      </span>
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-error-text">
+                        Failed
+                      </span>
+                    </span>
                   )}
                   {dryRunSummary.notRun > 0 && (
-                    <span>{dryRunSummary.notRun} not run</span>
+                    <span className="inline-flex min-w-[4.5rem] flex-col items-center rounded-lg border border-border bg-surface-secondary px-2.5 py-1.5 text-center">
+                      <span className="text-lg font-bold tabular-nums leading-none text-foreground-secondary">
+                        {dryRunSummary.notRun}
+                      </span>
+                      <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">
+                        Not run
+                      </span>
+                    </span>
                   )}
                 </div>
               )}
@@ -352,24 +447,49 @@ export default function TestcasesPanel({
                   const isSelected = selectedId === tc.id;
                   const tcResult = dryRunResults[tc.id];
                   const isRunning = runningId === tc.id;
+                  const onStatusRow = !isRunning && Boolean(tcResult);
+                  const rowAriaLabel = tcResult
+                    ? `${tc.name} — ${tcResult.result === 'PASS' ? 'passed' : 'failed'}`
+                    : tc.name;
                   return (
                     <li key={tc.id}>
                       <button
                         type="button"
                         onClick={() => selectTestcase(tc.id)}
-                        className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                          isSelected
-                            ? 'bg-primary-light text-foreground'
-                            : 'text-foreground-secondary hover:bg-surface-secondary hover:text-foreground'
-                        }`}
+                        className={testcaseListRowClass(isSelected, isRunning, tcResult)}
+                        aria-label={rowAriaLabel}
                       >
-                        <DryRunStatusIcon result={tcResult} running={isRunning} />
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums tracking-tight ${
+                            onStatusRow
+                              ? 'bg-white/50 text-inherit dark:bg-black/20'
+                              : 'bg-surface-tertiary text-foreground-secondary'
+                          }`}
+                          title={tc.hidden ? 'Other testcase (hidden from students)' : 'Example testcase'}
+                        >
+                          {testcaseShortLabels.get(tc.id)}
+                        </span>
                         <span className="min-w-0 flex-1 truncate font-medium">{tc.name}</span>
-                        <span className="shrink-0 rounded bg-surface-secondary px-1.5 text-[10px] uppercase tracking-wide text-foreground-muted">
+                        {isRunning && (
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-label="Running" />
+                        )}
+                        <span
+                          className={`shrink-0 rounded px-1.5 text-[10px] uppercase tracking-wide ${
+                            onStatusRow
+                              ? 'bg-white/50 text-inherit dark:bg-black/20'
+                              : 'bg-surface-secondary text-foreground-muted'
+                          }`}
+                        >
                           {isComposition(tc) ? 'Composition' : 'Unit'}
                         </span>
                         {tc.hidden && (
-                          <span className="shrink-0 rounded bg-foreground-muted/80 px-1.5 text-[10px] uppercase tracking-wide text-foreground">
+                          <span
+                            className={`shrink-0 rounded px-1.5 text-[10px] uppercase tracking-wide ${
+                              onStatusRow
+                                ? 'bg-white/60 text-inherit dark:bg-black/25'
+                                : 'bg-foreground-muted/80 text-foreground'
+                            }`}
+                          >
                             hidden
                           </span>
                         )}
@@ -380,14 +500,36 @@ export default function TestcasesPanel({
               </ul>
             </aside>
 
-            <div className="flex min-w-0 max-h-[min(70vh,42rem)] flex-col p-4">
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize testcase list"
+              onPointerDown={handleListResizePointerDown}
+              className="relative hidden w-0 shrink-0 lg:block"
+            >
+              <div
+                className="absolute inset-y-0 -left-1.5 z-10 w-3 cursor-col-resize touch-none"
+                title="Drag to resize"
+              />
+              <div className="absolute inset-y-0 -left-px w-px bg-border-subtle" />
+            </div>
+
+            <div className="flex min-h-0 min-w-0 max-h-[min(70vh,42rem)] flex-1 flex-col p-4">
               {selectedTestcase ? (
                 <div key={selectedTestcase.id} className="flex min-h-0 min-w-0 flex-1 flex-col animate-panel-in">
                   <div className="min-w-0 shrink-0 space-y-3 border-b border-border pb-3 dark:border-border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1 space-y-3">
                         <label className="block text-[10px] font-semibold uppercase tracking-wide text-foreground-secondary">
-                          Name
+                          <span className="flex items-center gap-2">
+                            Name
+                            <span
+                              className="rounded bg-surface-tertiary px-1.5 py-0.5 font-mono text-[10px] font-bold normal-case tracking-tight text-foreground"
+                              title={selectedTestcase.hidden ? 'Other testcase (hidden from students)' : 'Example testcase'}
+                            >
+                              {testcaseShortLabels.get(selectedTestcase.id)}
+                            </span>
+                          </span>
                           <input
                             type="text"
                             value={selectedTestcase.name ?? ''}
