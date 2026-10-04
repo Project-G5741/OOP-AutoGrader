@@ -1,38 +1,33 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Download, Laptop } from 'lucide-react';
-import { authHeaders } from '../../utils/authHeaders';
-import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
+import { toFriendlyError } from '../../utils/apiError';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 export default function StudentOfflinePracticeDownload({ onToast }) {
-  const [downloading, setDownloading] = useState(false);
-
-  const handleDownload = async () => {
-    if (downloading) return;
-    setDownloading(true);
+  const handleDownload = () => {
     try {
-      const response = await fetch(`${API_BASE}/api/students/desktop-practice-bundle`, {
-        headers: authHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error(await readFriendlyApiError(response, 'download'));
+      const token = sessionStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Please sign in again to download.');
       }
-      const disposition = response.headers.get('Content-Disposition') || '';
-      const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match?.[1] || 'OOP-AutoGrader-Practice.zip';
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      // Hand the transfer to the browser so students see native download progress.
+      // Query-token auth is allowed only for this GET (see JwtAuthenticationFilter).
+      const url =
+        `${API_BASE}/api/students/desktop-practice-bundle` +
+        `?access_token=${encodeURIComponent(token)}`;
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
-      onToast?.({ message: 'Offline practice folder downloaded. Unzip and run OOP-AutoGrader-Practice.exe.', type: 'success' });
+      link.remove();
+      onToast?.({
+        message: 'Download started in your browser. Check Downloads for progress.',
+        type: 'success',
+      });
     } catch (err) {
       onToast?.({ message: toFriendlyError(err, 'download'), type: 'error' });
-    } finally {
-      setDownloading(false);
     }
   };
 
@@ -54,11 +49,10 @@ export default function StudentOfflinePracticeDownload({ onToast }) {
         <button
           type="button"
           onClick={handleDownload}
-          disabled={downloading}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
         >
           <Download className="h-4 w-4" aria-hidden />
-          {downloading ? 'Downloading…' : 'Download practice folder'}
+          Download practice folder
         </button>
       </div>
     </div>

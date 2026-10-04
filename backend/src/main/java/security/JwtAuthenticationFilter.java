@@ -34,13 +34,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.sessionValidityService = sessionValidityService;
     }
 
+    /**
+     * Query-param JWT is allowed only for the student practice-folder download so the browser
+     * can own the transfer (native progress UI). Authorization header still wins when both are sent.
+     */
+    private static final String DESKTOP_PRACTICE_BUNDLE_PATH = "/api/students/desktop-practice-bundle";
+    private static final String ACCESS_TOKEN_QUERY = "access_token";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
+        String rawToken = resolveBearerOrDownloadQueryToken(request);
+        if (rawToken != null) {
             try {
-                Claims claims = jwtService.parseToken(header.substring(7));
+                Claims claims = jwtService.parseToken(rawToken);
                 String email = claims.get("email", String.class);
                 Integer sessionVersion = readSessionVersion(claims);
                 if (sessionValidityService.isSessionValid(email, sessionVersion)) {
@@ -62,6 +69,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private static String resolveBearerOrDownloadQueryToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            String bearer = header.substring(7).trim();
+            if (!bearer.isEmpty()) {
+                return bearer;
+            }
+        }
+        if (!isDesktopPracticeBundleGet(request)) {
+            return null;
+        }
+        String queryToken = request.getParameter(ACCESS_TOKEN_QUERY);
+        if (queryToken == null || queryToken.isBlank()) {
+            return null;
+        }
+        return queryToken.trim();
+    }
+
+    private static boolean isDesktopPracticeBundleGet(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+        return DESKTOP_PRACTICE_BUNDLE_PATH.equals(path);
     }
 
     private static Integer readSessionVersion(Claims claims) {

@@ -6,7 +6,7 @@ Windows x64 offline practice grader: one folder, embedded WebView2 window, local
 
 ```
 StudentPractice/
-  OOP-AutoGrader-Practice.exe   # WebView2 launcher
+  OOP-AutoGrader-Practice.exe   # thin Rust + WebView2 host
   backend.jar
   worker.jar
   runtime/jdk/                  # portable jlink JDK (compiler included; assemble builds this)
@@ -46,7 +46,7 @@ In the practice EXE, **Logout** closes the window and stops the local backend (s
 ## Student: run practice
 
 1. Unzip the practice folder (website download or lecturer bundle).
-2. Start **`OOP-AutoGrader-Practice.exe`** (or `.bat` if the exe is missing). The EXE starts the local backend with no console window; the `.bat` fallback keeps a visible Java console by design.
+2. Start **`OOP-AutoGrader-Practice.exe`** (or `.bat` if the exe is missing). The EXE opens a practice window immediately (no console), starts the local backend, then loads the UI when ready; the `.bat` fallback keeps a visible Java console by design.
 3. Use the local dashboard like the web submit view. Scores stay on your PC only.
 
 ## Student: import or update rubrics
@@ -76,17 +76,17 @@ Build UI: `cd frontend && npm run build:desktop` (output `frontend/dist-desktop/
 From repo root:
 
 ```powershell
-.\scripts\assemble-student-desktop.ps1 -OutputDir "D:\dist\StudentPractice"
+.\scripts\assemble-student-desktop.ps1 -OutputDir "backend\target\StudentPractice"
 ```
 
-Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and a **self-contained** WebView2 launcher when `dotnet` is available. Prints an on-disk size breakdown. Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8). Packs are not embedded — lecturers distribute `.agpack` separately.
+Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop` (replaces any existing `ui/dist-desktop` so hashed assets cannot go stale), a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and the **Rust** WebView2 host (`desktop/launcher/practice-host/` via `cargo build --release`). Assemble **requires** `cargo` + MSVC Build Tools; it fails if the host EXE cannot be built. Before zipping, it strips local-run leftovers (`*.WebView2` user-data dirs and anything under `data/`) and drops jlink staging under `backend/target`. Re-run `npm run build:desktop` before assemble when UI source changed — assemble only auto-builds UI if `frontend/dist-desktop` is missing. Prints an on-disk size breakdown (host EXE is ~1–2 MB; recent assemble ~120 MB extracted vs ~281 MB with the old self-contained .NET host). Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8) — student **Download practice folder** streams that file. Packs are not embedded — lecturers distribute `.agpack` separately.
 
-Offline prerequisites: bundled `runtime/jdk` + self-contained EXE (no system Java/.NET). WebView2 Evergreen remains an OS dependency.
+Offline prerequisites: bundled `runtime/jdk` + thin host EXE (no system Java, no .NET runtime). WebView2 Evergreen remains an OS dependency. Maintainer tools: Rust stable + MSVC Build Tools for assemble; students need neither.
 
 ## API notes (desktop profile)
 
 - No login; fixed local student `practice@desktop.local`.
 - `GET /api/desktop/status` — `ready`, `packMissing`, `error`, `bootstrapComplete` (launcher and UI wait for `bootstrapComplete` before showing labs / settled banner).
-- `POST /api/desktop/packs/import` — multipart `file`, optional `confirmReplace=true` for lab name conflicts; stages under `rubric/`, **materializes** into H2, writes fingerprint; UI then forces close via **Okay** so the student reopens for a settled labs view.
+- `POST /api/desktop/packs/import` — multipart `file` (up to **50MB**), optional `confirmReplace=true` for lab name conflicts; stages under `rubric/`, **materializes** into H2, writes fingerprint; UI then forces close via **Okay** so the student reopens for a settled labs view. Oversized files return **413** with a clear message (not a generic 500).
 - Grading uses local `worker.jar` with `DESKTOP_WORKER_JAVA` pointing at bundled `runtime/jdk/bin/java.exe` when present. Operational testcases are **not** container-sandboxed; they use the same isolated worker JVM as dev.
 - H2 under `data/`; `LabStructureService` bulk deletes use portable SQL (no PostgreSQL-only CTE deletes).

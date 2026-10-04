@@ -838,7 +838,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(inCurrentTerm ? ROUTES.studentDashboard : ROUTES.studentHistory);
     } else if (cmd === 'history') {
       navigate(ROUTES.studentHistory);
-    } else if (cmd === 'changePassword') {
+    } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
     }
   };
@@ -856,6 +856,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         onLogout={onLogout}
         onCommand={handleCommand}
         hideHome={!inCurrentTerm}
+        hideChangePassword={IS_DESKTOP_APP}
         className="!mt-0"
         headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
           <DesktopRubricPackImport onToast={showToast} />
@@ -915,7 +916,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         </div>
       </AppShell>
 
-      {showChangePassword && (
+      {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal
           isOpen={showChangePassword}
           onClose={() => {

@@ -39,7 +39,8 @@ import static org.mockito.Mockito.when;
         SecurityAuthorizationProbes.LecturerProbeController.class,
         SecurityAuthorizationProbes.SubmissionProbeController.class,
         SecurityAuthorizationProbes.LabProbeController.class,
-        SecurityAuthorizationProbes.PresenceProbeController.class
+        SecurityAuthorizationProbes.PresenceProbeController.class,
+        SecurityAuthorizationProbes.StudentProbeController.class
 })
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtService.class, RootController.class})
 @TestPropertySource(properties = {
@@ -105,6 +106,20 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentDesktopPracticeBundle_acceptsAccessTokenQuery() throws Exception {
+        mockMvc.perform(get("/api/students/desktop-practice-bundle")
+                        .param("access_token", rawToken(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void accessTokenQuery_isIgnoredOutsideDesktopPracticeBundle() throws Exception {
+        mockMvc.perform(get("/api/submissions/my-history")
+                        .param("access_token", rawToken(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void lecturerUpload_is403() throws Exception {
         mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
                         .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
@@ -160,7 +175,10 @@ class SecurityAuthorizationTest {
     }
 
     private String bearer(List<String> roles) {
-        String token = jwtService.createToken("user@eiu.edu.vn", "User", "eiu.edu.vn", roles, "IRN001");
-        return "Bearer " + token;
+        return "Bearer " + rawToken(roles);
+    }
+
+    private String rawToken(List<String> roles) {
+        return jwtService.createToken("user@eiu.edu.vn", "User", "eiu.edu.vn", roles, "IRN001");
     }
 }

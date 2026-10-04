@@ -1,4 +1,2 @@
-# dotnet build / publish output (assemble recreates publish/)
-**/bin/
-**/obj/
-publish/
+# Cargo build output (assemble copies release EXE only)
+practice-host/target/

@@ -14,6 +14,7 @@ export default function AppShell({
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  hideChangePassword = false,
   headerAddon = null,
   headerUserSlot = null,
 }) {
@@ -29,6 +30,7 @@ export default function AppShell({
             hideUserMenu={hideUserMenu}
             hideHome={hideHome}
             hideHistory={hideHistory}
+            hideChangePassword={hideChangePassword}
             headerAddon={headerAddon}
             headerUserSlot={headerUserSlot}
           />
