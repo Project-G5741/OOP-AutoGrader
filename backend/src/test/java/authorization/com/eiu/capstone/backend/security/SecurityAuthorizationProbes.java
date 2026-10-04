@@ -70,4 +70,13 @@ final class SecurityAuthorizationProbes {
             return "ok";
         }
     }
+
+    @RestController
+    @RequestMapping("/api/students")
+    static class StudentProbeController {
+        @GetMapping("/desktop-practice-bundle")
+        String desktopPracticeBundle() {
+            return "ok";
+        }
+    }
 }

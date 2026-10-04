@@ -61,7 +61,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`), `applicatio
 | `LecturerAnalyticsController` | `/api/lecturer` | Overview, grade overview, `GET /plagiarism/flags`, `GET /labs/{labId}/plagiarism`, `GET /labs/{labId}/students/{studentId}/plagiarism` |
 | `MasterDataController` | `/api/master-data` | `GET /by-category?category=` — master data lookup |
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
-| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/…` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no runtime env; image packaging in `DEPLOY_RENDER.md`) |
+| `StudentAccessController` | `/api/students` | `GET /term-access`; `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/…` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no runtime env; image packaging in `DEPLOY_RENDER.md`). SPA hands this GET to the browser via `?access_token=` (JWT filter accepts that query only on this path) so native download progress shows. |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
 | `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
@@ -71,7 +71,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 
 ### Security posture
 
-- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser and validates claim `sv` via `SessionValidityService` (missing user or version mismatch → unauthenticated); matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403
+- Default-deny Spring Security: `JwtAuthenticationFilter` is the only JWT parser and validates claim `sv` via `SessionValidityService` (missing user or version mismatch → unauthenticated); matcher table authorizes by path + method; anonymous → 401, authenticated without role → 403. Bearer `Authorization` is the default; `GET /api/students/desktop-practice-bundle` may also authenticate via `access_token` query (browser-owned download only — ignored on every other path)
 - No role hierarchy. `TEACHER` in a token maps to `LECTURER`. Dual-role accounts need both `STUDENT` and `LECTURER` authorities
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
 - **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
