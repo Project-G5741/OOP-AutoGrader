@@ -37,13 +37,15 @@ function isFutureDate(value) {
 
 function SectionHeader({ icon: Icon, title, description }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex items-center gap-3">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary">
         <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
       </div>
       <div className="min-w-0">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        <p className="mt-0.5 text-sm text-foreground-secondary">{description}</p>
+        {description && (
+          <p className="mt-0.5 text-sm text-foreground-secondary">{description}</p>
+        )}
       </div>
     </div>
   );
@@ -140,7 +142,6 @@ export default function LabSchedulingPanel({
           <SectionHeader
             icon={savedStudentVisible ? Eye : EyeOff}
             title="Student access"
-            description="Stakeholder view: enrolled students see this lab on their dashboard and can upload when access is live."
           />
 
           <div className="rounded-xl border border-border bg-surface-secondary/40 p-4">
@@ -206,7 +207,6 @@ export default function LabSchedulingPanel({
           <SectionHeader
             icon={CalendarClock}
             title="Submission deadline"
-            description="Business rule: after the deadline, students may still practice, but lecturer rosters and grade views freeze at the cutoff."
           />
 
           <div className="space-y-3">

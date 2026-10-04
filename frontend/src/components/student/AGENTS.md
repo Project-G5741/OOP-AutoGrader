@@ -11,8 +11,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
 | `StudentUI.jsx` | Student lab upload + result tabs; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
-| `StudentNotificationBell.jsx` | Bell + dropdown; click marks a notification read (sessionStorage `oop-student-notif-read`); does not change the selected lab; red dot clears when every current item is read |
-| `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right on the submit dashboard only |
+| `StudentNotificationBell.jsx` | Bell + dropdown; opening the bell marks all current notifications read (sessionStorage `oop-student-notif-read`); list items are informational and do not change the selected lab; red dot clears when every current item is read |
+| `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right in `AppShell` header on submit dashboard and history; `coverEyes` shows the **bashful** reaction (paws over eyes) with a short squash animation |
 | `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; same-name lab conflict modal (`confirmReplace`); term import clears lab packs on disk; after success a blocking **Okay**-only dialog closes the app via `quitPracticeApp` (no submit until reopen); friendly errors via `apiError` context `import` |
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
 | `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: runtime-only practice zip download (no pack; not rendered in desktop build) |
@@ -32,6 +32,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 ### ChangePasswordModal
 
+- Optional `onPasswordFocusChange(boolean)` — fired when focus enters or leaves the three password inputs (student dashboard wires this to `StudentFoxMascot` `coverEyes`)
 - Opened via `Header` `editProfile` command
 - Shared across `StudentDashboard` and `LecturerDashboard`
 - Client validation via `frontend/src/utils/validation.js` (password length, confirm match, new ≠ current)
@@ -71,7 +72,8 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ### Testcase tab rows (`StudentUI.jsx`)
 
-- The Operation Test tab lists Example vs Other (hidden) testcase cards. Students never see Unit or Composition labels. Hidden rows show pass/fail only.
+- The Operation Test tab lists Example vs Other (hidden) testcase cards. Students never see Unit or Composition labels. Hidden row order: pass/fail icon, `Testcase N`, colored PASS/FAIL/ERROR, lock icon — no rubric testcase names or I/O. More than 60 hidden testcases paginate (60 per page, responsive grid up to 4 columns).
+- Example testcase **Your Output** for invocation errors is plain language (`formatStudentTestcaseMessage`; backend `InvocationErrorMessage` on new grades), not raw JVM text like `Car.<init>(int,java.lang.String)`.
 
 ### Dashboard stats row (`StudentUI.jsx`)
 

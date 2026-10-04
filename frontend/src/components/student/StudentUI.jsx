@@ -15,7 +15,7 @@ import DropZone from '../ui/DropZone';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
-import { formatMmdRelationType, firstCompileErrorLine } from '../../utils/formatters';
+import { formatMmdRelationType, firstCompileErrorLine, formatStudentTestcaseMessage } from '../../utils/formatters';
 import {
   consolidateStudentClassMembers,
   consolidateStudentMmdAttributes,
@@ -31,11 +31,13 @@ import StudentNotificationBell from './StudentNotificationBell';
 
 const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
 const TAB_ORDER = Object.keys(TAB_LABELS);
+const HIDDEN_TESTCASES_PAGE_SIZE = 60;
 
 /** Strip trailing line endings from captured stdout for display only; grading is unchanged. */
 function formatIoDisplay(value) {
   if (value == null || value === '') return '—';
-  return String(value).replace(/(?:\\r\\n|\\n|\\r|[\r\n])+$/g, '');
+  const text = String(value).replace(/(?:\\r\\n|\\n|\\r|[\r\n])+$/g, '');
+  return formatStudentTestcaseMessage(text);
 }
 
 // Component con dùng chung
@@ -203,11 +205,13 @@ export default function StudentUI({
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
   const [expandedClassName, setExpandedClassName] = useState(null);
+  const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
     setExpandedTC(null);
     setExpandedClassName(null);
+    setHiddenTestcasesPage(0);
   }, [selectedChallengeId]);
 
   const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
@@ -238,6 +242,26 @@ export default function StudentUI({
       setActiveTab(visibleTabs[0]);
     }
   }, [visibleTabs, activeTab]);
+
+  const hiddenTestcases = useMemo(
+    () => (testCases || []).filter((tc) => tc.isHidden),
+    [testCases],
+  );
+  const hiddenTestcasesTotalPages = Math.max(
+    1,
+    Math.ceil(hiddenTestcases.length / HIDDEN_TESTCASES_PAGE_SIZE),
+  );
+  const showHiddenTestcasesPagination = hiddenTestcases.length > HIDDEN_TESTCASES_PAGE_SIZE;
+  const paginatedHiddenTestcases = useMemo(() => {
+    const start = hiddenTestcasesPage * HIDDEN_TESTCASES_PAGE_SIZE;
+    return hiddenTestcases.slice(start, start + HIDDEN_TESTCASES_PAGE_SIZE);
+  }, [hiddenTestcases, hiddenTestcasesPage]);
+
+  useEffect(() => {
+    if (hiddenTestcasesPage >= hiddenTestcasesTotalPages) {
+      setHiddenTestcasesPage(Math.max(0, hiddenTestcasesTotalPages - 1));
+    }
+  }, [hiddenTestcasesPage, hiddenTestcasesTotalPages]);
 
   const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-primary text-primary' : 'border-transparent text-foreground-muted hover:text-foreground-secondary'}`;
 
@@ -299,7 +323,7 @@ export default function StudentUI({
 
   const testCasesData = testCases || [];
   const visibleTestcases = testCasesData.filter((tc) => !tc.isHidden);
-  const hiddenTestcases = testCasesData.filter((tc) => tc.isHidden);
+
   const testScore = bundleScore(currentBundle, 'testcase', { ok: 0, total: 0, pct: 0 });
 
   const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
@@ -811,29 +835,61 @@ export default function StudentUI({
                         <div>
                           <p className="text-xs font-bold text-foreground-muted uppercase tracking-wider mb-3">
                             Other Testcases
-                            <span className="ml-2 font-normal text-foreground-disabled normal-case">(input &amp; output hidden)</span>
                           </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {hiddenTestcases.map((tc) => (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {paginatedHiddenTestcases.map((tc, index) => {
+                              const testcaseNumber =
+                                hiddenTestcasesPage * HIDDEN_TESTCASES_PAGE_SIZE + index + 1;
+                              return (
                               <div
                                 key={tc.id}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
+                                className={`flex min-w-0 items-center gap-2 px-2.5 py-2 rounded-xl ${
                                   tc.passed
                                     ? 'bg-success-bg'
                                     : 'bg-error-bg'
                                 }`}
                               >
                                 <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
-                                <span className="text-sm text-foreground-secondary font-medium">{tc.name}</span>
-                                <div className="ml-auto flex items-center gap-2">
-                                  <Lock className="w-3.5 h-3.5 text-foreground-disabled" />
-                                  <span className={`text-xs font-bold ${tc.passed ? 'text-success-text' : 'text-error-text'}`}>
-                                    {testcaseStatusLabel(tc)}
-                                  </span>
-                                </div>
+                                <span className="min-w-0 flex-1 truncate text-xs text-foreground-secondary font-medium">
+                                  Testcase {testcaseNumber}
+                                </span>
+                                <span
+                                  className={`text-xs font-bold shrink-0 ${
+                                    tc.passed ? 'text-success-text' : 'text-error-text'
+                                  }`}
+                                >
+                                  {testcaseStatusLabel(tc)}
+                                </span>
+                                <Lock className="w-3.5 h-3.5 shrink-0 text-foreground-disabled" aria-hidden />
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
+                          {showHiddenTestcasesPagination && (
+                            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm text-foreground-secondary">
+                                Page {hiddenTestcasesPage + 1} of {hiddenTestcasesTotalPages}
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  disabled={hiddenTestcasesPage <= 0}
+                                  onClick={() => setHiddenTestcasesPage((p) => Math.max(0, p - 1))}
+                                  className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                                >
+                                  Previous
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={hiddenTestcasesPage >= hiddenTestcasesTotalPages - 1}
+                                  onClick={() => setHiddenTestcasesPage((p) => p + 1)}
+                                  className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

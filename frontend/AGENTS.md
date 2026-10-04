@@ -95,7 +95,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy"). **Exception:** context `import` (desktop rubric pack import) may show the backend message for HTTP 400/409/422 so students see pack name/conflict reasons instead of "Server Busy"; network failure on import → "Practice backend is not running…" (not "Server Busy").
 - Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login.
-- `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard uses it for the fox mascot.
+- `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard and history routes use it for the fox mascot.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 
