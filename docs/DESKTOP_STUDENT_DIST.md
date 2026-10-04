@@ -76,10 +76,10 @@ Build UI: `cd frontend && npm run build:desktop` (output `frontend/dist-desktop/
 From repo root:
 
 ```powershell
-.\scripts\assemble-student-desktop.ps1 -OutputDir "D:\dist\StudentPractice"
+.\scripts\assemble-student-desktop.ps1 -OutputDir "backend\target\StudentPractice"
 ```
 
-Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and the **Rust** WebView2 host (`desktop/launcher/practice-host/` via `cargo build --release`). Assemble **requires** `cargo` + MSVC Build Tools; it fails if the host EXE cannot be built. Prints an on-disk size breakdown (host EXE is ~1–2 MB; recent assemble ~120 MB extracted vs ~281 MB with the old self-contained .NET host). Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8). Packs are not embedded — lecturers distribute `.agpack` separately.
+Copies desktop-trimmed `backend.jar` (`backend-1.0.0-desktop.jar` from `mvn -Pdesktop-dist package`), `worker.jar`, `frontend/dist-desktop`, a **jlink** `runtime/jdk` (when `JAVA_HOME` / `jlink` is available), and the **Rust** WebView2 host (`desktop/launcher/practice-host/` via `cargo build --release`). Assemble **requires** `cargo` + MSVC Build Tools; it fails if the host EXE cannot be built. Before zipping, it strips local-run leftovers (`*.WebView2` user-data dirs and anything under `data/`) and drops jlink staging under `backend/target`. Prints an on-disk size breakdown (host EXE is ~1–2 MB; recent assemble ~120 MB extracted vs ~281 MB with the old self-contained .NET host). Always writes the web download zip to `backend/target/OOP-AutoGrader-Practice.zip` (not committed; Render packaging in `backend/DEPLOY_RENDER.md` step 8) — student **Download practice folder** streams that file. Packs are not embedded — lecturers distribute `.agpack` separately.
 
 Offline prerequisites: bundled `runtime/jdk` + thin host EXE (no system Java, no .NET runtime). WebView2 Evergreen remains an OS dependency. Maintainer tools: Rust stable + MSVC Build Tools for assemble; students need neither.
 

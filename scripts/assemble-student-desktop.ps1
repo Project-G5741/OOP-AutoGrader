@@ -198,6 +198,28 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $practiceHostExe)) {
 }
 Copy-Item $practiceHostExe (Join-Path $OutputDir "OOP-AutoGrader-Practice.exe") -Force
 
+# Strip local-run leftovers so a reused OutputDir never ships WebView2 caches or H2 DB files.
+Get-ChildItem -LiteralPath $OutputDir -Force -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like "*.WebView2" } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+$dataDir = Join-Path $OutputDir "data"
+if (Test-Path $dataDir) {
+    Get-ChildItem -LiteralPath $dataDir -Force -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force
+} else {
+    New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+}
+
+# Drop jlink staging leftovers under backend/target (not part of the student layout).
+foreach ($staging in @(
+        (Join-Path $backendTarget "desktop-jlink-extract"),
+        (Join-Path $backendTarget "backend-desktop-for-jdeps.zip")
+    )) {
+    if (Test-Path $staging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $backendTarget | Out-Null
 if (Test-Path $webDownloadZip) {
     Remove-Item $webDownloadZip -Force
