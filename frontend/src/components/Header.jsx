@@ -45,18 +45,18 @@ export default function Header({
   };
 
   return (
-    <header className="w-full rounded-2xl border border-border bg-surface px-4 py-3 shadow-sm sm:px-6">
-      <div className="relative flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button onClick={handleLogoClick} className="flex items-center gap-3">
+    <header className="w-full rounded-2xl border border-border bg-surface px-3 py-2.5 shadow-sm sm:px-6 sm:py-3">
+      <div className="relative flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <button onClick={handleLogoClick} className="flex min-w-0 items-center gap-2 sm:gap-3">
             <AppLogo variant="header" />
             <div className="flex min-w-0 flex-col justify-center">
-              <span className="truncate text-sm font-semibold uppercase tracking-[0.15em] text-primary sm:max-w-none sm:tracking-[0.25em]">{brand.appName}</span>
+              <span className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-primary sm:text-sm sm:tracking-[0.25em]">{brand.appName}</span>
             </div>
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1 sm:gap-2">
           {headerUserSlot ?? (user?.fullName && (
             <span className="hidden rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-sm text-foreground sm:inline-block">
               {user.fullName}
@@ -72,7 +72,8 @@ export default function Header({
           </button>
           <button
             onClick={toggleTheme}
-            className="flex min-h-11 min-w-0 items-center justify-between rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:min-w-[120px]"
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:h-auto sm:w-auto sm:min-h-11 sm:min-w-[120px] sm:justify-between sm:px-3 sm:py-2"
             type="button"
           >
             <span className="flex items-center gap-2">
@@ -89,7 +90,7 @@ export default function Header({
                 aria-expanded={openMenu}
                 aria-haspopup="menu"
                 onClick={() => setOpenMenu((v) => !v)}
-                className="ml-2 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-foreground-secondary shadow-sm transition-colors hover:bg-surface-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-foreground-secondary shadow-sm transition-colors hover:bg-surface-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <User className="h-5 w-5" />
               </button>

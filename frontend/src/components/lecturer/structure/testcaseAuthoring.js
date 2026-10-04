@@ -167,6 +167,22 @@ export function hydrateTestcase(tc) {
   };
 }
 
+/** Example (!hidden) → `Ex`; hidden (student “Other”) → `TS1`, `TS2`, … in list order. */
+export function lecturerTestcaseShortLabels(testcases) {
+  const labels = new Map();
+  let hiddenIndex = 0;
+  (testcases || []).forEach((tc) => {
+    if (!tc?.id) return;
+    if (!tc.hidden) {
+      labels.set(tc.id, 'Ex');
+    } else {
+      hiddenIndex += 1;
+      labels.set(tc.id, `TS${hiddenIndex}`);
+    }
+  });
+  return labels;
+}
+
 export function switchTestcaseType(tc, nextType) {
   const type = nextType === 'COMPOSITION' ? 'COMPOSITION' : 'UNIT';
   if (tc.testcaseType === type) return tc;

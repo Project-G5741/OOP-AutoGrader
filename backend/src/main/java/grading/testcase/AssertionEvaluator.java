@@ -201,7 +201,8 @@ public class AssertionEvaluator {
             return Optional.of(failure(assertion, null, "Invocation timed out"));
         }
         if (outcome.kind() == InvocationOutcomeKind.ERROR) {
-            return Optional.of(failure(assertion, null, outcome.errorMessage()));
+            String message = outcome.errorMessage() != null ? outcome.errorMessage() : "Invocation failed";
+            return Optional.of(failure(assertion, null, InvocationErrorMessage.forStudent(message)));
         }
         return Optional.empty();
     }

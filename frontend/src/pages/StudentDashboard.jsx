@@ -861,8 +861,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
         headerAddon={
-          <div className="-my-2">
-            <StudentFoxMascot size={96} coverEyes={foxCoverEyes} />
+          <div className="-my-1 shrink-0">
+            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} />
           </div>
         }
       >

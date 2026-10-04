@@ -43,14 +43,30 @@ export default function StudentNotificationBell({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
 
-  function handleNotificationClick(notification) {
+  function markAllRead() {
+    if (notifications.length === 0) return;
     setReadIds((prev) => {
-      if (prev.has(notification.id)) return prev;
+      let changed = false;
       const next = new Set(prev);
-      next.add(notification.id);
+      for (const item of notifications) {
+        if (!next.has(item.id)) {
+          next.add(item.id);
+          changed = true;
+        }
+      }
+      if (!changed) return prev;
       persistReadIds(next);
       return next;
     });
+  }
+
+  function handleBellClick() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    markAllRead();
+    setOpen(true);
   }
 
   return (
@@ -59,10 +75,10 @@ export default function StudentNotificationBell({
         type="button"
         aria-label={hasUnread ? 'Notifications — new items' : 'Notifications'}
         aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleBellClick}
         className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface-secondary text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <Bell className="h-5 w-5" strokeWidth={2} />
+        <Bell className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         {hasUnread && (
           <span
             className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-surface-secondary"
@@ -91,14 +107,12 @@ export default function StudentNotificationBell({
                 const read = readIds.has(item.id);
                 return (
                   <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => handleNotificationClick(item)}
-                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition-colors hover:opacity-90 ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : ''}`}
+                    <div
+                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : ''}`}
                     >
                       <p className="text-sm font-medium text-foreground">{item.title}</p>
                       <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">{item.message}</p>
-                    </button>
+                    </div>
                   </li>
                 );
               })

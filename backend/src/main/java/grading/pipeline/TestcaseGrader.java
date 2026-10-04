@@ -29,6 +29,7 @@ import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
+import com.eiu.capstone.backend.grading.testcase.InvocationErrorMessage;
 import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -168,9 +169,8 @@ public class TestcaseGrader {
             if (outcome != null && (outcome.kind() == InvocationOutcomeKind.TIMED_OUT
                     || outcome.kind() == InvocationOutcomeKind.ERROR)) {
                 InvocationRubric step = i < steps.size() ? steps.get(i) : steps.get(0);
-                return infrastructureError(testcase,
-                        outcome.errorMessage() != null ? outcome.errorMessage() : "Invocation failed",
-                        step);
+                String rawError = outcome.errorMessage() != null ? outcome.errorMessage() : "Invocation failed";
+                return infrastructureError(testcase, rawError, step);
             }
         }
 
@@ -446,16 +446,17 @@ public class TestcaseGrader {
     }
 
     private Evaluation infrastructureError(TestcaseRubric testcase, String message, InvocationRubric step) {
+        String studentMessage = InvocationErrorMessage.forStudent(message);
         String input = step != null
                 ? displayFormatter.formatInput(testcase, step)
                 : displayFormatter.formatInput(testcase);
         return new Evaluation(0, new PendingTestcaseResult(
                 testcase.id(),
                 TestcaseResultStatus.ERROR,
-                message,
+                studentMessage,
                 input,
                 null,
-                message,
+                studentMessage,
                 List.of()));
     }
 
