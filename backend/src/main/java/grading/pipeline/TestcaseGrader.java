@@ -404,8 +404,8 @@ public class TestcaseGrader {
             trimmed = trimmed.substring(0, generic);
         }
         trimmed = trimmed.replace("[]", "").trim();
-        int dot = trimmed.lastIndexOf('.');
-        return dot >= 0 ? trimmed.substring(dot + 1) : trimmed;
+        int sep = Math.max(trimmed.lastIndexOf('.'), trimmed.lastIndexOf('$'));
+        return sep >= 0 ? trimmed.substring(sep + 1) : trimmed;
     }
 
     private static boolean containsTypeToken(String type, String failedName) {

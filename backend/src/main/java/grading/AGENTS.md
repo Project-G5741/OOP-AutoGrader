@@ -90,6 +90,7 @@ SubmissionController
 
 - Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
 - UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps
+- Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
 - Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
@@ -102,7 +103,7 @@ SubmissionController
 - Constructor stdout is not evaluated (save already 422s it)
 - After a METHOD that returns a student-loader object, static factories register `instanceName` as the product. Instance methods do not overwrite the named receiver with the return (no distinct return-name column this ship)
 - Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
-- Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`)
+- Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`, including a name that already holds this same instance)
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`

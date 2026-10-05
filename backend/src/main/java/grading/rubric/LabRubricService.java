@@ -110,7 +110,7 @@ public class LabRubricService {
         Map<UUID, List<TestcaseAssertion>> assertionsByTestcaseId = allAssertions.stream()
                 .collect(Collectors.groupingBy(a -> a.getTestcase().getId()));
         Map<UUID, String> classNameByClassId = allClasses.stream()
-                .collect(Collectors.toMap(ClassEntity::getId, ClassEntity::getName));
+                .collect(Collectors.toMap(ClassEntity::getId, RubricMemberMaps::invokeBinaryName));
         Map<UUID, String> classNameByConstructorId = new HashMap<>();
         for (Constructor constructor : allConstructors) {
             classNameByConstructorId.put(

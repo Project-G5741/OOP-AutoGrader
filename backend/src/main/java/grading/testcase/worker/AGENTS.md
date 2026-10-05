@@ -22,10 +22,11 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - Worker JAR must not contain `org.springframework` types.
 - Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios for one challenge; one student `URLClassLoader` and one timeout executor for the whole batch; each item still gets a fresh named-instance registry). `compare` is unused.
 - `scenario` looks up a method on `dispatchClassName` when set, then `invoke`s it on the named receiver so dynamic dispatch runs. Without dispatch, keep concrete-class `getDeclaredMethod` lookup.
+- Class load uses `JavaTypeResolver.loadStudentClass` so nested types resolve from binary, dotted, or unambiguous simple nested names.
 - Params may include `{"$instance":"<name>"}`; live objects never round-trip as JSON.
 - Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 - Any step `THREW`, `ERROR`, or `TIMED_OUT`: omit later steps. Completed scenario top-level `kind` is `NORMAL` (facts in `steps`) or `ERROR`/`TIMED_OUT` for whole-op failure.
-- Worker facts for object checks: `objectTypeSimpleName`, `objectFieldSnapshotsJson` (one-level literals), `equalsNamed` (this object vs other registry names).
+- Worker facts for object checks: `objectTypeSimpleName`, `objectFieldSnapshotsJson` (one-level literals), `equalsNamed` (this object vs other registry names). A name that already holds this same instance is included; `equals` still runs, so a second singleton `getInstance()` matches the earlier product.
 - Whole-scenario / per-batch-item execution timeout is enforced inside the worker (`Future.get` on `timeoutSeconds` from the request, shared batch executor). On hang timeout the worker **stops the batch**, writes the partial response, then `Runtime.halt(0)` so interrupt-immune tight loops die with the process. The API transport wait is `itemCount × timeoutSeconds + 30s` return slack; after a timeout abort it respawns (local, or remote reopen) and continues remaining items.
 - Never emit `passed`. Wire `kind` is a string (`KIND_NORMAL`), not the API enum.
 

@@ -134,8 +134,9 @@ public class TestcaseDisplayFormatter {
 
     private String formatInvocationInput(InvocationRubric invocation) {
         String args = formatArgs(invocation.paramsJson());
+        String className = displayClassName(invocation.className());
         if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
-            String constructed = "new " + invocation.className() + "(" + args + ")";
+            String constructed = "new " + className + "(" + args + ")";
             if (hasInstanceName(invocation)) {
                 return invocation.instanceName() + " = " + constructed;
             }
@@ -145,11 +146,16 @@ public class TestcaseDisplayFormatter {
             return invocation.instanceName() + "." + invocation.methodName() + "(" + args + ")";
         }
         if (invocation.hasReceiver()) {
-            String receiverSetup = "new " + invocation.receiverClassName()
+            String receiverSetup = "new " + displayClassName(invocation.receiverClassName())
                     + "(" + formatArgs(invocation.receiverParamsJson()) + ")";
-            return receiverSetup + "\n" + invocation.className() + "." + invocation.methodName() + "(" + args + ")";
+            return receiverSetup + "\n" + className + "." + invocation.methodName() + "(" + args + ")";
         }
-        return invocation.className() + "." + invocation.methodName() + "(" + args + ")";
+        return className + "." + invocation.methodName() + "(" + args + ")";
+    }
+
+    /** Binary nested names ({@code Outer$Inner}) display as dotted {@code Outer.Inner}. */
+    private static String displayClassName(String className) {
+        return className == null ? "" : className.replace('$', '.');
     }
 
     private static boolean hasInstanceName(InvocationRubric invocation) {

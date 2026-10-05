@@ -497,7 +497,7 @@ public final class WorkerInvokeEngine {
     }
 
     private Class<?> findClass(URLClassLoader loader, String className) throws ClassNotFoundException {
-        return Class.forName(className, true, loader);
+        return JavaTypeResolver.loadStudentClass(className, loader);
     }
 
     private Constructor<?> findConstructor(Class<?> clazz, List<String> parameterTypes, URLClassLoader loader)
@@ -620,9 +620,6 @@ public final class WorkerInvokeEngine {
         }
         Map<String, Boolean> equalsNamed = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : registry.entrySet()) {
-            if (entry.getValue() == object) {
-                continue;
-            }
             try {
                 equalsNamed.put(entry.getKey(), Boolean.valueOf(object.equals(entry.getValue())));
             } catch (Exception ignored) {
