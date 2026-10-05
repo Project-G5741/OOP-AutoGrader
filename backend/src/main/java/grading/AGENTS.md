@@ -35,8 +35,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries |
-| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `invalidateAll()` after OT schema wipe |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `getAll` batches misses via `loadForLabs`; `invalidateAll()` after OT schema wipe |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
 | `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |

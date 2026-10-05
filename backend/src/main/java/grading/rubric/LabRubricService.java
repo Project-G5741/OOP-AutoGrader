@@ -1,8 +1,10 @@
 package com.eiu.capstone.backend.grading.rubric;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -75,9 +77,42 @@ public class LabRubricService {
     }
 
     public LabRubricSnapshot loadForLab(Lab lab) {
-        List<Challenge> challenges = challengeRepository.findByLabOrderByChallengeNumberAsc(lab);
+        return loadForLabs(List.of(lab)).get(lab.getId());
+    }
+
+    /**
+     * Load rubrics for many labs with one batched query set (same round-trips as a single
+     * {@link #loadForLab}, not one set per lab). Every non-null lab id is present in the result;
+     * labs with no challenges get an empty snapshot.
+     */
+    public Map<UUID, LabRubricSnapshot> loadForLabs(Collection<Lab> labs) {
+        if (labs == null || labs.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<UUID, Lab> unique = new LinkedHashMap<>();
+        for (Lab lab : labs) {
+            if (lab != null && lab.getId() != null) {
+                unique.putIfAbsent(lab.getId(), lab);
+            }
+        }
+        if (unique.isEmpty()) {
+            return Map.of();
+        }
+
+        List<UUID> labIds = List.copyOf(unique.keySet());
+        List<Challenge> challenges = challengeRepository.findByLab_IdInOrderByChallengeNumberAsc(labIds);
+        Map<UUID, LabRubricSnapshot> assembled = assembleSnapshots(challenges);
+
+        Map<UUID, LabRubricSnapshot> result = new LinkedHashMap<>(unique.size());
+        for (UUID labId : labIds) {
+            result.put(labId, assembled.getOrDefault(labId, new LabRubricSnapshot(labId, Map.of())));
+        }
+        return Map.copyOf(result);
+    }
+
+    private Map<UUID, LabRubricSnapshot> assembleSnapshots(List<Challenge> challenges) {
         if (challenges.isEmpty()) {
-            return new LabRubricSnapshot(lab.getId(), Map.of());
+            return Map.of();
         }
 
         List<ClassEntity> allClasses = classEntityRepository.findByChallengeInWithAttributes(challenges);
@@ -152,41 +187,47 @@ public class LabRubricService {
         Map<UUID, List<ClassRelation>> relationsByChallenge = allRelations.stream()
                 .collect(Collectors.groupingBy(r -> r.getClassEntity().getChallenge().getId()));
 
-        Map<Integer, ChallengeRubric> byNumber = new HashMap<>();
-        for (Challenge challenge : challenges) {
-            List<ClassEntity> challengeClasses = classesByChallenge.getOrDefault(challenge.getId(), List.of());
-            List<ClassRubric> classRubrics = new ArrayList<>();
-            for (ClassEntity classEntity : challengeClasses) {
-                classRubrics.add(toClassRubric(classEntity,
-                        fieldsByClass.getOrDefault(classEntity.getId(), List.of()),
-                        methodsByClass.getOrDefault(classEntity.getId(), List.of()),
-                        constructorsByClass.getOrDefault(classEntity.getId(), List.of()),
-                        paramTypesByMethod,
-                        paramTypesByConstructorId));
-            }
-            List<RelationRubric> relationRubrics = relationsByChallenge.getOrDefault(challenge.getId(), List.of())
-                    .stream()
-                    .map(this::toRelationRubric)
-                    .toList();
-            List<TestcaseRubric> testcaseRubrics = testcasesByChallenge.getOrDefault(challenge.getId(), List.of())
-                    .stream()
-                    .map(testcase -> toTestcaseRubric(
-                            testcase,
-                            invocationsByTestcaseId.getOrDefault(testcase.getId(), List.of()),
-                            instancesByTestcaseId.getOrDefault(testcase.getId(), List.of()),
-                            assertionsByTestcaseId.getOrDefault(testcase.getId(), List.of()),
-                            testcaseContext))
-                    .toList();
-            byNumber.put(challenge.getChallengeNumber(),
-                    new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
-                            classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd(),
-                            Math.max(1, challenge.getWeight()),
-                            Math.max(1, challenge.getClassWeight()),
-                            Math.max(1, challenge.getMmdWeight()),
-                            Math.max(1, challenge.getTestcaseWeight())));
-        }
+        Map<UUID, List<Challenge>> challengesByLab = challenges.stream()
+                .collect(Collectors.groupingBy(c -> c.getLab().getId(), LinkedHashMap::new, Collectors.toList()));
 
-        return new LabRubricSnapshot(lab.getId(), Map.copyOf(byNumber));
+        Map<UUID, LabRubricSnapshot> byLab = new LinkedHashMap<>();
+        for (Map.Entry<UUID, List<Challenge>> labChallenges : challengesByLab.entrySet()) {
+            Map<Integer, ChallengeRubric> byNumber = new HashMap<>();
+            for (Challenge challenge : labChallenges.getValue()) {
+                List<ClassEntity> challengeClasses = classesByChallenge.getOrDefault(challenge.getId(), List.of());
+                List<ClassRubric> classRubrics = new ArrayList<>();
+                for (ClassEntity classEntity : challengeClasses) {
+                    classRubrics.add(toClassRubric(classEntity,
+                            fieldsByClass.getOrDefault(classEntity.getId(), List.of()),
+                            methodsByClass.getOrDefault(classEntity.getId(), List.of()),
+                            constructorsByClass.getOrDefault(classEntity.getId(), List.of()),
+                            paramTypesByMethod,
+                            paramTypesByConstructorId));
+                }
+                List<RelationRubric> relationRubrics = relationsByChallenge.getOrDefault(challenge.getId(), List.of())
+                        .stream()
+                        .map(this::toRelationRubric)
+                        .toList();
+                List<TestcaseRubric> testcaseRubrics = testcasesByChallenge.getOrDefault(challenge.getId(), List.of())
+                        .stream()
+                        .map(testcase -> toTestcaseRubric(
+                                testcase,
+                                invocationsByTestcaseId.getOrDefault(testcase.getId(), List.of()),
+                                instancesByTestcaseId.getOrDefault(testcase.getId(), List.of()),
+                                assertionsByTestcaseId.getOrDefault(testcase.getId(), List.of()),
+                                testcaseContext))
+                        .toList();
+                byNumber.put(challenge.getChallengeNumber(),
+                        new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
+                                classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd(),
+                                Math.max(1, challenge.getWeight()),
+                                Math.max(1, challenge.getClassWeight()),
+                                Math.max(1, challenge.getMmdWeight()),
+                                Math.max(1, challenge.getTestcaseWeight())));
+            }
+            byLab.put(labChallenges.getKey(), new LabRubricSnapshot(labChallenges.getKey(), Map.copyOf(byNumber)));
+        }
+        return byLab;
     }
 
     private ClassRubric toClassRubric(ClassEntity classEntity,

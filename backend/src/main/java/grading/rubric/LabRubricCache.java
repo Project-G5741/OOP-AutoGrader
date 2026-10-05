@@ -1,7 +1,13 @@
 package com.eiu.capstone.backend.grading.rubric;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -58,6 +64,58 @@ public class LabRubricCache {
             cache.put(labId, new CachedEntry(snapshot, Instant.now().plusSeconds(ttlMinutes * 60)));
             return snapshot;
         }
+    }
+
+    /**
+     * Resolve many labs with cache hits first, then one batched {@link LabRubricService#loadForLabs}
+     * for all misses (not one load per lab).
+     */
+    public Map<UUID, LabRubricSnapshot> getAll(Collection<Lab> labs) {
+        if (labs == null || labs.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, LabRubricSnapshot> result = new LinkedHashMap<>();
+        List<Lab> misses = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+        for (Lab lab : labs) {
+            if (lab == null || lab.getId() == null) {
+                continue;
+            }
+            UUID labId = lab.getId();
+            if (!seen.add(labId)) {
+                continue;
+            }
+            CachedEntry entry = cache.get(labId);
+            if (entry != null && !entry.isExpired()) {
+                result.put(labId, entry.snapshot());
+                continue;
+            }
+            if (entry != null) {
+                cache.remove(labId, entry);
+            }
+            misses.add(lab);
+        }
+
+        if (!misses.isEmpty()) {
+            Map<UUID, LabRubricSnapshot> loaded = labRubricService.loadForLabs(misses);
+            Instant expiresAt = Instant.now().plusSeconds(ttlMinutes * 60);
+            for (Lab lab : misses) {
+                UUID labId = lab.getId();
+                synchronized (loadLocks.computeIfAbsent(labId, ignored -> new Object())) {
+                    CachedEntry existing = cache.get(labId);
+                    if (existing != null && !existing.isExpired()) {
+                        result.put(labId, existing.snapshot());
+                        continue;
+                    }
+                    LabRubricSnapshot snapshot = loaded.getOrDefault(labId, new LabRubricSnapshot(labId, Map.of()));
+                    cache.put(labId, new CachedEntry(snapshot, expiresAt));
+                    result.put(labId, snapshot);
+                }
+            }
+        }
+
+        return Map.copyOf(result);
     }
 
     /**
