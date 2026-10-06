@@ -121,9 +121,7 @@ flowchart TB
 
 ### 4.2 Application shell (`App.jsx`)
 
-- **Auth state** lives in React `useState`, hydrated from `sessionStorage`:
-  - `accessToken` — JWT from backend
-  - `user` — JSON with `id`, `email`, `roles`, `irn`, etc.
+- **Auth state** is restored from `localStorage` (`accessToken`, `user` JSON with roles) via `readStoredUser`; expired JWTs are treated as logged out:
 - **Google OAuth** via `@react-oauth/google` (`GoogleOAuthProvider`).
 - **Routing** with role guards (`RequireRole`):
 
@@ -146,11 +144,11 @@ Every page/component repeats:
 ```javascript
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const res = await fetch(`${API_BASE}/api/...`, {
-  headers: { Authorization: `Bearer ${sessionStorage.getItem('accessToken')}` }
+  headers: { Authorization: `Bearer ${getAccessToken()}` }
 });
 ```
 
-There is no shared HTTP client or interceptors.
+There is no shared HTTP client or interceptors beyond `apiFetch` / `authHeaders`.
 
 ### 4.4 Student dashboard flow
 
@@ -181,7 +179,7 @@ There is no shared HTTP client or interceptors.
 2. **Google** → `POST /api/auth/google` (existing user) or first-time `POST /api/auth/google/upsert`
 3. **Forgot password** → email with reset link → `ResetPasswordUI` → `POST /api/auth/reset-password`
 
-On success, `handleLoginSuccess` in `App.jsx` stores token/user in `sessionStorage` and navigates to the role-appropriate dashboard.
+On success, `handleLoginSuccess` in `App.jsx` stores token/user in `localStorage` and navigates to the role-appropriate dashboard.
 
 ---
 
@@ -418,7 +416,7 @@ CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the 
 
 | Layer | Technology | Runs on | Persists |
 |-------|------------|---------|----------|
-| **Frontend** | React 18 + Vite 7 + Tailwind | Browser `:5173` | `sessionStorage` (JWT, user) |
+| **Frontend** | React 18 + Vite 7 + Tailwind | Browser `:5173` | `localStorage` (JWT, user) |
 | **Backend** | Spring Boot 3.2 + Java 17 | JVM `:8002` | PostgreSQL + temp `submissions/` |
 | **Database** | PostgreSQL (Neon) | Cloud | All users, rubrics, grades, progress |
 

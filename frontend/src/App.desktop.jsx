@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import StudentDashboard from "./pages/StudentDashboard";
 import RequireRole from "./components/auth/RequireRole";
 import DesktopPracticeStatusBanner from "./components/student/DesktopPracticeStatusBanner";
-import { ROUTES } from "./utils/authRoutes";
+import { persistAuthSession, ROUTES } from "./utils/authRoutes";
 import { quitPracticeApp } from "./utils/desktopQuit";
 
 const DESKTOP_USER = {
@@ -14,10 +14,12 @@ const DESKTOP_USER = {
   studentCode: "DESKTOP",
 };
 
-/** Always replace any stale web JWT in WebView2 storage before the router runs. */
+/** Seed the synthetic student session only inside the desktop WebView2 build. */
 function applyDesktopSession() {
-  sessionStorage.setItem("accessToken", DESKTOP_USER.accessToken);
-  sessionStorage.setItem("user", JSON.stringify(DESKTOP_USER));
+  if (import.meta.env.VITE_APP_MODE !== 'desktop') {
+    return;
+  }
+  persistAuthSession(DESKTOP_USER.accessToken, DESKTOP_USER);
 }
 
 applyDesktopSession();

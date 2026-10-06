@@ -1298,7 +1298,7 @@ public class TestcaseRubricService {
             Map<String, UUID> classIdByName = new HashMap<>();
             for (ClassEntity cls : challengeClasses) {
                 classIds.add(cls.getId());
-                classNameByClassId.put(cls.getId(), cls.getName());
+                classNameByClassId.put(cls.getId(), RubricMemberMaps.invokeBinaryName(cls));
                 if (cls.getName() != null && !cls.getName().isBlank()) {
                     rubricClassNames.add(cls.getName());
                     classIdByName.put(cls.getName(), cls.getId());

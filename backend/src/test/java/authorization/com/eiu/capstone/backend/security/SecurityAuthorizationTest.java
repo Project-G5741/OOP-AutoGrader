@@ -127,6 +127,26 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentBulkGrade_is403() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/bulk-grade")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerBulkGrade_isNotDenied() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/bulk-grade")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousBulkGrade_is401() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/bulk-grade"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void dualRoleOverview_isNotDenied() throws Exception {
         mockMvc.perform(get("/api/lecturer/overview")
                         .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER))))

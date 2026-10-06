@@ -32,11 +32,11 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
 | `grading/scoring/PartialCreditEvaluator.java` | `binaryAccuracy` for Class-tab members and MMD elements; `accuracy()` matching-attribute ratio for MMD class presence vs type |
-| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
+| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles; overload accepts `DisclosureMode` (student upload = STUDENT; lecturer bulk = LECTURER) |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries |
-| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `invalidateAll()` after OT schema wipe |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `getAll` batches misses via `loadForLabs`; `invalidateAll()` after OT schema wipe |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
 | `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |
@@ -90,6 +90,7 @@ SubmissionController
 
 - Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
 - UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps
+- Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
 - Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
@@ -102,7 +103,7 @@ SubmissionController
 - Constructor stdout is not evaluated (save already 422s it)
 - After a METHOD that returns a student-loader object, static factories register `instanceName` as the product. Instance methods do not overwrite the named receiver with the return (no distinct return-name column this ship)
 - Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
-- Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`)
+- Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`, including a name that already holds this same instance)
 - Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`

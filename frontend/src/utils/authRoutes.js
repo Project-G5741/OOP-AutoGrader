@@ -2,6 +2,7 @@ export const ROUTES = {
   login: '/',
   lecturerDashboard: '/lecturer-dashboard',
   lecturerGrading: '/lecturer-grading',
+  lecturerBulkGrading: '/lecturer-bulk-grading',
   lecturerUsers: '/lecturer-users',
   lecturerSolution: '/lecturer-solution',
   lecturerReport: '/lecturer-report',
@@ -10,6 +11,66 @@ export const ROUTES = {
   studentHistory: '/student-history',
   noAccess: '/no-access',
 };
+
+const ACCESS_TOKEN_KEY = 'accessToken';
+const USER_KEY = 'user';
+const LEGACY_TOKEN_KEY = 'token';
+
+function readAuthValue(key) {
+  const fromLocal = localStorage.getItem(key);
+  if (fromLocal != null) return fromLocal;
+  const fromSession = sessionStorage.getItem(key);
+  if (fromSession == null) return null;
+  localStorage.setItem(key, fromSession);
+  sessionStorage.removeItem(key);
+  return fromSession;
+}
+
+function writeAuthValue(key, value) {
+  localStorage.setItem(key, value);
+  sessionStorage.removeItem(key);
+}
+
+function removeAuthValue(key) {
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+}
+
+/** Bearer JWT (or desktop synthetic token) for signed-in API calls. */
+export function getAccessToken() {
+  return readAuthValue(ACCESS_TOKEN_KEY);
+}
+
+export function persistAuthSession(accessToken, userPayload) {
+  writeAuthValue(ACCESS_TOKEN_KEY, accessToken);
+  writeAuthValue(USER_KEY, JSON.stringify(userPayload));
+}
+
+export function clearAuthSession() {
+  removeAuthValue(ACCESS_TOKEN_KEY);
+  removeAuthValue(USER_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+}
+
+/** False when the JWT `exp` claim is in the past. Non-JWT desktop token is allowed only in desktop mode. */
+export function isAccessTokenCurrentlyValid(token) {
+  if (!token) return false;
+  if (token === 'desktop-local') {
+    return import.meta.env.VITE_APP_MODE === 'desktop';
+  }
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const json = atob(padded);
+    const payload = JSON.parse(json);
+    if (typeof payload.exp !== 'number') return true;
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
 
 function normalizeRoleName(role) {
   const name = typeof role === 'string'
@@ -54,15 +115,14 @@ export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
 }
 
 export function readStoredUser() {
-  const token = sessionStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (!token) return null;
-  if (import.meta.env.VITE_APP_MODE !== 'desktop' && token === 'desktop-local') {
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('user');
+  if (!isAccessTokenCurrentlyValid(token)) {
+    clearAuthSession();
     return null;
   }
   try {
-    const saved = sessionStorage.getItem('user');
+    const saved = readAuthValue(USER_KEY);
     if (!saved) return null;
     const parsed = JSON.parse(saved);
     if (!parsed || typeof parsed !== 'object') return null;
@@ -76,11 +136,11 @@ export function readStoredUser() {
 
 export function patchStoredUser(partial) {
   try {
-    const stored = JSON.parse(sessionStorage.getItem('user') || 'null');
+    const stored = JSON.parse(readAuthValue(USER_KEY) || 'null');
     if (!stored || typeof stored !== 'object') return;
     const next = { ...stored, ...partial };
     if (JSON.stringify(stored) === JSON.stringify(next)) return;
-    sessionStorage.setItem('user', JSON.stringify(next));
+    writeAuthValue(USER_KEY, JSON.stringify(next));
   } catch {
     // keep in-memory session
   }
@@ -88,7 +148,8 @@ export function patchStoredUser(partial) {
 
 export const LECTURER_NAV_TO_ROUTE = {
   dashboard: ROUTES.lecturerDashboard,
-  grading: ROUTES.lecturerGrading,
+  score: ROUTES.lecturerGrading,
+  grading: ROUTES.lecturerBulkGrading,
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,
   reports: ROUTES.lecturerReport,

@@ -96,7 +96,7 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
       const data = await response.json();
       
-      // Token is stored in sessionStorage by App.handleLoginSuccess
+      // Token is stored in localStorage by App.handleLoginSuccess
       if (remember) {
         localStorage.setItem('rememberedIrn', irn);
       } else {

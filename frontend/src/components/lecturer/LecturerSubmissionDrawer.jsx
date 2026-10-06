@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import ClassScoreBreakdown from './ClassScoreBreakdown';
 import MmdScoreBreakdown from './MmdScoreBreakdown';
+import OperationalTestcaseBreakdown from './OperationalTestcaseBreakdown';
 import ExportMenu from './ExportMenu';
 import { exportChallengeBreakdown } from './exportRoster';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
@@ -33,9 +34,13 @@ export default function LecturerSubmissionDrawer({
   const [activeTab, setActiveTab] = useState('class');
   const [classData, setClassData] = useState([]);
   const [mmdData, setMmdData] = useState([]);
+  const [testcases, setTestcases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [mmdError, setMmdError] = useState(null);
+
+  const testcaseApplicable = testcases.length > 0;
+  const showPillarTabs = mmdApplicable || testcaseApplicable;
 
   useEffect(() => {
     if (!open) {
@@ -47,12 +52,16 @@ export default function LecturerSubmissionDrawer({
     if (!mmdApplicable && activeTab === 'mmd') {
       setActiveTab('class');
     }
-  }, [mmdApplicable, activeTab]);
+    if (!testcaseApplicable && activeTab === 'testcase') {
+      setActiveTab('class');
+    }
+  }, [mmdApplicable, testcaseApplicable, activeTab]);
 
   useEffect(() => {
     if (!open || !labId || !challengeId || !student?.studentId) {
       setClassData([]);
       setMmdData([]);
+      setTestcases([]);
       setError(null);
       setMmdError(null);
       return;
@@ -65,6 +74,7 @@ export default function LecturerSubmissionDrawer({
       setMmdError(null);
       setClassData([]);
       setMmdData([]);
+      setTestcases([]);
 
       const params = new URLSearchParams({ studentId: student.studentId });
       if (student.submissionId) {
@@ -73,6 +83,7 @@ export default function LecturerSubmissionDrawer({
       const query = params.toString();
       const classUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class?${query}`;
       const mmdUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd?${query}`;
+      const testcasesUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases?${query}`;
 
       try {
         const classResponse = await apiFetch(classUrl, { headers: authHeaders() });
@@ -107,6 +118,21 @@ export default function LecturerSubmissionDrawer({
             setMmdData([]);
             setMmdError(toFriendlyError(err, 'read'));
           }
+        }
+      }
+
+      try {
+        const tcResponse = await apiFetch(testcasesUrl, { headers: authHeaders() });
+        if (!tcResponse.ok) {
+          throw new Error(await friendlyLoadErrorFromResponse(tcResponse));
+        }
+        const tcJson = await tcResponse.json();
+        if (!cancelled) {
+          setTestcases(Array.isArray(tcJson) ? tcJson : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setTestcases([]);
         }
       }
 
@@ -180,14 +206,25 @@ export default function LecturerSubmissionDrawer({
           </div>
         </div>
 
-        {mmdApplicable ? (
+        {showPillarTabs ? (
           <div className="flex border-b border-border px-5">
             <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
               Declaration Test
             </button>
-            <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
-              MMD
-            </button>
+            {mmdApplicable && (
+              <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
+                MMD
+              </button>
+            )}
+            {testcaseApplicable && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('testcase')}
+                className={tabClass(activeTab === 'testcase')}
+              >
+                Operation Test
+              </button>
+            )}
           </div>
         ) : null}
 
@@ -202,8 +239,10 @@ export default function LecturerSubmissionDrawer({
             ) : (
               <ClassScoreBreakdown classData={classData} overallScore={student.score} />
             )
-          ) : (
+          ) : activeTab === 'mmd' ? (
             <MmdScoreBreakdown mmdData={mmdData} mmdError={mmdError} />
+          ) : (
+            <OperationalTestcaseBreakdown bundle={{ testcases }} />
           )}
         </div>
 

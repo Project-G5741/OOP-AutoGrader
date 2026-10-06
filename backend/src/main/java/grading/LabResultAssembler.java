@@ -52,6 +52,24 @@ public class LabResultAssembler {
             GradingService.GradingComputationResult computed,
             Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId) {
+        return assemble(
+                submissionId,
+                rubric,
+                computed,
+                compileErrorsByChallengeId,
+                normalizationNoticesByChallengeId,
+                DisclosureMode.STUDENT);
+    }
+
+    public Map<String, ChallengeDetailBundleDTO> assemble(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingService.GradingComputationResult computed,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId,
+            DisclosureMode disclosureMode) {
+
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
 
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
@@ -86,8 +104,12 @@ public class LabResultAssembler {
                     correctIds,
                     compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
                     snapshot,
-                    DisclosureMode.STUDENT);
+                    mode);
 
+            // Missing graded pillars (e.g. student omitted this challenge folder): keep scores at 0
+            // but honor the rubric's has_mmd / OT presence so drawers still show those tabs.
+            boolean defaultTestcaseApplicable = challengeRubric.testcases() != null
+                    && !challengeRubric.testcases().isEmpty();
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
                     new PillarScoreBreakdown(
@@ -95,8 +117,8 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
-                            true,
-                            false));
+                            challengeRubric.hasMmd(),
+                            defaultTestcaseApplicable));
 
             MmdResponseDTO mmdResponse;
             if (pillarScores.mmdApplicable()) {
@@ -113,7 +135,7 @@ public class LabResultAssembler {
                         mmdMeta,
                         submissionId,
                         snapshot,
-                        DisclosureMode.STUDENT);
+                        mode);
                 String parseError = mmdMeta != null ? mmdMeta.parseError : null;
                 if (parseError == null && mmdResult != null) {
                     parseError = mmdResult.parseError();

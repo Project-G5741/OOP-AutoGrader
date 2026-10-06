@@ -1,10 +1,8 @@
 package com.eiu.capstone.backend.desktop;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.context.annotation.Profile;
@@ -17,14 +15,23 @@ import com.eiu.capstone.backend.repository.MasterDataRepository;
 @Profile("desktop")
 public class DesktopMasterDataResolver {
 
+    private static final int DEFAULT_START_ID = 1000;
+
     private final MasterDataRepository masterDataRepository;
-    private final AtomicInteger nextId = new AtomicInteger(1000);
+    private final AtomicInteger nextId;
     private final Map<String, Integer> cache = new HashMap<>();
 
     public DesktopMasterDataResolver(MasterDataRepository masterDataRepository) {
         this.masterDataRepository = masterDataRepository;
-        masterDataRepository.findAll().forEach(row ->
-                cache.put(cacheKey(row.getCategory(), row.getName()), row.getId()));
+        int maxExistingId = DEFAULT_START_ID - 1;
+        for (MasterData row : masterDataRepository.findAll()) {
+            cache.put(cacheKey(row.getCategory(), row.getName()), row.getId());
+            if (row.getId() != null) {
+                maxExistingId = Math.max(maxExistingId, row.getId());
+            }
+        }
+        // File H2 retains master_data across restarts; never reuse those PKs (save→merge overwrites).
+        this.nextId = new AtomicInteger(maxExistingId + 1);
     }
 
     public Integer scopeId(String name) {

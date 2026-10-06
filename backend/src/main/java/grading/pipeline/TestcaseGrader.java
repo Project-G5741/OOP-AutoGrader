@@ -57,7 +57,7 @@ public class TestcaseGrader {
             return evaluate(testcase, context).pending();
         } finally {
             // TEMP: remove after OT warm-path timing check
-            TimingLog.line(true, "OT single " + testcaseLabel(testcase), System.currentTimeMillis() - started);
+            TimingLog.line(false, "OT single " + testcaseLabel(testcase), System.currentTimeMillis() - started);
         }
     }
 
@@ -83,7 +83,7 @@ public class TestcaseGrader {
                     context, runnable.stream().map(this::toBatchItem).toList());
             // TEMP: remove after OT warm-path timing check
             if (runnable.size() == 1) {
-                TimingLog.line(true, "OT single invoke " + testcaseLabel(runnable.get(0)),
+                TimingLog.line(false, "OT single invoke " + testcaseLabel(runnable.get(0)),
                         System.currentTimeMillis() - invokeStarted);
             }
         }
@@ -404,8 +404,8 @@ public class TestcaseGrader {
             trimmed = trimmed.substring(0, generic);
         }
         trimmed = trimmed.replace("[]", "").trim();
-        int dot = trimmed.lastIndexOf('.');
-        return dot >= 0 ? trimmed.substring(dot + 1) : trimmed;
+        int sep = Math.max(trimmed.lastIndexOf('.'), trimmed.lastIndexOf('$'));
+        return sep >= 0 ? trimmed.substring(sep + 1) : trimmed;
     }
 
     private static boolean containsTypeToken(String type, String failedName) {

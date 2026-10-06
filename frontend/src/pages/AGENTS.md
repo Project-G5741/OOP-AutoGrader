@@ -26,7 +26,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 ### Top-level navigation (URL routes)
 
-`App.jsx` gates by `sessionStorage` user roles and React Router paths:
+`App.jsx` gates by stored user roles (`localStorage` via `readStoredUser`) and React Router paths:
 
 | Path | Role required | Screen |
 |---|---|---|

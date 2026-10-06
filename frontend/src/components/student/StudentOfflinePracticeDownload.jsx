@@ -1,13 +1,14 @@
 import React from 'react';
 import { Download, Laptop } from 'lucide-react';
 import { toFriendlyError } from '../../utils/apiError';
+import { getAccessToken } from '../../utils/authRoutes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 export default function StudentOfflinePracticeDownload({ onToast }) {
   const handleDownload = () => {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getAccessToken();
       if (!token) {
         throw new Error('Please sign in again to download.');
       }

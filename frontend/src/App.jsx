@@ -13,7 +13,14 @@ import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import NoAccessPage from "./pages/NoAccessPage";
 import RequireRole from "./components/auth/RequireRole";
-import { defaultDashboardPath, normalizeRoleList, readStoredUser, ROUTES } from "./utils/authRoutes";
+import {
+  clearAuthSession,
+  defaultDashboardPath,
+  normalizeRoleList,
+  persistAuthSession,
+  readStoredUser,
+  ROUTES,
+} from "./utils/authRoutes";
 import { leavePresence } from "./utils/presence";
 
 function readResetTokenFromUrl() {
@@ -53,16 +60,13 @@ export default function App() {
   const handleLoginSuccess = useCallback((data) => {
     const roles = normalizeRoleList(data.roles);
     const userPayload = { ...data, roles };
-    sessionStorage.setItem("accessToken", data.accessToken);
-    sessionStorage.setItem("user", JSON.stringify(userPayload));
+    persistAuthSession(data.accessToken, userPayload);
     navigate(defaultDashboardPath(roles, data.inCurrentTerm));
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
     leavePresence();
-    sessionStorage.removeItem("accessToken");
-    sessionStorage.removeItem("user");
-    localStorage.removeItem("token");
+    clearAuthSession();
     navigate(ROUTES.login);
   }, [navigate]);
 
@@ -109,6 +113,14 @@ export default function App() {
           />
           <Route
             path={ROUTES.lecturerGrading}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.lecturerBulkGrading}
             element={
               <RequireRole anyOf={["LECTURER"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
