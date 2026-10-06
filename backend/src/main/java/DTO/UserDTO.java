@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.DTO;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -9,6 +10,7 @@ import java.util.stream.Collectors;
 
 import com.eiu.capstone.backend.model.UserAccount;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 
@@ -97,6 +99,8 @@ public class UserDTO {
         private Set<String> roles;
         private String studentCode;
         private String teacherCode;
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "Asia/Ho_Chi_Minh")
+        private OffsetDateTime createAt;
 
         public static UserResponse fromEntity(UserAccount user) {
             UserResponse response = new UserResponse();
@@ -114,6 +118,7 @@ public class UserDTO {
             response.irn = user.getStudentCode() != null
                     ? user.getStudentCode()
                     : user.getTeacherCode();
+            response.createAt = user.getCreateAt();
 
             return response;
         }
@@ -126,5 +131,6 @@ public class UserDTO {
         public Set<String> getRoles() { return roles; }
         public String getStudentCode() { return studentCode; }
         public String getTeacherCode() { return teacherCode; }
+        public OffsetDateTime getCreateAt() { return createAt; }
     }
 }

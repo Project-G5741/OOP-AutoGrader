@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import AppShell from '../components/layout/AppShell';
@@ -76,10 +76,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const [touchedFields, setTouchedFields] = useState({});
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deletingRef = useRef(false);
   const [page, setPage] = useState(1);
   const [sortState, setSortState] = useState({ field: 'fullname', direction: 'asc' });
 
   const userSortAccessor = (user, field) => {
+    if (field === 'createAt') {
+      return user.createAt ?? '';
+    }
     if (field === 'role') {
       return user.roleNames?.[0] || user.role || '';
     }
@@ -170,6 +175,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
 
   const openDelete = (item) => {
     setSelected(item);
+    deletingRef.current = false;
+    setIsDeleting(false);
     setModal('delete');
   };
 
@@ -346,7 +353,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   };
 
   const handleDelete = async () => {
-    if (!selected) return;
+    if (!selected || deletingRef.current) return;
+    deletingRef.current = true;
+    setIsDeleting(true);
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
       const resp = await apiFetch(`${API_BASE}/api/users/deleteUser/${selected.id}`, {
@@ -356,11 +365,13 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       if (!resp.ok) throw new Error(await readFriendlyApiError(resp, 'delete'));
       setUsers((prev) => prev.filter((item) => item.id !== selected.id));
       showToast({ message: 'Deleted successfully.', type: 'success' });
+      setModal(null);
     } catch (error) {
       console.error('Failed to delete user', error);
       showToast({ message: toFriendlyError(error, 'delete'), type: 'error' });
     } finally {
-      setModal(null);
+      deletingRef.current = false;
+      setIsDeleting(false);
     }
   };
 
@@ -416,7 +427,9 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         fieldErrors={currentFieldErrors}
         formError={formError}
         canSave={canSave}
+        isDeleting={isDeleting}
         onClose={() => {
+          if (isDeleting) return;
           setModal(null);
           setFormError('');
           resetFormValidation();

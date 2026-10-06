@@ -17,12 +17,22 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [touchedFields, setTouchedFields] = useState({ irn: false, password: false, confirm: false });
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-  const fieldErrors = getFirstTimeSetupErrors(irn, password, confirm);
-  const canSubmit = isFormValid(fieldErrors);
-  const passwordMatch = password && confirm && !fieldErrors.password && !fieldErrors.confirm;
+  const rawFieldErrors = getFirstTimeSetupErrors(irn, password, confirm);
+  const fieldErrors = {
+    irn: touchedFields.irn ? rawFieldErrors.irn : '',
+    password: touchedFields.password ? rawFieldErrors.password : '',
+    confirm: touchedFields.confirm ? rawFieldErrors.confirm : '',
+  };
+  const canSubmit = isFormValid(rawFieldErrors);
+  const passwordMatch = password && confirm && !rawFieldErrors.password && !rawFieldErrors.confirm;
+
+  const handleFieldBlur = (field) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -118,6 +128,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                       setIrn(e.target.value);
                       setFormError('');
                     }}
+                    onBlur={() => handleFieldBlur('irn')}
                     placeholder="e.g. 2052123456"
                     className={`w-full pl-10 pr-4 py-2.5 bg-surface-secondary border rounded-lg text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.irn)}`}
                   />
@@ -140,6 +151,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                       setPassword(e.target.value);
                       setFormError('');
                     }}
+                    onBlur={() => handleFieldBlur('password')}
                     placeholder="Create a password"
                     className={`w-full pl-10 pr-10 py-2.5 bg-surface-secondary border rounded-lg text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.password)}`}
                   />
@@ -161,6 +173,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                       setConfirm(e.target.value);
                       setFormError('');
                     }}
+                    onBlur={() => handleFieldBlur('confirm')}
                     placeholder="Re-enter your password"
                     className={`w-full pl-10 pr-10 py-2.5 bg-surface-secondary border rounded-lg text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.confirm, passwordMatch)}`}
                   />

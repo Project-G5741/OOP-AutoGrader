@@ -1,6 +1,9 @@
 package com.eiu.capstone.backend.service;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+
+import com.eiu.capstone.backend.utility.TimeUtil;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -139,6 +142,7 @@ public class UserService {
         user.setDateOfBirth(request.dateOfBirth());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setIsActive(true);
+        user.setCreateAt(nowInVietnam());
 
         Set<String> roleNames = normalizeIncomingRoleNames(request.roleNames(), null);
         validateRoleNames(roleNames);
@@ -236,6 +240,17 @@ public class UserService {
         user.setTeacherCode(null);
         user.setRoles(resolveRoles(Set.of("STUDENT")));
         user.setIsActive(true);
+        user.setCreateAt(nowInVietnam());
+        return userRepository.save(user);
+    }
+
+    /** Sets {@code create_at} on first Google email login when still unset (legacy / pre-import rows). */
+    @Transactional
+    public UserAccount stampCreateAtIfAbsent(UserAccount user) {
+        if (user == null || user.getCreateAt() != null) {
+            return user;
+        }
+        user.setCreateAt(nowInVietnam());
         return userRepository.save(user);
     }
 
@@ -462,7 +477,10 @@ public class UserService {
     }
 
     private String blankToNull(String value) {
-    return (value == null || value.isBlank()) ? null : value;
-    
-}
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private static OffsetDateTime nowInVietnam() {
+        return TimeUtil.nowInVietnam();
+    }
 }

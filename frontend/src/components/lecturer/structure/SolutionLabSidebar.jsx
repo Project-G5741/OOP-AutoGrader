@@ -22,16 +22,12 @@ import { formatLabDeadlineMeta } from '../../../theme/statusClasses';
 
 function labDescription(lab) {
   if (lab.studentVisible === false) return 'Hidden from students';
-  if (lab.releaseDate) return `Releases ${String(lab.releaseDate).slice(0, 10)}`;
   return formatLabDeadlineMeta(lab, { withUrgencyHint: false });
 }
 
 function labBadge(lab) {
   if (lab.studentVisible === false) {
     return { variant: 'destructive', label: 'Hidden' };
-  }
-  if (lab.releaseDate) {
-    return { variant: 'warning', label: 'Scheduled' };
   }
   if (lab.urgencyState === 'EXPIRED') {
     return { variant: 'secondary', label: 'Expired' };

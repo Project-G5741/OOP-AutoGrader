@@ -103,7 +103,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `GET /api/labs/{labId}/challenges/{challengeId}/mmd?studentId=` | `LecturerDashboard.jsx` (drawer) |
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
-| `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle, optional **Release date**, **Save student access** / **Clear release date** |
+| `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 
@@ -111,9 +111,9 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 
 - Pages compose `AppShell` (layout), child components, and local state
 - `LoginUI.jsx` shows field validation after a Sign In attempt or after a field loses focus (`touchedFields`); auth API failures use `readFriendlyAuthError` from `frontend/src/utils/apiError.js` (never raw backend `detail` text). Google 403 opens first-time setup; Google 423 is inactive and stays on the login form.
-- `ForgotPasswordUI.jsx` and `ResetPasswordUI.jsx` use the same touched/submit gating as `LoginUI.jsx` for inline field errors
+- `ForgotPasswordUI.jsx`, `ResetPasswordUI.jsx`, and `FirstTimeSetupUI.jsx` use touched-field gating (inline errors after blur) like `LoginUI.jsx`; login and forgot/reset also set errors on submit attempt
 - Persist actions (users, terms, lab structure, testcases, deadline, student access, change password, first-time setup, forgot/reset password) show a shared **Toast** via `useToast()`: success (`Saved successfully.` or a specific save line) or fail (friendly `toFriendlyError`). Do not use `window.alert` / `window.confirm` for these — destructive deletes use an in-app confirm dialog (`ModalOverlay`, same pattern as Users delete).
-- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt; Lecturer or dual-role users collect Lecturer ID only (no Student IRN field)
+- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt; Lecturer or dual-role users collect Lecturer ID only (no Student IRN field). Delete confirmation stays open while `DELETE /api/users/deleteUser/{id}` runs: spinner on the trash icon and Delete button, Cancel/backdrop locked, then close on success (error keeps the dialog so the lecturer can retry)
 - When replacing mock data, update the relevant page and its child component docs
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
 - Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD, Email, and optional Fullname columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util; import results that skip unknown students keep a **Details** list on the Terms page
@@ -125,7 +125,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
 - Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster
-- Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in
+- Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in. Delete User keeps the confirm dialog open with a spinner until the server finishes
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 
 ## Child DOX Index

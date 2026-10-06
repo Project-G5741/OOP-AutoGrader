@@ -1,5 +1,6 @@
 import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight, Ban, UserCheck } from 'lucide-react';
 import SortableTableHeader from './ui/SortableTableHeader';
+import { formatDateTime } from '../utils/formatters';
 
 const HEADER_CLASS = 'px-6 py-3 text-left text-xs font-semibold text-foreground-muted uppercase tracking-wider';
 
@@ -8,6 +9,7 @@ const USER_COLUMNS = [
   { key: 'fullname', label: 'Full Name' },
   { key: 'dob', label: 'Date of Birth' },
   { key: 'email', label: 'Email' },
+  { key: 'createAt', label: 'Create At' },
   { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status' },
 ];
@@ -82,13 +84,13 @@ export default function UserTable({
           <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-foreground-muted">
+                <td colSpan={8} className="px-6 py-12 text-center text-foreground-muted">
                   Loading users...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-foreground-disabled">No users found.</td>
+                <td colSpan={8} className="px-6 py-12 text-center text-foreground-disabled">No users found.</td>
               </tr>
             ) : rows.map((u) => (
               <tr key={u.id} className="hover:bg-surface-secondary hover:bg-surface-secondary transition-colors">
@@ -96,6 +98,7 @@ export default function UserTable({
                 <td className="px-6 py-4 text-foreground font-medium break-words">{u.fullname}</td>
                 <td className="px-6 py-4 text-foreground-muted break-words">{u.dob}</td>
                 <td className="px-6 py-4 text-foreground-muted break-words">{u.email}</td>
+                <td className="px-6 py-4 text-foreground-muted break-words whitespace-nowrap">{formatDateTime(u.createAt)}</td>
                 <td className="px-6 py-4">
                   <div className="flex flex-wrap gap-1.5">
                     {(u.roleNames || (u.roles || []).map((role) => role?.name).filter(Boolean)).map((roleName) => {

@@ -20,21 +20,6 @@ function formatDisplayDate(value) {
   }).format(date);
 }
 
-function parseDateOnly(value) {
-  if (!value) return null;
-  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
-
-function isFutureDate(value) {
-  const date = parseDateOnly(value);
-  if (!date) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date > today;
-}
-
 function SectionHeader({ icon: Icon, title, description }) {
   return (
     <div className="flex items-center gap-3">
@@ -66,18 +51,14 @@ export default function LabSchedulingPanel({
   labName,
   compact = false,
   savedStudentVisible,
-  savedReleaseDate,
   savedDeadlineDate,
   studentVisible,
-  releaseDate,
   deadlineDate,
   studentAccessSaving,
   deadlineSaving,
   onStudentVisibleChange,
-  onReleaseDateChange,
   onDeadlineChange,
   onSaveStudentAccess,
-  onClearReleaseDate,
   onSaveDeadline,
   onClearDeadline,
 }) {
@@ -85,15 +66,8 @@ export default function LabSchedulingPanel({
     if (!savedStudentVisible) {
       return { label: 'Hidden', variant: 'destructive', detail: 'Students cannot see or submit this lab.' };
     }
-    if (isFutureDate(savedReleaseDate)) {
-      return {
-        label: 'Scheduled',
-        variant: 'warning',
-        detail: `Goes live on ${formatDisplayDate(savedReleaseDate)} at 00:00 (VN).`,
-      };
-    }
     return { label: 'Live', variant: 'default', detail: 'Visible on the student dashboard now.' };
-  }, [savedStudentVisible, savedReleaseDate]);
+  }, [savedStudentVisible]);
 
   const deadlineStatus = useMemo(() => {
     if (!savedDeadlineDate) {
@@ -106,8 +80,7 @@ export default function LabSchedulingPanel({
     };
   }, [savedDeadlineDate]);
 
-  const studentAccessDirty = studentVisible !== savedStudentVisible
-    || (releaseDate || '') !== (savedReleaseDate ? String(savedReleaseDate).slice(0, 10) : '');
+  const studentAccessDirty = studentVisible !== savedStudentVisible;
   const deadlineDirty = (deadlineDate || '') !== (savedDeadlineDate ? String(savedDeadlineDate).slice(0, 10) : '');
 
   const shellClass = compact
@@ -162,35 +135,11 @@ export default function LabSchedulingPanel({
             </div>
           </div>
 
-          <div className="space-y-3">
-            <FieldLabel
-              htmlFor="release-date"
-              title="Release date"
-              hint="Optional. Lab appears at 00:00 Vietnam time on this date. Leave empty to open immediately when visible."
-            />
-            <DatePicker
-              id="release-date"
-              value={releaseDate}
-              disabled={studentAccessSaving || !studentVisible}
-              placeholder="Available immediately"
-              onChange={onReleaseDateChange}
-              className="w-full max-w-sm"
-            />
-          </div>
-
           <p className="rounded-lg bg-info-bg px-3 py-2 text-sm text-info-text">
             {accessStatus.detail}
           </p>
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={studentAccessSaving || !releaseDate}
-              onClick={onClearReleaseDate}
-            >
-              Clear release date
-            </button>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"

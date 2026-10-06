@@ -311,7 +311,6 @@ public class LabStructureService {
         if (request.studentVisible() != null) {
             lab.setStudentVisible(request.studentVisible());
         }
-        lab.setReleaseDate(request.releaseDate());
         labRepository.save(lab);
         return buildLabStructureResponse(lab);
     }
