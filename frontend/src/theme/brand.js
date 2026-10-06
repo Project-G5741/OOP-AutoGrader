@@ -17,7 +17,7 @@ import { brandAssets } from './brand.assets.generated.js';
 
 export const brand = {
   appName: 'OOP AutoGrader',
-  loginTitle: 'Lab Management System',
+loginTitle: 'OOP AutoGrader',
 
   favicon: {
     url: brandAssets.favicon?.url ?? null,

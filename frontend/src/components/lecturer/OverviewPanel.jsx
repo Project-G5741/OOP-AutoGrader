@@ -6,7 +6,7 @@ export default function OverviewPanel({ overviewCards, onSelect }) {
           key={card.id}
           type="button"
           onClick={() => onSelect(card.id)}
-          className={`cursor-pointer rounded-3xl border border-border-subtle p-5 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.accent}`}
+          className={`cursor-pointer rounded-3xl border border-border-subtle p-5 text-left transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:border-transparent dark:shadow-none ${card.accent}`}
         >
           <div className="flex items-center justify-between gap-4">
             <div>
