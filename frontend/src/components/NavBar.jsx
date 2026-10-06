@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2 } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
+  { id: 'score', label: 'Score', icon: Table2 },
   { id: 'grading', label: 'Grading', icon: ClipboardList },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'terms', label: 'Quarters', icon: CalendarDays },

@@ -38,7 +38,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
-| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Grading** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
+| `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
+| `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — lab + Lab/Exam mode, parse-then-confirm, sequential `/bulk-grade`, results table, within-batch plagiarism |
+| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Class/MMD drawer fed from in-memory `lab_result` (no submission GETs) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |
 | `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, column sort, client-side pagination at 10) |
 
@@ -74,7 +76,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
 
-- Student roster and Grading tables support server-side `search` (name or student ID/IRN; case-insensitive).
+- Student roster and Score matrix tables support server-side `search` (name or student ID/IRN; case-insensitive).
 
 - Lab Student roster and challenge tab roster pagination both count **students who submitted** (lab-level or challenge-graded), page size **5**
 
@@ -93,11 +95,12 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - `ClassScoreBreakdown` keeps `cls.error` from GET `/class` and shows one wrapping compile line under the class name; do not repeat it as an expanded banner and do not CSS-truncate it
 
 - Overview export uses `ExportMenu` → `exportRoster.js` (Excel, PDF, SVG)
-- Grading tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
+- Score tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
 - Grade overview per-lab scores and total use **highest lab score** (`student_lab_progress.highest_score`); submission history panel still lists every attempt with its attempt score
 - Grade overview supports server-side sort via `sort` query param (`studentName`, `irn`, `score`, `labScore,<labUuid>`); default `studentName,asc`; **clickable column headers** on `GradeOverviewTable` (no toolbar sort buttons)
-- Grading tab pagination is **10** students per page (`GET /api/lecturer/grade-overview?size=10`)
-- Grading tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **10** rows per page after filter/sort; filter/sort/student change resets to page 0)
+- Score tab pagination is **10** students per page (`GET /api/lecturer/grade-overview?size=10`)
+- Score tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **10** rows per page after filter/sort; filter/sort/student change resets to page 0)
+- Bulk **Grading** tab (`BulkGradingPanel`) posts each accepted student to `POST /api/lecturer/labs/{labId}/bulk-grade?mode=LAB|EXAM`; holds `lab_result` in memory for `BulkSubmissionDrawer`; within-batch plagiarism via client Jaccard on file hashes (server may return `fileHashes`)
 
 
 
@@ -120,7 +123,7 @@ LecturerDashboard
 
        → ExportMenu (overview export)
 
-  → DashboardSection (activeNav === 'grading')
+  → DashboardSection (activeNav === 'score')
 
        → GradeOverviewTable
 
@@ -131,6 +134,10 @@ LecturerDashboard
        → LabAttemptHistoryDrawer
 
        → LecturerSubmissionDrawer
+
+  → BulkGradingPanel (activeNav === 'grading')
+
+       → BulkSubmissionDrawer (ephemeral lab_result)
 
 ```
 
@@ -152,7 +159,7 @@ User management and submission management are separate pages (`UserManagement`, 
 
 - Challenge export merges incorrect Java methods and incorrect MMD attributes/relations (`Source`, `Item Type`, `Incorrect Item`, `Error` columns); title `Incorrect breakdown — {studentName}`
 
-- `UploadPanel.jsx` is dead code; remove or wire up when lecturer upload flow is defined
+- `UploadPanel.jsx` is dead code; Bulk Grading uses `BulkGradingPanel` + `POST .../bulk-grade` instead
 
 
 

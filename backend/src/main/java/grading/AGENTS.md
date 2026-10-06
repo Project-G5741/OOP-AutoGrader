@@ -32,7 +32,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
 | `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
 | `grading/scoring/PartialCreditEvaluator.java` | `binaryAccuracy` for Class-tab members and MMD elements; `accuracy()` matching-attribute ratio for MMD class presence vs type |
-| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles for upload response |
+| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles; overload accepts `DisclosureMode` (student upload = STUDENT; lecturer bulk = LECTURER) |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
 | `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |

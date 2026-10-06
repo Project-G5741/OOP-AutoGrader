@@ -2,6 +2,7 @@ export const ROUTES = {
   login: '/',
   lecturerDashboard: '/lecturer-dashboard',
   lecturerGrading: '/lecturer-grading',
+  lecturerBulkGrading: '/lecturer-bulk-grading',
   lecturerUsers: '/lecturer-users',
   lecturerSolution: '/lecturer-solution',
   lecturerReport: '/lecturer-report',
@@ -147,7 +148,8 @@ export function patchStoredUser(partial) {
 
 export const LECTURER_NAV_TO_ROUTE = {
   dashboard: ROUTES.lecturerDashboard,
-  grading: ROUTES.lecturerGrading,
+  score: ROUTES.lecturerGrading,
+  grading: ROUTES.lecturerBulkGrading,
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,
   reports: ROUTES.lecturerReport,

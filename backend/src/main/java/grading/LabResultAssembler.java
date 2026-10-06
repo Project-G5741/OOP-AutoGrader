@@ -52,6 +52,24 @@ public class LabResultAssembler {
             GradingService.GradingComputationResult computed,
             Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId) {
+        return assemble(
+                submissionId,
+                rubric,
+                computed,
+                compileErrorsByChallengeId,
+                normalizationNoticesByChallengeId,
+                DisclosureMode.STUDENT);
+    }
+
+    public Map<String, ChallengeDetailBundleDTO> assemble(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingService.GradingComputationResult computed,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId,
+            DisclosureMode disclosureMode) {
+
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
 
         List<ChallengeRubric> challengeRubrics = rubric.byChallengeNumber().values().stream()
                 .sorted(Comparator.comparingInt(ChallengeRubric::challengeNumber))
@@ -86,7 +104,7 @@ public class LabResultAssembler {
                     correctIds,
                     compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
                     snapshot,
-                    DisclosureMode.STUDENT);
+                    mode);
 
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
@@ -113,7 +131,7 @@ public class LabResultAssembler {
                         mmdMeta,
                         submissionId,
                         snapshot,
-                        DisclosureMode.STUDENT);
+                        mode);
                 String parseError = mmdMeta != null ? mmdMeta.parseError : null;
                 if (parseError == null && mmdResult != null) {
                     parseError = mmdResult.parseError();

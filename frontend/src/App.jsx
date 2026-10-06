@@ -120,6 +120,14 @@ export default function App() {
             }
           />
           <Route
+            path={ROUTES.lecturerBulkGrading}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
             path={ROUTES.lecturerUsers}
             element={
               <RequireRole anyOf={["LECTURER"]}>

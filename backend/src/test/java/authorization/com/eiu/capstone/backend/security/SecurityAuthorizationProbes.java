@@ -32,6 +32,11 @@ final class SecurityAuthorizationProbes {
         String overview() {
             return "ok";
         }
+
+        @PostMapping("/labs/{labId}/bulk-grade")
+        String bulkGrade(@PathVariable UUID labId) {
+            return "ok";
+        }
     }
 
     @RestController

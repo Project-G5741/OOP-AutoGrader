@@ -10,7 +10,8 @@
 - [1. Logging In](#1-logging-in)
 - [2. Lecturer Guide](#2-lecturer-guide)
   - [2.1 Dashboard — Grading Overview](#21-dashboard--grading-overview)
-  - [2.2 Grading — Cross-Lab Grade Matrix](#22-grading--cross-lab-grade-matrix)
+  - [2.2 Score — Cross-Lab Grade Matrix](#22-score--cross-lab-grade-matrix)
+  - [2.2.1 Grading — Bulk Folder Grading](#221-grading--bulk-folder-grading)
   - [2.3 Users — User Management](#23-users--user-management)
   - [2.4 Terms — Term Management](#24-terms--term-management)
   - [2.5 Projects — Solution Management](#25-projects--solution-management)
@@ -49,7 +50,10 @@ After a successful login the system routes you automatically:
 
 ## 2. Lecturer Guide
 
-The lecturer interface has a top navigation bar with six sections: **Dashboard**, **Grading**, **Users**, **Terms**, **Projects**, and **Reports**.
+The lecturer interface has a top navigation bar with sections including **Dashboard**, **Score**, **Grading**, **Users**, **Terms**, **Projects**, and **Reports**.
+
+- **Score** — cross-lab grade matrix (persisted roster scores).
+- **Grading** — ephemeral Bulk Grading of a multi-student Main folder dump (does not write to Score or the lab roster).
 
 ---
 
@@ -108,13 +112,13 @@ Click the **↻ (Refresh)** button (top-right of the grading section) to reload 
 
 ---
 
-### 2.2 Grading — Cross-Lab Grade Matrix
+### 2.2 Score — Cross-Lab Grade Matrix
 
 **What it does:** A single table showing every student's score for every lab side-by-side.
 
 #### How to Use
 
-1. Click **Grading** in the top navigation.
+1. Click **Score** in the top navigation.
 2. The table loads with students as rows and labs as columns.
 3. **Search** — search by student name or IRN using the search box at the top.
 4. **Sort** — click any column header to sort.
@@ -129,7 +133,23 @@ Click the **↻ (Refresh)** button (top-right of the grading section) to reload 
 
 #### Exporting
 
-Click the **Export** button (top-right of the Grading section) and choose **CSV** or **Excel** to download the full grade matrix for all students and labs.
+Click the **Export** button (top-right of the Score section) and choose **CSV** or **Excel** to download the full grade matrix for all students and labs.
+
+---
+
+### 2.2.1 Grading — Bulk Folder Grading
+
+**What it does:** Ephemeral grade of a multi-student Main folder dump against one lab. Results stay on this page only — they are **not** written to Score, the lab roster, or plagiarism tables.
+
+#### How to Use
+
+1. Click **Grading** in the top navigation.
+2. Select a **Lab** and choose **Lab** or **Exam** mode.
+   - **Lab mode** expects `Main → IRN_Name → challenge_n → .java/.mmd`.
+   - **Exam mode** expects `Main → IRN_Name → .java/.mmd` and requires the lab to have exactly one challenge.
+3. Drop (or pick) the Main folder. Review **accepted** and **skipped** students, then click **Start Grading**.
+4. Watch **Graded n / N** progress. After the batch finishes, the **Plagiarism** column shows within-batch overlap only.
+5. Click **View Submission** for Score-style Class/MMD breakdown of that ephemeral result.
 
 ---
 
@@ -510,7 +530,8 @@ A: The system detected code similarity between submissions. Flags usually appear
 **Q: I want to export grade data.**  
 A: Lecturers can export from:  
 - **Dashboard → Overview tab** — per-lab student roster (CSV / Excel).  
-- **Grading section** — full cross-lab grade matrix (CSV / Excel).
+- **Score section** — full cross-lab grade matrix (CSV / Excel).
+- **Grading section** — ephemeral Bulk Grading of a Main folder (not persisted to Score).
 
 ---
 
