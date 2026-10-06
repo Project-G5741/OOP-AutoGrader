@@ -109,7 +109,7 @@ class ClassStructureServiceDisclosureTest {
     }
 
     @Test
-    void lecturerMode_missingClassMembers_keepRubricLabels() {
+    void lecturerMode_missingClassMembers_useGenericLabelsLikeStudent() {
         UUID classId = UUID.randomUUID();
         UUID fieldId = UUID.randomUUID();
 
@@ -133,9 +133,10 @@ class ClassStructureServiceDisclosureTest {
                 DisclosureMode.LECTURER);
 
         ClassFieldDetailDTO field = result.get(0).fields().get(0);
-        assertEquals("age", field.name());
-        assertEquals("PRIVATE", field.scope());
-        assertEquals("int", field.dataType());
+        assertEquals(StudentDisplayMessages.MISSING_VARIABLE, field.name());
+        assertEquals(StudentDisplayMessages.PLACEHOLDER, field.scope());
+        assertEquals(StudentDisplayMessages.PLACEHOLDER, field.dataType());
+        assertFalse(field.ok());
     }
 
     @Test
