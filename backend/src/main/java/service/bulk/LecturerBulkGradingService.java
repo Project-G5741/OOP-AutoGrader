@@ -18,6 +18,7 @@ import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingService;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -66,7 +67,9 @@ public class LecturerBulkGradingService {
         Lab lab = labRepository.findById(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
 
-        int challengeCount = challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId).size();
+        List<Challenge> challenges =
+                challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId);
+        int challengeCount = challenges.size();
         if (mode == BulkGradeMode.EXAM && challengeCount != 1) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -78,7 +81,18 @@ public class LecturerBulkGradingService {
                     "Lab mode requires a lab with at least one challenge");
         }
 
-        List<MultipartFile> remapped = BulkFolderPathRemapper.remap(files, mode);
+        int examChallengeNumber = 1;
+        if (mode == BulkGradeMode.EXAM) {
+            Integer number = challenges.get(0).getChallengeNumber();
+            if (number == null || number < 1) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Exam lab challenge number is missing or invalid");
+            }
+            examChallengeNumber = number;
+        }
+
+        List<MultipartFile> remapped = BulkFolderPathRemapper.remap(files, mode, examChallengeNumber);
         String studentFolder = BulkFolderPathRemapper.extractStudentFolder(remapped);
         String irn = BulkFolderPathRemapper.extractIrn(studentFolder);
         String requestId = UUID.randomUUID().toString();

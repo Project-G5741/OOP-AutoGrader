@@ -24,9 +24,10 @@ export function parseBulkMainFolder(entries, mode) {
     }))
     .filter((e) => e.relativePath && !e.relativePath.split('/').some((p) => p === '.git' || p.startsWith('.git/')));
 
-  // Strip a single shared Main prefix if present
+  // Strip a single shared Main prefix only when it is NOT already an IRN_Name root
   const firstSegs = normalized.map((e) => e.relativePath.split('/').filter(Boolean)[0]).filter(Boolean);
-  const mainName = firstSegs.length && firstSegs.every((s) => s === firstSegs[0]) ? firstSegs[0] : null;
+  const sharedTop = firstSegs.length && firstSegs.every((s) => s === firstSegs[0]) ? firstSegs[0] : null;
+  const mainName = sharedTop && !SUBMISSION_ROOT_PATTERN.test(sharedTop) ? sharedTop : null;
 
   const byStudent = new Map();
   for (const entry of normalized) {

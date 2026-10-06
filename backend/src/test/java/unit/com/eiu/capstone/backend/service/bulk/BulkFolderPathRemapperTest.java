@@ -16,12 +16,12 @@ import org.springframework.web.server.ResponseStatusException;
 class BulkFolderPathRemapperTest {
 
     @Test
-    void examInsertsChallenge1UnderStudentRoot() {
+    void examInsertsLabChallengeNumberUnderStudentRoot() {
         MultipartFile file = file("2331200057_DOAN TUAN KIET/Main.java", "class Main {}");
-        List<MultipartFile> remapped = BulkFolderPathRemapper.remap(List.of(file), BulkGradeMode.EXAM);
+        List<MultipartFile> remapped = BulkFolderPathRemapper.remap(List.of(file), BulkGradeMode.EXAM, 2);
         assertEquals(1, remapped.size());
         assertEquals(
-                "2331200057_DOAN TUAN KIET/challenge_1/Main.java",
+                "2331200057_DOAN TUAN KIET/challenge_2/Main.java",
                 remapped.get(0).getOriginalFilename());
         assertEquals("2331200057_DOAN TUAN KIET", BulkFolderPathRemapper.extractStudentFolder(remapped));
         assertEquals("2331200057", BulkFolderPathRemapper.extractIrn("2331200057_DOAN TUAN KIET"));

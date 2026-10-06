@@ -27,11 +27,21 @@ public final class BulkFolderPathRemapper {
     private BulkFolderPathRemapper() {}
 
     public static List<MultipartFile> remap(List<MultipartFile> files, BulkGradeMode mode) {
+        return remap(files, mode, 1);
+    }
+
+    /**
+     * @param examChallengeNumber challenge folder number to insert in Exam mode (usually the lab's sole challenge number)
+     */
+    public static List<MultipartFile> remap(List<MultipartFile> files, BulkGradeMode mode, int examChallengeNumber) {
         if (files == null || files.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one file is required");
         }
         if (mode == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode is required (LAB or EXAM)");
+        }
+        if (mode == BulkGradeMode.EXAM && examChallengeNumber < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Exam challenge number must be >= 1");
         }
 
         String sharedTop = sharedTopSegment(files);
@@ -85,7 +95,7 @@ public final class BulkFolderPathRemapper {
                             HttpStatus.BAD_REQUEST,
                             "Exam mode expects files directly under IRN_Name (no challenge_n folders)");
                 }
-                rewritten = root + "/challenge_1/" + String.join("/", rest);
+                rewritten = root + "/challenge_" + examChallengeNumber + "/" + String.join("/", rest);
             } else {
                 if (!CHALLENGE_PATTERN.matcher(rest.get(0)).matches()) {
                     throw new ResponseStatusException(

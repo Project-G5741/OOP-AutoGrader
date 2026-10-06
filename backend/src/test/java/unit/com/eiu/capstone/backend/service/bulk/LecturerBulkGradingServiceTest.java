@@ -95,8 +95,10 @@ class LecturerBulkGradingServiceTest {
         Lab lab = new Lab();
         lab.setId(labId);
         when(labRepository.findById(labId)).thenReturn(java.util.Optional.of(lab));
+        Challenge sole = new Challenge();
+        sole.setChallengeNumber(1);
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
-                .thenReturn(List.of(new Challenge()));
+                .thenReturn(List.of(sole));
 
         LabRubricSnapshot rubric = mock(LabRubricSnapshot.class);
         when(labRubricCache.get(lab)).thenReturn(rubric);
