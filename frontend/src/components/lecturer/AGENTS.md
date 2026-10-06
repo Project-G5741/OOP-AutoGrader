@@ -31,7 +31,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `MmdScoreBreakdown.jsx` | Expandable MMD class + relations breakdown for lecturer drawer |
 
-| `LecturerSubmissionDrawer.jsx` | Right drawer: Class | MMD tabs (MMD hidden when `has_mmd=false`), challenge detail + export |
+| `LecturerSubmissionDrawer.jsx` | Right drawer: Declaration Test | MMD | Operation Test (MMD when `has_mmd`; OT when `/testcases` returns rows), challenge detail + export |
 
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View Submission |
 | `PlagiarismInvestigationDrawer.jsx` | Right drawer: flagged-student copy lineage + match signals (`GET .../students/{id}/plagiarism`) |
@@ -39,8 +39,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
-| `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — lab + Lab/Exam mode, parse-then-confirm, sequential `/bulk-grade`, results table, within-batch plagiarism |
-| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Class/MMD drawer fed from in-memory `lab_result` (no submission GETs) |
+| `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — lab + Lab/Exam mode, parse-then-confirm, sequential `/bulk-grade`, results table with **Overview + challenge tabs** (Score switches by tab), within-batch plagiarism |
+| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result`; from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
+| `OperationalTestcaseBreakdown.jsx` | Expandable OT I/O cards for lecturer Bulk drawer (example + other/hidden) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |
 | `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, column sort, client-side pagination at 10) |
 
@@ -88,7 +89,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster **View Submission** opens `LabAttemptHistoryDrawer`; flagged rows also show **View Plagiarism** → `PlagiarismInvestigationDrawer` (lineage rooted at earliest first-submit; match signals on edges; no code diffs)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with Class | MMD tabs when `has_mmd` is true (`GET .../challenges/{id}/class?studentId=` and `GET .../challenges/{id}/mmd?studentId=`; optional `submissionId`); those GETs use `DisclosureMode.LECTURER` (full rubric labels). MMD tab and `/mmd` fetch are omitted when `has_mmd` is false (from `GET /api/labs/{labId}/challenges`). Do not apply `studentDisplayConsolidation`.
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with Declaration Test | MMD | Operation Test when applicable (`GET .../challenges/{id}/class?studentId=`, `/mmd`, `/testcases`; optional `submissionId`). MMD tab and `/mmd` fetch are omitted when `has_mmd` is false. Operation Test tab appears when `/testcases` returns at least one row. Wrong/missing Class and MMD members use the same generic student-facing labels and consolidation as the student dashboard (`studentDisplayConsolidation.js`); MMD class cards use the student primary-light list layout.
 - Challenge tab lists **submitters only**; **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
 - Declaration Score member rows are pass or fail only; leftover `partial` flags render as fail, not a warning tick
@@ -101,6 +102,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Score tab pagination is **10** students per page (`GET /api/lecturer/grade-overview?size=10`)
 - Score tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **10** rows per page after filter/sort; filter/sort/student change resets to page 0)
 - Bulk **Grading** tab (`BulkGradingPanel`) posts each accepted student to `POST /api/lecturer/labs/{labId}/bulk-grade?mode=LAB|EXAM`; holds `lab_result` in memory for `BulkSubmissionDrawer`; within-batch plagiarism via client Jaccard on file hashes (server may return `fileHashes`)
+- Bulk results show **Overview** + one tab per lab challenge (Dashboard-style labels); Overview Score = lab total; challenge tab Score = that challenge’s `lab_result` total; Plagiarism is within-batch and tab-invariant; View Submission passes `initialChallengeId` from the active results tab
 
 
 

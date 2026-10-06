@@ -14,6 +14,46 @@ import BulkSubmissionDrawer from './BulkSubmissionDrawer';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+function resultsTabClass(active) {
+  return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+    active
+      ? 'border-primary text-primary'
+      : 'border-transparent text-foreground-secondary hover:text-foreground'
+  }`;
+}
+
+function challengeTabLabel(challenge, index) {
+  return challenge?.name || `Challenge ${challenge?.challengeNumber ?? index + 1}`;
+}
+
+/**
+ * Score for the active results tab from an ephemeral bulk row payload.
+ * Overview → lab total; challenge → lab_result.challenge_N.scores.total or challengeResult[id].
+ */
+export function scoreForResultsTab(row, resultsTab, challenges = []) {
+  if (!row || row.error) return null;
+  if (resultsTab === 'overview') {
+    return row.score ?? null;
+  }
+  const challenge = challenges.find((c) => String(c.id) === String(resultsTab));
+  if (!challenge) return null;
+  const num = challenge.challengeNumber ?? challenge.number;
+  const bundle = row.payload?.labResult?.[`challenge_${num}`]
+    || row.payload?.labResult?.[`challenge_${String(num)}`];
+  const fromBundle = bundle?.scores?.total;
+  if (fromBundle != null && fromBundle !== '') {
+    const n = Number(fromBundle);
+    return Number.isNaN(n) ? null : n;
+  }
+  const byId = row.payload?.challengeResult?.[challenge.id]
+    ?? row.payload?.challengeResult?.[String(challenge.id)];
+  if (byId != null && byId !== '') {
+    const n = Number(byId);
+    return Number.isNaN(n) ? null : n;
+  }
+  return null;
+}
+
 async function walkEntry(entry, pathPrefix, collected) {
   return new Promise((resolve, reject) => {
     if (entry.isFile) {
@@ -63,10 +103,15 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [rows, setRows] = useState([]);
   const [gradeError, setGradeError] = useState(null);
   const [drawerStudent, setDrawerStudent] = useState(null);
+  const [resultsTab, setResultsTab] = useState('overview');
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
     [labs, labId],
+  );
+  const labChallenges = useMemo(
+    () => (Array.isArray(selectedLab?.challenges) ? selectedLab.challenges : []),
+    [selectedLab],
   );
   const challengeCount = challengeCountForLab(selectedLab);
   const modeOk = modeMatchesLab(mode, challengeCount);
@@ -78,6 +123,14 @@ export default function BulkGradingPanel({ labs = [] }) {
         ? 'Lab mode requires a lab with at least one challenge.'
         : null;
 
+  const drawerInitialChallengeId = useMemo(() => {
+    if (resultsTab === 'overview') return labChallenges[0]?.id || null;
+    return labChallenges.some((c) => String(c.id) === String(resultsTab))
+      ? resultsTab
+      : (labChallenges[0]?.id || null);
+  }, [resultsTab, labChallenges]);
+  const lockDrawerToChallenge = resultsTab !== 'overview';
+
   const applyEntries = useCallback((entries, label) => {
     const result = parseBulkMainFolder(entries, mode);
     setParseResult(result);
@@ -86,6 +139,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setGradedCount(0);
     setGradeError(null);
     setDrawerStudent(null);
+    setResultsTab('overview');
   }, [mode]);
 
   const handleInputFiles = (fileList) => {
@@ -124,6 +178,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setRows([]);
     setGradedCount(0);
     setDrawerStudent(null);
+    setResultsTab('overview');
 
     const accepted = parseResult.accepted;
     const nextRows = [];
@@ -147,13 +202,15 @@ export default function BulkGradingPanel({ labs = [] }) {
         const data = await response.json();
         const score = data.score ?? data.totalScore ?? null;
         const labResult = data.labResult || data.lab_result || {};
+        const challengeResult = data.challengeResult || {};
         const fileHashes = data.fileHashes || data.contentHashes || null;
         payloadsByIrn[student.studentId] = {
           ...student,
           score,
           labResult,
+          challengeResult,
           fileHashes,
-          challenges: selectedLab.challenges || [],
+          challenges: labChallenges,
         };
         nextRows.push({
           studentId: student.studentId,
@@ -210,6 +267,7 @@ export default function BulkGradingPanel({ labs = [] }) {
               setLabId(e.target.value);
               setRows([]);
               setGradedCount(0);
+              setResultsTab('overview');
             }}
             className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-foreground"
           >
@@ -234,6 +292,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                   setMode(m);
                   setParseResult(null);
                   setRows([]);
+                  setResultsTab('overview');
                 }}
                 className={`px-4 py-2 text-sm font-medium ${
                   mode === m
@@ -314,6 +373,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                   setFolderLabel('');
                   setRows([]);
                   setGradedCount(0);
+                  setResultsTab('overview');
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface-secondary"
               >
@@ -354,6 +414,29 @@ export default function BulkGradingPanel({ labs = [] }) {
             {grading ? '…' : ''}
           </p>
           {gradeError && <p className="text-sm text-error">{gradeError}</p>}
+
+          {rows.length > 0 && labChallenges.length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-2 border-b border-border pb-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setResultsTab('overview')}
+                className={resultsTabClass(resultsTab === 'overview')}
+              >
+                Overview
+              </button>
+              {labChallenges.map((challenge, index) => (
+                <button
+                  key={challenge.id}
+                  type="button"
+                  onClick={() => setResultsTab(challenge.id)}
+                  className={resultsTabClass(String(resultsTab) === String(challenge.id))}
+                >
+                  {challengeTabLabel(challenge, index)}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
             <table className="min-w-full text-sm">
               <thead>
@@ -366,33 +449,36 @@ export default function BulkGradingPanel({ labs = [] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.studentId} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 text-foreground">{formatText(row.studentName)}</td>
-                    <td className="px-4 py-3 text-foreground">{row.studentId}</td>
-                    <td className="px-4 py-3 font-semibold text-foreground">
-                      {row.error ? '—' : formatNumber(row.score)}
-                    </td>
-                    <td className="px-4 py-3 text-foreground-secondary">
-                      {row.error ? '—' : (row.plagiarismLabel || '—')}
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.error ? (
-                        <span className="text-xs text-error">{row.error}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={!row.payload}
-                          onClick={() => setDrawerStudent(row.payload)}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View Submission
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const displayScore = scoreForResultsTab(row, resultsTab, labChallenges);
+                  return (
+                    <tr key={row.studentId} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 text-foreground">{formatText(row.studentName)}</td>
+                      <td className="px-4 py-3 text-foreground">{row.studentId}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">
+                        {row.error ? '—' : formatNumber(displayScore)}
+                      </td>
+                      <td className="px-4 py-3 text-foreground-secondary">
+                        {row.error ? '—' : (row.plagiarismLabel || '—')}
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.error ? (
+                          <span className="text-xs text-error">{row.error}</span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!row.payload}
+                            onClick={() => setDrawerStudent(row.payload)}
+                            className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View Submission
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -404,6 +490,8 @@ export default function BulkGradingPanel({ labs = [] }) {
         onClose={() => setDrawerStudent(null)}
         student={drawerStudent}
         lab={selectedLab}
+        initialChallengeId={drawerInitialChallengeId}
+        lockToChallenge={lockDrawerToChallenge}
       />
     </div>
   );

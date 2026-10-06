@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatPercent, firstCompileErrorLine } from '../../utils/formatters';
-import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
+import {
+  consolidateStudentClassMembers,
+  formatStudentConstructorLine,
+  formatStudentFieldLine,
+  formatStudentMethodLine,
+  formatStudentScopeLine,
+} from '../../utils/studentDisplayConsolidation';
 
 function Tick({ ok, partial }) {
   return ok && !partial
@@ -71,7 +77,6 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
   const [expandedClassName, setExpandedClassName] = useState(null);
   const classes = mapClassData(classData);
 
-  const allItems = classes.flatMap((cls) => [...cls.fields, ...cls.constructors, ...cls.methods]);
   const passCount = classes.reduce((sum, cls) => sum + classGradeCounts(cls).passCount, 0);
   const totalCount = classes.reduce((sum, cls) => sum + classGradeCounts(cls).total, 0);
   const overallPct = totalCount ? Math.floor((passCount / totalCount) * 100) : 0;
@@ -96,7 +101,9 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
       ) : (
         <div className="space-y-3">
           {classes.map((cls) => {
-            const items = [...cls.fields, ...cls.constructors, ...cls.methods];
+            const fields = consolidateStudentClassMembers(cls.fields);
+            const constructors = consolidateStudentClassMembers(cls.constructors);
+            const methods = consolidateStudentClassMembers(cls.methods);
             const { passCount: clsPass, total: clsTotal, pct: clsPct } = classGradeCounts(cls);
             const isOpen = expandedClassName === cls.name;
             const compileErrorLine = firstCompileErrorLine(cls.error);
@@ -126,19 +133,21 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                 </button>
 
                 {isOpen && (
-                  <div className="divide-y divide-border border-t border-border divide-border">
-                    {cls.fields.length > 0 && (
+                  <div className="divide-y divide-border border-t border-border">
+                    {fields.length > 0 && (
                       <div className="px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-blue">Fields</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>
                         <div className="space-y-2">
-                          {cls.fields.map((field, index) => (
+                          {fields.map((field, index) => (
                             <div
                               key={`${field.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${field.ok ? 'bg-surface-secondary/40' : 'bg-error-bg'}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-chart-blue dark:text-chart-blue">{field.name}: {field.dataType}</p>
-                                <p className="mt-0.5 text-[10px] text-foreground-muted">{field.scope || '—'}</p>
+                                <p className="font-mono text-xs font-semibold text-info-text">{formatStudentFieldLine(field)}</p>
+                                {formatStudentScopeLine(field.scope) && (
+                                  <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(field.scope)}</p>
+                                )}
                               </div>
                               <Tick ok={field.ok} partial={field.partial} />
                             </div>
@@ -147,18 +156,20 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                       </div>
                     )}
 
-                    {cls.constructors.length > 0 && (
+                    {constructors.length > 0 && (
                       <div className="px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-chart-amber">Constructors</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-warning">Constructors</p>
                         <div className="space-y-2">
-                          {cls.constructors.map((ctor, index) => (
+                          {constructors.map((ctor, index) => (
                             <div
                               key={`${ctor.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${ctor.ok ? 'bg-surface-secondary/40' : 'bg-error-bg'}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-chart-amber dark:text-chart-amber">{ctor.name}({ctor.params || ''})</p>
-                                <p className="mt-0.5 text-[10px] text-foreground-muted">{ctor.scope || '—'}</p>
+                                <p className="font-mono text-xs font-semibold text-warning-text">{formatStudentConstructorLine(ctor)}</p>
+                                {formatStudentScopeLine(ctor.scope) && (
+                                  <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(ctor.scope)}</p>
+                                )}
                               </div>
                               <Tick ok={ctor.ok} partial={ctor.partial} />
                             </div>
@@ -167,18 +178,20 @@ export default function ClassScoreBreakdown({ classData = [], overallScore = nul
                       </div>
                     )}
 
-                    {cls.methods.length > 0 && (
+                    {methods.length > 0 && (
                       <div className="px-4 py-3">
                         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-success">Methods</p>
                         <div className="space-y-2">
-                          {cls.methods.map((method, index) => (
+                          {methods.map((method, index) => (
                             <div
                               key={`${method.name}-${index}`}
-                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
+                              className={`flex items-center justify-between rounded-lg px-3 py-2 ${method.ok ? 'bg-surface-secondary/40' : 'bg-error-bg'}`}
                             >
                               <div>
-                                <p className="text-xs font-mono font-semibold text-success">{method.name}(): {method.returnType}</p>
-                                <p className="mt-0.5 text-[10px] text-foreground-muted">{method.scope || '—'}</p>
+                                <p className="font-mono text-xs font-semibold text-success-text">{formatStudentMethodLine(method)}</p>
+                                {formatStudentScopeLine(method.scope) && (
+                                  <p className="mt-0.5 text-[10px] text-foreground-muted">{formatStudentScopeLine(method.scope)}</p>
+                                )}
                               </div>
                               <Tick ok={method.ok} partial={method.partial} />
                             </div>

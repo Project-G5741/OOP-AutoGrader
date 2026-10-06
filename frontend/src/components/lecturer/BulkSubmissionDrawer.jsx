@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ClassScoreBreakdown from './ClassScoreBreakdown';
 import MmdScoreBreakdown from './MmdScoreBreakdown';
-import { formatPercent, formatText } from '../../utils/formatters';
+import OperationalTestcaseBreakdown from './OperationalTestcaseBreakdown';
+import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 
 function tabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -23,20 +24,47 @@ function indexLabResult(labResult) {
   return map;
 }
 
-export default function BulkSubmissionDrawer({ open, onClose, student, lab }) {
+function challengeScoreFromBundle(bundle) {
+  const raw = bundle?.scores?.total;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
+function challengeLabel(challenge, index = 0) {
+  return challenge?.name || `Challenge ${challenge?.challengeNumber ?? index + 1}`;
+}
+
+/**
+ * @param {boolean} lockToChallenge when true (Bulk results on a challenge tab), hide the
+ *   multi-challenge switcher and show only that challenge — same as Dashboard View Submission.
+ */
+export default function BulkSubmissionDrawer({
+  open,
+  onClose,
+  student,
+  lab,
+  initialChallengeId = null,
+  lockToChallenge = false,
+}) {
   const challenges = lab?.challenges || [];
   const [challengeId, setChallengeId] = useState(null);
   const [activeTab, setActiveTab] = useState('class');
 
   useEffect(() => {
     if (!open) return;
-    setChallengeId(challenges[0]?.id || null);
+    const preferred = initialChallengeId
+      && challenges.some((c) => String(c.id) === String(initialChallengeId))
+      ? initialChallengeId
+      : (challenges[0]?.id || null);
+    setChallengeId(preferred);
     setActiveTab('class');
-  }, [open, student?.studentId, challenges]);
+  }, [open, student?.studentId, challenges, initialChallengeId]);
 
   const indexed = useMemo(() => indexLabResult(student?.labResult), [student?.labResult]);
 
   const selectedChallenge = challenges.find((c) => String(c.id) === String(challengeId)) || challenges[0];
+  const selectedIndex = Math.max(0, challenges.findIndex((c) => String(c.id) === String(challengeId)));
   const bundle = useMemo(() => {
     if (!selectedChallenge) return null;
     const num = selectedChallenge.challengeNumber ?? selectedChallenge.number;
@@ -46,14 +74,29 @@ export default function BulkSubmissionDrawer({ open, onClose, student, lab }) {
       || null;
   }, [indexed, selectedChallenge]);
 
-  const mmdApplicable = bundle?.scoreApplicability?.mmd !== false
-    && selectedChallenge?.hasMmd !== false;
+  // Challenge has_mmd=false wins over a stale/missing scoreApplicability.mmd flag
+  // (e.g. ungraded challenge used to default mmdApplicable=true in lab_result).
+  const mmdApplicable = selectedChallenge?.hasMmd !== false
+    && bundle?.scoreApplicability?.mmd !== false
+    && (bundle?.scoreApplicability?.mmd === true || selectedChallenge?.hasMmd === true);
+  const testcaseApplicable = bundle?.scoreApplicability?.testcase === true
+    || (Array.isArray(bundle?.testcases) && bundle.testcases.length > 0);
+
   const classData = bundle?.class || bundle?.classData || [];
   const mmdData = bundle?.mmd?.classes || bundle?.mmd || [];
   const mmdError = bundle?.mmd?.parseError || null;
-  const overall = student?.score;
+  const labScore = student?.score;
+  const challengeScore = challengeScoreFromBundle(bundle);
+
+  useEffect(() => {
+    if (activeTab === 'mmd' && !mmdApplicable) setActiveTab('class');
+    if (activeTab === 'testcase' && !testcaseApplicable) setActiveTab('class');
+  }, [activeTab, mmdApplicable, testcaseApplicable]);
 
   if (!open || !student) return null;
+
+  const showPillarTabs = mmdApplicable || testcaseApplicable;
+  const showChallengeSwitcher = !lockToChallenge && challenges.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-background/50">
@@ -63,12 +106,6 @@ export default function BulkSubmissionDrawer({ open, onClose, student, lab }) {
           <div>
             <h2 className="text-lg font-semibold text-foreground">{formatText(student.studentName)}</h2>
             <p className="text-sm text-foreground-secondary">{student.studentId}</p>
-            {overall != null && (
-              <p className="mt-1 text-sm text-foreground-secondary">
-                Overall Score{' '}
-                <span className="font-semibold text-foreground">{formatPercent(overall)}</span>
-              </p>
-            )}
           </div>
           <button
             type="button"
@@ -80,35 +117,74 @@ export default function BulkSubmissionDrawer({ open, onClose, student, lab }) {
           </button>
         </header>
 
-        {challenges.length > 1 && (
+        <div className="space-y-3 border-b border-border px-5 py-4 text-sm">
+          {selectedChallenge && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-foreground-secondary">Challenge</span>
+              <span className="font-medium text-foreground text-right">
+                {formatText(challengeLabel(selectedChallenge, selectedIndex))}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-foreground-secondary">
+              {lockToChallenge ? 'Overall Score' : 'Challenge Score'}
+            </span>
+            <span className="font-semibold text-foreground">
+              {challengeScore != null ? formatNumber(challengeScore) : '—'}
+            </span>
+          </div>
+          {!lockToChallenge && labScore != null && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-foreground-secondary">Lab Score</span>
+              <span className="font-semibold text-foreground">{formatPercent(labScore)}</span>
+            </div>
+          )}
+        </div>
+
+        {showChallengeSwitcher && (
           <div className="flex gap-1 overflow-x-auto border-b border-border px-3 pt-2">
-            {challenges.map((ch) => (
+            {challenges.map((ch, index) => (
               <button
                 key={ch.id}
                 type="button"
-                onClick={() => setChallengeId(ch.id)}
+                onClick={() => {
+                  setChallengeId(ch.id);
+                  setActiveTab('class');
+                }}
                 className={`whitespace-nowrap rounded-t-lg px-3 py-2 text-xs font-medium ${
                   String(challengeId) === String(ch.id)
                     ? 'bg-surface-secondary text-primary'
                     : 'text-foreground-secondary'
                 }`}
               >
-                {ch.name || `Challenge ${ch.challengeNumber}`}
+                {challengeLabel(ch, index)}
               </button>
             ))}
           </div>
         )}
 
-        <div className="flex gap-1 border-b border-border px-3">
-          <button type="button" className={tabClass(activeTab === 'class')} onClick={() => setActiveTab('class')}>
-            Class
-          </button>
-          {mmdApplicable && (
-            <button type="button" className={tabClass(activeTab === 'mmd')} onClick={() => setActiveTab('mmd')}>
-              MMD
+        {showPillarTabs && (
+          <div className="flex gap-1 border-b border-border px-3">
+            <button type="button" className={tabClass(activeTab === 'class')} onClick={() => setActiveTab('class')}>
+              Declaration Test
             </button>
-          )}
-        </div>
+            {mmdApplicable && (
+              <button type="button" className={tabClass(activeTab === 'mmd')} onClick={() => setActiveTab('mmd')}>
+                MMD
+              </button>
+            )}
+            {testcaseApplicable && (
+              <button
+                type="button"
+                className={tabClass(activeTab === 'testcase')}
+                onClick={() => setActiveTab('testcase')}
+              >
+                Operation Test
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {!bundle && (
@@ -119,6 +195,9 @@ export default function BulkSubmissionDrawer({ open, onClose, student, lab }) {
           )}
           {bundle && activeTab === 'mmd' && mmdApplicable && (
             <MmdScoreBreakdown mmdData={Array.isArray(mmdData) ? mmdData : []} mmdError={mmdError} />
+          )}
+          {bundle && activeTab === 'testcase' && testcaseApplicable && (
+            <OperationalTestcaseBreakdown bundle={bundle} />
           )}
         </div>
       </aside>

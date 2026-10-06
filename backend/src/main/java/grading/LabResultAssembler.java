@@ -106,6 +106,10 @@ public class LabResultAssembler {
                     snapshot,
                     mode);
 
+            // Missing graded pillars (e.g. student omitted this challenge folder): keep scores at 0
+            // but honor the rubric's has_mmd / OT presence so drawers still show those tabs.
+            boolean defaultTestcaseApplicable = challengeRubric.testcases() != null
+                    && !challengeRubric.testcases().isEmpty();
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
                     number,
                     new PillarScoreBreakdown(
@@ -113,8 +117,8 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
-                            true,
-                            false));
+                            challengeRubric.hasMmd(),
+                            defaultTestcaseApplicable));
 
             MmdResponseDTO mmdResponse;
             if (pillarScores.mmdApplicable()) {
