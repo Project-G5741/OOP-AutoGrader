@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, GitMerge } from 'lucide-react';
-import { statusClasses } from '../../theme/statusClasses';
 import { ScorePill, ScoreSectionHeader } from '../ui/ScorePill';
 import { formatMmdRelationType } from '../../utils/formatters';
+import {
+  consolidateStudentMmdAttributes,
+  isStudentGenericMessage,
+} from '../../utils/studentDisplayConsolidation';
 
 function Tick({ ok }) {
   return ok
@@ -36,12 +39,12 @@ function attributeTypeLabel(type) {
   return 'Attribute';
 }
 
+/** Match student dashboard MMD attribute colors (field / method / constructor+stereotype). */
 function attributeTypeColor(type) {
   const normalized = String(type ?? '').toLowerCase();
-  if (normalized === 'field') return 'text-chart-blue';
-  if (normalized === 'method') return 'text-success';
-  if (normalized === 'constructor') return 'text-chart-amber';
-  return 'text-foreground-secondary';
+  if (normalized === 'field') return 'text-info-text';
+  if (normalized === 'method') return 'text-success-text';
+  return 'text-warning-text';
 }
 
 function mapMmdData(mmdData) {
@@ -53,7 +56,6 @@ function mapMmdData(mmdData) {
 }
 
 export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
-  const [expandedClassName, setExpandedClassName] = useState(null);
   const [relationsOpen, setRelationsOpen] = useState(false);
   const classes = mapMmdData(mmdData);
 
@@ -85,50 +87,40 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
           No MMD class data is available.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="mb-4 grid grid-cols-1 gap-4">
           {classes.map((cls) => {
-            const items = cls.attributes;
-            const clsPass = items.filter((item) => item.ok).length;
-            const clsPct = items.length ? Math.floor((clsPass / items.length) * 100) : 100;
-            const isOpen = expandedClassName === cls.name;
+            const displayAttributes = consolidateStudentMmdAttributes(cls.attributes);
             return (
-              <div key={cls.name} className="overflow-hidden rounded-xl bg-surface shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
-                  className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-4 py-3 text-left transition hover:bg-surface-secondary"
-                >
-                  <p className="font-mono text-sm font-bold text-foreground">{cls.name}</p>
-                  <div className="flex items-center gap-2">
-                    <ScorePill ok={clsPass} total={items.length || 1} pct={clsPct} />
-                    {isOpen ? <ChevronUp className="h-4 w-4 text-foreground-muted" /> : <ChevronDown className="h-4 w-4 text-foreground-muted" />}
-                  </div>
-                </button>
-
-                {isOpen && (
-                  <div className="divide-y divide-border border-t border-border">
-                    <div className="px-4 py-3">
-                      <div className="space-y-2">
-                        {items.map((attr, index) => (
-                          <div
-                            key={`${attr.name}-${index}`}
-                            className={`flex items-start justify-between gap-2 rounded-lg px-3 py-2 ${attr.ok ? statusClasses('correct') : statusClasses('incorrect')}`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className={`text-xs font-mono font-semibold break-words ${attributeTypeColor(attr.type)}`}>
-                                {attr.name}
-                              </p>
-                              {!attr.ok && attr.error && (
-                                <p className="mt-1 text-[10px] text-error-text">{attr.error}</p>
-                              )}
-                            </div>
-                            <Tick ok={attr.ok} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div key={cls.name} className="overflow-hidden rounded-xl border border-border">
+                <div className="border-b border-border bg-primary-light px-4 py-2">
+                  <p className="font-mono text-sm font-bold text-primary-text">{cls.name}</p>
+                </div>
+                <ul className="divide-y divide-border">
+                  {displayAttributes.map((attr, index) => {
+                    const showDetail = !attr.ok
+                      && attr.error
+                      && !isStudentGenericMessage(attr.error)
+                      && attr.error !== attr.name;
+                    return (
+                      <li
+                        key={`${attr.name}-${index}`}
+                        className={`flex items-start gap-3 px-4 py-2 text-xs ${index % 2 === 0 ? '' : 'bg-surface-secondary/50'}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className={`break-words font-mono ${attributeTypeColor(attr.type)}`}>
+                            {attr.name}
+                          </span>
+                          {showDetail && (
+                            <p className="mt-0.5 text-[10px] text-foreground-muted">{attr.error}</p>
+                          )}
+                        </div>
+                        <div className="flex-shrink-0 pt-0.5">
+                          <Tick ok={attr.ok} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             );
           })}
@@ -176,7 +168,7 @@ export default function MmdScoreBreakdown({ mmdData = [], mmdError = null }) {
                       </div>
                     </div>
                     {!r.ok && r.error && (
-                      <div className="px-4 py-2 text-xs font-mono bg-error-bg text-error-text">
+                      <div className="bg-error-bg px-4 py-2 font-mono text-xs text-error-text">
                         {r.from} → {r.to}: {r.error}
                       </div>
                     )}

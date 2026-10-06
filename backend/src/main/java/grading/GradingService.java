@@ -52,6 +52,7 @@ import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
+import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
@@ -121,6 +122,15 @@ public class GradingService {
                                       LabRubricSnapshot rubric,
                                       List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
                                       Map<String, List<MultipartFile>> mmdByChallenge) {
+        return gradeSubmission(
+                submission, rubric, challengeFolderResults, mmdByChallenge, DisclosureMode.STUDENT);
+    }
+
+    public GradingOutcome gradeSubmission(LabSubmission submission,
+                                      LabRubricSnapshot rubric,
+                                      List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
+                                      Map<String, List<MultipartFile>> mmdByChallenge,
+                                      DisclosureMode disclosureMode) {
 
         long totalStart = System.currentTimeMillis();
 
@@ -161,7 +171,8 @@ public class GradingService {
                 rubric,
                 computed,
                 compileErrorsByChallengeId(rubric, challengeFolderResults),
-                packageNormalizationNoticesByChallengeId(rubric, challengeFolderResults));
+                packageNormalizationNoticesByChallengeId(rubric, challengeFolderResults),
+                disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT);
         TimingLog.block(timingLog, "Grade submission",
                 "load existing", loadMs,
                 "compute", computeMs,

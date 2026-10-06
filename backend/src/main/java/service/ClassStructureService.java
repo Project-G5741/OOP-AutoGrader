@@ -345,11 +345,8 @@ public class ClassStructureService {
                 String rubricName = formatFieldName(field);
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(field.getId().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, field.getId(), rubricName, "field", disclosureMode),
-                        "field",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "field", "Field mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "field", rubricName, mmdSnapshot, field.getId()));
             });
 
             structure.constructorsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(constructor -> {
@@ -360,11 +357,8 @@ public class ClassStructureService {
                         structure.paramsByConstructorId().getOrDefault(constructor.getId(), List.of()));
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(constructor.getId().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, constructor.getId(), rubricName, "constructor", disclosureMode),
-                        "constructor",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "constructor", "Constructor mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "constructor", rubricName, mmdSnapshot, constructor.getId()));
             });
 
             structure.methodsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(method -> {
@@ -375,11 +369,8 @@ public class ClassStructureService {
                         structure.paramsByMethodId().getOrDefault(method.getId(), List.of()));
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(method.getId().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, method.getId(), rubricName, "method", disclosureMode),
-                        "method",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "method", "Method mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "method", rubricName, mmdSnapshot, method.getId()));
             });
 
             List<MmdRelationDTO> relations = structure.relationsBySourceClassId()
@@ -500,32 +491,13 @@ public class ClassStructureService {
         return method.getName() + "(" + paramList + "): " + method.getMethodDeclaration().getReturnType();
     }
 
-    private String resolveSnapshotAttributeName(ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot,
-                                                UUID elementId,
-                                                String rubricFallback,
-                                                String attributeType,
-                                                DisclosureMode disclosureMode) {
-        if (mmdSnapshot != null && elementId != null) {
-            String captured = mmdSnapshot.attributes.get(elementId.toString());
-            if (captured != null) {
-                return captured;
-            }
-        }
-        if (disclosureMode == DisclosureMode.STUDENT) {
-            return StudentDisplayMessages.mmdMissingLabel(attributeType);
-        }
-        return rubricFallback;
-    }
-
     private String resolveStereotypeDisplay(DisclosureMode disclosureMode,
                                              String snapshotStereotype,
                                              String rubricStereotype) {
         if (snapshotStereotype != null) {
             return snapshotStereotype;
         }
-        if (disclosureMode == DisclosureMode.LECTURER) {
-            return rubricStereotype;
-        }
+        // Missing stereotype: same student-facing label for lecturer drawers and student dashboard.
         return StudentDisplayMessages.REQUIRED_DIAGRAM_ELEMENT;
     }
 
@@ -533,7 +505,7 @@ public class ClassStructureService {
                                             boolean ok,
                                             boolean hasSnapshotEntry,
                                             String attributeType,
-                                            String lecturerMessage) {
+                                            String lecturerDetail) {
         if (ok) {
             return null;
         }
@@ -542,7 +514,35 @@ public class ClassStructureService {
                     ? StudentDisplayMessages.mmdWrongLabel(attributeType)
                     : StudentDisplayMessages.mmdMissingLabel(attributeType);
         }
-        return lecturerMessage;
+        // Lecturer: keep expected/captured detail under the generic name line.
+        return lecturerDetail;
+    }
+
+    private MmdAttributeDTO buildFailedOrOkMmdAttribute(DisclosureMode disclosureMode,
+                                                        boolean ok,
+                                                        boolean hasSnapshotEntry,
+                                                        String attributeType,
+                                                        String rubricName,
+                                                        ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot,
+                                                        UUID elementId) {
+        String captured = mmdSnapshot != null && elementId != null
+                ? mmdSnapshot.attributes.get(elementId.toString())
+                : null;
+        if (ok) {
+            String name = captured != null ? captured : rubricName;
+            return new MmdAttributeDTO(name, attributeType, true, null);
+        }
+        String name = hasSnapshotEntry
+                ? StudentDisplayMessages.mmdWrongLabel(attributeType)
+                : StudentDisplayMessages.mmdMissingLabel(attributeType);
+        String lecturerDetail = hasSnapshotEntry && captured != null
+                ? captured + " (expected " + rubricName + ")"
+                : rubricName;
+        return new MmdAttributeDTO(
+                name,
+                attributeType,
+                false,
+                resolveMmdAttributeError(disclosureMode, false, hasSnapshotEntry, attributeType, lecturerDetail));
     }
 
     private MmdRelationDTO buildMmdRelation(DisclosureMode disclosureMode,
@@ -578,12 +578,6 @@ public class ClassStructureService {
                                                       String rubricName,
                                                       String rubricScope,
                                                       String rubricDataType) {
-        if (disclosureMode == DisclosureMode.LECTURER) {
-            if (entry != null) {
-                return new ClassFieldDetailDTO(entry.name, entry.scope, entry.dataType, grade.ok(), grade.partial());
-            }
-            return new ClassFieldDetailDTO(rubricName, rubricScope, rubricDataType, grade.ok(), grade.partial());
-        }
         if (entry == null) {
             return new ClassFieldDetailDTO(
                     StudentDisplayMessages.MISSING_VARIABLE,
@@ -595,6 +589,7 @@ public class ClassStructureService {
         if (grade.ok()) {
             return new ClassFieldDetailDTO(entry.name, entry.scope, entry.dataType, true, false);
         }
+        // Wrong member: same generic label as student dashboard (Grading + Dashboard drawers).
         return new ClassFieldDetailDTO(
                 StudentDisplayMessages.WRONG_VARIABLE,
                 grade.partial() ? StudentDisplayMessages.WRONG_SCOPE_OR_MODIFIER : StudentDisplayMessages.PLACEHOLDER,
@@ -609,12 +604,6 @@ public class ClassStructureService {
                                                                   String rubricName,
                                                                   String rubricScope,
                                                                   String rubricParams) {
-        if (disclosureMode == DisclosureMode.LECTURER) {
-            if (entry != null) {
-                return new ClassConstructorDetailDTO(entry.name, entry.scope, entry.params, grade.ok(), grade.partial());
-            }
-            return new ClassConstructorDetailDTO(rubricName, rubricScope, rubricParams, grade.ok(), grade.partial());
-        }
         if (entry == null) {
             return new ClassConstructorDetailDTO(
                     StudentDisplayMessages.MISSING_CONSTRUCTOR,
@@ -640,17 +629,6 @@ public class ClassStructureService {
                                                       String rubricName,
                                                       String rubricScope,
                                                       String rubricReturnType) {
-        if (disclosureMode == DisclosureMode.LECTURER) {
-            if (entry != null) {
-                return new ClassMethodDetailDTO(
-                        entry.name,
-                        formatMethodModifiers(entry.scope, entry.isStatic, entry.isAbstract, entry.isFinal),
-                        entry.returnType,
-                        grade.ok(),
-                        grade.partial());
-            }
-            return new ClassMethodDetailDTO(rubricName, rubricScope, rubricReturnType, grade.ok(), grade.partial());
-        }
         if (entry == null) {
             return new ClassMethodDetailDTO(
                     StudentDisplayMessages.MISSING_METHOD,
@@ -1074,11 +1052,8 @@ public class ClassStructureService {
                 String rubricName = formatFieldName(field);
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(field.id().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, field.id(), rubricName, "field", disclosureMode),
-                        "field",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "field", "Field mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "field", rubricName, mmdSnapshot, field.id()));
             });
 
             classRubric.constructors().forEach(constructor -> {
@@ -1088,11 +1063,8 @@ public class ClassStructureService {
                 String rubricName = formatConstructorName(classRubric.name(), constructor);
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(constructor.id().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, constructor.id(), rubricName, "constructor", disclosureMode),
-                        "constructor",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "constructor", "Constructor mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "constructor", rubricName, mmdSnapshot, constructor.id()));
             });
 
             classRubric.methods().forEach(method -> {
@@ -1102,11 +1074,8 @@ public class ClassStructureService {
                 String rubricName = formatMethodName(method);
                 boolean hasSnapshotEntry = mmdSnapshot != null
                         && mmdSnapshot.attributes.containsKey(method.id().toString());
-                attributes.add(new MmdAttributeDTO(
-                        resolveSnapshotAttributeName(mmdSnapshot, method.id(), rubricName, "method", disclosureMode),
-                        "method",
-                        ok,
-                        resolveMmdAttributeError(disclosureMode, ok, hasSnapshotEntry, "method", "Method mismatch")));
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "method", rubricName, mmdSnapshot, method.id()));
             });
 
             List<MmdRelationDTO> relations = relationsBySourceClassId.getOrDefault(classId, List.of()).stream()

@@ -16,6 +16,7 @@ import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionD
 import LabAttemptHistoryDrawer from '../components/lecturer/LabAttemptHistoryDrawer';
 import PlagiarismInvestigationDrawer from '../components/lecturer/PlagiarismInvestigationDrawer';
 import GradeDistributionChart from '../components/lecturer/GradeDistributionChart';
+import BulkGradingPanel from '../components/lecturer/BulkGradingPanel';
 import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
 import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
 import UserManagement from './UserManagement';
@@ -452,16 +453,18 @@ export default function LecturerDashboard({ user, onLogout }) {
   }, [gradeOverviewSearchInput]);
 
   useEffect(() => {
-    if (activeNav !== 'dashboard') {
+    if (activeNav !== 'dashboard' && activeNav !== 'grading') {
       return;
     }
     fetchLabs();
-    fetchOverview();
-    fetchPlagiarismFlags();
+    if (activeNav === 'dashboard') {
+      fetchOverview();
+      fetchPlagiarismFlags();
+    }
   }, [activeNav, fetchLabs, fetchOverview, fetchPlagiarismFlags]);
 
   useEffect(() => {
-    if (activeNav === 'grading') {
+    if (activeNav === 'score') {
       fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch);
     }
   }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
@@ -546,7 +549,7 @@ export default function LecturerDashboard({ user, onLogout }) {
   };
 
   const handleRefresh = () => {
-    if (activeNav === 'grading') {
+    if (activeNav === 'score') {
       fetchGradeOverview(
         gradeOverviewPagination.page,
         formatGradeOverviewSortParam(gradeOverviewSort),
@@ -1008,10 +1011,10 @@ export default function LecturerDashboard({ user, onLogout }) {
               </div>
             </DashboardSection>
           </div>
-        ) : activeNav === 'grading' ? (
+        ) : activeNav === 'score' ? (
           <div className="max-w-full space-y-6">
             <DashboardSection
-              title="Grading"
+              title="Score"
               actions={
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   <div className="relative w-full sm:w-auto">
@@ -1071,6 +1074,12 @@ export default function LecturerDashboard({ user, onLogout }) {
                   onPageChange={setHistoryPage}
                 />
               )}
+            </DashboardSection>
+          </div>
+        ) : activeNav === 'grading' ? (
+          <div className="max-w-full space-y-6">
+            <DashboardSection title="Grading">
+              <BulkGradingPanel labs={labs} />
             </DashboardSection>
           </div>
         ) : activeNav === 'users' ? (

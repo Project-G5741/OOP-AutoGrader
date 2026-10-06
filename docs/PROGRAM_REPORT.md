@@ -165,7 +165,7 @@ Only `.java` and `.mmd` files are accepted. Folder paths are preserved via `webk
 | **First-time Google user** | Redirected to setup screen to set IRN and password |
 | **Forgot password** | Email reset link (SMTP locally, Brevo API on Render) |
 
-Session state is stored in `sessionStorage` (`accessToken`, `user` JSON with roles).
+Session state is stored in `localStorage` (`accessToken`, `user` JSON with roles); expired JWTs are cleared on read.
 
 ### 4.6 Data Model (High Level)
 

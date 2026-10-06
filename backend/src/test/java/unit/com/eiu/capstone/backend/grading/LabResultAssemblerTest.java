@@ -105,11 +105,14 @@ class LabResultAssemblerTest {
     }
 
     @Test
-    void assemble_defaultsTestcaseNotApplicableWhenPillarScoresMissing() {
+    void assemble_defaultsApplicabilityFromRubricWhenPillarScoresMissing() {
         UUID challengeId = UUID.randomUUID();
         ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        assertEquals(false, challenge.hasMmd());
+        assertEquals(2, challenge.testcases().size());
         FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
-        LabResultAssembler assembler = new LabResultAssembler(structureService, new ThrowingTestcaseMapper());
+        RecordingTestcaseMapper testcaseMapper = new RecordingTestcaseMapper();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, testcaseMapper);
 
         GradingService.GradingComputationResult computed = computed(challengeId, true, true);
         computed.pillarScoresByChallengeNumber = Map.of();
@@ -122,8 +125,12 @@ class LabResultAssemblerTest {
                 Map.of());
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
-        assertTrue(bundle.getTestcases().isEmpty());
-        assertEquals(false, bundle.getScoreApplicability().get("testcase"));
+        assertTrue(bundle.getMmd().classes().isEmpty());
+        assertEquals(false, bundle.getScoreApplicability().get("mmd"));
+        assertEquals(true, bundle.getScoreApplicability().get("testcase"));
+        assertEquals(2, bundle.getTestcases().size());
+        assertEquals(1, testcaseMapper.calls);
+        assertEquals(0, structureService.mmdBuilds);
     }
 
     private static GradingService.GradingComputationResult computed(
@@ -249,6 +256,24 @@ class LabResultAssemblerTest {
                 List<TestcaseRubric> testcases,
                 Map<UUID, SubmissionTestcaseResult> resultsById) {
             return List.of();
+        }
+    }
+
+    private static final class RecordingTestcaseMapper extends TestcaseResultMapper {
+        private int calls;
+
+        private RecordingTestcaseMapper() {
+            super(null, null);
+        }
+
+        @Override
+        public List<TestcaseResultDTO> mapChallengeTestcases(
+                List<TestcaseRubric> testcases,
+                Map<UUID, SubmissionTestcaseResult> resultsById) {
+            calls++;
+            return testcases.stream()
+                    .map(tc -> new TestcaseResultDTO(tc.name(), "SKIPPED", null))
+                    .toList();
         }
     }
 

@@ -23,6 +23,20 @@ public record RubricMemberMaps(
         Map<UUID, Method> methodById,
         Map<UUID, Field> fieldById) {
 
+    /**
+     * Binary name used for OT invoke ({@code Outer$Inner}). Simple names stay as-is for top-level classes.
+     */
+    public static String invokeBinaryName(ClassEntity cls) {
+        if (cls == null || cls.getName() == null || cls.getName().isBlank()) {
+            return cls != null ? cls.getName() : null;
+        }
+        ClassEntity outer = cls.getOuterClass();
+        if (outer != null && outer.getName() != null && !outer.getName().isBlank()) {
+            return invokeBinaryName(outer) + "$" + cls.getName();
+        }
+        return cls.getName();
+    }
+
     public static RubricMemberMaps fromEntities(List<ClassEntity> classes,
                                                 List<Constructor> constructors,
                                                 List<Method> methods,
@@ -31,7 +45,7 @@ public record RubricMemberMaps(
                                                 List<Parameter> methodParams) {
         Map<UUID, String> classNameByClassId = new HashMap<>();
         for (ClassEntity cls : classes) {
-            classNameByClassId.put(cls.getId(), cls.getName());
+            classNameByClassId.put(cls.getId(), invokeBinaryName(cls));
         }
         Map<UUID, String> classNameByConstructorId = new HashMap<>();
         for (Constructor constructor : constructors) {

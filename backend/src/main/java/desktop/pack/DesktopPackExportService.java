@@ -3,8 +3,10 @@ package com.eiu.capstone.backend.desktop.pack;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -59,19 +61,16 @@ public class DesktopPackExportService {
         Instant createdAt = Instant.now();
         String termLabel = TermService.buildTermLabel(term);
         String packVersion = lab.getId() + "-" + createdAt.toEpochMilli();
-        DesktopPackLabEntry entry = toEntry(lab, labName);
-        DesktopPackInnerPayload inner =
-                new DesktopPackInnerPayload(packVersion, term.getId(), termLabel, List.of(entry));
-        byte[] innerJson = serializer.toJson(inner);
-        DesktopPackManifest manifest = new DesktopPackManifest(
-                DesktopPackManifest.CURRENT_FORMAT_VERSION,
+        DesktopPackLabEntry entry = toEntry(lab, labName, labRubricCache.get(lab));
+        return buildDownload(
+                privateKey,
                 packVersion,
                 term.getId(),
                 termLabel,
                 createdAt,
                 List.of(lab.getId()),
-                "placeholder");
-        return new DesktopPackDownload(serialize(privateKey, manifest, innerJson), DesktopPackFileNames.labFilename(labName));
+                List.of(entry),
+                DesktopPackFileNames.labFilename(labName));
     }
 
     @Transactional(readOnly = true)
@@ -85,29 +84,31 @@ public class DesktopPackExportService {
         if (labs.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter has no labs to export");
         }
-        for (Lab lab : labs) {
-            LabNameRules.requireValid(lab.getName());
-        }
-        String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
+
         Instant createdAt = Instant.now();
         String termLabel = TermService.buildTermLabel(term);
         String packVersion = term.getId() + "-" + createdAt.toEpochMilli();
-        List<DesktopPackLabEntry> entries = labs.stream()
-                .map(lab -> toEntry(lab, LabNameRules.requireValid(lab.getName())))
-                .toList();
-        DesktopPackInnerPayload inner = new DesktopPackInnerPayload(packVersion, term.getId(), termLabel, entries);
-        byte[] innerJson = serializer.toJson(inner);
-        List<UUID> labIds = labs.stream().map(Lab::getId).toList();
-        DesktopPackManifest manifest = new DesktopPackManifest(
-                DesktopPackManifest.CURRENT_FORMAT_VERSION,
+        String yearLabel = term.getAcademicYear() != null ? term.getAcademicYear().getYearLabel() : "";
+
+        Map<UUID, LabRubricSnapshot> rubrics = labRubricCache.getAll(labs);
+        List<DesktopPackLabEntry> entries = new ArrayList<>(labs.size());
+        List<UUID> labIds = new ArrayList<>(labs.size());
+        for (Lab lab : labs) {
+            String validatedName = LabNameRules.requireValid(lab.getName());
+            LabRubricSnapshot rubric = rubrics.getOrDefault(lab.getId(), new LabRubricSnapshot(lab.getId(), Map.of()));
+            entries.add(toEntry(lab, validatedName, rubric));
+            labIds.add(lab.getId());
+        }
+
+        return buildDownload(
+                privateKey,
                 packVersion,
                 term.getId(),
                 termLabel,
                 createdAt,
                 labIds,
-                "placeholder");
-        String filename = DesktopPackFileNames.termFilename(yearLabel, term.getTermNumber());
-        return new DesktopPackDownload(serialize(privateKey, manifest, innerJson), filename);
+                entries,
+                DesktopPackFileNames.termFilename(yearLabel, term.getTermNumber()));
     }
 
     private PrivateKey requireSigningKey() {
@@ -115,6 +116,28 @@ public class DesktopPackExportService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.SERVICE_UNAVAILABLE,
                         "Desktop practice pack export is not configured on this server"));
+    }
+
+    private DesktopPackDownload buildDownload(
+            PrivateKey privateKey,
+            String packVersion,
+            UUID termId,
+            String termLabel,
+            Instant createdAt,
+            List<UUID> labIds,
+            List<DesktopPackLabEntry> entries,
+            String filename) {
+        DesktopPackInnerPayload inner = new DesktopPackInnerPayload(packVersion, termId, termLabel, entries);
+        byte[] innerJson = serializer.toJson(inner);
+        DesktopPackManifest manifest = new DesktopPackManifest(
+                DesktopPackManifest.CURRENT_FORMAT_VERSION,
+                packVersion,
+                termId,
+                termLabel,
+                createdAt,
+                labIds,
+                "placeholder");
+        return new DesktopPackDownload(serialize(privateKey, manifest, innerJson), filename);
     }
 
     private byte[] serialize(PrivateKey privateKey, DesktopPackManifest manifest, byte[] innerJson) {
@@ -126,8 +149,7 @@ public class DesktopPackExportService {
         }
     }
 
-    private DesktopPackLabEntry toEntry(Lab lab, String validatedName) {
-        LabRubricSnapshot rubric = labRubricCache.get(lab);
+    private static DesktopPackLabEntry toEntry(Lab lab, String validatedName, LabRubricSnapshot rubric) {
         DesktopPackLabMeta meta = new DesktopPackLabMeta(
                 lab.getId(),
                 validatedName,

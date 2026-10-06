@@ -375,6 +375,60 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void nestedStaticClassLoadsBySimpleNameForUnitFieldState() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Pen.java", """
+                        public class Pen {
+                            public static class PenBuilder {
+                                private String brand;
+                                public PenBuilder setBrand(String brand) {
+                                    this.brand = brand;
+                                    return this;
+                                }
+                            }
+                        }
+                        """));
+        Map<String, Object> step = methodStep("PenBuilder", "setBrand", List.of("String"), "[\"A\"]", null, null);
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(step), List.of("brand"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText(), () -> String.valueOf(steps.get(0)));
+        assertEquals("\"A\"", steps.get(0).get("fieldSnapshotsJson").get("brand").asText());
+    }
+
+    @Test
+    void singletonSecondGetInstanceRecordsEqualsAgainstEarlierProduct() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Logger.java", """
+                        import java.util.ArrayList;
+                        import java.util.List;
+                        public class Logger {
+                            private static Logger instance;
+                            private final List<String> messages = new ArrayList<>();
+                            private Logger() {}
+                            public static synchronized Logger getInstance() {
+                                if (instance == null) {
+                                    instance = new Logger();
+                                }
+                                return instance;
+                            }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                methodStep("Logger", "getInstance", List.of(), "[]", "a", null),
+                methodStep("Logger", "getInstance", List.of(), "[]", "b", null)), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(2, steps.size());
+        JsonNode equalsNamed = steps.get(1).get("equalsNamed");
+        assertTrue(equalsNamed.has("a"), () -> "missing a in " + equalsNamed);
+        assertTrue(equalsNamed.get("a").asBoolean());
+    }
+
+    @Test
     void compositionEqualsNamedFactBetweenTwoInstances() throws Exception {
         Path dir = compileSources(Map.of(
                 "Coin.java", """

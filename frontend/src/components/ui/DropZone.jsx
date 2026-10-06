@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import Button from './Button';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { apiFetch } from '../../utils/apiFetch';
+import { getAccessToken } from '../../utils/authRoutes';
 import { useToast } from './Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -136,7 +137,7 @@ export default function DropZone({
       setUploadError('Missing lab or attempt info — cannot upload.');
       return;
     }
-    const token = authToken || sessionStorage.getItem('accessToken');
+    const token = authToken || getAccessToken();
     if (!token) {
       console.error('DropZone: no access token, cannot upload.');
       setUploadError('You must be signed in to upload.');

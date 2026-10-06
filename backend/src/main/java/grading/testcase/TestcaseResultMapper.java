@@ -66,7 +66,18 @@ public class TestcaseResultMapper {
         String input = submissionResult != null && submissionResult.getInputDisplay() != null
                 ? submissionResult.getInputDisplay()
                 : displayFormatter.formatInput(testcase);
-        String expectedOutput = submissionResult != null ? submissionResult.getExpectedDisplay() : null;
+        String expectedOutput;
+        if (submissionResult != null) {
+            expectedOutput = submissionResult.getExpectedDisplay();
+        } else {
+            AssertionRubric primary = primaryAssertionSelector.selectScenarioPrimary(
+                    TestcaseGrader.resolveSteps(testcase),
+                    testcase.assertions(),
+                    Map.of());
+            expectedOutput = primary != null
+                    ? displayFormatter.formatExpected(primary, invocationForAssertion(primary, testcase))
+                    : null;
+        }
         String actualOutput = submissionResult != null ? submissionResult.getActualDisplay() : null;
 
         List<TestcaseAssertionResultDTO> assertions = mapAssertions(testcase, submissionResult);

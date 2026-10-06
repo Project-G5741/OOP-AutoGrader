@@ -126,7 +126,16 @@ Display-only switch on Class/MMD result-tab assembly. `STUDENT` never emits rubr
 A per-(student, lab) tracking row holding highest score, attempt count, and best/latest submission metadata. Updated on upload; lecturer **grade overview** matrix and lab roster **Score** columns read `highest_score` (when the student has submitted); student dashboard uses latest attempt by design.
 
 ### Grade overview
-Cross-lab paginated matrix of enrolled students versus labs, showing per-lab highest scores and a total average. Lecturer sorts and exports use server-side ordering; per-lab column sort ranks students by that lab's highest score among rows with a submission (`last_submitted_at` set), matching the displayed cell values.
+Cross-lab paginated matrix of enrolled students versus labs, showing per-lab highest scores and a total average. Lecturer sorts and exports use server-side ordering; per-lab column sort ranks students by that lab's highest score among rows with a submission (`last_submitted_at` set), matching the displayed cell values. In the lecturer nav this surface is labeled **Score** (formerly **Grading**).
+
+### Bulk Grading
+Lecturer-only ephemeral workspace for grading a multi-student Main folder dump against a selected lab without writing submissions, progress, Score, or reports. Flow is parse-then-confirm, then Start Grading with live student progress. Results show Student, ID, Score, Plagiarism (within-batch only), and a Score-style View Submission drawer. Student identity is parsed from each `IRN_Name` folder name only.
+
+### Lab grading folder shape
+Bulk Grading layout when mode is **Lab**: `Main` (any name) → `IRN_Name` → `challenge_n` (1..N) → `.mmd` / `.java`. One lab may have many challenges.
+
+### Exam grading folder shape
+Bulk Grading layout when mode is **Exam**: `Main` (any name) → `IRN_Name` → `.mmd` / `.java` at the student root. An exam is a lab with exactly one challenge; Exam mode hard-blocks if the selected lab has more than one challenge.
 
 ### Term enrollment
 Maps an active student to a term (`term_enrollment`). Lecturers create terms by year, add students (manually or by Excel: match **IRN and email** to an existing account), and mark one term as **current**. Students enrolled in the current term can open the dashboard and submit; other active students only see history. Lecturers can **suspend** a student-only account (`is_active=false`); that student cannot log in until restored. Suspended students are omitted from the term roster and grade overview. Lecturer and dual-role accounts cannot be suspended this way.

@@ -46,7 +46,7 @@ public class TestcaseDryRunService {
     private static final int MAX_SOURCE_BYTES = 256_000;
     private static final int MAX_TOTAL_BYTES = 512_000;
     /** TEMP: remove after dry-run UX timing check */
-    private static final boolean TEMP_DRY_RUN_TIMING = true;
+    private static final boolean TEMP_DRY_RUN_TIMING = false;
 
     private final TestcaseRubricAssembler testcaseRubricAssembler;
     private final JavaCompilerService javaCompilerService;

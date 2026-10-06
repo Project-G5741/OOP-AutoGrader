@@ -134,9 +134,9 @@ Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bun
 
 **Files:** `grading/rubric/LabRubricCache.java`, `grading/rubric/LabRubricService.java`, `grading/rubric/LabRubricSnapshot.java`
 
-`LabRubricService.loadForLab(Lab)` performs batched DB queries:
+`LabRubricService.loadForLab(Lab)` delegates to `loadForLabs` and performs batched DB queries:
 
-1. `challengeRepository.findByLabOrderByChallengeNumberAsc(lab)` — all challenges.
+1. `challengeRepository.findByLab_IdInOrderByChallengeNumberAsc(labIds)` — challenges for one or many labs (term pack export uses the multi-lab form via `LabRubricCache.getAll`).
 2. `classEntityRepository.findByChallengeInWithAttributes(challenges)` — classes with scope/type attributes.
 3. `fieldRepository.findByClassEntityInWithDeclaration(...)` — fields with declarations.
 4. `methodRepository.findByClassEntityInWithDeclaration(...)` — methods with declarations.
@@ -145,7 +145,7 @@ Returns `SubmissionUploadResponse` with challenge score map and `lab_result` bun
 7. `classRelationRepository.findByClassEntityInWithEndpoints(...)` — UML relations (inheritance/realization also feed the Java class shell).
 8. `testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(...)` plus invocation / assertion batches — Unit/Composition graph.
 
-The result is an immutable `LabRubricSnapshot` keyed by challenge number, used read-only throughout grading. Rubric mutations must call `RubricCacheInvalidationSupport.invalidateLab(labId)`. Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API.
+The result is an immutable `LabRubricSnapshot` keyed by challenge number (or a map of snapshots for `loadForLabs`), used read-only throughout grading. Rubric mutations must call `RubricCacheInvalidationSupport.invalidateLab(labId)`. Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API.
 
 ---
 
