@@ -78,7 +78,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Bulk create inserts rows with 1-second delay between each
 - Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row; clears session-version cache for that email so live JWTs fail the filter
 - Soft suspend bumps `session_version` so the live JWT is rejected (SPA presence poll then hard-cuts to login)
-- Google upsert creates or updates user on first login
+- Google upsert creates a new student account on first-time setup; sets `user_account.create_at` (Vietnam `timestamptz`) on create, lecturer `createUser`, and on first successful `POST /api/auth/google` when the column is still null
 - Inactive users cannot log in (IRN or Google)
 - Google inactive login returns HTTP 423 so the SPA does not treat it as first-time setup (unregistered remains 403)
 

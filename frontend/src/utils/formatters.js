@@ -23,16 +23,35 @@ export function hasItems(array) {
   return Array.isArray(array) && array.length > 0;
 }
 
+const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
+const VIETNAM_UTC_OFFSET = '+07:00';
+
+/** Parse API date/time for display in Vietnam (UTC+7). Naive ISO strings are treated as +07:00. */
+function parseInstant(value) {
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T00:00:00${VIETNAM_UTC_OFFSET}`);
+  }
+  const hasExplicitZone = /[Zz]$|[+-]\d{2}:\d{2}$/.test(raw);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !hasExplicitZone) {
+    return new Date(`${raw}${VIETNAM_UTC_OFFSET}`);
+  }
+  return new Date(raw);
+}
+
 export function formatDateTime(value) {
   if (value === null || value === undefined || String(value).trim() === '') {
     return '—';
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseInstant(value);
+  if (!date || Number.isNaN(date.getTime())) {
     return '—';
   }
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone: VIETNAM_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

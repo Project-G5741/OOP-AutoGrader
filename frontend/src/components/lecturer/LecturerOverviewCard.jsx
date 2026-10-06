@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function LecturerOverviewCard({ title, value, icon, accent }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface p-5 transition-colors">
+    <div className="rounded-xl border border-border-subtle bg-surface p-5 transition-colors dark:border-transparent">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-foreground-secondary">{title}</p>

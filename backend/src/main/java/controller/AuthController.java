@@ -60,6 +60,7 @@ public class AuthController {
         var userAccount = userAccountRepository.findByEmail(tokenInfo.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "Account not registered in the system"));
+        userAccount = userService.stampCreateAtIfAbsent(userAccount);
         requireActiveAccount(userAccount);
 
         List<String> roleNames = roleNamesFrom(userAccount);

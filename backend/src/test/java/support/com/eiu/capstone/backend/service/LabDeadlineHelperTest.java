@@ -67,15 +67,14 @@ class LabDeadlineHelperTest {
     }
 
     @Test
-    void isOpenForStudentSubmission_respectsVisibilityAndReleaseDate() {
-        LocalDate release = LocalDate.of(2026, 9, 15);
-        Instant beforeRelease = helper.releaseStartInstant(release).minusSeconds(1);
-        Instant onRelease = helper.releaseStartInstant(release);
+    void isOpenForStudentSubmission_respectsVisibilityOnly() {
+        Instant now = Instant.now();
+        LocalDate futureRelease = LocalDate.of(2099, 9, 15);
 
-        assertTrue(!helper.isOpenForStudentSubmission(false, null, onRelease));
-        assertTrue(!helper.isOpenForStudentSubmission(true, release, beforeRelease));
-        assertTrue(helper.isOpenForStudentSubmission(true, release, onRelease));
-        assertTrue(helper.isOpenForStudentSubmission(true, null, onRelease));
+        assertTrue(!helper.isOpenForStudentSubmission(false, null, now));
+        assertTrue(!helper.isOpenForStudentSubmission(false, futureRelease, now));
+        assertTrue(helper.isOpenForStudentSubmission(true, null, now));
+        assertTrue(helper.isOpenForStudentSubmission(true, futureRelease, now));
     }
 
     @Test

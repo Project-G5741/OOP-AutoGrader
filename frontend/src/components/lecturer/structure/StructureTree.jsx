@@ -9,6 +9,7 @@ export default function StructureTree({
   onToggleChallenge,
   onSelectChallenge,
   onSelectClass,
+  onRenameLab,
   onRenameChallenge,
   onAddChallenge,
   onAddClass,
@@ -26,13 +27,19 @@ export default function StructureTree({
 
   return (
     <aside className="w-full max-w-xs shrink-0 rounded-xl border border-border bg-surface">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-            Structure
-          </span>
-          <p className="text-sm font-medium text-foreground">{draft.name}</p>
-        </div>
+      <div className="border-b border-border px-4 py-3">
+        <label htmlFor="lab-name" className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+          Lab name
+        </label>
+        <input
+          id="lab-name"
+          type="text"
+          maxLength={50}
+          className="mt-1 w-full rounded-lg border border-border bg-surface-secondary px-2 py-1.5 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          value={draft.name ?? ''}
+          onChange={(e) => onRenameLab(e.target.value)}
+          aria-label="Lab name"
+        />
       </div>
       <div className="max-h-[calc(100vh-22rem)] overflow-y-auto p-2">
         {(draft.challenges || []).map((challenge) => {
