@@ -1,10 +1,12 @@
 package com.eiu.capstone.backend.model;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
@@ -40,6 +42,10 @@ public class UserAccount {
 
     @Column(name = "session_version", nullable = false)
     private int sessionVersion = 0;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "Asia/Ho_Chi_Minh")
+    @Column(name = "create_at")
+    private OffsetDateTime createAt;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_role", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
@@ -123,6 +129,14 @@ public class UserAccount {
 
     public void setSessionVersion(int sessionVersion) {
         this.sessionVersion = sessionVersion;
+    }
+
+    public OffsetDateTime getCreateAt() {
+        return createAt;
+    }
+
+    public void setCreateAt(OffsetDateTime createAt) {
+        this.createAt = createAt;
     }
 
     public String getIrn() {

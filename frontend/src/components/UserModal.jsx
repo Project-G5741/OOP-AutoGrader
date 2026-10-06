@@ -1,4 +1,4 @@
-import { Check, Trash2, X, Ban, UserCheck } from 'lucide-react';
+import { Check, Loader2, Trash2, X, Ban, UserCheck } from 'lucide-react';
 import ModalOverlay from './ui/ModalOverlay';
 
 const ROLE_OPTIONS = [
@@ -20,6 +20,7 @@ export default function UserModal({
   fieldErrors = {},
   formError = '',
   canSave = false,
+  isDeleting = false,
   onClose,
   onSave,
   onDelete,
@@ -35,22 +36,44 @@ export default function UserModal({
   const hasStudentOnly = roles.includes('STUDENT') && !hasLecturer;
 
   return (
-    <ModalOverlay onBackdropClick={onClose}>
+    <ModalOverlay onBackdropClick={isDeleting ? undefined : onClose}>
         {modal === 'delete' && selected && (
           <div
             className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-border"
             onClick={(event) => event.stopPropagation()}
+            aria-busy={isDeleting}
           >
             <div className="flex items-center justify-center w-12 h-12 bg-error-bg rounded-xl mb-4 mx-auto">
-              <Trash2 className="w-6 h-6 text-error" />
+              {isDeleting
+                ? <Loader2 className="w-6 h-6 text-error animate-spin" aria-hidden />
+                : <Trash2 className="w-6 h-6 text-error" aria-hidden />}
             </div>
-            <h3 className="text-center text-foreground font-semibold mb-1">Delete User</h3>
+            <h3 className="text-center text-foreground font-semibold mb-1" aria-live="polite">
+              {isDeleting ? 'Deleting User' : 'Delete User'}
+            </h3>
             <p className="text-center text-sm text-foreground-muted mb-6">
-              Are you sure you want to delete <strong className="text-foreground-secondary">{selected.fullname}</strong>? This cannot be undone.
+              {isDeleting
+                ? <>Deleting <strong className="text-foreground-secondary">{selected.fullname}</strong>. Please wait...</>
+                : <>Are you sure you want to delete <strong className="text-foreground-secondary">{selected.fullname}</strong>? This cannot be undone.</>}
             </p>
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2.5 border border-border text-foreground-secondary rounded-lg text-sm hover:bg-surface-secondary hover:bg-surface-secondary transition-colors">Cancel</button>
-              <button onClick={onDelete} className="flex-1 py-2.5 bg-error hover:bg-error-hover text-white rounded-lg text-sm font-medium transition-colors">Delete</button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 border border-border text-foreground-secondary rounded-lg text-sm hover:bg-surface-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-error hover:bg-error-hover disabled:hover:bg-error text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
         )}

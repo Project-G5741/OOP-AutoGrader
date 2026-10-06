@@ -42,14 +42,7 @@ public class LabDeadlineHelper {
     }
 
     public boolean isOpenForStudentSubmission(boolean studentVisible, LocalDate releaseDate, Instant now) {
-        if (!studentVisible) {
-            return false;
-        }
-        Instant releaseStart = releaseStartInstant(releaseDate);
-        if (releaseStart != null && now.isBefore(releaseStart)) {
-            return false;
-        }
-        return true;
+        return studentVisible;
     }
 
     public UrgencyState urgencyState(LocalDate deadlineDate, Instant now) {

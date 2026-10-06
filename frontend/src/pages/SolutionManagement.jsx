@@ -94,7 +94,6 @@ export default function SolutionManagement() {
   const [deadlineInput, setDeadlineInput] = useState('');
   const [deadlineSaving, setDeadlineSaving] = useState(false);
   const [studentVisibleInput, setStudentVisibleInput] = useState(true);
-  const [releaseDateInput, setReleaseDateInput] = useState('');
   const [studentAccessSaving, setStudentAccessSaving] = useState(false);
 
   const isDirty = useMemo(() => {
@@ -112,8 +111,7 @@ export default function SolutionManagement() {
   useEffect(() => {
     setDeadlineInput(toDateInputValue(savedSnapshot?.deadlineDate));
     setStudentVisibleInput(savedSnapshot?.studentVisible !== false);
-    setReleaseDateInput(toDateInputValue(savedSnapshot?.releaseDate));
-  }, [selectedLabId, savedSnapshot?.deadlineDate, savedSnapshot?.studentVisible, savedSnapshot?.releaseDate]);
+  }, [selectedLabId, savedSnapshot?.deadlineDate, savedSnapshot?.studentVisible]);
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
@@ -276,6 +274,11 @@ export default function SolutionManagement() {
 
   const handleSave = async () => {
     if (!draft || !selectedLabId || savingRef.current) return;
+    const nameError = validateLabName(draft.name);
+    if (nameError) {
+      showToast({ message: nameError, type: 'error' });
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
     showToast(null);
@@ -283,7 +286,7 @@ export default function SolutionManagement() {
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, name: String(draft.name).trim() }),
       });
       if (!res.ok) {
         throw new Error(await readFriendlyApiError(res, 'save'));
@@ -432,9 +435,8 @@ export default function SolutionManagement() {
     }
   };
 
-  const applyStudentAccessToSelectedLab = (labId, studentVisible, releaseDate) => {
-    const normalizedRelease = toDateInputValue(releaseDate) || null;
-    const patch = { studentVisible, releaseDate: normalizedRelease };
+  const applyStudentAccessToSelectedLab = (labId, studentVisible) => {
+    const patch = { studentVisible };
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
     setSavedSnapshot((prev) => (prev ? { ...prev, ...patch } : prev));
     setLabs((prev) => prev.map((lab) => (
@@ -449,50 +451,29 @@ export default function SolutionManagement() {
 
   const handleStudentAccessSave = async () => {
     if (!selectedLabId || studentAccessSaving) return;
-    const nextRelease = toDateInputValue(releaseDateInput) || null;
-    if (releaseDateInput && !nextRelease) {
-      showToast({
-        message: 'Pick a valid release date from the calendar, then click Save student access.',
-        type: 'error',
-      });
-      return;
-    }
-    if (nextRelease && !isValidCalendarDate(nextRelease)) {
-      showToast({
-        message: 'That day does not exist. Pick a valid release date from the calendar.',
-        type: 'error',
-      });
-      return;
-    }
+    const nextVisible = studentVisibleInput;
     const previousVisible = savedSnapshot?.studentVisible !== false;
-    const previousRelease = toDateInputValue(savedSnapshot?.releaseDate) || null;
     setStudentAccessSaving(true);
-    applyStudentAccessToSelectedLab(selectedLabId, studentVisibleInput, nextRelease);
+    applyStudentAccessToSelectedLab(selectedLabId, nextVisible);
     try {
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/student-access`, {
         method: 'PATCH',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ studentVisible: studentVisibleInput, releaseDate: nextRelease }),
+        body: JSON.stringify({ studentVisible: nextVisible }),
       });
       if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
       const updated = await res.json();
-      applyStudentAccessToSelectedLab(
-        selectedLabId,
-        updated.studentVisible !== false,
-        updated.releaseDate ?? null,
-      );
+      applyStudentAccessToSelectedLab(selectedLabId, updated.studentVisible !== false);
       setStudentVisibleInput(updated.studentVisible !== false);
-      setReleaseDateInput(toDateInputValue(updated.releaseDate));
       showToast({
-        message: studentVisibleInput
+        message: nextVisible
           ? `${draft?.name || 'Lab'} is visible to students.`
           : `${draft?.name || 'Lab'} is hidden from students.`,
         type: 'success',
       });
     } catch (e) {
-      applyStudentAccessToSelectedLab(selectedLabId, previousVisible, previousRelease);
+      applyStudentAccessToSelectedLab(selectedLabId, previousVisible);
       setStudentVisibleInput(previousVisible);
-      setReleaseDateInput(previousRelease ?? '');
       showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     } finally {
       setStudentAccessSaving(false);
@@ -634,9 +615,7 @@ export default function SolutionManagement() {
 
   const accessBadge = savedSnapshot?.studentVisible === false
     ? { variant: 'destructive', label: 'Hidden' }
-    : savedSnapshot?.releaseDate
-      ? { variant: 'warning', label: 'Scheduled' }
-      : { variant: 'default', label: 'Live' };
+    : { variant: 'default', label: 'Live' };
 
   return (
     <SidebarProvider>
@@ -693,18 +672,14 @@ export default function SolutionManagement() {
               compact
               labName={draft.name}
               savedStudentVisible={savedSnapshot?.studentVisible !== false}
-              savedReleaseDate={savedSnapshot?.releaseDate}
               savedDeadlineDate={savedSnapshot?.deadlineDate}
               studentVisible={studentVisibleInput}
-              releaseDate={releaseDateInput}
               deadlineDate={deadlineInput}
               studentAccessSaving={studentAccessSaving}
               deadlineSaving={deadlineSaving}
               onStudentVisibleChange={setStudentVisibleInput}
-              onReleaseDateChange={setReleaseDateInput}
               onDeadlineChange={setDeadlineInput}
               onSaveStudentAccess={handleStudentAccessSave}
-              onClearReleaseDate={() => setReleaseDateInput('')}
               onSaveDeadline={() => handleDeadlineChange(deadlineInput)}
               onClearDeadline={() => handleDeadlineChange(null)}
             />
@@ -730,6 +705,13 @@ export default function SolutionManagement() {
               onSelectClass={(challengeId, classId) => {
                 setSelectedClassRef({ challengeId, classId });
                 setSelectedChallengeId(challengeId);
+              }}
+              onRenameLab={(name) => {
+                if (!draft || !selectedLabId) return;
+                setDraft({ ...draft, name });
+                setLabs((prev) => prev.map((lab) => (
+                  lab.id === selectedLabId ? { ...lab, name } : lab
+                )));
               }}
               onRenameChallenge={(challengeId, name) => {
                 if (!draft) return;

@@ -51,9 +51,9 @@ function RosterSummaryBar({ summary }) {
           return (
             <div
               key={item.key}
-              className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm ${
+              className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm dark:border-transparent dark:shadow-none ${
                 isPlagiarism
-                  ? 'border-warning-bg/70 bg-warning-bg/30'
+                  ? 'border-warning/30 bg-warning-bg/30 dark:border-warning/20'
                   : 'border-border-subtle bg-surface'
               }`}
             >
@@ -101,7 +101,7 @@ export default function SubmissionTable({
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm transition-colors border-border">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm transition-colors dark:border-transparent dark:shadow-none">
       <table className="w-full min-w-[640px] table-auto">
         <thead>
           <tr className="border-b border-border">
