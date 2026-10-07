@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
@@ -645,6 +646,110 @@ class WorkerInvokeEngineTest {
         assertEquals("0", result.batch().get(0).steps().get(0).returnValueJson());
         assertTrue(elapsedMs < 300,
                 () -> "warm one-item UNIT batch took " + elapsedMs + "ms (budget 300ms)");
+    }
+
+    @Test
+    void batch_twoItemsDifferentClassesDirs() throws Exception {
+        Path dirA = compileSources(Map.of(
+                "Alpha.java", """
+                        public class Alpha {
+                            public int value() { return 11; }
+                        }
+                        """));
+        Path dirB = compileSources(Map.of(
+                "Beta.java", """
+                        public class Beta {
+                            public int value() { return 22; }
+                        }
+                        """));
+        WorkerIpc.BatchItemSpec a = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Alpha", "value", List.of(), "[]",
+                        "Alpha", List.of(), "[]", null, null)), List.of(), dirA.toString());
+        WorkerIpc.BatchItemSpec b = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Beta", "value", List.of(), "[]",
+                        "Beta", List.of(), "[]", null, null)), List.of(), dirB.toString());
+
+        SerializedInvocationOutcome result = engine.batch(null, List.of(a, b), 5, 65536, 2);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(2, result.batch().size());
+        assertEquals("11", result.batch().get(0).steps().get(0).returnValueJson());
+        assertEquals("22", result.batch().get(1).steps().get(0).returnValueJson());
+    }
+
+    @Test
+    void batch_parallelAndSerialAgreeOnStaticFixture() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Counter.java", """
+                        public class Counter {
+                            private static int n;
+                            public int bump() { return ++n; }
+                        }
+                        """));
+        WorkerIpc.BatchItemSpec one = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Counter", "bump", List.of(), "[]",
+                        "Counter", List.of(), "[]", null, null)), List.of(), dir.toString());
+        WorkerIpc.BatchItemSpec two = new WorkerIpc.BatchItemSpec(List.of(
+                new WorkerIpc.ScenarioStepSpec(
+                        "METHOD", "Counter", "bump", List.of(), "[]",
+                        "Counter", List.of(), "[]", null, null)), List.of(), dir.toString());
+
+        SerializedInvocationOutcome serial = engine.batch(null, List.of(one, two), 5, 65536, 1);
+        SerializedInvocationOutcome parallel = engine.batch(null, List.of(one, two), 5, 65536, 4);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, serial.kind());
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, parallel.kind());
+        assertEquals(2, serial.batch().size());
+        assertEquals(2, parallel.batch().size());
+        // Per-item loaders: each scenario sees its own statics → both return 1 under serial and parallel.
+        assertEquals("1", serial.batch().get(0).steps().get(0).returnValueJson());
+        assertEquals("1", serial.batch().get(1).steps().get(0).returnValueJson());
+        assertEquals("1", parallel.batch().get(0).steps().get(0).returnValueJson());
+        assertEquals("1", parallel.batch().get(1).steps().get(0).returnValueJson());
+    }
+
+    /**
+     * Local R8 probe (6 challenges × 60 OT). Skipped in default CI.
+     * Enable: {@code OT_LAB_TIMING=true mvn test -Dtest=WorkerInvokeEngineTest#batch_labWideWarmPathUnder1s}
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OT_LAB_TIMING", matches = "true")
+    void batch_labWideWarmPathUnder1s() throws Exception {
+        int challenges = 6;
+        int perChallenge = 60;
+        List<WorkerIpc.BatchItemSpec> items = new ArrayList<>(challenges * perChallenge);
+        for (int c = 0; c < challenges; c++) {
+            String className = "C" + c;
+            Path dir = compileSources(Map.of(
+                    className + ".java",
+                    "public class " + className + " { public int v() { return " + c + "; } }"));
+            for (int i = 0; i < perChallenge; i++) {
+                items.add(new WorkerIpc.BatchItemSpec(List.of(
+                        new WorkerIpc.ScenarioStepSpec(
+                                "METHOD", className, "v", List.of(), "[]",
+                                className, List.of(), "[]", null, null)), List.of(), dir.toString()));
+            }
+        }
+
+        engine.batch(null, items.subList(0, 8), 5, 65536, 0);
+
+        long started = System.nanoTime();
+        SerializedInvocationOutcome result = engine.batch(null, items, 5, 65536, 0);
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(challenges * perChallenge, result.batch().size());
+        assertTrue(elapsedMs < 1000,
+                () -> "lab-wide warm 6×60 batch took " + elapsedMs + "ms (budget 1000ms)");
+    }
+
+    @Test
+    void resolveBatchPoolSize_respectsCpuAndRequestCaps() {
+        assertEquals(1, WorkerInvokeEngine.resolveBatchPoolSize(1, 0));
+        assertEquals(1, WorkerInvokeEngine.resolveBatchPoolSize(8, 1));
+        int cpus = Math.max(1, Runtime.getRuntime().availableProcessors());
+        assertEquals(Math.min(3, cpus), WorkerInvokeEngine.resolveBatchPoolSize(3, 0));
     }
 
     @Test

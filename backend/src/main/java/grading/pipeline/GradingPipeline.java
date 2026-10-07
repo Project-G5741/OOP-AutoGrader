@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.grading.pipeline;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -150,6 +151,57 @@ public class GradingPipeline {
                 "total", System.currentTimeMillis() - challengeStart);
 
         return toPipelineResult(phase, testcaseResult, context);
+    }
+
+    /**
+     * Lab-wide OT: one worker batch across all OT-applicable challenges, then per-challenge finish.
+     * Non-OT phases keep empty testcase pillars. Result list aligns with {@code phases}.
+     */
+    public List<ChallengePipelineResult> completeOperationalTestcasesLabWide(
+            List<ClassMmdPhaseResult> phases,
+            WorkerSessionHandle workerSession,
+            int batchParallelism) {
+
+        if (phases == null || phases.isEmpty()) {
+            return List.of();
+        }
+        long started = System.currentTimeMillis();
+        List<ChallengeGradingContext> otContexts = new ArrayList<>();
+        List<Integer> otIndexes = new ArrayList<>();
+        for (int i = 0; i < phases.size(); i++) {
+            ClassMmdPhaseResult phase = phases.get(i);
+            if (phase != null && phase.testcaseApplicable()) {
+                otIndexes.add(i);
+                otContexts.add(phase.context().withWorkerSession(workerSession));
+            }
+        }
+        List<TestcaseGrader.TestcasePillarResult> otResults = otContexts.isEmpty()
+                ? List.of()
+                : testcaseGrader.gradeLab(otContexts, workerSession, batchParallelism);
+        TimingLog.block(timingLog, "Lab OT (lab-wide batch)",
+                "challenges", otContexts.size(),
+                "testcase", System.currentTimeMillis() - started,
+                "total", System.currentTimeMillis() - started);
+
+        List<ChallengePipelineResult> out = new ArrayList<>(phases.size());
+        int otCursor = 0;
+        for (int i = 0; i < phases.size(); i++) {
+            ClassMmdPhaseResult phase = phases.get(i);
+            if (phase == null) {
+                out.add(null);
+                continue;
+            }
+            if (!phase.testcaseApplicable()) {
+                out.add(toPipelineResult(phase, TestcaseGrader.TestcasePillarResult.empty(), phase.context()));
+                continue;
+            }
+            TestcaseGrader.TestcasePillarResult testcaseResult = otCursor < otResults.size()
+                    ? otResults.get(otCursor++)
+                    : TestcaseGrader.TestcasePillarResult.empty();
+            ChallengeGradingContext context = phase.context().withWorkerSession(workerSession);
+            out.add(toPipelineResult(phase, testcaseResult, context));
+        }
+        return out;
     }
 
     private ChallengePipelineResult toPipelineResult(

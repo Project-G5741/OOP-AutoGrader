@@ -7,17 +7,28 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PreDestroy;
 
 /**
- * Reuses one local worker JVM across lecturer dry-runs so repeated Run clicks
- * skip cold spawn. Sandbox sessions are never cached (classes are tarred per open).
+ * Reuses one idle local worker JVM across upload, bulk grade, and lecturer dry-run
+ * so consecutive calls skip cold spawn. Sandbox sessions are never cached (classes
+ * are tarred per open). Callers must already hold {@code workerJvmSlot}.
  */
 @Component
-public class DryRunWorkerCache {
+public class SharedLocalWorkerCache {
 
-    private static final long IDLE_TTL_MS = 60_000L;
+    private static final long DEFAULT_IDLE_TTL_MS = 60_000L;
 
+    private final long idleTtlMs;
     private final Object lock = new Object();
     private WorkerSessionHandle idle;
     private long idleDeadlineMs;
+
+    public SharedLocalWorkerCache() {
+        this(DEFAULT_IDLE_TTL_MS);
+    }
+
+    /** Visible for unit tests with a short TTL. */
+    public SharedLocalWorkerCache(long idleTtlMs) {
+        this.idleTtlMs = idleTtlMs <= 0 ? DEFAULT_IDLE_TTL_MS : idleTtlMs;
+    }
 
     public boolean hasIdleLocal() {
         synchronized (lock) {
@@ -55,7 +66,7 @@ public class DryRunWorkerCache {
             }
             discardIdleLocked();
             idle = handle;
-            idleDeadlineMs = System.currentTimeMillis() + IDLE_TTL_MS;
+            idleDeadlineMs = System.currentTimeMillis() + idleTtlMs;
         }
     }
 
