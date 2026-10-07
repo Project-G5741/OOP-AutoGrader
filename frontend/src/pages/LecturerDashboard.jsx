@@ -28,6 +28,11 @@ import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/a
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
+import {
+  getOrFetchLecturerBootstrap,
+  invalidateLecturerBootstrap,
+  prefetchLecturerBootstrap,
+} from '../utils/lecturerBootstrapStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
@@ -264,17 +269,19 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
+  const bootstrapJson = useCallback(async (path) => {
+    const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+    if (!response.ok) {
+      throw new Error(await friendlyLoadErrorFromResponse(response));
+    }
+    return response.json();
+  }, []);
+
   const fetchOverview = useCallback(async () => {
     setLoadingOverview(true);
     setOverviewError(null);
     try {
-      const response = await apiFetch(`${API_BASE}/api/lecturer/overview`, { headers: authHeaders() });
-      if (!response.ok) {
-        setOverview(EMPTY_OVERVIEW);
-        setOverviewError(await friendlyLoadErrorFromResponse(response));
-        return;
-      }
-      const data = await response.json();
+      const data = await getOrFetchLecturerBootstrap('dashboard', bootstrapJson);
       setOverview({
         ...EMPTY_OVERVIEW,
         ...data,
@@ -289,7 +296,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     } finally {
       setLoadingOverview(false);
     }
-  }, []);
+  }, [bootstrapJson]);
 
   const fetchChallengesForLab = useCallback(async (labId) => {
     if (!labId) {
@@ -406,32 +413,46 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const fetchGradeOverview = useCallback(async (page = 0, sort = 'studentName,asc', search = '') => {
+  const applyGradeOverviewPayload = useCallback((data) => {
+    setGradeOverview({
+      labs: data.labs ?? [],
+      content: data.content ?? [],
+    });
+    setGradeOverviewPagination({
+      total: data.totalElements ?? 0,
+      page: data.page ?? 0,
+      size: data.size ?? GRADE_OVERVIEW_PAGE_SIZE,
+      totalPages: data.totalPages ?? 0,
+    });
+  }, []);
+
+  const fetchGradeOverview = useCallback(async (page = 0, sort = 'studentName,asc', search = '', { fresh = false } = {}) => {
     setLoadingGradeOverview(true);
     setGradeOverviewError(null);
     try {
-      const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
-      const response = await apiFetch(
-        `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
-        { headers: authHeaders() },
-      );
-      if (!response.ok) {
-        setGradeOverview({ labs: [], content: [] });
-        setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
-        setGradeOverviewError(await friendlyLoadErrorFromResponse(response));
-        return;
+      if (fresh) {
+        invalidateLecturerBootstrap('score');
       }
-      const data = await response.json();
-      setGradeOverview({
-        labs: data.labs ?? [],
-        content: data.content ?? [],
-      });
-      setGradeOverviewPagination({
-        total: data.totalElements ?? 0,
-        page: data.page ?? 0,
-        size: data.size ?? GRADE_OVERVIEW_PAGE_SIZE,
-        totalPages: data.totalPages ?? 0,
-      });
+      const useBootstrap =
+        page === 0 && sort === 'studentName,asc' && !String(search || '').trim();
+      let data;
+      if (useBootstrap) {
+        data = await getOrFetchLecturerBootstrap('score', bootstrapJson);
+      } else {
+        const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
+        const response = await apiFetch(
+          `${API_BASE}/api/lecturer/grade-overview?page=${page}&size=${GRADE_OVERVIEW_PAGE_SIZE}&sort=${encodeURIComponent(sort)}${searchQuery}`,
+          { headers: authHeaders() },
+        );
+        if (!response.ok) {
+          setGradeOverview({ labs: [], content: [] });
+          setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
+          setGradeOverviewError(await friendlyLoadErrorFromResponse(response));
+          return;
+        }
+        data = await response.json();
+      }
+      applyGradeOverviewPayload(data);
     } catch (err) {
       setGradeOverview({ labs: [], content: [] });
       setGradeOverviewPagination((prev) => ({ ...prev, total: 0, totalPages: 0, page: 0 }));
@@ -439,7 +460,32 @@ export default function LecturerDashboard({ user, onLogout }) {
     } finally {
       setLoadingGradeOverview(false);
     }
-  }, []);
+  }, [applyGradeOverviewPayload, bootstrapJson]);
+
+  const fetchGradingLabsBootstrap = useCallback(async () => {
+    setLoadingLabs(true);
+    setLabsError(null);
+    try {
+      let data = await getOrFetchLecturerBootstrap('grading', bootstrapJson);
+      let nextLabs = Array.isArray(data) ? data : [];
+      // Drop visit-cache entries that predate challenges on the grading bootstrap.
+      if (nextLabs.some((lab) => !Array.isArray(lab.challenges))) {
+        invalidateLecturerBootstrap('grading');
+        data = await getOrFetchLecturerBootstrap('grading', bootstrapJson);
+        nextLabs = Array.isArray(data) ? data : [];
+      }
+      setLabs(nextLabs);
+      if (nextLabs.length === 0) {
+        clearLabDetailState();
+      }
+    } catch (err) {
+      setLabs([]);
+      clearLabDetailState();
+      setLabsError(toFriendlyError(err, 'read'));
+    } finally {
+      setLoadingLabs(false);
+    }
+  }, [bootstrapJson, clearLabDetailState]);
 
 
   useEffect(() => {
@@ -453,21 +499,42 @@ export default function LecturerDashboard({ user, onLogout }) {
   }, [gradeOverviewSearchInput]);
 
   useEffect(() => {
-    if (activeNav !== 'dashboard' && activeNav !== 'grading') {
-      return;
-    }
-    fetchLabs();
     if (activeNav === 'dashboard') {
       fetchOverview();
       fetchPlagiarismFlags();
+      // Labs for lab-detail picker are secondary to overview first paint.
+      void fetchLabs();
+      return;
     }
-  }, [activeNav, fetchLabs, fetchOverview, fetchPlagiarismFlags]);
+    if (activeNav === 'grading') {
+      fetchGradingLabsBootstrap();
+    }
+  }, [activeNav, fetchOverview, fetchPlagiarismFlags, fetchLabs, fetchGradingLabsBootstrap]);
 
   useEffect(() => {
     if (activeNav === 'score') {
       fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch);
     }
   }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
+
+  useEffect(() => {
+    const idle =
+      typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback.bind(window)
+        : (cb) => setTimeout(cb, 200);
+    const cancel =
+      typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'
+        ? window.cancelIdleCallback.bind(window)
+        : clearTimeout;
+    const id = idle(() => {
+      ['score', 'grading', 'users', 'terms', 'projects', 'reports'].forEach((tabId) => {
+        if (tabId !== activeNav) {
+          prefetchLecturerBootstrap(tabId, bootstrapJson);
+        }
+      });
+    });
+    return () => cancel(id);
+  }, [activeNav, bootstrapJson]);
 
   useEffect(() => {
     if (selectedLabId) {
@@ -774,7 +841,17 @@ export default function LecturerDashboard({ user, onLogout }) {
     if (target) navigate(target);
   }, [navigate]);
 
-  const isInitialLoading = loadingLabs || loadingOverview;
+  const handleNavPrefetch = useCallback((navId) => {
+    prefetchLecturerBootstrap(navId, bootstrapJson);
+  }, [bootstrapJson]);
+
+  // Grading must not wait on overview; Dashboard first paint is overview only.
+  const isInitialLoading =
+    activeNav === 'dashboard'
+      ? loadingOverview
+      : activeNav === 'grading'
+        ? loadingLabs
+        : false;
 
   return (
     <div className={isDark ? 'dark' : ''}>
@@ -785,6 +862,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         hideHistory
         activeNav={activeNav}
         onNavigate={handleNavChange}
+        onPrefetch={handleNavPrefetch}
         onCommand={handleShellCommand}
       >
         {isInitialLoading ? (
@@ -1032,7 +1110,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                     disabled={loadingGradeOverview || gradeOverviewPagination.total === 0}
                   />
                   <button
-                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch)}
+                    onClick={() => fetchGradeOverview(gradeOverviewPagination.page, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch, { fresh: true })}
                     className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
                     title="Refresh"
                   >

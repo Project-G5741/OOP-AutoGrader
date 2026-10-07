@@ -3,6 +3,7 @@ import ReportsPanel from '../components/lecturer/ReportsPanel';
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
+import { getOrFetchLecturerBootstrap, invalidateLecturerBootstrap } from '../utils/lecturerBootstrapStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -26,21 +27,20 @@ export default function ReportsPage() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [reportError, setReportError] = useState(null);
 
-  const fetchReportData = useCallback(async () => {
+  const fetchReportData = useCallback(async ({ fresh = false } = {}) => {
     setLoadingReports(true);
     setReportError(null);
     try {
-      const response = await apiFetch(`${API_BASE}/api/analytics/dashboard`, {
-        headers: authHeaders(),
-      });
-
-      if (!response.ok) {
-        setReportData(EMPTY_REPORT);
-        setReportError(await friendlyLoadErrorFromResponse(response));
-        return;
+      if (fresh) {
+        invalidateLecturerBootstrap('reports');
       }
-
-      const data = await response.json();
+      const data = await getOrFetchLecturerBootstrap('reports', async (path) => {
+        const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+        if (!response.ok) {
+          throw new Error(await friendlyLoadErrorFromResponse(response));
+        }
+        return response.json();
+      });
       setReportData({
         ...EMPTY_REPORT,
         ...data,
@@ -75,7 +75,7 @@ export default function ReportsPage() {
             </div>
             <div>
               <button
-                onClick={fetchReportData}
+                onClick={() => fetchReportData({ fresh: true })}
                 className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 py-2 transition-colors hover:bg-surface-secondary"
                 title="Refresh reports"
               >

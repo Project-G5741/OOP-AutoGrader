@@ -85,7 +85,7 @@ export default function UserTable({
             {loading ? (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-foreground-muted">
-                  Loading users...
+                  Loading data...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
@@ -150,7 +150,7 @@ export default function UserTable({
 
       <div className="px-6 py-4 border-t border-border bg-surface-secondary bg-surface-secondary flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-foreground-muted">
-          {loading ? 'Loading users...' : `Showing ${rows.length} of ${totalItems} matching users`}
+          {loading ? 'Loading data...' : `Showing ${rows.length} of ${totalItems} matching users`}
         </div>
         <div className="flex items-center gap-2">
           <button

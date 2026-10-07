@@ -55,3 +55,11 @@ app:
   grading:
     worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
     worker-java: ${DESKTOP_WORKER_JAVA:java}
+    # Local practice machine: larger worker heap + CPU-capped OT pool (Render stays at 64m / free-tier limits)
+    worker-xmx: 512m
+    worker-max-metaspace: 256m
+    ot-batch-parallelism: 0
+    parallelism: 8
+    timing-log: false
+  compile:
+    parallelism: 8

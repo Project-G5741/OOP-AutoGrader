@@ -71,6 +71,11 @@ public class LecturerAnalyticsService {
         return lecturerOverviewCache.get(this::loadOverview);
     }
 
+    /** Fresh overview for tab bootstrap — bypasses multi-minute TTL (always-fresh visit). */
+    public LecturerOverviewResponse getOverviewFresh() {
+        return loadOverview();
+    }
+
     private LecturerOverviewResponse loadOverview() {
         Optional<Term> currentTerm = termService.findCurrentTerm();
         if (currentTerm.isEmpty()) {

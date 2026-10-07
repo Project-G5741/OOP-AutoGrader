@@ -1,6 +1,6 @@
 # Grading Workflows — Line-by-Line Reference
 
-This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the class-reflection and MMD pillars, and how lecturer operational tests (Unit / Composition) dry-run. Each section traces the actual Java source files and explains what each significant line or block does. Student upload does **not** execute operational tests this ship.
+This document describes every step of the OOP AutoGrader grading pipeline: how student uploads become scores across the class-reflection, MMD, and operational-testcase pillars, and how lecturer operational tests (Unit / Composition) dry-run. Each section traces the actual Java source files and explains what each significant line or block does.
 
 **Package root:** `backend/src/main/java/com/eiu/capstone/backend/grading/`
 
@@ -47,12 +47,13 @@ POST /api/submissions/{labId}/{attemptNumber}/upload
   ├─ SubmissionStorageService.processUpload()     ← validate paths, in-memory compile .java per challenge
   ├─ assign lab_submission.id in memory (path attempt unused)
   ├─ GradingService.gradeSubmission()             ← compute + lab_result assemble only
-  │    ├─ [parallel per challenge on gradingExecutor]
-  │    │    └─ GradingPipeline.gradeChallenge()
-  │    │         ├─ ReflectionClassParser.parseClasses()   ← load .class via URLClassLoader
-  │    │         ├─ ClassReflectionGrader.grade()            ← sync
-  │    │         ├─ MmdPillarGrader.grade()                  ← async on pillarExecutor
-  │    │         └─ TestcaseGrader skipped on student upload  ← lecturer dry-run still uses isolated worker JVM
+  │    ├─ [parallel class+MMD per challenge on gradingExecutor]
+  │    │    └─ GradingPipeline.gradeClassAndMmd()
+  │    │         ├─ ReflectionClassParser.parseClasses()
+  │    │         ├─ ClassReflectionGrader.grade()
+  │    │         └─ MmdPillarGrader.grade()
+  │    ├─ when any challenge has OT: workerJvmSlot + SharedLocalWorkerCache
+  │    │    └─ completeOperationalTestcasesLabWide → one lab-wide batch IPC
   │    └─ LabResultAssembler.assemble()             ← in-memory lab_result bundle
   ├─ UploadPersistService.persist()               ← one SQL: insert MAX+1, challenge UPSERT, progress
   │    └─ persistExecutor after that statement: detail UPSERT
@@ -281,7 +282,7 @@ Delegates to `gradingPipeline.gradeChallenge()`, then maps pipeline output into 
 
 - Copies class pillar field/method/constructor results
 - Copies MMD relation results
-- Testcase results stay empty on student upload (pillar not applicable)
+- Testcase results come from the lab-wide OT phase when the challenge has authored rows
 - Builds MMD metadata via `buildMmdMeta()` (class presence, relation error labels)
 - Builds parsed snapshot via `ParsedSubmissionSnapshotBuilder.build()`
 
@@ -301,14 +302,14 @@ Step 4: reflectionClassParser.parseClasses(classesDir) → List<ParsedClass>
 Step 5: ChallengeGradingContext.of(rubric, classesDir, compileError, parsedClasses, failedClassNames, compileErrorsByClassName)
 Step 6: classReflectionGrader.grade(context)          ← SYNCHRONOUS
 Step 7: mmdPillarGrader.grade(rubric, mmdFiles)       ← SYNCHRONOUS after class (when has_mmd)
-Step 8: (upload with OT) GradingService finishes class+Mmd for all challenges, then opens worker session
-Step 9: testcaseGrader.grade(context)                 ← SYNCHRONOUS after MMD; never parallel with MMD
+Step 8: (upload with OT) GradingService finishes class+Mmd for all challenges, then borrows a warm local worker (or cold-opens)
+Step 9: testcaseGrader.gradeLab(contexts)             ← one lab-wide batch after all class+MMD; never parallel with MMD
 Step 10: PillarScoreAggregator.challengePercentage(class, mmd, testcase)
 Step 11: fullyCorrect = all **applicable** pillars == 100%
 Step 12: return ChallengePipelineResult(...)
 ```
 
-**Threading note:** Class, MMD, and OT for one challenge run sequentially on a `gradingExecutor` worker (no nested pillar pool). Uploads that need OT defer the worker JVM until every challenge has finished class+Mmd. Lecturer dry-run acquires `workerJvmSlot` on the HTTP thread before invokes.
+**Threading note:** Class and MMD for one challenge run sequentially on a `gradingExecutor` worker (no nested pillar pool). Uploads that need OT defer the worker JVM until every challenge has finished class+Mmd, then run one lab-wide OT batch (in-worker parallel scenarios capped by CPUs). Lecturer dry-run acquires `workerJvmSlot` on the HTTP thread before invokes.
 
 ### 6.2 `ChallengeGradingContext` (record)
 
@@ -571,7 +572,7 @@ boolean correct = diagram.relations.stream().anyMatch(parsed ->
 
 **Files:** `grading/pipeline/TestcaseGrader.java`, `grading/testcase/InvocationRunner.java`
 
-Operational tests **execute compiled bytecode**. They are not JUnit tests and not structural EXISTENCE/DECLARATION checks. Types are **Unit** (one invocation) and **Composition** (ordered named-object steps). **Student upload does not run this pillar.** Lecturer dry-run does, against reference Java.
+Operational tests **execute compiled bytecode**. They are not JUnit tests and not structural EXISTENCE/DECLARATION checks. Types are **Unit** (one invocation) and **Composition** (ordered named-object steps). Student upload and lecturer bulk grade run this pillar when the challenge has authored rows; lecturer dry-run previews against reference Java.
 
 ### 9.1 Testcase rubric graph
 
@@ -583,9 +584,9 @@ Operational tests **execute compiled bytecode**. They are not JUnit tests and no
 
 There is no `testcase_instance` table and no `COMPARISON_RESULT` kind.
 
-### 9.2 `TestcaseGrader` (dry-run)
+### 9.2 `TestcaseGrader`
 
-`GradingPipeline.gradeChallenge(...)` without a worker is the student upload path (class/MMD only). Lecturer dry-run uses `TestcaseGrader.gradeSingle()` (one-item batch) for both UNIT and COMPOSITION.
+Upload/bulk with OT: after class+MMD, `completeOperationalTestcasesLabWide` → `TestcaseGrader.gradeLab` (one lab-wide `batch` with per-item `classesDir`). Lecturer dry-run uses `TestcaseGrader.gradeSingle()` (one-item batch) for both UNIT and COMPOSITION.
 
 For each testcase:
 
@@ -599,11 +600,11 @@ For each testcase:
 
 Each dry-run or student-upload OT batch:
 
-1. Acquires the host `workerJvmSlot` (one process). Student upload acquires the slot when any challenge in the upload batch has operational testcases; dry-run always acquires.
-2. Sends one NDJSON `batch` request for all runnable OT in the challenge (one item for dry-run); the worker runs each item as a scenario under the execution timeout, loads target classes with a platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
+1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot when any challenge has OT; dry-run always acquires. Local path borrows from `SharedLocalWorkerCache` (60s idle TTL) after the slot; sandbox sessions are never cached.
+2. Sends one NDJSON `batch` for all runnable OT in the grade call (lab-wide for upload/bulk; one item for dry-run). Each item may carry its own `classesDir`. The worker runs items on a CPU-capped pool with a per-item platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **5s**) per batch item as **execution** wall-clock; the API transport wait adds 30s return slack. On outer hang the API tree-kills and respawns without releasing the host slot.
 
-At most one worker session runs on the host slot (local JVM or remote sandbox session when `app.grading.sandbox.enabled=true`). Other dry-runs wait for that slot on the HTTP thread (`worker_slot_wait_ms`). Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
+At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run callers wait for that slot on the HTTP thread (`worker_slot_wait_ms`). Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
 Operator wipe SQL is `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`. `TestcaseSchemaMigrator` applies it on startup when leftover types/columns remain, then `LabRubricCache.invalidateAll()`.
 
@@ -705,7 +706,7 @@ Keyed `challenge_<N>`. Each bundle:
 }
 ```
 
-Student upload always sets `testcaseApplicable` false and `testcases: []`. The student UI hides the Operation Test tab. Allows Class/MMD to render immediately without follow-up API calls.
+When the challenge has authored OT rows, upload sets `testcaseApplicable` true and fills student-safe `testcases` (hidden rows omit I/O). Attempts graded before OT shipped may still show an empty Operation Test tab until the next upload.
 
 ---
 
@@ -715,10 +716,11 @@ Student upload always sets `testcaseApplicable` false and `testcases: []`. The s
 |----------|---------|------|---------|
 | `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
-| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped). Upload does not schedule TestcaseGrader |
-| (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; lecturer dry-run acquires on the HTTP thread. Student upload does not |
+| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped) |
+| (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; upload/bulk/dry-run acquire on the HTTP thread |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, plagiarism inspect, temp delete |
 | `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-batch-item student-code execution timeout (transport wait adds 30s slack) |
+| `app.grading.ot-batch-parallelism` | 0 | — | Cap in-worker OT pool (0 = `availableProcessors()`) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
 | `app.grading.worker-java` | `java` | — | Java binary used to spawn the worker |
 | `app.grading.rubric-cache-ttl-minutes` | 30 | `LabRubricCache` | Rubric cache TTL |
@@ -774,22 +776,21 @@ Student upload always sets `testcaseApplicable` false and `testcases: []`. The s
 
 Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
-Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases (lecturer dry-run only this ship), *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Student upload does not wait on `workerJvmSlot`. Lecturer dry-run still does (`worker_slot_wait_ms`).
+Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases across the lab, *W* in-worker OT pool (`min(T, CPUs)`), *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Upload/bulk/dry-run with OT wait on `workerJvmSlot` (`worker_slot_wait_ms`); local warm reuse keeps `worker_spawn_ms` near 0 within the 60s idle TTL.
 
 | Rank | Stage | Typical dominance | Work | Request-thread wall |
 |------|-------|-------------------|------|---------------------|
-| 1 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
-| 2 | Plagiarism snapshot | Fat `.git` without reflog (rare reconstruct) | SHA-256 *O(B)*; in-memory git `config`+reflog | **Extract + schedule** on the upload thread (milliseconds unless reconstruct). Compare/persist is **off-request** (`persistExecutor`); see `[timing] Plagiarism inspect` |
-| 3 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
-| 4 | Class reflection | Rarely vs 1–3 | Parse *O(classes × members)*; grade *O(E)* map lookups | Parallel across *P* challenges; usually milliseconds |
-| 5 | MMD parse + compare | Huge diagrams | Tokenize *O(L)*; class match *O(E)*; relations *O(R · D)* | On `pillarExecutor`; usually smaller than compile |
-| 6 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
-| 7 | Persist SQL (insert MAX+1 + challenge UPSERT + progress) | One Neon RTT | *O(C)* | On the request thread after assemble |
-| — | Lecturer dry-run OT | Large *T*, slow or hanging reference code | *Θ(T)* `scenario` ops on one worker JVM | **Σ invoke times**, plus `worker_slot_wait_ms` under concurrent dry-runs. Worst case *O(T · τ)* plus respawn. Not on the student upload path |
+| 1 | Lab-wide OT batch | Large *T* on ordinary student code | One `batch` IPC; in-worker parallel up to *W* | Roughly *Θ(⌈T/W⌉ · per-item)* plus cold spawn; warm path targets under 1s for ~6×60 locally |
+| 2 | `javac` per challenge | Many/large `.java` files; mixed failure runs javac **twice** | Roughly *O(source size)* per challenge (compiler internals are superlinear in practice) | *Θ(⌈C/K⌉ · max compile in batch)* |
+| 3 | Persist SQL (insert MAX+1 + challenge UPSERT + progress) | One Neon RTT | *O(C)* | On the request thread after assemble (outside grade/OT compute budget) |
+| 4 | Plagiarism snapshot | Fat `.git` without reflog (rare reconstruct) | SHA-256 *O(B)*; in-memory git `config`+reflog | **Extract + schedule** on the upload thread. Compare/persist is **off-request** (`persistExecutor`) |
+| 5 | Rubric cache miss | First upload after TTL / save | ~12 batched queries + *O(E)* graph build | Neon RTT × query count; cache hit is cheap |
+| 6 | Class reflection + MMD | Rarely vs OT/compile | Parse *O(classes × members)*; MMD *O(L)* / *O(R · D)* | Parallel class+MMD across *P* challenges; usually milliseconds |
+| 7 | `lab_result` assemble | Was a Neon bottleneck; now in-memory | *O(E)* DTO walk from `LabRubricSnapshot` | On the request thread after compute |
 | — | Detail UPSERT | Large *E* | *O(E)* JDBC | **Off-request** (`persistExecutor`); GET tabs wait up to 60s |
 | — | Multipart + `.git` | Fat folders | *O(upload bytes)* | Before compile; Spring reads every part including `.git` |
 
-**Why compile now dominates student wait:** upload no longer invokes operational tests, so it does not serialize on the one worker JVM. Lecturer dry-run still does.
+**Why OT often dominates grade compute:** one host worker JVM runs the lab-wide batch; local multi-core shortens wall-clock via in-worker parallelism, but Render free tier stays one process (`workerJvmSlot=1`).
 
 **Why plagiarism used to overtake compile on a large roster:** pairwise compare still walks every other fingerprint, but that work is on `persistExecutor`. The student wait is only the signal snapshot. Peer/prior bests are one grouped attempts load; non-matches are not inserted; re-eval is limited to rows where this uploader is the other side.
 

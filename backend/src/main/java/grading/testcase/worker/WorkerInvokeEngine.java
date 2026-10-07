@@ -70,33 +70,72 @@ public final class WorkerInvokeEngine {
 
     /**
      * Run each batch item as a scenario under {@code timeoutSeconds} of execution wall-clock.
-     * On timeout, emit {@code TIMED_OUT} and stop — do not run later items in this JVM
-     * (interrupt cannot stop tight loops; the process must be killed/respawned).
-     * One student {@link URLClassLoader} and one timeout executor cover the whole batch.
+     * On timeout, emit {@code TIMED_OUT} and omit later items from this response so the API can
+     * respawn and continue (interrupt cannot stop tight loops; the process must be killed).
+     * Each item uses its own student {@link URLClassLoader}. Concurrent items share a pool sized
+     * {@code max(1, min(itemCount, parallelismOrCpus))}.
      */
     public SerializedInvocationOutcome batch(Path classesDir,
                                              List<WorkerIpc.BatchItemSpec> items,
                                              int timeoutSeconds,
                                              int stdoutCap) {
-        if (!Files.isDirectory(classesDir)) {
-            return SerializedInvocationOutcome.error("Missing compiled classes directory");
-        }
+        return batch(classesDir, items, timeoutSeconds, stdoutCap, 0);
+    }
+
+    public SerializedInvocationOutcome batch(Path classesDir,
+                                             List<WorkerIpc.BatchItemSpec> items,
+                                             int timeoutSeconds,
+                                             int stdoutCap,
+                                             int batchParallelism) {
         if (items == null || items.isEmpty()) {
             return SerializedInvocationOutcome.error("Missing batch items");
         }
         int budget = Math.max(1, timeoutSeconds);
-        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+        int poolSize = resolveBatchPoolSize(items.size(), batchParallelism);
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize, r -> {
             Thread thread = new Thread(r, "worker-batch-item");
             thread.setDaemon(true);
             return thread;
         });
-        try (URLClassLoader loader = studentLoader(classesDir)) {
-            List<SerializedInvocationOutcome> results = new ArrayList<>();
+        List<Future<SerializedInvocationOutcome>> futures = new ArrayList<>(items.size());
+        List<Long> deadlineNanos = new ArrayList<>(items.size());
+        try {
             for (WorkerIpc.BatchItemSpec item : items) {
-                SerializedInvocationOutcome outcome = runScenarioWithTimeout(
-                        executor, loader, item, budget, stdoutCap);
+                Path itemDir = resolveItemClassesDir(classesDir, item);
+                futures.add(executor.submit(() -> runScenarioItem(itemDir, item, stdoutCap)));
+                deadlineNanos.add(System.nanoTime() + TimeUnit.SECONDS.toNanos(budget));
+            }
+            List<SerializedInvocationOutcome> results = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                Future<SerializedInvocationOutcome> future = futures.get(i);
+                long remainingNs = deadlineNanos.get(i) - System.nanoTime();
+                SerializedInvocationOutcome outcome;
+                if (remainingNs <= 0) {
+                    future.cancel(true);
+                    outcome = SerializedInvocationOutcome.timedOut("", false);
+                } else {
+                    try {
+                        outcome = future.get(remainingNs, TimeUnit.NANOSECONDS);
+                    } catch (TimeoutException e) {
+                        future.cancel(true);
+                        outcome = SerializedInvocationOutcome.timedOut("", false);
+                    } catch (ExecutionException e) {
+                        outcome = SerializedInvocationOutcome.error(messageOrSimpleName(
+                                e.getCause() != null ? e.getCause() : e));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        future.cancel(true);
+                        outcome = SerializedInvocationOutcome.timedOut("", false);
+                    }
+                }
+                if (outcome == null) {
+                    outcome = SerializedInvocationOutcome.error("Empty batch item outcome");
+                }
                 results.add(outcome);
                 if (SerializedInvocationOutcome.KIND_TIMED_OUT.equals(outcome.kind())) {
+                    for (int j = i + 1; j < futures.size(); j++) {
+                        futures.get(j).cancel(true);
+                    }
                     break;
                 }
             }
@@ -105,6 +144,34 @@ public final class WorkerInvokeEngine {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    public static int resolveBatchPoolSize(int itemCount, int batchParallelism) {
+        int cpuCap = Math.max(1, Runtime.getRuntime().availableProcessors());
+        int requested = batchParallelism > 0 ? batchParallelism : cpuCap;
+        return Math.max(1, Math.min(Math.max(1, itemCount), Math.min(cpuCap, requested)));
+    }
+
+    private static Path resolveItemClassesDir(Path requestClassesDir, WorkerIpc.BatchItemSpec item) {
+        if (item != null && item.classesDir() != null && !item.classesDir().isBlank()) {
+            return Path.of(item.classesDir());
+        }
+        return requestClassesDir;
+    }
+
+    private SerializedInvocationOutcome runScenarioItem(Path classesDir,
+                                                        WorkerIpc.BatchItemSpec item,
+                                                        int stdoutCap) {
+        if (classesDir == null || !Files.isDirectory(classesDir)) {
+            return SerializedInvocationOutcome.error("Missing compiled classes directory");
+        }
+        try (URLClassLoader loader = studentLoader(classesDir)) {
+            List<WorkerIpc.ScenarioStepSpec> steps = item == null ? null : item.steps();
+            List<String> snapshots = item == null ? null : item.snapshotFieldNames();
+            return scenario(loader, steps, snapshots, stdoutCap);
+        } catch (Exception e) {
+            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
     }
 
@@ -133,30 +200,6 @@ public final class WorkerInvokeEngine {
                 null,
                 null,
                 List.copyOf(outcomes));
-    }
-
-    private SerializedInvocationOutcome runScenarioWithTimeout(ExecutorService executor,
-                                                               URLClassLoader loader,
-                                                               WorkerIpc.BatchItemSpec item,
-                                                               int timeoutSeconds,
-                                                               int stdoutCap) {
-        List<WorkerIpc.ScenarioStepSpec> steps = item == null ? null : item.steps();
-        List<String> snapshots = item == null ? null : item.snapshotFieldNames();
-        Future<SerializedInvocationOutcome> future = executor.submit(
-                () -> scenario(loader, steps, snapshots, stdoutCap));
-        try {
-            return future.get(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            return SerializedInvocationOutcome.timedOut("", false);
-        } catch (ExecutionException e) {
-            return SerializedInvocationOutcome.error(messageOrSimpleName(
-                    e.getCause() != null ? e.getCause() : e));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            future.cancel(true);
-            return SerializedInvocationOutcome.timedOut("", false);
-        }
     }
 
     private SerializedInvocationOutcome executeStep(URLClassLoader loader,

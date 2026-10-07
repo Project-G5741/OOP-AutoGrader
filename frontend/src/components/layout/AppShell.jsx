@@ -8,6 +8,7 @@ export default function AppShell({
   children,
   activeNav,
   onNavigate,
+  onPrefetch,
   showNav = false,
   className = '',
   onCommand,
@@ -39,7 +40,7 @@ export default function AppShell({
         <div className="flex w-full max-w-full min-w-0 flex-1 flex-col overflow-x-hidden">
           {showNav && (
             <div className="relative mt-4 w-full min-w-0 overflow-visible">
-              <NavBar active={activeNav} onNavigate={onNavigate} />
+              <NavBar active={activeNav} onNavigate={onNavigate} onPrefetch={onPrefetch} />
             </div>
           )}
 

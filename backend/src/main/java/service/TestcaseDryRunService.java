@@ -26,7 +26,7 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseR
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
-import com.eiu.capstone.backend.grading.testcase.DryRunWorkerCache;
+import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
@@ -54,7 +54,7 @@ public class TestcaseDryRunService {
     private final TestcaseResultMapper testcaseResultMapper;
     private final Semaphore workerJvmSlot;
     private final WorkerSessionFactory workerSessionFactory;
-    private final DryRunWorkerCache dryRunWorkerCache;
+    private final SharedLocalWorkerCache sharedLocalWorkerCache;
     private final DryRunCompileCache dryRunCompileCache;
     private final int invokeTimeoutSeconds;
 
@@ -64,7 +64,7 @@ public class TestcaseDryRunService {
                                  TestcaseResultMapper testcaseResultMapper,
                                  @org.springframework.beans.factory.annotation.Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
                                  WorkerSessionFactory workerSessionFactory,
-                                 DryRunWorkerCache dryRunWorkerCache,
+                                 SharedLocalWorkerCache sharedLocalWorkerCache,
                                  DryRunCompileCache dryRunCompileCache,
                                  @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
         this.testcaseRubricAssembler = testcaseRubricAssembler;
@@ -73,7 +73,7 @@ public class TestcaseDryRunService {
         this.testcaseResultMapper = testcaseResultMapper;
         this.workerJvmSlot = workerJvmSlot;
         this.workerSessionFactory = workerSessionFactory;
-        this.dryRunWorkerCache = dryRunWorkerCache;
+        this.sharedLocalWorkerCache = sharedLocalWorkerCache;
         this.dryRunCompileCache = dryRunCompileCache;
         this.invokeTimeoutSeconds = invokeTimeoutSeconds;
     }
@@ -153,7 +153,7 @@ public class TestcaseDryRunService {
             boolean sandbox = workerSessionFactory.isSandboxEnabled();
             Path openRoot = classesDir.getParent() != null ? classesDir.getParent() : classesDir;
             CompletableFuture<WorkerSessionHandle> localOpen = null;
-            if (!sandbox && !dryRunWorkerCache.hasIdleLocal()) {
+            if (!sandbox && !sharedLocalWorkerCache.hasIdleLocal()) {
                 localOpen = CompletableFuture.supplyAsync(
                         () -> workerSessionFactory.open(openRoot, invokeTimeoutSeconds));
             }
@@ -169,7 +169,8 @@ public class TestcaseDryRunService {
                 if (localOpen != null) {
                     workerSession = localOpen.join();
                 } else {
-                    workerSession = dryRunWorkerCache.borrow(workerSessionFactory, openRoot, invokeTimeoutSeconds);
+                    workerSession = sharedLocalWorkerCache.borrow(
+                            workerSessionFactory, openRoot, invokeTimeoutSeconds);
                 }
                 openMs = System.currentTimeMillis() - openStarted;
                 long gradeStarted = System.currentTimeMillis();
@@ -185,7 +186,7 @@ public class TestcaseDryRunService {
                         "total", System.currentTimeMillis() - totalStarted);
                 return result;
             } finally {
-                dryRunWorkerCache.release(workerSessionFactory, workerSession);
+                sharedLocalWorkerCache.release(workerSessionFactory, workerSession);
                 workerJvmSlot.release();
             }
         } catch (ResponseStatusException ex) {

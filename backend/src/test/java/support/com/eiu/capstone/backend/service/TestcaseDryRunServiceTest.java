@@ -35,7 +35,7 @@ import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
-import com.eiu.capstone.backend.grading.testcase.DryRunWorkerCache;
+import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
@@ -121,7 +121,7 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
-                new DryRunWorkerCache(),
+                new SharedLocalWorkerCache(),
                 new DryRunCompileCache(),
                 5);
 
@@ -186,7 +186,7 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
-                new DryRunWorkerCache(),
+                new SharedLocalWorkerCache(),
                 new DryRunCompileCache(),
                 5);
     }

@@ -198,11 +198,27 @@ export default function SolutionManagement() {
     (async () => {
       try {
         setLoading(true);
-        await loadLookups();
-        const labList = await loadLabs();
+        const { getOrFetchLecturerBootstrap } = await import('../utils/lecturerBootstrapStore');
+        const bootstrapJson = async (path) => {
+          const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+          if (!response.ok) throw new Error(await readFriendlyApiError(response, 'read'));
+          return response.json();
+        };
+        const data = await getOrFetchLecturerBootstrap('projects', bootstrapJson);
         if (!active) return;
+        if (data.scopeOptions) setScopeOptions(data.scopeOptions);
+        if (data.declaringTypeOptions) setDeclaringTypeOptions(data.declaringTypeOptions);
+        if (data.relationTypeOptions) setRelationTypeOptions(data.relationTypeOptions);
+        if (data.terms) setTerms(data.terms);
+        const labList = Array.isArray(data.labs) ? data.labs : [];
         setLabs(labList);
-        if (labList.length > 0) {
+        if (data.selectedLabId && data.structure) {
+          applyStructure(data.selectedLabId, data.structure);
+          setSelectedClassRef(null);
+          const challenges = data.structure.challenges || [];
+          setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
+          setSelectedChallengeId(challenges[0]?.id ?? null);
+        } else if (labList.length > 0) {
           await selectLab(labList[0].id, true);
         }
       } catch (e) {
@@ -214,7 +230,7 @@ export default function SolutionManagement() {
     return () => {
       active = false;
     };
-  }, [loadLookups, loadLabs, selectLab]);
+  }, [applyStructure, selectLab]);
 
   const selectedClass = useMemo(() => {
     if (!draft || !selectedClassRef) return null;
@@ -608,7 +624,7 @@ export default function SolutionManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-foreground-secondary">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading structure editor...
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading data...
       </div>
     );
   }

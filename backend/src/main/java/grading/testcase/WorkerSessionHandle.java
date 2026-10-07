@@ -167,23 +167,30 @@ public final class WorkerSessionHandle implements AutoCloseable {
      * process is killed (worker halt + local close) and remaining items run on a fresh JVM.
      */
     public SerializedInvocationOutcome batch(String classesDir, List<WorkerIpc.BatchItemSpec> items) {
+        return batch(classesDir, items, 0);
+    }
+
+    public SerializedInvocationOutcome batch(String classesDir,
+                                             List<WorkerIpc.BatchItemSpec> items,
+                                             int batchParallelism) {
         if (items == null || items.isEmpty()) {
             return SerializedInvocationOutcome.error("Missing batch items");
         }
         List<SerializedInvocationOutcome> merged = new ArrayList<>(items.size());
         int offset = 0;
         while (offset < items.size()) {
-            List<WorkerIpc.BatchItemSpec> slice = items.subList(offset, items.size());
+            List<WorkerIpc.BatchItemSpec> slice = mapBatchItems(classesDir, items.subList(offset, items.size()));
             WorkerIpc.Request request = new WorkerIpc.Request(
                     WorkerIpc.OP_BATCH,
-                    classesDirMapper.apply(classesDir),
+                    classesDir != null ? classesDirMapper.apply(classesDir) : null,
                     null,
                     null,
                     null,
                     WorkerIpc.DEFAULT_STDOUT_CAP,
                     null,
                     slice,
-                    Math.max(1, timeoutSeconds));
+                    Math.max(1, timeoutSeconds),
+                    Math.max(0, batchParallelism));
             SerializedInvocationOutcome partial = roundTrip(request, transportWaitSeconds(slice.size()));
             if (partial == null) {
                 return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
@@ -234,6 +241,23 @@ public final class WorkerSessionHandle implements AutoCloseable {
             }
         }
         return SerializedInvocationOutcome.batchOf(merged);
+    }
+
+    private List<WorkerIpc.BatchItemSpec> mapBatchItems(String fallbackClassesDir,
+                                                        List<WorkerIpc.BatchItemSpec> items) {
+        List<WorkerIpc.BatchItemSpec> mapped = new ArrayList<>(items.size());
+        for (WorkerIpc.BatchItemSpec item : items) {
+            if (item == null) {
+                mapped.add(null);
+                continue;
+            }
+            String raw = item.classesDir() != null && !item.classesDir().isBlank()
+                    ? item.classesDir()
+                    : fallbackClassesDir;
+            String mappedDir = raw != null ? classesDirMapper.apply(raw) : null;
+            mapped.add(new WorkerIpc.BatchItemSpec(item.steps(), item.snapshotFieldNames(), mappedDir));
+        }
+        return mapped;
     }
 
     static int transportWaitSeconds(int itemCount, int timeoutSeconds) {
