@@ -30,6 +30,7 @@ import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
+import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.model.AssertionKind;
@@ -74,12 +75,17 @@ class GradingServiceTest {
 
         WorkerSessionFactory workerSessionFactory = mock(WorkerSessionFactory.class);
         WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
+        when(workerSessionFactory.isSandboxEnabled()).thenReturn(false);
         when(workerSessionFactory.open(any(Path.class), anyInt())).thenReturn(handle);
+        when(handle.isAlive()).thenReturn(true);
 
         Semaphore slot = mock(Semaphore.class);
+        SharedLocalWorkerCache workerCache = new SharedLocalWorkerCache();
         var gradingExecutor = Executors.newSingleThreadExecutor();
         try {
             doAnswer(invocation -> null).when(slot).acquire();
+            GradingPipeline pipeline = mock(GradingPipeline.class);
+            when(pipeline.completeOperationalTestcasesLabWide(any(), any(), anyInt())).thenReturn(List.of());
             GradingService service = new GradingService(
                     mock(ChallengeRepository.class),
                     mock(FieldRepository.class),
@@ -88,14 +94,16 @@ class GradingServiceTest {
                     mock(MmdComparisonService.class),
                     gradingExecutor,
                     mock(ClassRelationRepository.class),
-                    mock(GradingPipeline.class),
+                    pipeline,
                     mock(TestcaseRepository.class),
                     mock(TestcaseAssertionRepository.class),
                     assembler,
                     new ParsedSubmissionSnapshotBuilder(),
                     slot,
                     workerSessionFactory,
+                    workerCache,
                     5,
+                    0,
                     false);
 
             LabSubmission submission = new LabSubmission();
@@ -113,9 +121,10 @@ class GradingServiceTest {
                             Map.of()));
             verify(slot).acquire();
             verify(workerSessionFactory).open(eq(challengeFolder.getParent()), eq(5));
-            verify(handle).close();
+            verify(handle, never()).close();
             verify(slot).release();
         } finally {
+            workerCache.shutdown();
             gradingExecutor.shutdownNow();
         }
     }
@@ -144,7 +153,9 @@ class GradingServiceTest {
                     new ParsedSubmissionSnapshotBuilder(),
                     slot,
                     workerSessionFactory,
+                    new SharedLocalWorkerCache(),
                     5,
+                    0,
                     false);
 
             LabSubmission submission = new LabSubmission();

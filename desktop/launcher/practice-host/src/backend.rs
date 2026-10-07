@@ -46,8 +46,8 @@ impl Backend {
         let java_exe = resolve_java(install_dir);
         let mut cmd = Command::new(&java_exe);
         cmd.args([
-            // Prefer faster cold start for practice open; peak throughput is not the goal.
-            "-XX:TieredStopAtLevel=1",
+            // Local practice: room for API + parallel OT worker (not Render free-tier).
+            "-Xmx512m",
             "-jar",
         ])
         .arg(&backend_jar)

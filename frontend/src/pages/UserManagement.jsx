@@ -13,6 +13,7 @@ import {
   isFormValid,
 } from '../utils/validation';
 import { sortRows, toggleSortState } from '../utils/sort';
+import { getOrFetchLecturerBootstrap } from '../utils/lecturerBootstrapStore';
 
 const EMPTY_FORM = {
   studentIrn: '',
@@ -245,13 +246,13 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       setLoading(true);
       try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-        const resp = await apiFetch(`${API_BASE}/api/users/getAllUser?page=0&size=50`, {
-          headers: authHeaders(),
+        const data = await getOrFetchLecturerBootstrap('users', async (path) => {
+          const resp = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+          if (!resp.ok) {
+            throw new Error(await readFriendlyApiError(resp, 'read'));
+          }
+          return resp.json();
         });
-        if (!resp.ok) {
-          throw new Error(await readFriendlyApiError(resp, 'read'));
-        }
-        const data = await resp.json();
         const items = Array.isArray(data) ? data : (data.content ?? []);
         const normalized = items.map(normalizeUser);
         setUsers(normalized);

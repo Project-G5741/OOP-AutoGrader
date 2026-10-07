@@ -12,7 +12,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 public final class WorkerIpc {
 
-    public static final int MAX_LINE_BYTES = 524288;
+    /** Lab-wide OT batches need more than 512KiB for hundreds of outcomes. */
+    public static final int MAX_LINE_BYTES = 4 * 1024 * 1024;
     public static final int DEFAULT_STDOUT_CAP = 65536;
     public static final int MAX_NESTING_DEPTH = 8;
     public static final String OP_INVOKE = "invoke";
@@ -54,7 +55,8 @@ public final class WorkerIpc {
                         classesDir,
                         request.items(),
                         request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 5,
-                        stdoutCap);
+                        stdoutCap,
+                        request.batchParallelism());
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
             };
         } catch (Exception e) {
@@ -114,7 +116,8 @@ public final class WorkerIpc {
             int stdoutCap,
             List<ScenarioStepSpec> steps,
             List<BatchItemSpec> items,
-            int timeoutSeconds) {
+            int timeoutSeconds,
+            int batchParallelism) {
 
         public Request(String op,
                        String classesDir,
@@ -122,7 +125,7 @@ public final class WorkerIpc {
                        CompareSpec compare,
                        List<String> snapshotFieldNames,
                        int stdoutCap) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null, null, 0);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null, null, 0, 0);
         }
 
         public Request(String op,
@@ -132,14 +135,32 @@ public final class WorkerIpc {
                        List<String> snapshotFieldNames,
                        int stdoutCap,
                        List<ScenarioStepSpec> steps) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, null, 0);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, null, 0, 0);
+        }
+
+        public Request(String op,
+                       String classesDir,
+                       InvokeSpec invoke,
+                       CompareSpec compare,
+                       List<String> snapshotFieldNames,
+                       int stdoutCap,
+                       List<ScenarioStepSpec> steps,
+                       List<BatchItemSpec> items,
+                       int timeoutSeconds) {
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, items, timeoutSeconds, 0);
         }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BatchItemSpec(
             List<ScenarioStepSpec> steps,
-            List<String> snapshotFieldNames) {}
+            List<String> snapshotFieldNames,
+            String classesDir) {
+
+        public BatchItemSpec(List<ScenarioStepSpec> steps, List<String> snapshotFieldNames) {
+            this(steps, snapshotFieldNames, null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record InvokeSpec(

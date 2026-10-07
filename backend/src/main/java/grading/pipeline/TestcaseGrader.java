@@ -62,10 +62,67 @@ public class TestcaseGrader {
     }
 
     public TestcasePillarResult grade(ChallengeGradingContext context) {
-        List<WeightedAccuracy> weighted = new ArrayList<>();
-        List<PendingTestcaseResult> results = new ArrayList<>();
-        ChallengeRubric rubric = context.challengeRubric();
+        ChallengePlan plan = planChallenge(context);
+        List<List<InvocationOutcome>> batchOutcomes = List.of();
+        if (!plan.runnable().isEmpty()) {
+            long invokeStarted = System.currentTimeMillis();
+            batchOutcomes = invocationRunner.invokeBatch(
+                    context, plan.runnable().stream().map(this::toBatchItem).toList());
+            // TEMP: remove after OT warm-path timing check
+            if (plan.runnable().size() == 1) {
+                TimingLog.line(false, "OT single invoke " + testcaseLabel(plan.runnable().get(0)),
+                        System.currentTimeMillis() - invokeStarted);
+            }
+        }
+        return finishChallenge(plan, batchOutcomes);
+    }
 
+    /**
+     * One lab-wide worker batch for every OT-applicable challenge context, then finish each pillar.
+     * Result list aligns with {@code contexts} (same size and order).
+     */
+    public List<TestcasePillarResult> gradeLab(List<ChallengeGradingContext> contexts,
+                                               com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle workerSession,
+                                               int batchParallelism) {
+        if (contexts == null || contexts.isEmpty()) {
+            return List.of();
+        }
+        List<ChallengePlan> plans = new ArrayList<>(contexts.size());
+        List<InvocationRunner.LabBatchItem> labItems = new ArrayList<>();
+        for (ChallengeGradingContext context : contexts) {
+            ChallengePlan plan = planChallenge(context);
+            plans.add(plan);
+            if (context == null || context.classesDir() == null) {
+                continue;
+            }
+            String classesDir = context.classesDir().toAbsolutePath().toString();
+            for (TestcaseRubric testcase : plan.runnable()) {
+                InvocationRunner.BatchItem batchItem = toBatchItem(testcase);
+                labItems.add(new InvocationRunner.LabBatchItem(
+                        classesDir, batchItem.steps(), batchItem.snapshotFieldNames()));
+            }
+        }
+        List<List<InvocationOutcome>> allOutcomes = labItems.isEmpty()
+                ? List.of()
+                : invocationRunner.invokeLabBatch(workerSession, labItems, batchParallelism);
+        List<TestcasePillarResult> results = new ArrayList<>(plans.size());
+        int offset = 0;
+        for (ChallengePlan plan : plans) {
+            int count = plan.runnable().size();
+            List<List<InvocationOutcome>> slice = offset + count <= allOutcomes.size()
+                    ? allOutcomes.subList(offset, offset + count)
+                    : List.of();
+            offset += count;
+            results.add(finishChallenge(plan, slice));
+        }
+        return results;
+    }
+
+    private ChallengePlan planChallenge(ChallengeGradingContext context) {
+        if (context == null || context.challengeRubric() == null) {
+            return new ChallengePlan(null, List.of(), List.of());
+        }
+        ChallengeRubric rubric = context.challengeRubric();
         List<TestcaseRubric> runnable = new ArrayList<>();
         List<Evaluation> earlyByIndex = new ArrayList<>();
         for (TestcaseRubric testcase : rubric.testcases()) {
@@ -75,26 +132,24 @@ public class TestcaseGrader {
                 runnable.add(testcase);
             }
         }
+        return new ChallengePlan(rubric, earlyByIndex, runnable);
+    }
 
-        List<List<InvocationOutcome>> batchOutcomes = List.of();
-        if (!runnable.isEmpty()) {
-            long invokeStarted = System.currentTimeMillis();
-            batchOutcomes = invocationRunner.invokeBatch(
-                    context, runnable.stream().map(this::toBatchItem).toList());
-            // TEMP: remove after OT warm-path timing check
-            if (runnable.size() == 1) {
-                TimingLog.line(false, "OT single invoke " + testcaseLabel(runnable.get(0)),
-                        System.currentTimeMillis() - invokeStarted);
-            }
+    private TestcasePillarResult finishChallenge(ChallengePlan plan,
+                                                 List<List<InvocationOutcome>> batchOutcomes) {
+        if (plan.rubric() == null) {
+            return TestcasePillarResult.empty();
         }
-
+        List<WeightedAccuracy> weighted = new ArrayList<>();
+        List<PendingTestcaseResult> results = new ArrayList<>();
+        ChallengeRubric rubric = plan.rubric();
         int runnableIndex = 0;
         for (int i = 0; i < rubric.testcases().size(); i++) {
             TestcaseRubric testcase = rubric.testcases().get(i);
             int weight = MemberWeightCalculator.testcaseWeight(testcase.weight());
-            Evaluation evaluation = earlyByIndex.get(i);
+            Evaluation evaluation = plan.earlyByIndex().get(i);
             if (evaluation == null) {
-                List<InvocationOutcome> outcomes = runnableIndex < batchOutcomes.size()
+                List<InvocationOutcome> outcomes = batchOutcomes != null && runnableIndex < batchOutcomes.size()
                         ? batchOutcomes.get(runnableIndex)
                         : List.of();
                 runnableIndex++;
@@ -103,12 +158,16 @@ public class TestcaseGrader {
             weighted.add(new WeightedAccuracy(weight, evaluation.accuracy()));
             results.add(evaluation.pending());
         }
-
         BigDecimal pillarPct = rubric.testcases().isEmpty()
                 ? BigDecimal.ZERO
                 : PillarScoreAggregator.pillarPercentage(weighted);
         return new TestcasePillarResult(pillarPct, results);
     }
+
+    private record ChallengePlan(
+            ChallengeRubric rubric,
+            List<Evaluation> earlyByIndex,
+            List<TestcaseRubric> runnable) {}
 
     private Evaluation evaluate(TestcaseRubric testcase, ChallengeGradingContext context) {
         Evaluation early = earlyShortCircuit(testcase, context);

@@ -22,6 +22,7 @@ import {
   ROUTES,
 } from "./utils/authRoutes";
 import { leavePresence } from "./utils/presence";
+import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -67,6 +68,7 @@ export default function App() {
   const handleLogout = useCallback(() => {
     leavePresence();
     clearAuthSession();
+    clearLecturerBootstrapStore();
     navigate(ROUTES.login);
   }, [navigate]);
 

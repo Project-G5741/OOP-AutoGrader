@@ -69,12 +69,54 @@ public class InvocationRunner {
                     steps.add(WorkerSessionHandle.toScenarioStep(step));
                 }
             }
-            specs.add(new WorkerIpc.BatchItemSpec(steps, item == null ? List.of() : item.snapshotFieldNames()));
+            String classesDir = context.classesDir() != null
+                    ? context.classesDir().toAbsolutePath().toString()
+                    : null;
+            specs.add(new WorkerIpc.BatchItemSpec(
+                    steps,
+                    item == null ? List.of() : item.snapshotFieldNames(),
+                    classesDir));
         }
         SerializedInvocationOutcome serialized = handle.batch(
                 context.classesDir().toAbsolutePath().toString(), specs);
         return toBatchOutcomes(serialized, items.size());
     }
+
+    /**
+     * Lab-wide batch: each item may carry its own compiled-classes directory via
+     * {@link LabBatchItem#classesDir()}. One worker round-trip for all items.
+     */
+    public List<List<InvocationOutcome>> invokeLabBatch(WorkerSessionHandle handle,
+                                                        List<LabBatchItem> items,
+                                                        int batchParallelism) {
+        if (handle == null) {
+            return fillErrors(items == null ? 0 : items.size(), "Worker session missing");
+        }
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        List<WorkerIpc.BatchItemSpec> specs = new ArrayList<>(items.size());
+        for (LabBatchItem item : items) {
+            if (item == null || item.classesDir() == null || item.classesDir().isBlank()) {
+                specs.add(new WorkerIpc.BatchItemSpec(List.of(), List.of(), null));
+                continue;
+            }
+            List<WorkerIpc.ScenarioStepSpec> steps = new ArrayList<>();
+            if (item.steps() != null) {
+                for (InvocationRubric step : item.steps()) {
+                    steps.add(WorkerSessionHandle.toScenarioStep(step));
+                }
+            }
+            specs.add(new WorkerIpc.BatchItemSpec(steps, item.snapshotFieldNames(), item.classesDir()));
+        }
+        SerializedInvocationOutcome serialized = handle.batch(null, specs, batchParallelism);
+        return toBatchOutcomes(serialized, items.size());
+    }
+
+    public record LabBatchItem(
+            String classesDir,
+            List<InvocationRubric> steps,
+            List<String> snapshotFieldNames) {}
 
     private List<List<InvocationOutcome>> toBatchOutcomes(SerializedInvocationOutcome serialized, int expected) {
         if (serialized == null) {

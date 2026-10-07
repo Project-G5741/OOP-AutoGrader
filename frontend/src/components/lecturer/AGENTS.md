@@ -39,7 +39,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
-| `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — lab + Lab/Exam mode, parse-then-confirm, sequential `/bulk-grade`, results table with **Overview + challenge tabs** (Score switches by tab), within-batch plagiarism |
+| `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — labs from `GET /api/lecturer/bootstrap/grading` (each lab must include `challenges` for Lab/Exam mode + results tabs), parse-then-confirm, sequential `/bulk-grade`, within-batch plagiarism |
 | `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result`; from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
 | `OperationalTestcaseBreakdown.jsx` | Expandable OT I/O cards for lecturer Bulk drawer (example + other/hidden) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |

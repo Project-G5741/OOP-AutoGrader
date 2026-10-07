@@ -33,6 +33,11 @@ public class AnalyticsService {
         return analyticsDashboardCache.get(key, () -> loadDashboard(academicYearId, semesterId, labId, course));
     }
 
+    /** Fresh dashboard for tab bootstrap — bypasses multi-minute TTL (always-fresh visit). */
+    public AnalyticsDashboardResponse getDashboardFresh(UUID academicYearId, UUID semesterId, UUID labId, String course) {
+        return loadDashboard(academicYearId, semesterId, labId, course);
+    }
+
     private AnalyticsDashboardResponse loadDashboard(UUID academicYearId, UUID semesterId, UUID labId, String course) {
         Object[] summary = safeFindDashboardSummary(labId, semesterId, academicYearId, course);
         BigDecimal overallAverage = null;

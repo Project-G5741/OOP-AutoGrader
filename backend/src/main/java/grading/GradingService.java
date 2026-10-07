@@ -56,6 +56,7 @@ import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshotBuilder;
+import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.utility.CompletableFutures;
@@ -81,7 +82,9 @@ public class GradingService {
     private final ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder;
     private final Semaphore workerJvmSlot;
     private final WorkerSessionFactory workerSessionFactory;
+    private final SharedLocalWorkerCache sharedLocalWorkerCache;
     private final int invokeTimeoutSeconds;
+    private final int otBatchParallelism;
     private final boolean timingLog;
 
     public GradingService(ChallengeRepository challengeRepository,
@@ -98,7 +101,9 @@ public class GradingService {
                           ParsedSubmissionSnapshotBuilder parsedSubmissionSnapshotBuilder,
                           @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
                           WorkerSessionFactory workerSessionFactory,
+                          SharedLocalWorkerCache sharedLocalWorkerCache,
                           @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds,
+                          @Value("${app.grading.ot-batch-parallelism:0}") int otBatchParallelism,
                           @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
         this.fieldRepository = fieldRepository;
@@ -114,7 +119,9 @@ public class GradingService {
         this.parsedSubmissionSnapshotBuilder = parsedSubmissionSnapshotBuilder;
         this.workerJvmSlot = workerJvmSlot;
         this.workerSessionFactory = workerSessionFactory;
+        this.sharedLocalWorkerCache = sharedLocalWorkerCache;
         this.invokeTimeoutSeconds = invokeTimeoutSeconds;
+        this.otBatchParallelism = otBatchParallelism;
         this.timingLog = timingLog;
     }
 
@@ -154,12 +161,16 @@ public class GradingService {
             long slotAcquireStart = System.currentTimeMillis();
             acquireWorkerSlot();
             slotWaitMs = System.currentTimeMillis() - slotAcquireStart;
+            WorkerSessionHandle workerSession = null;
             long spawnStart = System.currentTimeMillis();
-            try (WorkerSessionHandle workerSession = workerSessionFactory.open(submissionRoot, invokeTimeoutSeconds)) {
+            try {
+                workerSession = sharedLocalWorkerCache.borrow(
+                        workerSessionFactory, submissionRoot, invokeTimeoutSeconds);
                 workerSpawnMs = System.currentTimeMillis() - spawnStart;
                 computed = completeOperationalTestcasePhase(
                         rubric, submission, existing, classMmdWork, workerSession);
             } finally {
+                sharedLocalWorkerCache.release(workerSessionFactory, workerSession);
                 workerJvmSlot.release();
             }
         }
@@ -226,15 +237,18 @@ public class GradingService {
             List<ClassMmdWork> classMmdWork,
             WorkerSessionHandle workerSession) {
 
-        List<ChallengeComputation> challengeComputations = new ArrayList<>();
+        List<ClassMmdPhaseResult> phases = new ArrayList<>(classMmdWork.size());
         for (ClassMmdWork work : classMmdWork) {
-            if (work.phase == null) {
+            phases.add(work == null ? null : work.phase);
+        }
+        List<ChallengePipelineResult> pipelineResults = gradingPipeline.completeOperationalTestcasesLabWide(
+                phases, workerSession, otBatchParallelism);
+        List<ChallengeComputation> challengeComputations = new ArrayList<>(pipelineResults.size());
+        for (ChallengePipelineResult pipelineResult : pipelineResults) {
+            if (pipelineResult == null) {
                 challengeComputations.add(null);
                 continue;
             }
-            ChallengePipelineResult pipelineResult = work.phase.testcaseApplicable()
-                    ? gradingPipeline.completeOperationalTestcases(work.phase, workerSession)
-                    : pipelineResultFromClassMmd(work.phase);
             challengeComputations.add(gradeChallengeFolderFromPipeline(rubric, pipelineResult));
         }
         return aggregateChallengeComputations(rubric, submission, existing, challengeComputations);

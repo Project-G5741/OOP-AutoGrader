@@ -31,18 +31,50 @@ public class WorkerProcessClient {
 
     private final String javaBinary;
     private final Path workerJar;
+    private final String heapFlag;
+    private final String metaspaceFlag;
 
     @Autowired
     public WorkerProcessClient(
             @Value("${app.grading.worker-java:java}") String javaBinary,
-            @Value("${app.grading.worker-jar:/app/worker.jar}") String workerJar) {
-        this(resolveJavaBinary(javaBinary), resolveWorkerJar(workerJar));
+            @Value("${app.grading.worker-jar:/app/worker.jar}") String workerJar,
+            @Value("${app.grading.worker-xmx:64m}") String workerXmx,
+            @Value("${app.grading.worker-max-metaspace:48m}") String workerMaxMetaspace) {
+        this(resolveJavaBinary(javaBinary),
+                resolveWorkerJar(workerJar),
+                toXmxFlag(workerXmx),
+                toMetaspaceFlag(workerMaxMetaspace));
     }
 
     /** Explicit resolved path (tests); skips configured/fallback resolution. */
     public WorkerProcessClient(String javaBinary, Path workerJar) {
+        this(javaBinary, workerJar, HEAP_FLAG, METASPACE_FLAG);
+    }
+
+    public WorkerProcessClient(String javaBinary,
+                               Path workerJar,
+                               String heapFlag,
+                               String metaspaceFlag) {
         this.javaBinary = javaBinary;
         this.workerJar = workerJar;
+        this.heapFlag = heapFlag == null || heapFlag.isBlank() ? HEAP_FLAG : heapFlag;
+        this.metaspaceFlag = metaspaceFlag == null || metaspaceFlag.isBlank() ? METASPACE_FLAG : metaspaceFlag;
+    }
+
+    private static String toXmxFlag(String xmx) {
+        if (xmx == null || xmx.isBlank()) {
+            return HEAP_FLAG;
+        }
+        String trimmed = xmx.trim();
+        return trimmed.startsWith("-Xmx") ? trimmed : "-Xmx" + trimmed;
+    }
+
+    private static String toMetaspaceFlag(String maxMetaspace) {
+        if (maxMetaspace == null || maxMetaspace.isBlank()) {
+            return METASPACE_FLAG;
+        }
+        String trimmed = maxMetaspace.trim();
+        return trimmed.startsWith("-XX:") ? trimmed : "-XX:MaxMetaspaceSize=" + trimmed;
     }
 
     /**
@@ -105,8 +137,8 @@ public class WorkerProcessClient {
         }
         List<String> command = new ArrayList<>();
         command.add(javaBinary);
-        command.add(HEAP_FLAG);
-        command.add(METASPACE_FLAG);
+        command.add(heapFlag);
+        command.add(metaspaceFlag);
         command.add(EXIT_ON_OOM_FLAG);
         command.add("-jar");
         command.add(workerJar.toAbsolutePath().toString());

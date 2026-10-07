@@ -14,12 +14,17 @@ import com.eiu.capstone.backend.grading.testcase.WorkerTimeoutException;
 
 public final class ProcessWorkerTransport implements WorkerTransport {
 
+    private static final int READ_CHUNK = 16384;
+
     private final Process process;
     private final BufferedWriter ipcStdin;
     private final InputStream ipcStdout;
     private final Thread stderrDrain;
     private final AtomicInteger stderrBytesKept;
     private final Object invokeMutex = new Object();
+    private final byte[] readBuf = new byte[READ_CHUNK];
+    /** Bytes already pulled from the stream but not yet returned as a complete line. */
+    private final ByteArrayOutputStream carry = new ByteArrayOutputStream();
 
     public ProcessWorkerTransport(Process process, Thread stderrDrain, AtomicInteger stderrBytesKept) {
         this.process = process;
@@ -46,27 +51,45 @@ public final class ProcessWorkerTransport implements WorkerTransport {
     public String readLine(Duration timeout, int byteCap) {
         synchronized (invokeMutex) {
             long deadline = System.nanoTime() + timeout.toNanos();
-            ByteArrayOutputStream line = new ByteArrayOutputStream();
             try {
+                String fromCarry = takeCompleteLine(byteCap);
+                if (fromCarry != null) {
+                    return fromCarry;
+                }
                 while (System.nanoTime() < deadline) {
-                    if (ipcStdout.available() <= 0 && process.isAlive()) {
+                    int available = ipcStdout.available();
+                    if (available <= 0) {
+                        if (!process.isAlive()) {
+                            // Drain any last buffered bytes after exit.
+                            int n = ipcStdout.read(readBuf, 0, readBuf.length);
+                            if (n > 0) {
+                                appendBytes(readBuf, n, byteCap);
+                                String line = takeCompleteLine(byteCap);
+                                if (line != null) {
+                                    return line;
+                                }
+                                continue;
+                            }
+                            return carry.size() == 0 ? null : finishCarryLine();
+                        }
                         TimeUnit.MILLISECONDS.sleep(1);
                         continue;
                     }
-                    int next = ipcStdout.read();
-                    if (next < 0) {
-                        return line.size() == 0 ? null : decodeIpcLine(line.toByteArray());
+                    int toRead = Math.min(available, readBuf.length);
+                    int n = ipcStdout.read(readBuf, 0, toRead);
+                    if (n < 0) {
+                        return carry.size() == 0 ? null : finishCarryLine();
                     }
-                    if (next == '\n') {
-                        return decodeIpcLine(line.toByteArray());
+                    appendBytes(readBuf, n, byteCap);
+                    String line = takeCompleteLine(byteCap);
+                    if (line != null) {
+                        return line;
                     }
-                    if (line.size() >= byteCap) {
-                        throw new WorkerSpawnException("Worker IPC line exceeded " + byteCap + " bytes");
-                    }
-                    line.write(next);
                 }
                 throw new WorkerTimeoutException("Timed out reading worker IPC line");
             } catch (WorkerTimeoutException e) {
+                throw e;
+            } catch (WorkerSpawnException e) {
                 throw e;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -75,6 +98,38 @@ public final class ProcessWorkerTransport implements WorkerTransport {
                 throw new WorkerSpawnException("Failed to read worker IPC line", e);
             }
         }
+    }
+
+    private void appendBytes(byte[] buf, int n, int byteCap) {
+        if (carry.size() + n > byteCap) {
+            throw new WorkerSpawnException("Worker IPC line exceeded " + byteCap + " bytes");
+        }
+        carry.write(buf, 0, n);
+    }
+
+    /** If carry contains a full line (through {@code \n}), return it and keep the rest. */
+    private String takeCompleteLine(int byteCap) {
+        byte[] all = carry.toByteArray();
+        for (int i = 0; i < all.length; i++) {
+            if (all[i] == '\n') {
+                String line = decodeIpcLine(all, i);
+                carry.reset();
+                if (i + 1 < all.length) {
+                    carry.write(all, i + 1, all.length - (i + 1));
+                }
+                if (line.getBytes(StandardCharsets.UTF_8).length > byteCap) {
+                    throw new WorkerSpawnException("Worker IPC line exceeded " + byteCap + " bytes");
+                }
+                return line;
+            }
+        }
+        return null;
+    }
+
+    private String finishCarryLine() {
+        byte[] all = carry.toByteArray();
+        carry.reset();
+        return decodeIpcLine(all, all.length);
     }
 
     @Override
@@ -99,8 +154,7 @@ public final class ProcessWorkerTransport implements WorkerTransport {
         return new ProcessRef(process, stderrDrain, stderrBytesKept);
     }
 
-    private static String decodeIpcLine(byte[] bytes) {
-        int length = bytes.length;
+    private static String decodeIpcLine(byte[] bytes, int length) {
         if (length > 0 && bytes[length - 1] == '\r') {
             length--;
         }

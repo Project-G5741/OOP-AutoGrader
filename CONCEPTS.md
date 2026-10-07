@@ -26,7 +26,7 @@ A class's optional Extends or Implements target, authored on the class editor as
 Rubric boolean on a nested class entry indicating whether the student's nested type is expected to be `static`. When set, the class-reflection grader compares `Modifier.isStatic()` on the parsed class; when clear, the nested type is treated as a non-static inner class and constructor matching strips the compiler-injected implicit outer-instance parameter.
 
 ### Upload hot path
-The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel class + MMD grade per challenge → when any challenge has OT, acquire `workerJvmSlot`, open one worker session, then run operational-testcase pillars (after class/MMD, not in parallel with MMD) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → snapshot plagiarism signals. Temp-folder delete, detail UPSERT, and plagiarism inspect run on `persistExecutor` after persist succeeds. Lecturer flags typically appear within a few seconds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
+The student-visible wait from `POST .../upload` until scores return. Serial stages on the request thread: one-query access check (cached briefly on success; warmed by `GET /api/labs`) → parallel compile overlapping rubric cache load → parallel class + MMD grade per challenge → when any challenge has OT, acquire `workerJvmSlot`, borrow a warm local worker (or cold-open), then one lab-wide OT batch (after class/MMD, not in parallel with MMD; in-worker scenarios capped by CPUs) → `lab_result` assemble → one persist SQL (insert with `MAX+1` and final score, challenge scores, progress) → snapshot plagiarism signals. Temp-folder delete, detail UPSERT, and plagiarism inspect run on `persistExecutor` after persist succeeds. Lecturer flags typically appear within a few seconds. Dominating stages and complexity: `docs/GRADING_WORKFLOWS.md` §14.
 
 ### Lab submission
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
@@ -93,7 +93,7 @@ Invocation steps also have a unique dense order per testcase. Compact that order
 Retired name for serializing student invoke in the API JVM. Operational invoke now runs in the isolated testcase worker; the host allows one worker JVM via `workerJvmSlot` on the HTTP thread.
 
 ### Isolated testcase worker
-A separate JVM process that executes operational testcase target classes for **student upload** (when the lab batch has applicable OT) and **lecturer dry-run**, so a crash or unkillable loop cannot terminate the API JVM. Both Unit and Composition reuse the `scenario` worker op plus a request-local named-instance registry. Student upload acquires `workerJvmSlot` and opens one worker session per upload when any graded challenge has operational testcases. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from container sandbox invoke.
+A separate JVM process that executes operational testcase target classes for **student upload** / **lecturer bulk** (when the lab has applicable OT) and **lecturer dry-run**, so a crash or unkillable loop cannot terminate the API JVM. Both Unit and Composition reuse the `scenario` / `batch` worker ops plus a request-local named-instance registry. Callers acquire `workerJvmSlot` (capacity 1) on the HTTP thread and borrow from `SharedLocalWorkerCache` for local warm reuse (60s idle TTL; sandbox uncached). Upload/bulk send one lab-wide `batch` with per-item `classesDir`; the worker may run scenarios in parallel up to available processors. The worker starts from an allowlisted environment, does not load the grading-harness classpath, and truncates captured stdout. The API scores from serialized untrusted outcomes. Class-tab reflection and javac compile stay in the API process. Distinct from intra-challenge compile isolation (a scoring rule) and from container sandbox invoke.
 
 ### Container sandbox invoke
 Ephemeral container execution of the isolated testcase worker: network disabled, read-only root filesystem with a scoped writable temp area for student classes, and cgroup CPU/memory limits. A dedicated sandbox runner (not the Render API process) maintains a warm pool and accepts authenticated invoke delegation from the API. Thesis stage 3; invoke-only — Class-tab reflection and javac compile stay in the API.
@@ -178,6 +178,14 @@ In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s)
 
 ### Session revoke
 Invalidating a signed-in JWT before natural expiry by bumping `user_account.session_version` (claim `sv`) or deleting the account. Hard delete, suspend, and remove-from-current-term bump or remove the row so the filter rejects the old token immediately; the SPA presence poll forces logout within seconds.
+
+## Lecturer UI load
+
+### Lecturer tab bootstrap
+A single request/response that returns everything a lecturer nav tab needs for **first useful data** after the tab is selected. Designed so a cold tab click needs at most one blocking network round-trip when prefetch has not already completed.
+
+### First useful data
+The primary content that makes a lecturer tab usable after click (for example Score’s first grade-overview page, or Solution’s structure editor for the default lab). Secondary drill-downs after that paint are outside the first-useful-data clock.
 
 ## Backend tests
 
