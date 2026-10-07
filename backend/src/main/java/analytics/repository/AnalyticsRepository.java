@@ -256,10 +256,12 @@ public class AnalyticsRepository {
     }
 
     public List<Object[]> findAtRiskLabs(UUID academicYearId, UUID semesterId) {
+        // One row per lab: aggregate challenge failure counts; pick one challenge name via MIN for display.
         StringBuilder sql = new StringBuilder();
         sql.append("""
                 SELECT l.id, l.name, AVG(p.highest_score) AS avg_score,
-                       MIN(scr_failure.failure_count) AS failure_count, scr_failure.challenge_name
+                       COALESCE(SUM(scr_failure.failure_count), 0) AS failure_count,
+                       MIN(scr_failure.challenge_name) AS challenge_name
                 FROM student_lab_progress p
                 JOIN lab l ON p.lab_id = l.id
                 JOIN term t ON l.term_id = t.id
@@ -283,7 +285,7 @@ public class AnalyticsRepository {
         if (semesterId != null) {
             sql.append("AND t.id = :semesterId ");
         }
-        sql.append("GROUP BY l.id, l.name, scr_failure.challenge_name ")
+        sql.append("GROUP BY l.id, l.name ")
            .append("ORDER BY avg_score ASC, failure_count DESC ")
            .append("LIMIT 5");
 

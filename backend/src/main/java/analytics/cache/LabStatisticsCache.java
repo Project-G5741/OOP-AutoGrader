@@ -13,7 +13,7 @@ public class LabStatisticsCache {
     private final InProcessTtlCache<UUID, LabStatisticsResponse> cache;
 
     public LabStatisticsCache(
-            @Value("${app.analytics.lab-stats-cache-ttl-seconds:120}") long ttlSeconds) {
+            @Value("${app.analytics.lab-statistics-cache-ttl-seconds:120}") long ttlSeconds) {
         this.cache = new InProcessTtlCache<>(ttlSeconds);
     }
 

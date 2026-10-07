@@ -11,12 +11,14 @@ const navItems = [
   { id: 'reports', label: 'Reports', icon: BarChart3 },
 ];
 
-function NavButton({ id, label, icon: Icon, active, onClick, fullWidth = false, className = '' }) {
+function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '' }) {
   const isActive = active === id;
   return (
     <button
       type="button"
       onClick={() => onClick(id)}
+      onMouseEnter={() => onPrefetch?.(id)}
+      onFocus={() => onPrefetch?.(id)}
       className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
         fullWidth ? 'w-full gap-3 rounded-xl px-4 py-3' : ''
       } ${
@@ -31,7 +33,7 @@ function NavButton({ id, label, icon: Icon, active, onClick, fullWidth = false, 
   );
 }
 
-export default function NavBar({ active, onNavigate }) {
+export default function NavBar({ active, onNavigate, onPrefetch }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const activeItem = navItems.find((item) => item.id === active) ?? navItems[0];
 
@@ -91,6 +93,7 @@ export default function NavBar({ active, onNavigate }) {
                   icon={icon}
                   active={active}
                   onClick={handleNavigate}
+                  onPrefetch={onPrefetch}
                   fullWidth
                 />
               ))}
@@ -109,6 +112,7 @@ export default function NavBar({ active, onNavigate }) {
             icon={icon}
             active={active}
             onClick={handleNavigate}
+            onPrefetch={onPrefetch}
           />
         ))}
       </nav>

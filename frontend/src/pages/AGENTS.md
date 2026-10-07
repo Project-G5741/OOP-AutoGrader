@@ -47,12 +47,15 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 | Value | Renders | API |
 |---|---|---|
-| `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` (enrolled students, at-risk students below 70, labs, qualifying scores behind the average) from the overview payload | Live `/api/lecturer/overview` (`students`, `labs`, `scoreRows`), `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions` (includes `plagiarismFlagged` + `plagiarismRole`), `/api/labs/{id}/challenges/{id}/students`, `GET /api/lecturer/plagiarism/flags`, `GET /api/lecturer/labs/{labId}/students/{studentId}/plagiarism` |
-| `grading` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | Live `GET /api/lecturer/grade-overview`, `GET /api/lecturer/plagiarism/flags`, `GET /api/analytics/student/{studentId}` |
-| `users` | `UserManagement` | Live `/api/users/*` |
-| `terms` | `TermManagement` | Live `GET /api/lecturer/terms/list`, `POST /api/lecturer/terms/create` (optional `copyLabIds`)/set current/delete/enroll; `GET /{id}/roster`; Excel import `POST /api/lecturer/terms/{id}/students/import` |
-| `projects` | `SolutionManagement` | Live API (`POST /api/lecturer/labs/create`, `/api/lecturer/labs/*`, `GET /clone-sources`, `POST /clone`, `PATCH /api/lecturer/labs/{labId}/deadline` and `PATCH /api/lecturer/labs/{labId}/student-access` for the selected lab, `/api/lecturer/labs/{labId}/challenges/{challengeId}/testcases`, `/api/master-data/by-category?category=SCOPE|DECLARING_TYPE|RELATION_TYPE`, `GET /api/terms/list`); challenge / class / MMD / testcase weights persist on structure save; labs have no weight; Copy lab appends created labs to the sidebar when the target is the current quarter |
-| `reports` | `Reports.jsx` | Live `/api/analytics/dashboard` |
+| `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` from the overview payload | First paint: `GET /api/lecturer/bootstrap/dashboard` (fresh overview). Secondary: labs list, `/api/labs/{id}/statistics`, submissions, plagiarism flags |
+| `score` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | First paint: `GET /api/lecturer/bootstrap/score`. Sort/search/page: `GET /api/lecturer/grade-overview` |
+| `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list) |
+| `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` |
+| `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
+| `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
+| `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
+
+Visit-scoped prefetch: `frontend/src/utils/lecturerBootstrapStore.js` + NavBar hover/idle (survives route remount).
 
 ### Student in-dashboard sections
 

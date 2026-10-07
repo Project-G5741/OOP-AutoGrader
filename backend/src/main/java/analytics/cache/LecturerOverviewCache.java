@@ -14,7 +14,7 @@ public class LecturerOverviewCache {
     private volatile CachedEntry cached;
 
     public LecturerOverviewCache(
-            @Value("${app.analytics.overview-cache-ttl-seconds:90}") long ttlSeconds) {
+            @Value("${app.analytics.lecturer-overview-cache-ttl-seconds:90}") long ttlSeconds) {
         this.ttlSeconds = ttlSeconds;
     }
 

@@ -4,6 +4,7 @@ import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
+import { getOrFetchLecturerBootstrap, invalidateLecturerBootstrap } from '../utils/lecturerBootstrapStore';
 import DatePicker from '../components/ui/DatePicker';
 import Modal from '../components/ui/Modal';
 import ModalOverlay from '../components/ui/ModalOverlay';
@@ -127,14 +128,20 @@ export default function TermManagement() {
     return list;
   }, [terms, termFilter, termSearch, termSortOrder]);
 
-  const loadTerms = useCallback(async () => {
-    const response = await apiFetch(`${API_BASE}/api/lecturer/terms/list`, { headers: authHeaders() });
-    if (!response.ok) {
-      throw new Error(await readFriendlyApiError(response, 'read'));
+  const loadTerms = useCallback(async ({ fresh = false } = {}) => {
+    if (fresh) {
+      invalidateLecturerBootstrap('terms');
     }
-    const data = await response.json();
-    setTerms(Array.isArray(data) ? data : []);
-    return data;
+    const data = await getOrFetchLecturerBootstrap('terms', async (path) => {
+      const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'read'));
+      }
+      return response.json();
+    });
+    const list = Array.isArray(data) ? data : [];
+    setTerms(list);
+    return list;
   }, []);
 
   const loadTermStudents = useCallback(async (termId) => {
@@ -156,7 +163,7 @@ export default function TermManagement() {
   }, []);
 
   const refreshSelectedTerm = useCallback(async (termId) => {
-    await Promise.all([loadTerms(), loadTermStudents(termId)]);
+    await Promise.all([loadTerms({ fresh: true }), loadTermStudents(termId)]);
   }, [loadTerms, loadTermStudents]);
 
   useEffect(() => {
@@ -165,12 +172,13 @@ export default function TermManagement() {
       setLoading(true);
       setError('');
       try {
-        const data = await loadTerms();
+      const data = await loadTerms();
         if (cancelled) return;
         const current = data.find((term) => term.current) ?? data[0];
         setSelectedTermId(current?.id ?? null);
+        // Roster is secondary to first useful data (quarters list).
         if (current?.id) {
-          await loadTermStudents(current.id);
+          void loadTermStudents(current.id);
         }
       } catch (err) {
         if (!cancelled) setError(toFriendlyError(err, 'read'));
@@ -264,7 +272,7 @@ export default function TermManagement() {
       setCopySourceLabs([]);
       const nextId = created?.id ?? null;
       setSelectedTermId(nextId);
-      await Promise.all([loadTerms(), loadTermStudents(nextId)]);
+      await Promise.all([loadTerms({ fresh: true }), loadTermStudents(nextId)]);
       const cloneErrors = Array.isArray(created?.cloneErrors) ? created.cloneErrors : [];
       if (cloneErrors.length > 0) {
         const detail = typeof cloneErrors[0] === 'string' && cloneErrors[0]
@@ -298,7 +306,7 @@ export default function TermManagement() {
         throw new Error(await readFriendlyApiError(response, 'delete'));
       }
       setConfirmDeleteTerm(null);
-      const data = await loadTerms();
+      const data = await loadTerms({ fresh: true });
       const next = data.find((item) => item.current) ?? data[0];
       const nextId = next?.id ?? null;
       setSelectedTermId(nextId);
@@ -329,7 +337,7 @@ export default function TermManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'save'));
       }
-      await loadTerms();
+      await loadTerms({ fresh: true });
       showToast({ message: 'Saved successfully.', type: 'success' });
     } catch (err) {
       const message = toFriendlyError(err, 'save');
@@ -709,7 +717,7 @@ export default function TermManagement() {
             </div>
           )}
           {loading ? (
-            <p className="py-6 text-center text-sm text-foreground-muted">Loading quarters...</p>
+            <p className="py-6 text-center text-sm text-foreground-muted">Loading data...</p>
           ) : terms.length === 0 ? (
             <p className="py-6 text-center text-sm text-foreground-muted">No quarters yet</p>
           ) : filteredTerms.length === 0 ? (
