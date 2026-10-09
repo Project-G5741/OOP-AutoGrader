@@ -71,8 +71,6 @@ export default function OperationalTestcaseBreakdown({ bundle }) {
   const [expandedId, setExpandedId] = useState(null);
   const testcases = mapOperationalTestcases(bundle?.testcases);
   const score = pillarScore(bundle, 'testcase');
-  const examples = testcases.filter((tc) => !tc.isHidden);
-  const others = testcases.filter((tc) => tc.isHidden);
 
   const renderList = (rows, title) => {
     if (rows.length === 0) return null;
@@ -152,10 +150,7 @@ export default function OperationalTestcaseBreakdown({ bundle }) {
       {testcases.length === 0 ? (
         <p className="text-sm text-foreground-secondary">No operational testcase results for this challenge.</p>
       ) : (
-        <div className="space-y-6">
-          {renderList(examples, 'Example Testcases')}
-          {renderList(others, 'Other Testcases')}
-        </div>
+        renderList(testcases, 'Testcases')
       )}
     </div>
   );

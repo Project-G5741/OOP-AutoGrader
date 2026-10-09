@@ -11,7 +11,8 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `SortableTableHeader.jsx` | Clickable table header with dual-chevron sort affordance (inactive faded pair; active direction highlighted); optional `after` slot is inline on the same text line as the label |
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
-| `Select.jsx` | Dropdown select |
+| `Select.jsx` | Simple native `<select>` wrapper (card layout) |
+| `Combobox.jsx` | Custom listbox select — themed trigger, icon slot, keyboard nav; use instead of native `<select>` when polish matters |
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
@@ -23,6 +24,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`) |
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
+| `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
 
 ## Local Contracts
 

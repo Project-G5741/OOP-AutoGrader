@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Download, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
+import { CalendarDays, Copy, Download, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
@@ -90,6 +90,9 @@ export default function TermManagement() {
   const [confirmDeleteTerm, setConfirmDeleteTerm] = useState(null);
   const [copySourceLabs, setCopySourceLabs] = useState([]);
   const [copySourcesLoading, setCopySourcesLoading] = useState(false);
+  const [syncSourceLabs, setSyncSourceLabs] = useState([]);
+  const [syncSourcesLoading, setSyncSourcesLoading] = useState(false);
+  const [syncSelectedLabIds, setSyncSelectedLabIds] = useState([]);
   const fileInputRef = useRef(null);
 
   const selectedTerm = useMemo(
@@ -144,10 +147,36 @@ export default function TermManagement() {
     return list;
   }, []);
 
+  const loadTermSyncSources = useCallback(async (termId) => {
+    if (!termId) {
+      setSyncSourceLabs([]);
+      setSyncSelectedLabIds([]);
+      return;
+    }
+    setSyncSourcesLoading(true);
+    setSyncSelectedLabIds([]);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}/sync-labs`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'read'));
+      }
+      const data = await response.json();
+      setSyncSourceLabs(Array.isArray(data?.labs) ? data.labs : []);
+    } catch {
+      setSyncSourceLabs([]);
+    } finally {
+      setSyncSourcesLoading(false);
+    }
+  }, []);
+
   const loadTermStudents = useCallback(async (termId) => {
     if (!termId) {
       setStudents([]);
       setAvailable([]);
+      setSyncSourceLabs([]);
+      setSyncSelectedLabIds([]);
       return;
     }
     const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${termId}/roster`, { headers: authHeaders() });
@@ -179,6 +208,7 @@ export default function TermManagement() {
         // Roster is secondary to first useful data (quarters list).
         if (current?.id) {
           void loadTermStudents(current.id);
+          void loadTermSyncSources(current.id);
         }
       } catch (err) {
         if (!cancelled) setError(toFriendlyError(err, 'read'));
@@ -190,7 +220,7 @@ export default function TermManagement() {
     return () => {
       cancelled = true;
     };
-  }, [loadTerms, loadTermStudents]);
+  }, [loadTerms, loadTermStudents, loadTermSyncSources]);
 
   const toggleStudentSelection = (studentId) => {
     const id = String(studentId);
@@ -206,10 +236,55 @@ export default function TermManagement() {
     setRosterSearch('');
     setImportResult(null);
     setImportDialog(null);
+    setSyncSelectedLabIds([]);
     try {
-      await loadTermStudents(termId);
+      await Promise.all([loadTermStudents(termId), loadTermSyncSources(termId)]);
     } catch (err) {
       setError(toFriendlyError(err, 'read'));
+    }
+  };
+
+  const toggleSyncLabId = (labId) => {
+    const key = String(labId);
+    setSyncSelectedLabIds((prev) => (
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+    ));
+  };
+
+  const handleSyncLabs = async () => {
+    if (!selectedTermId || syncSelectedLabIds.length === 0) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTermId}/sync-labs`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sourceLabIds: syncSelectedLabIds }),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'save'));
+      }
+      const data = await response.json();
+      const created = Array.isArray(data?.created) ? data.created : [];
+      const errors = Array.isArray(data?.errors) ? data.errors : [];
+      setSyncSelectedLabIds([]);
+      if (errors.length > 0) {
+        showToast({
+          message: `Synced ${created.length} lab(s). ${errors.length} failed.`,
+          type: 'error',
+        });
+      } else {
+        showToast({
+          message: created.length === 1 ? 'Lab synced.' : `${created.length} labs synced.`,
+          type: 'success',
+        });
+      }
+    } catch (err) {
+      const message = toFriendlyError(err, 'save');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -555,9 +630,6 @@ export default function TermManagement() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Quarters</h2>
-          <p className="mt-1 text-sm text-foreground-secondary">
-            Create a quarter for a year, mark which quarter is current, and add active students. Only students in the current quarter can submit labs.
-          </p>
         </div>
         <button
           type="button"
@@ -628,9 +700,6 @@ export default function TermManagement() {
           </label>
           <div className="mt-4 rounded-xl border border-border bg-surface-secondary/60 p-3">
             <p className="text-sm font-medium text-foreground">Copy labs from current quarter (optional)</p>
-            <p className="mt-1 text-xs text-foreground-muted">
-              Select labs to deep-copy into this new quarter. Rubric and operational testcases are copied; deadlines and student visibility start fresh.
-            </p>
             {copySourcesLoading ? (
               <p className="mt-3 text-xs text-foreground-muted">Loading labs…</p>
             ) : copySourceLabs.length === 0 ? (
@@ -797,12 +866,70 @@ export default function TermManagement() {
                 </div>
               </div>
 
+              {(syncSourcesLoading || syncSourceLabs.length > 0) && (
+                <section className="mb-5 border-t border-border pt-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
+                      Sync labs
+                    </p>
+                    {!syncSourcesLoading && syncSourceLabs.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={saving || syncSelectedLabIds.length === 0}
+                        onClick={handleSyncLabs}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        <Copy className="h-4 w-4" aria-hidden="true" />
+                        {syncSelectedLabIds.length > 0
+                          ? `Sync selected (${syncSelectedLabIds.length})`
+                          : 'Sync selected'}
+                      </button>
+                    )}
+                  </div>
+                  {syncSourcesLoading ? (
+                    <p className="text-sm text-foreground-muted">Loading labs…</p>
+                  ) : (
+                    <ul
+                      className="flex max-h-52 flex-wrap content-start gap-2 overflow-y-auto"
+                      aria-label="Labs from other quarters"
+                    >
+                      {syncSourceLabs.map((lab) => {
+                        const checked = syncSelectedLabIds.includes(String(lab.id));
+                        return (
+                          <li key={lab.id} className="w-[11.5rem] shrink-0 sm:w-[12.5rem]">
+                            <label
+                              className={`flex h-full cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5 text-sm transition-colors ${
+                                checked
+                                  ? 'bg-primary-light text-primary-text'
+                                  : 'text-foreground hover:bg-surface-secondary'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 shrink-0"
+                                checked={checked}
+                                onChange={() => toggleSyncLabId(lab.id)}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium leading-snug">{lab.name}</span>
+                                {lab.termLabel ? (
+                                  <span className="mt-0.5 block truncate text-xs text-foreground-muted">
+                                    {lab.termLabel}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
+
               <div className="mb-4 rounded-xl border border-border p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
                   Add students
-                </p>
-                <p className="mb-3 text-sm text-foreground-muted">
-                  Import from Excel (IRN + Email) or search and select students to add manually. Only existing active students can be enrolled.
                 </p>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_2fr]">
                   <div>
@@ -1025,10 +1152,7 @@ export default function TermManagement() {
       )}
       {importDialog === 'details' && importResult && (
         <Modal onClose={closeImportDialog} className="max-w-lg">
-          <h3 className="mb-1 text-lg font-semibold text-foreground">Import details</h3>
-          <p className="mb-4 text-sm text-foreground-muted">
-            Students not in the system must be created in Users first. Students already in this quarter were skipped.
-          </p>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Import details</h3>
           <div className="max-h-80 space-y-4 overflow-y-auto">
             <section>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-error">

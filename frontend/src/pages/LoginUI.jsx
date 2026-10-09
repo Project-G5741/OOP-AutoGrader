@@ -198,7 +198,6 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
           <div className="logo-title">
             <AppLogo variant="login" />
             <h1 className="main-title">{brand.loginTitle}</h1>
-            <p className="subtitle">Sign in to your account</p>
           </div>
 
           <div className="card">

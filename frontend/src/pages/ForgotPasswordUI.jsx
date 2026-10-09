@@ -70,11 +70,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
           <div className="logo-title">
             <AppLogo variant="login" />
             <h1 className="main-title">Forgot password</h1>
-            <p className="subtitle">
-              {sent
-                ? 'Check your inbox for a reset link'
-                : 'Enter your school email to receive a reset link'}
-            </p>
+            {sent ? <p className="subtitle">Check your inbox for a reset link</p> : null}
           </div>
 
           <div className="card">

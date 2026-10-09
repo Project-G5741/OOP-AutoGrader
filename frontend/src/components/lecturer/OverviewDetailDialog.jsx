@@ -6,22 +6,18 @@ import { formatNumber, formatText } from '../../utils/formatters';
 const COPY = {
   students: {
     title: 'Total Students',
-    hint: 'Active students enrolled in the current quarter.',
     empty: 'No students enrolled in the current quarter.',
   },
   average: {
     title: 'Average Score',
-    hint: 'Each line is the best qualifying score for one student on one lab. The card is the average of these scores.',
     empty: 'No qualifying scores yet.',
   },
   labs: {
     title: 'Total Labs',
-    hint: 'Labs in the current quarter. Average is the mean of best qualifying scores on that lab.',
     empty: 'No labs in the current quarter.',
   },
   atRisk: {
     title: 'At-Risk Students',
-    hint: 'Total score below 70. A lab with no qualifying submission counts as 0.',
     empty: 'No students are below 70.',
   },
 };
@@ -214,7 +210,6 @@ export default function OverviewDetailDialog({ detailId, overview, onClose }) {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-3 text-sm text-foreground-secondary">{copy.hint}</p>
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
           {body ?? <p className="py-6 text-sm text-foreground-secondary">{copy.empty}</p>}
         </div>

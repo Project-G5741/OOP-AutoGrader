@@ -19,7 +19,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `UserManagement.jsx` | User CRUD (live API) |
-| `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, current-term flag, student enrollment, Excel import |
+| `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
 
 ## Local Contracts
@@ -91,6 +91,8 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
+| `GET /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — labs from all other quarters (with `termLabel`) |
+| `POST /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — body `{ sourceLabIds }` deep-copies into selected quarter |
 | `GET /api/labs/{labId}/challenges/list?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
@@ -127,7 +129,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster
+- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in. Delete User keeps the confirm dialog open with a spinner until the server finishes
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 

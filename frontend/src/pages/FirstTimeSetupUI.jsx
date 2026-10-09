@@ -135,9 +135,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                 </div>
                 {fieldErrors.irn ? (
                   <p className="mt-1 text-xs text-error">{fieldErrors.irn}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-foreground-disabled">10-digit student identification number</p>
-                )}
+                ) : null}
               </div>
 
               <div>

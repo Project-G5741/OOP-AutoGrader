@@ -25,4 +25,12 @@ public interface LabRepository extends JpaRepository<Lab, UUID> {
 
     @Query("SELECT l FROM Lab l JOIN FETCH l.term WHERE l.deadlineDate IS NOT NULL")
     List<Lab> findAllWithDeadlineAndTerm();
+
+    @Query("""
+            SELECT l FROM Lab l
+            JOIN FETCH l.term t
+            JOIN FETCH t.academicYear
+            WHERE t.id <> :excludeTermId
+            """)
+    List<Lab> findAllWithTermExcludingTerm(@Param("excludeTermId") UUID excludeTermId);
 }
