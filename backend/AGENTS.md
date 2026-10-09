@@ -132,12 +132,17 @@ Grading tuning properties (`application.properties`):
 | `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, compile, each challenge, grade submission, structure save, and read paths |
 | `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs/list` warms it. Denials are not cached. `0` disables. |
+| `app.upload.access-cache-max-size` | `4096` | Hard cap on upload-access success cache entries |
 | `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
+| `app.master-data-cache-max-size` | `1` | Hard cap on master-data cache entries (single key) |
 | `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache (bound by `@Value`; bootstrap `/api/lecturer/bootstrap/dashboard` bypasses) |
 | `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set (bootstrap `/reports` bypasses) |
+| `app.analytics.dashboard-cache-max-size` | `256` | Hard cap on dashboard filter-set entries (incl. free-text `course`) |
 | `app.analytics.lab-statistics-cache-ttl-seconds` | `120` | TTL for `/api/labs/{id}/statistics`; invalidated on upload for that lab |
+| `app.analytics.lab-statistics-cache-max-size` | `512` | Hard cap on lab-statistics cache entries |
+| `app.cache.sweep-interval-ms` | `30000` | Proactive sweep of expired in-process TTL cache entries (`InProcessTtlCacheSweeper`) |
 
-**Analytics caches:** In-process only. Multi-instance Render deploys see independent TTL staleness per instance. Lecturer overview and analytics dashboard may be stale up to configured TTL; lab statistics invalidate on the instance that handled the upload.
+**Analytics caches:** In-process only, expire-after-write with hard max size and a scheduled sweep (`InProcessTtlCacheSweeper`) so expired keys leave without a same-key re-hit. Multi-instance Render deploys see independent TTL staleness per instance. Lecturer overview and analytics dashboard may be stale up to configured TTL; lab statistics invalidate on the instance that handled the upload.
 
 **Detail persist gate:** In-process `CompletableFuture` per submission. A Class-tab GET that hits a different instance than the upload may not wait; details should already be in Postgres if the UPSERT finished.
 
