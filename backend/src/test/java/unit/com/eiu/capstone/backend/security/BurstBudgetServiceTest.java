@@ -46,6 +46,20 @@ class BurstBudgetServiceTest {
     }
 
     @Test
+    void readsDoNotSpendTheWriteBudget() {
+        BurstBudgetService budget = BurstBudgetService.forTest(Clock.systemUTC(), 2, 60, 10, 5, 100);
+        for (int i = 0; i < 13; i++) {
+            assertTrue(budget.tryConsume("user:a", true).allowed());
+        }
+        assertTrue(budget.tryConsume("user:a").allowed());
+        assertTrue(budget.tryConsume("user:a").allowed());
+        assertFalse(budget.tryConsume("user:a").allowed());
+        assertTrue(budget.tryConsume("user:a", true).allowed());
+        assertEquals(2, budget.currentCount("user:a"));
+        assertEquals(14, budget.currentCount("user:a", true));
+    }
+
+    @Test
     void independentKeysDoNotShareBudget() {
         BurstBudgetService budget = BurstBudgetService.forTest(Clock.systemUTC(), 1, 10, 5, 100);
         assertTrue(budget.tryConsume("a").allowed());

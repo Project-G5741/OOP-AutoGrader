@@ -43,7 +43,7 @@ public class BurstLimitFilter extends OncePerRequestFilter {
         String key = resolveKey(request);
         BurstBudgetService.Decision decision;
         try {
-            decision = burstBudgetService.tryConsume(key);
+            decision = burstBudgetService.tryConsume(key, isRead(request));
         } catch (RuntimeException ex) {
             response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -60,6 +60,10 @@ public class BurstLimitFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private static boolean isRead(HttpServletRequest request) {
+        return HttpMethod.GET.matches(request.getMethod()) || HttpMethod.HEAD.matches(request.getMethod());
     }
 
     private static boolean shouldSkip(HttpServletRequest request) {

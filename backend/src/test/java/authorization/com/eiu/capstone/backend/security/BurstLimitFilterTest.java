@@ -57,6 +57,7 @@ import com.eiu.capstone.backend.service.SessionValidityService;
         "jwt.validity-seconds=3600",
         "spring.web.resources.add-mappings=false",
         "app.burst.max-requests=3",
+        "app.burst.max-reads=3",
         "app.burst.window-seconds=10",
         "app.burst.retry-after-seconds=5",
         "app.burst.max-keys=1000"
