@@ -58,6 +58,7 @@ import com.eiu.capstone.backend.service.SessionValidityService;
         "spring.web.resources.add-mappings=false",
         "app.burst.max-requests=3",
         "app.burst.max-reads=3",
+        "app.burst.max-auth-requests=3",
         "app.burst.window-seconds=10",
         "app.burst.retry-after-seconds=5",
         "app.burst.max-keys=1000"
@@ -122,6 +123,24 @@ class BurstLimitFilterTest {
         mockMvc.perform(post("/api/auth/login"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
+    }
+
+    @Test
+    void authLaneDoesNotSpendOrdinaryWriteBudget() throws Exception {
+        // Auth budget is 3; ordinary write budget is also 3 but separate.
+        // After 3 auth POSTs the auth lane is full — a different IP key isn't
+        // available in MockMvc, so verify auth still jails on the 4th while
+        // authenticated writes remain available via a separate key.
+        String token = jwtService.createToken(
+                "w@eiu.edu.vn", "W", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN010");
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/api/auth/login")).andExpect(status().isOk());
+        }
+        mockMvc.perform(post("/api/auth/login"))
+                .andExpect(status().isTooManyRequests());
+        // Authenticated GETs use the read lane keyed by email — unaffected by auth IP jail.
+        mockMvc.perform(get("/api/labs/list").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 
     @Test

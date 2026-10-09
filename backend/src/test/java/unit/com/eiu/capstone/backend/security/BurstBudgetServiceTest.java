@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.security.BurstBudgetService;
+import com.eiu.capstone.backend.security.BurstBudgetService.Lane;
 
 class BurstBudgetServiceTest {
 
@@ -57,6 +58,23 @@ class BurstBudgetServiceTest {
         assertTrue(budget.tryConsume("user:a", true).allowed());
         assertEquals(2, budget.currentCount("user:a"));
         assertEquals(14, budget.currentCount("user:a", true));
+    }
+
+    @Test
+    void authLaneDoesNotSpendWriteBudgetAndAllowsClassroomBurst() {
+        // Tight writes (5), generous auth (60) — shared Wi‑Fi login burst.
+        BurstBudgetService budget = BurstBudgetService.forTest(Clock.systemUTC(), 5, 30, 60, 10, 5, 100);
+        for (int i = 0; i < 60; i++) {
+            assertTrue(budget.tryConsume("ip:10.0.0.1", Lane.AUTH).allowed());
+        }
+        assertFalse(budget.tryConsume("ip:10.0.0.1", Lane.AUTH).allowed());
+        // Write lane for the same IP key is still open.
+        for (int i = 0; i < 5; i++) {
+            assertTrue(budget.tryConsume("ip:10.0.0.1", Lane.WRITE).allowed());
+        }
+        assertFalse(budget.tryConsume("ip:10.0.0.1", Lane.WRITE).allowed());
+        assertEquals(60, budget.currentCount("ip:10.0.0.1", Lane.AUTH));
+        assertEquals(5, budget.currentCount("ip:10.0.0.1", Lane.WRITE));
     }
 
     @Test

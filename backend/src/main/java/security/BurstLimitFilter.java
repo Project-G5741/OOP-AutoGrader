@@ -38,12 +38,18 @@ public class BurstLimitFilter extends OncePerRequestFilter {
         }
 
         // Presence paths are already skipped above. Invalid/revoked Bearer on other
-        // routes is IP-keyed so junk Authorization cannot bypass the budget (auth hammer).
+        // routes is IP-keyed so junk Authorization cannot bypass the budget.
+        // /api/auth/** always uses the IP key + AUTH lane: logins are anonymous, and a
+        // lab of students on shared campus Wi‑Fi must not share the tight write budget.
 
-        String key = resolveKey(request);
+        boolean authPath = isAuthPath(request);
+        String key = authPath ? ("ip:" + clientIp(request)) : resolveKey(request);
+        BurstBudgetService.Lane lane = authPath
+                ? BurstBudgetService.Lane.AUTH
+                : (isRead(request) ? BurstBudgetService.Lane.READ : BurstBudgetService.Lane.WRITE);
         BurstBudgetService.Decision decision;
         try {
-            decision = burstBudgetService.tryConsume(key, isRead(request));
+            decision = burstBudgetService.tryConsume(key, lane);
         } catch (RuntimeException ex) {
             response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -64,6 +70,10 @@ public class BurstLimitFilter extends OncePerRequestFilter {
 
     private static boolean isRead(HttpServletRequest request) {
         return HttpMethod.GET.matches(request.getMethod()) || HttpMethod.HEAD.matches(request.getMethod());
+    }
+
+    private static boolean isAuthPath(HttpServletRequest request) {
+        return normalizedPath(request).startsWith("/api/auth/");
     }
 
     private static boolean shouldSkip(HttpServletRequest request) {
