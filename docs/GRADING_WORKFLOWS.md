@@ -121,7 +121,7 @@ Main grading entry (compute + `lab_result` assemble only). See [Phase C](#5-phas
 - **`compileErrorStore.save(...)`** — Off-thread after persist: per-challenge `{ catastrophic, byClassName }` diagnostics to `{SUBMISSION_BASE_DIR}/_compile_errors/{submissionId}.json`.
 - **`packageNormalizationStore.save(...)`** — Off-thread: package-stripped warning when student sources included `package` declarations.
 - **`submissionMmdMetaStore.save(...)`** — Off-thread: MMD metadata to `_mmd_meta/{submissionId}.json`.
-- **`plagiarismService.inspectUpload(submission, signals)`** — Snapshot `PlagiarismSignals` from multipart on the upload thread, then compare on `persistExecutor`. Exceptions are swallowed so the student still gets results. Lecturer flags typically appear within ~1–3s (live SQL). Lab statistics / overview caches invalidate after persist and again after inspect.
+- **`plagiarismService.inspectUpload(submission, signals)`** — Snapshot `PlagiarismSignals` from multipart on the upload thread, then inspect on `persistExecutor` with two short Neon transactions around in-memory pairwise compare (pool connection released during compare). Exceptions are swallowed so the student still gets results. Lecturer flags typically appear within ~1–3s (live SQL). Lab statistics / overview caches invalidate after persist and again after inspect.
 - **`labStatisticsCache.invalidate(labId)`** / **`lecturerOverviewCache.invalidate()`** — Clears lecturer analytics caches (again after inspect so `plagiarismRate` is not cached without new flags).
 - **`mmdPersistenceHook.onUploadComplete(...)`** — Extension point for archiving `.mmd` files (default no-op).
 
@@ -792,7 +792,7 @@ Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs
 
 **Why OT often dominates grade compute:** one host worker JVM runs the lab-wide batch; local multi-core shortens wall-clock via in-worker parallelism, but Render free tier stays one process (`workerJvmSlot=1`).
 
-**Why plagiarism used to overtake compile on a large roster:** pairwise compare still walks every other fingerprint, but that work is on `persistExecutor`. The student wait is only the signal snapshot. Peer/prior bests are one grouped attempts load; non-matches are not inserted; re-eval is limited to rows where this uploader is the other side.
+**Why plagiarism used to overtake compile on a large roster:** pairwise compare still walks every other fingerprint, but that work is on `persistExecutor` with the Neon pool connection released during the CPU compare. The student wait is only the signal snapshot. Peer/prior bests are one grouped attempts load; non-matches are not inserted; re-eval is limited to rows where this uploader is the other side.
 
 Cleanup (`deleteFolder`) is scheduled on `persistExecutor` in `finally` after the response is built; it does not hold the HTTP thread.
 
