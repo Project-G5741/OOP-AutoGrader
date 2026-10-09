@@ -4,6 +4,12 @@ import ClassScoreBreakdown from './ClassScoreBreakdown';
 import MmdScoreBreakdown from './MmdScoreBreakdown';
 import OperationalTestcaseBreakdown from './OperationalTestcaseBreakdown';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
+import {
+  LECTURER_DRAWER_BACKDROP_HIT,
+  LECTURER_DRAWER_DIVIDER,
+  LECTURER_DRAWER_OVERLAY,
+  LECTURER_DRAWER_PANEL,
+} from './lecturerDrawerChrome';
 
 function tabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -99,10 +105,15 @@ export default function BulkSubmissionDrawer({
   const showChallengeSwitcher = !lockToChallenge && challenges.length > 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-background/50">
-      <button type="button" className="flex-1 cursor-default" aria-label="Close drawer" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-xl flex-col border-l border-border bg-surface shadow-xl">
-        <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+    <div className={`${LECTURER_DRAWER_OVERLAY} z-50`}>
+      <button
+        type="button"
+        className={LECTURER_DRAWER_BACKDROP_HIT}
+        aria-label="Close drawer"
+        onClick={onClose}
+      />
+      <aside className={`${LECTURER_DRAWER_PANEL} max-w-xl`}>
+        <header className={`flex items-start justify-between gap-3 border-b px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>
           <div>
             <h2 className="text-lg font-semibold text-foreground">{formatText(student.studentName)}</h2>
             <p className="text-sm text-foreground-secondary">{student.studentId}</p>
@@ -117,7 +128,7 @@ export default function BulkSubmissionDrawer({
           </button>
         </header>
 
-        <div className="space-y-3 border-b border-border px-5 py-4 text-sm">
+        <div className={`space-y-3 border-b px-5 py-4 text-sm ${LECTURER_DRAWER_DIVIDER}`}>
           {selectedChallenge && (
             <div className="flex items-center justify-between gap-3">
               <span className="text-foreground-secondary">Challenge</span>
@@ -143,7 +154,7 @@ export default function BulkSubmissionDrawer({
         </div>
 
         {showChallengeSwitcher && (
-          <div className="flex gap-1 overflow-x-auto border-b border-border px-3 pt-2">
+          <div className={`flex gap-1 overflow-x-auto border-b px-3 pt-2 ${LECTURER_DRAWER_DIVIDER}`}>
             {challenges.map((ch, index) => (
               <button
                 key={ch.id}
@@ -154,8 +165,8 @@ export default function BulkSubmissionDrawer({
                 }}
                 className={`whitespace-nowrap rounded-t-lg px-3 py-2 text-xs font-medium ${
                   String(challengeId) === String(ch.id)
-                    ? 'bg-surface-secondary text-primary'
-                    : 'text-foreground-secondary'
+                    ? 'bg-surface text-primary shadow-sm dark:bg-background dark:text-primary-text'
+                    : 'text-foreground-secondary hover:text-foreground'
                 }`}
               >
                 {challengeLabel(ch, index)}
@@ -165,7 +176,7 @@ export default function BulkSubmissionDrawer({
         )}
 
         {showPillarTabs && (
-          <div className="flex gap-1 border-b border-border px-3">
+          <div className={`flex gap-1 border-b px-3 ${LECTURER_DRAWER_DIVIDER}`}>
             <button type="button" className={tabClass(activeTab === 'class')} onClick={() => setActiveTab('class')}>
               Declaration Test
             </button>

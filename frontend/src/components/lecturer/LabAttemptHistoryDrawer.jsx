@@ -9,6 +9,13 @@ import { authHeaders } from '../../utils/authHeaders';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
+import {
+  LECTURER_DRAWER_BACKDROP_HIT,
+  LECTURER_DRAWER_DIVIDER,
+  LECTURER_DRAWER_OVERLAY,
+  LECTURER_DRAWER_PANEL,
+} from './lecturerDrawerChrome';
+
 const HEADER_CLASS = 'px-4 py-3 text-left font-medium text-foreground-secondary';
 
 export default function LabAttemptHistoryDrawer({ open, onClose, labId, student, labName }) {
@@ -74,10 +81,10 @@ export default function LabAttemptHistoryDrawer({ open, onClose, labId, student,
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/40">
-      <button type="button" className="flex-1" aria-label="Close drawer" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-md flex-col border-l border-border-subtle bg-surface shadow-2xl dark:shadow-none">
-        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+    <div className={`${LECTURER_DRAWER_OVERLAY} z-40`}>
+      <button type="button" className={LECTURER_DRAWER_BACKDROP_HIT} aria-label="Close drawer" onClick={onClose} />
+      <aside className={`${LECTURER_DRAWER_PANEL} max-w-md`}>
+        <div className={`flex items-start justify-between gap-3 border-b px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>
           <div>
             <p className="font-semibold text-foreground">{formatText(student.studentName)}</p>
             <p className="text-xs text-foreground-secondary">ID: {formatText(student.studentCode)}</p>

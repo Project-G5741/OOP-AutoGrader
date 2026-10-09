@@ -6,6 +6,13 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiE
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 
+import {
+  LECTURER_DRAWER_BACKDROP_HIT,
+  LECTURER_DRAWER_DIVIDER,
+  LECTURER_DRAWER_OVERLAY,
+  LECTURER_DRAWER_PANEL,
+} from './lecturerDrawerChrome';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 export default function PlagiarismInvestigationDrawer({ open, onClose, labId, student, labName }) {
@@ -69,9 +76,10 @@ export default function PlagiarismInvestigationDrawer({ open, onClose, labId, st
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-      <div className="flex h-full w-full max-w-xl flex-col bg-surface shadow-xl">
-        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+    <div className={`${LECTURER_DRAWER_OVERLAY} z-50`}>
+      <button type="button" className={LECTURER_DRAWER_BACKDROP_HIT} aria-label="Close drawer" onClick={onClose} />
+      <div className={`${LECTURER_DRAWER_PANEL} max-w-xl`}>
+        <div className={`flex items-start justify-between border-b px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>
           <div>
             <h3 className="text-lg font-semibold text-foreground">Plagiarism investigation</h3>
             <p className="mt-1 text-sm text-foreground-secondary">

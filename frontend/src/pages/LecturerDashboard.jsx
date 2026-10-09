@@ -36,8 +36,8 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const ROSTER_PAGE_SIZE = 5;
-const GRADE_OVERVIEW_PAGE_SIZE = 10;
-const HISTORY_PAGE_SIZE = 10;
+const GRADE_OVERVIEW_PAGE_SIZE = 12;
+const HISTORY_PAGE_SIZE = 12;
 const GRADE_OVERVIEW_EXPORT_PAGE_SIZE = 100;
 const EMPTY_OVERVIEW = {
   totalStudents: 0,

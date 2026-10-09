@@ -10,6 +10,12 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiE
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { parseMmdResponse } from '../../utils/mmdResponse';
+import {
+  LECTURER_DRAWER_BACKDROP_HIT,
+  LECTURER_DRAWER_DIVIDER,
+  LECTURER_DRAWER_OVERLAY,
+  LECTURER_DRAWER_PANEL,
+} from './lecturerDrawerChrome';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -169,10 +175,10 @@ export default function LecturerSubmissionDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/40">
-      <button type="button" className="flex-1" aria-label="Close drawer" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-2xl flex-col border-l border-border-subtle bg-surface shadow-2xl dark:shadow-none">
-        <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+    <div className={`${LECTURER_DRAWER_OVERLAY} z-40`}>
+      <button type="button" className={LECTURER_DRAWER_BACKDROP_HIT} aria-label="Close drawer" onClick={onClose} />
+      <aside className={`${LECTURER_DRAWER_PANEL} max-w-2xl`}>
+        <div className={`flex items-start justify-between gap-3 border-b px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-light text-sm font-bold text-primary-text">
               {initials}
@@ -187,7 +193,7 @@ export default function LecturerSubmissionDrawer({
           </button>
         </div>
 
-        <div className="space-y-4 border-b border-border px-5 py-4 text-sm">
+        <div className={`space-y-4 border-b px-5 py-4 text-sm ${LECTURER_DRAWER_DIVIDER}`}>
           <div className="flex items-center justify-between gap-3">
             <span className="text-foreground-secondary">Challenge</span>
             <span className="font-medium text-foreground">{formatText(challengeLabel)}</span>
@@ -207,7 +213,7 @@ export default function LecturerSubmissionDrawer({
         </div>
 
         {showPillarTabs ? (
-          <div className="flex border-b border-border px-5">
+          <div className={`flex border-b px-5 ${LECTURER_DRAWER_DIVIDER}`}>
             <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
               Declaration Test
             </button>
@@ -246,7 +252,7 @@ export default function LecturerSubmissionDrawer({
           )}
         </div>
 
-        <div className="border-t border-border px-5 py-4">
+        <div className={`border-t px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>
           <ExportMenu onExport={handleExport} disabled={loading} dropUp />
         </div>
       </aside>
