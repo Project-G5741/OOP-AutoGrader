@@ -2,6 +2,7 @@ import { Eye, GitCompare, FileCheck2, Users, TrendingUp, ShieldAlert } from 'luc
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
+import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -161,7 +162,7 @@ export default function SubmissionTable({
                         type="button"
                         disabled={!canView}
                         onClick={() => onView?.(submission)}
-                        className="flex min-h-10 items-center gap-1 rounded-lg bg-success px-3 py-2 text-xs text-white transition-colors hover:bg-success-hover disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:hover:bg-foreground-disabled sm:text-sm"
+                        className={`flex min-h-10 items-center gap-1 rounded-lg px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:bg-foreground-disabled disabled:text-foreground disabled:hover:bg-foreground-disabled sm:text-sm ${SUCCESS_ACTION_BUTTON}`}
                       >
                         <Eye className="h-3 w-3 shrink-0" />
                         <span className="hidden sm:inline">{viewLabel}</span>

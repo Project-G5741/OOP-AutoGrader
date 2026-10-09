@@ -36,14 +36,15 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View Submission |
 | `PlagiarismInvestigationDrawer.jsx` | Right drawer: flagged-student copy lineage + match signals (`GET .../students/{id}/plagiarism`) |
 
-| `ExportMenu.jsx` | Single Export button with Excel/PDF/SVG picker; auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
+| `ExportMenu.jsx` | Export dropdown (default Excel/PDF/SVG; Bulk Grading passes Excel/PDF/CSV via `formats`); auto-flips upward when near viewport bottom; `dropUp` forces upward menu (submission drawer footer) |
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
 | `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — labs from `GET /api/lecturer/bootstrap/grading` (each lab must include `challenges` for Lab/Exam mode + results tabs), parse-then-confirm, sequential `/bulk-grade`, within-batch plagiarism |
 | `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result`; from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
+| `lecturerDrawerChrome.js` | Shared overlay, elevated panel (`dark:bg-surface-secondary`), edge border, and internal dividers for lecturer right drawers |
 | `OperationalTestcaseBreakdown.jsx` | Expandable OT I/O cards for lecturer drawers; full rubric order with I/O for hidden rows (`DisclosureMode.LECTURER` on API / bulk `lab_result`) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |
-| `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, column sort, client-side pagination at 10) |
+| `GradeOverviewSubmissionHistory.jsx` | Inline submission history panel below grade matrix (lab filter, column sort, client-side pagination at 12) |
 
 | `exportRoster.js` | Shared export helpers for roster, challenge breakdown, and grade overview |
 
@@ -60,6 +61,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/TestcaseAssertionFields.jsx` | Assertion kinds; Composition object-return equals() picker; constructors FIELD_STATE + EXCEPTION only |
 | `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
+| `structure/SolutionImportPanel.jsx` | Solution tab: drag/drop or folder picker for nested `.java` / `.mmd` sources (optional loose file pick); holds `{ folderLabel, entries, javaCount, mmdCount, totalBytes }`; **Import solution** is UI-only until `onImport` is wired |
+| `structure/LabSchedulingPanel.jsx` | Lab scheduling card: student access, submission deadline, solution import (three columns on `lg+`) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
 
@@ -99,10 +102,10 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Score tab export uses `ExportMenu` → `exportGradeOverview` in `exportRoster.js` (Excel, PDF, SVG; all students via paginated `GET /api/lecturer/grade-overview` with `size=100`)
 - Grade overview per-lab scores and total use **highest lab score** (`student_lab_progress.highest_score`); submission history panel still lists every attempt with its attempt score
 - Grade overview supports server-side sort via `sort` query param (`studentName`, `irn`, `score`, `labScore,<labUuid>`); default `studentName,asc`; **clickable column headers** on `GradeOverviewTable` (no toolbar sort buttons)
-- Score tab pagination is **10** students per page (`GET /api/lecturer/grade-overview?size=10`)
-- Score tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **10** rows per page after filter/sort; filter/sort/student change resets to page 0)
+- Score tab pagination is **12** students per page (`GET /api/lecturer/grade-overview?size=12`)
+- Score tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **12** rows per page after filter/sort; filter/sort/student change resets to page 0)
 - Bulk **Grading** tab (`BulkGradingPanel`) posts each accepted student to `POST /api/lecturer/labs/{labId}/bulk-grade?mode=LAB|EXAM`; holds `lab_result` in memory for `BulkSubmissionDrawer`; within-batch plagiarism via client Jaccard on file hashes (server may return `fileHashes`)
-- Bulk results show **Overview** + one tab per lab challenge (Dashboard-style labels); Overview Score = lab total; challenge tab Score = that challenge’s `lab_result` total; Plagiarism is within-batch and tab-invariant; View Submission passes `initialChallengeId` from the active results tab
+- Bulk results show **Overview** + one tab per lab challenge (Dashboard-style labels); Overview Score = lab total; challenge tab Score = that challenge’s `lab_result` total; Plagiarism is within-batch and tab-invariant; View Submission passes `initialChallengeId` from the active results tab; results table paginates **12** student rows per page (client-side; resets on new folder or grading run); **Export** (`ExportMenu`) downloads the full results list for the active tab as Excel, PDF, or CSV (Student, ID, Score, Plagiarism, Error)
 
 
 

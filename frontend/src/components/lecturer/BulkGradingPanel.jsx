@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { SyncLoader } from 'react-spinners';
+import { BeatLoader } from 'react-spinners';
 import { Eye, FlaskConical, Upload } from 'lucide-react';
 import Combobox from '../ui/Combobox';
 import Progress from '../ui/Progress';
@@ -15,9 +15,14 @@ import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 import { formatNumber, formatText } from '../../utils/formatters';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
+import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
+import ExportMenu from './ExportMenu';
+import { exportDataset } from './exportRoster';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const BULK_RESULTS_PAGE_SIZE = 12;
+const BULK_EXPORT_FORMATS = ['excel', 'pdf', 'csv'];
 
 function resultsTabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -112,6 +117,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [drawerStudent, setDrawerStudent] = useState(null);
   const [resultsTab, setResultsTab] = useState('overview');
   const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
+  const [resultsPage, setResultsPage] = useState(0);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -153,10 +159,53 @@ export default function BulkGradingPanel({ labs = [] }) {
     : gradingStoppedEarly && !grading
       ? 'bg-warning'
       : 'bg-success';
-  const syncLoaderColor = useMemo(
-    () => (isDark ? theme.dark.secondary : theme.light.secondary),
+  const gradingLoaderColor = useMemo(
+    () => (isDark ? theme.dark.primary : theme.light.primary),
     [isDark],
   );
+
+  const resultsPagination = useMemo(() => {
+    const total = rows.length;
+    const totalPages = Math.max(Math.ceil(total / BULK_RESULTS_PAGE_SIZE), 1);
+    const page = Math.min(Math.max(resultsPage, 0), totalPages - 1);
+    return { page, size: BULK_RESULTS_PAGE_SIZE, total, totalPages };
+  }, [rows.length, resultsPage]);
+
+  const pagedRows = useMemo(() => {
+    const start = resultsPagination.page * BULK_RESULTS_PAGE_SIZE;
+    return rows.slice(start, start + BULK_RESULTS_PAGE_SIZE);
+  }, [rows, resultsPagination.page]);
+
+  const showResultsPagination =
+    rows.length > 0
+    && (resultsPagination.totalPages > 1 || resultsPagination.total > resultsPagination.size);
+
+  const bulkResultsTabLabel = useMemo(() => {
+    if (resultsTab === 'overview') return 'Overview';
+    const index = labChallenges.findIndex((c) => String(c.id) === String(resultsTab));
+    const challenge = index >= 0 ? labChallenges[index] : null;
+    return challenge ? challengeTabLabel(challenge, index) : 'Challenge';
+  }, [resultsTab, labChallenges]);
+
+  const handleExportBulkResults = useCallback(async (format) => {
+    if (!rows.length) return;
+    const exportRows = rows.map((row) => ({
+      Student: formatText(row.studentName),
+      ID: row.studentId,
+      Score: row.error
+        ? '—'
+        : formatNumber(scoreForResultsTab(row, resultsTab, labChallenges)),
+      Plagiarism: row.error ? '—' : (row.plagiarismLabel || '—'),
+      Error: row.error || '',
+    }));
+    const labSlug = String(selectedLab?.name || selectedLab?.id || 'lab').replace(/\s+/g, '_');
+    const tabSlug = bulkResultsTabLabel.replace(/\s+/g, '_');
+    await exportDataset(format, {
+      rows: exportRows,
+      title: `Bulk Grading — ${formatText(selectedLab?.name)} — ${bulkResultsTabLabel}`,
+      fileBase: `bulk_grading_${labSlug}_${tabSlug}`,
+    });
+  }, [rows, resultsTab, labChallenges, selectedLab, bulkResultsTabLabel]);
 
   const applyEntries = useCallback((entries, label) => {
     const result = parseBulkMainFolder(entries, mode);
@@ -168,6 +217,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setGradingStoppedEarly(false);
     setDrawerStudent(null);
     setResultsTab('overview');
+    setResultsPage(0);
   }, [mode]);
 
   const handleInputFiles = (fileList) => {
@@ -213,6 +263,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setGradedCount(0);
     setDrawerStudent(null);
     setResultsTab('overview');
+    setResultsPage(0);
 
     const accepted = parseResult.accepted;
     const nextRows = [];
@@ -414,6 +465,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                   setGradedCount(0);
                   setGradingStoppedEarly(false);
                   setResultsTab('overview');
+                  setResultsPage(0);
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface-secondary"
               >
@@ -480,7 +532,7 @@ export default function BulkGradingPanel({ labs = [] }) {
             />
           </div>
           <div className="flex flex-col items-center justify-center gap-3 py-8">
-            <SyncLoader color={syncLoaderColor} size={22} margin={3} speedMultiplier={0.5} />
+            <BeatLoader color={gradingLoaderColor} size={12} margin={6} speedMultiplier={0.65} />
             <p className="text-sm text-foreground-muted">Grading submissions…</p>
           </div>
         </div>
@@ -496,27 +548,32 @@ export default function BulkGradingPanel({ labs = [] }) {
             </p>
           )}
 
-          {labChallenges.length > 0 && (
-            <div className="flex min-w-0 flex-wrap gap-2 border-b border-border pb-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setResultsTab('overview')}
-                className={resultsTabClass(resultsTab === 'overview')}
-              >
-                Overview
-              </button>
-              {labChallenges.map((challenge, index) => (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+            {labChallenges.length > 0 ? (
+              <div className="flex min-w-0 flex-wrap gap-2 sm:gap-3">
                 <button
-                  key={challenge.id}
                   type="button"
-                  onClick={() => setResultsTab(challenge.id)}
-                  className={resultsTabClass(String(resultsTab) === String(challenge.id))}
+                  onClick={() => setResultsTab('overview')}
+                  className={resultsTabClass(resultsTab === 'overview')}
                 >
-                  {challengeTabLabel(challenge, index)}
+                  Overview
                 </button>
-              ))}
-            </div>
-          )}
+                {labChallenges.map((challenge, index) => (
+                  <button
+                    key={challenge.id}
+                    type="button"
+                    onClick={() => setResultsTab(challenge.id)}
+                    className={resultsTabClass(String(resultsTab) === String(challenge.id))}
+                  >
+                    {challengeTabLabel(challenge, index)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm font-medium text-foreground">Results</span>
+            )}
+            <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+          </div>
 
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
             <table className="min-w-full text-sm">
@@ -530,10 +587,20 @@ export default function BulkGradingPanel({ labs = [] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {pagedRows.map((row) => {
                   const displayScore = scoreForResultsTab(row, resultsTab, labChallenges);
+                  const canOpenSubmission = !row.error && row.payload;
+                  const openSubmission = () => {
+                    if (canOpenSubmission) setDrawerStudent(row.payload);
+                  };
                   return (
-                    <tr key={row.studentId} className="border-b border-border last:border-0">
+                    <tr
+                      key={row.studentId}
+                      onDoubleClick={openSubmission}
+                      className={`border-b border-border last:border-0 ${
+                        canOpenSubmission ? 'cursor-pointer hover:bg-surface-secondary' : ''
+                      }`}
+                    >
                       <td className="px-4 py-3 text-foreground">{formatText(row.studentName)}</td>
                       <td className="px-4 py-3 text-foreground">{row.studentId}</td>
                       <td className="px-4 py-3 font-semibold text-foreground">
@@ -549,8 +616,8 @@ export default function BulkGradingPanel({ labs = [] }) {
                           <button
                             type="button"
                             disabled={!row.payload}
-                            onClick={() => setDrawerStudent(row.payload)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                            onClick={openSubmission}
+                            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${SUCCESS_ACTION_BUTTON}`}
                           >
                             <Eye className="h-3.5 w-3.5" />
                             View Submission
@@ -562,6 +629,31 @@ export default function BulkGradingPanel({ labs = [] }) {
                 })}
               </tbody>
             </table>
+            {showResultsPagination && (
+              <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-foreground-secondary">
+                  Page {resultsPagination.page + 1} of {Math.max(resultsPagination.totalPages, 1)}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={resultsPagination.page <= 0}
+                    onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
+                    className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resultsPagination.page >= resultsPagination.totalPages - 1}
+                    onClick={() => setResultsPage((p) => p + 1)}
+                    className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

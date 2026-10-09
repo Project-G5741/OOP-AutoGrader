@@ -12,6 +12,10 @@ export const STATUS_STYLES = {
   neutral: 'bg-surface-secondary text-foreground-muted',
 };
 
+/** Solid success CTA (e.g. View Submission): green + white in light; readable green surface in dark. */
+export const SUCCESS_ACTION_BUTTON =
+  'bg-success text-white hover:bg-success-hover dark:bg-success-bg dark:text-success-text dark:hover:bg-success-panel dark:border dark:border-success/40';
+
 export const STATUS_DOT = {
   correct: 'bg-success',
   incorrect: 'bg-error',

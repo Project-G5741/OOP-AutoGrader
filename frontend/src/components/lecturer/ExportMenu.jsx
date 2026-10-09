@@ -3,7 +3,22 @@ import { Download, ChevronDown } from 'lucide-react';
 
 const MENU_ESTIMATE_HEIGHT = 132;
 
-export default function ExportMenu({ onExport, disabled = false, label = 'Export', dropUp = false }) {
+const DEFAULT_FORMATS = ['excel', 'pdf', 'svg'];
+
+const FORMAT_LABELS = {
+  excel: 'Excel',
+  pdf: 'PDF',
+  csv: 'CSV',
+  svg: 'SVG',
+};
+
+export default function ExportMenu({
+  onExport,
+  disabled = false,
+  label = 'Export',
+  dropUp = false,
+  formats = DEFAULT_FORMATS,
+}) {
   const [open, setOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(dropUp);
   const menuRef = useRef(null);
@@ -38,30 +53,30 @@ export default function ExportMenu({ onExport, disabled = false, label = 'Export
     : 'top-full mt-2';
 
   return (
-    <div className="relative inline-flex" ref={menuRef}>
+    <div className="relative w-36 shrink-0" ref={menuRef}>
       <button
         ref={buttonRef}
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4 shrink-0" />
         {label}
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown className="h-4 w-4 shrink-0" />
       </button>
       {open && (
         <div
-          className={`absolute right-0 z-50 min-w-[9rem] overflow-hidden rounded-lg border border-border bg-surface shadow-lg   ${menuPositionClass}`}
+          className={`absolute left-0 right-0 z-50 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg ${menuPositionClass}`}
         >
-          {['excel', 'pdf', 'svg'].map((format) => (
+          {formats.map((format) => (
             <button
               key={format}
               type="button"
               onClick={() => handleSelect(format)}
               className="block w-full px-4 py-2 text-left text-sm text-foreground-secondary hover:bg-primary-light"
             >
-              {format.toUpperCase()}
+              {FORMAT_LABELS[format] ?? format}
             </button>
           ))}
         </div>
