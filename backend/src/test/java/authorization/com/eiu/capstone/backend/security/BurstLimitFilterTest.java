@@ -25,6 +25,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,7 +41,8 @@ import com.eiu.capstone.backend.service.SessionValidityService;
 @WebMvcTest(controllers = {
         BurstLimitFilterTest.AuthProbe.class,
         BurstLimitFilterTest.StudentProbe.class,
-        BurstLimitFilterTest.PresenceProbe.class
+        BurstLimitFilterTest.PresenceProbe.class,
+        BurstLimitFilterTest.BulkGradeProbe.class
 })
 @Import({
         SecurityConfig.class,
@@ -50,7 +52,8 @@ import com.eiu.capstone.backend.service.SessionValidityService;
         BurstLimitFilter.class,
         BurstLimitFilterTest.AuthProbe.class,
         BurstLimitFilterTest.StudentProbe.class,
-        BurstLimitFilterTest.PresenceProbe.class
+        BurstLimitFilterTest.PresenceProbe.class,
+        BurstLimitFilterTest.BulkGradeProbe.class
 })
 @TestPropertySource(properties = {
         "jwt.secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -97,6 +100,15 @@ class BurstLimitFilterTest {
         @GetMapping("/count")
         String count() {
             return "{\"count\":0}";
+        }
+    }
+
+    @RestController
+    @RequestMapping("/api/lecturer/labs")
+    public static class BulkGradeProbe {
+        @PostMapping("/{labId}/bulk-grade")
+        String bulkGrade(@PathVariable String labId) {
+            return "graded-" + labId;
         }
     }
 
@@ -214,6 +226,17 @@ class BurstLimitFilterTest {
         mockMvc.perform(post("/api/auth/login").header("Authorization", "Bearer junk-token"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
+    }
+
+    @Test
+    void bulkGradeDoesNotConsumeWriteBudget() throws Exception {
+        String token = jwtService.createToken(
+                "bulk@eiu.edu.vn", "B", "eiu.edu.vn", List.of(JwtRoleNames.LECTURER), "T002");
+        for (int i = 0; i < 10; i++) {
+            mockMvc.perform(post("/api/lecturer/labs/00000000-0000-0000-0000-000000000001/bulk-grade")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+        }
     }
 
     @Test

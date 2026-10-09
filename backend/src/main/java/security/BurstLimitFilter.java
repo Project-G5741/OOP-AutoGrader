@@ -93,6 +93,9 @@ public class BurstLimitFilter extends OncePerRequestFilter {
         if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
             return true;
         }
+        if (BurstLimitExemptions.isExempt(path, request.getMethod())) {
+            return true;
+        }
         return !path.startsWith("/api/");
     }
 

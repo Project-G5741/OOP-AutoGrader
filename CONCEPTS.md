@@ -214,7 +214,7 @@ Desktop practice completes heavy pack-to-local-DB work during the import (pre-cl
 ## API abuse guard
 
 ### Global API burst guard
-Server-side short-window limit on API request volume. Reads (GET/HEAD) and writes (POST/PUT/PATCH/DELETE) have separate counters: more than 60 reads, or more than 20 writes, in 10 seconds for one identity key is over limit. A screen that fires many GETs for one action spends only the read budget. Authenticated traffic is keyed by user email (JWT principal); anonymous traffic by client IP. All roles share the same budgets. Presence heartbeat/leave and other infra paths are not counted. Over-limit calls receive HTTP 429 and do not run protected work. Web/cloud only — not the desktop practice profile.
+Server-side short-window limit on API request volume. Reads (GET/HEAD) and writes (POST/PUT/PATCH/DELETE) have separate counters per configured window for one identity key. A screen that fires many GETs for one action spends only the read budget. Authenticated traffic is keyed by user email (JWT principal); anonymous traffic by client IP. All roles share the same budgets. Presence heartbeat/leave, infra paths, and intentional lecturer bulk POSTs (`bulk-grade`, testcase dry-run, lab clone, term student import, user bulk create) are not counted — those routes still require JWT authorization. Over-limit calls receive HTTP 429 and do not run protected work. Web/cloud only — not the desktop practice profile.
 
 ### Rate-limit jail
 SPA screen shown after a burst-guard 429. Explains what the user did and what to do next, holds them for 5 seconds, then returns them to the location they were on when jailed.
