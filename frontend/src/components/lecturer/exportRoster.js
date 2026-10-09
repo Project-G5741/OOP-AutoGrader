@@ -18,6 +18,24 @@ function escapeSvgText(value) {
     .replace(/>/g, '&gt;');
 }
 
+function escapeCsvCell(value) {
+  const text = String(value ?? '');
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+export function exportRowsAsCsv(rows, fileBase) {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.map(escapeCsvCell).join(','),
+    ...rows.map((row) => headers.map((key) => escapeCsvCell(row[key])).join(',')),
+  ];
+  downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' }), `${fileBase}.csv`);
+}
+
 export async function exportRowsAsExcel(rows, fileBase) {
   const XLSX = await import('xlsx');
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -71,6 +89,10 @@ export async function exportDataset(format, { rows, title, fileBase }) {
   }
   if (format === 'svg') {
     exportRowsAsSvg(rows, title, fileBase);
+    return;
+  }
+  if (format === 'csv') {
+    exportRowsAsCsv(rows, fileBase);
   }
 }
 

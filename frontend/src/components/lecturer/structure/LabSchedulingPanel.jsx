@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { CalendarClock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { CalendarClock, Eye, EyeOff, FileInput, Loader2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import DatePicker from '../../ui/DatePicker';
 import Switch from '../../ui/Switch';
 import { Badge } from '../../ui/badge';
 import { Separator } from '../../ui/separator';
+import SolutionImportPanel from './SolutionImportPanel';
 
 function SectionHeader({ icon: Icon, title }) {
   return (
@@ -74,7 +75,7 @@ export default function LabSchedulingPanel({
         </div>
       )}
 
-      <div className="grid gap-0 lg:grid-cols-2">
+      <div className="grid gap-0 lg:grid-cols-3">
         <section className={`space-y-7 px-5 py-6 lg:border-r lg:border-border ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
           <SectionHeader
             icon={savedStudentVisible ? Eye : EyeOff}
@@ -107,7 +108,7 @@ export default function LabSchedulingPanel({
           </div>
         </section>
 
-        <section className={`space-y-7 px-5 py-6 ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
+        <section className={`space-y-7 px-5 py-6 lg:border-r lg:border-border ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
           <SectionHeader
             icon={CalendarClock}
             title="Submission deadline"
@@ -146,6 +147,11 @@ export default function LabSchedulingPanel({
               Save deadline
             </button>
           </div>
+        </section>
+
+        <section className={`space-y-7 px-5 py-6 ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
+          <SectionHeader icon={FileInput} title="Solution import" />
+          <SolutionImportPanel disabled={studentAccessSaving || deadlineSaving} />
         </section>
       </div>
 

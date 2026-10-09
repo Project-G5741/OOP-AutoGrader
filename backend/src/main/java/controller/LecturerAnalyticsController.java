@@ -37,7 +37,7 @@ public class LecturerAnalyticsController {
     @GetMapping("/grade-overview")
     public ResponseEntity<GradeOverviewResponse> getGradeOverview(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "12") int size,
             @RequestParam(defaultValue = "studentName,asc") String sort,
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(lecturerAnalyticsService.getGradeOverview(page, size, sort, search));

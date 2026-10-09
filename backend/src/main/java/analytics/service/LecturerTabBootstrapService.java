@@ -33,7 +33,7 @@ import com.eiu.capstone.backend.service.UserService;
 public class LecturerTabBootstrapService {
 
     private static final int USERS_PAGE_SIZE = 50;
-    private static final int SCORE_PAGE_SIZE = 10;
+    private static final int SCORE_PAGE_SIZE = 12;
 
     private final LecturerAnalyticsService lecturerAnalyticsService;
     private final AnalyticsService analyticsService;
