@@ -10,6 +10,7 @@ export const ROUTES = {
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
   noAccess: '/no-access',
+  rateLimited: '/rate-limited',
 };
 
 const ACCESS_TOKEN_KEY = 'accessToken';

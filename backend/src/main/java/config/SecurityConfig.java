@@ -13,8 +13,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.eiu.capstone.backend.security.BurstLimitFilter;
 import com.eiu.capstone.backend.security.JwtAuthenticationFilter;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 
@@ -23,9 +25,13 @@ import com.eiu.capstone.backend.security.JwtRoleNames;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectProvider<BurstLimitFilter> burstLimitFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            ObjectProvider<BurstLimitFilter> burstLimitFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.burstLimitFilter = burstLimitFilter;
     }
 
     @Bean
@@ -59,6 +65,10 @@ public class SecurityConfig {
                     .requestMatchers("/api/submissions/**", "/api/students/**").hasRole(JwtRoleNames.STUDENT)
                     .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        BurstLimitFilter burst = burstLimitFilter.getIfAvailable();
+        if (burst != null) {
+            http.addFilterAfter(burst, JwtAuthenticationFilter.class);
+        }
         return http.build();
     }
 

@@ -5,6 +5,8 @@ import LoginBackground from '../components/ui/LoginBackground';
 import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { getResetPasswordErrors, isFormValid } from '../utils/validation';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { enterRateLimitJail } from '../utils/rateLimitJail';
 import { useToast } from '../components/ui/Toast';
 
 export default function ResetPasswordUI({ token, onComplete }) {
@@ -53,6 +55,9 @@ export default function ResetPasswordUI({ token, onComplete }) {
           confirmPassword,
         }),
       });
+      if (enterRateLimitJail(response)) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(await readFriendlyAuthError(response, 'reset-password'));

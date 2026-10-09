@@ -12,6 +12,7 @@ import ResetPasswordUI from "./pages/ResetPasswordUI";
 import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import NoAccessPage from "./pages/NoAccessPage";
+import RateLimitedPage from "./pages/RateLimitedPage";
 import RequireRole from "./components/auth/RequireRole";
 import {
   clearAuthSession,
@@ -190,6 +191,8 @@ export default function App() {
               )
             }
           />
+
+          <Route path={ROUTES.rateLimited} element={<RateLimitedPage />} />
 
           <Route
             path="*"

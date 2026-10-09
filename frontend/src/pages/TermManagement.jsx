@@ -353,7 +353,7 @@ export default function TermManagement() {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/terms/${selectedTerm.id}/desktop-pack`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTerm.id}/desktop-pack`, {
         headers: authHeaders(),
       });
       if (!response.ok) {
