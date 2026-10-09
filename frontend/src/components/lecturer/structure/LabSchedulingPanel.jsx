@@ -6,21 +6,7 @@ import Switch from '../../ui/Switch';
 import { Badge } from '../../ui/badge';
 import { Separator } from '../../ui/separator';
 
-function formatDisplayDate(value) {
-  if (!value) return null;
-  const raw = typeof value === 'string' ? value.slice(0, 10) : value;
-  const [year, month, day] = String(raw).split('-').map(Number);
-  if (!year || !month || !day) return null;
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date);
-}
-
-function SectionHeader({ icon: Icon, title, description }) {
+function SectionHeader({ icon: Icon, title }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary">
@@ -28,21 +14,7 @@ function SectionHeader({ icon: Icon, title, description }) {
       </div>
       <div className="min-w-0">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {description && (
-          <p className="mt-0.5 text-sm text-foreground-secondary">{description}</p>
-        )}
       </div>
-    </div>
-  );
-}
-
-function FieldLabel({ htmlFor, title, hint }) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-foreground">
-        {title}
-      </label>
-      {hint && <p className="text-sm text-foreground-muted">{hint}</p>}
     </div>
   );
 }
@@ -64,20 +36,16 @@ export default function LabSchedulingPanel({
 }) {
   const accessStatus = useMemo(() => {
     if (!savedStudentVisible) {
-      return { label: 'Hidden', variant: 'destructive', detail: 'Students cannot see or submit this lab.' };
+      return { label: 'Hidden', variant: 'destructive' };
     }
-    return { label: 'Live', variant: 'default', detail: 'Visible on the student dashboard now.' };
+    return { label: 'Live', variant: 'default' };
   }, [savedStudentVisible]);
 
   const deadlineStatus = useMemo(() => {
     if (!savedDeadlineDate) {
-      return { label: 'Open-ended', variant: 'secondary', detail: 'Submissions always count for lecturer grading.' };
+      return { label: 'Open-ended', variant: 'secondary' };
     }
-    return {
-      label: 'Deadline set',
-      variant: 'outline',
-      detail: `Counts until ${formatDisplayDate(savedDeadlineDate)} 23:59 (VN).`,
-    };
+    return { label: 'Deadline set', variant: 'outline' };
   }, [savedDeadlineDate]);
 
   const studentAccessDirty = studentVisible !== savedStudentVisible;
@@ -97,10 +65,6 @@ export default function LabSchedulingPanel({
                 Lab scheduling
               </p>
               <h2 className="text-lg font-semibold text-foreground">{labName}</h2>
-              <p className="max-w-2xl text-sm text-foreground-secondary">
-                Control when students can discover and submit work, and when submissions stop counting
-                toward official grading views.
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={accessStatus.variant}>{accessStatus.label}</Badge>
@@ -111,20 +75,15 @@ export default function LabSchedulingPanel({
       )}
 
       <div className="grid gap-0 lg:grid-cols-2">
-        <section className={`space-y-5 px-5 py-5 lg:border-r lg:border-border ${compact ? '' : 'space-y-6 px-6 py-6'}`}>
+        <section className={`space-y-7 px-5 py-6 lg:border-r lg:border-border ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
           <SectionHeader
             icon={savedStudentVisible ? Eye : EyeOff}
             title="Student access"
           />
 
-          <div className="rounded-xl border border-border bg-surface-secondary/40 p-4">
+          <div className="rounded-xl border border-border bg-surface-secondary/40 p-5">
             <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Visible to students</p>
-                <p className="text-sm text-foreground-muted">
-                  Turn off to hide the lab entirely from the student experience.
-                </p>
-              </div>
+              <p className="text-sm font-medium text-foreground">Visible to students</p>
               <Switch
                 id="student-visible-toggle"
                 checked={studentVisible}
@@ -135,11 +94,7 @@ export default function LabSchedulingPanel({
             </div>
           </div>
 
-          <p className="rounded-lg bg-info-bg px-3 py-2 text-sm text-info-text">
-            {accessStatus.detail}
-          </p>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-4">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
@@ -152,33 +107,27 @@ export default function LabSchedulingPanel({
           </div>
         </section>
 
-        <section className={`space-y-5 px-5 py-5 ${compact ? '' : 'space-y-6 px-6 py-6'}`}>
+        <section className={`space-y-7 px-5 py-6 ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
           <SectionHeader
             icon={CalendarClock}
             title="Submission deadline"
           />
 
-          <div className="space-y-3">
-            <FieldLabel
-              htmlFor="deadline-date"
-              title="Deadline date"
-              hint="Optional. Submissions count for lecturer grading until 23:59 Vietnam time on this date."
-            />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-3 py-1">
+            <label htmlFor="deadline-date" className="shrink-0 text-sm font-medium text-foreground">
+              Deadline date:
+            </label>
             <DatePicker
               id="deadline-date"
               value={deadlineDate}
               disabled={deadlineSaving}
               placeholder="No deadline"
               onChange={onDeadlineChange}
-              className="w-full max-w-sm"
+              className="min-w-[10rem] max-w-xs flex-1"
             />
           </div>
 
-          <p className="rounded-lg bg-surface-secondary px-3 py-2 text-sm text-foreground-secondary">
-            {deadlineStatus.detail}
-          </p>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-4">
             <button
               type="button"
               className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
@@ -200,14 +149,7 @@ export default function LabSchedulingPanel({
         </section>
       </div>
 
-      {!compact && (
-        <>
-          <Separator />
-          <div className="px-6 py-3 text-xs text-foreground-muted">
-            Changes apply after you save each section. Times use Vietnam (UTC+7).
-          </div>
-        </>
-      )}
+      {!compact && <Separator />}
     </Card>
   );
 }

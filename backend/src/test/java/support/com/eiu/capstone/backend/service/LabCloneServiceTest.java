@@ -35,6 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.CloneLabsResponse;
 import com.eiu.capstone.backend.DTO.CloneSourcesResponse;
+import com.eiu.capstone.backend.DTO.TermSyncLabsResponse;
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
@@ -281,6 +282,45 @@ class LabCloneServiceTest {
         assertEquals(newLabId, result.id());
         assertEquals("Lab Copy Me", result.name());
         verify(rubricCacheInvalidationSupport).invalidateLab(newLabId);
+    }
+
+    @Test
+    void listSyncLabSources_excludesTargetTerm() {
+        UUID targetTermId = UUID.randomUUID();
+        Term target = term("2026-2027", 1, false);
+        setTermId(target, targetTermId);
+        Term other = term("2025-2026", 1, true);
+        Lab lab = new Lab();
+        setLabId(lab, UUID.randomUUID());
+        lab.setName("Lab A");
+        lab.setTerm(other);
+
+        when(termRepository.existsById(targetTermId)).thenReturn(true);
+        when(labRepository.findAllWithTermExcludingTerm(targetTermId)).thenReturn(List.of(lab));
+
+        TermSyncLabsResponse response = labCloneService.listSyncLabSources(targetTermId);
+        assertEquals(1, response.labs().size());
+        assertEquals("Lab A", response.labs().get(0).name());
+        assertTrue(response.labs().get(0).termLabel().contains("2025-2026"));
+    }
+
+    @Test
+    void cloneLabsToTargetTerm_rejectsLabAlreadyInTarget() {
+        UUID targetTermId = UUID.randomUUID();
+        UUID sourceLabId = UUID.randomUUID();
+
+        Term target = new Term();
+        setTermId(target, targetTermId);
+        Lab lab = new Lab();
+        setLabId(lab, sourceLabId);
+        lab.setTerm(target);
+
+        when(termRepository.existsById(targetTermId)).thenReturn(true);
+        when(labRepository.findAllByIdWithTerm(List.of(sourceLabId))).thenReturn(List.of(lab));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> labCloneService.cloneLabsToTargetTerm(List.of(sourceLabId), targetTermId));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
     @Test

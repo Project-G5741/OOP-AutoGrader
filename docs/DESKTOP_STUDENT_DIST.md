@@ -30,7 +30,7 @@ Lab names are at most **50 characters** and cannot contain Windows-illegal chara
 
 Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded. Invalid packs show a specific rejection reason (not a generic busy message).
 
-**UI import** materializes the pack into the local DB and writes `data/desktop-pack-fingerprint.txt`, then shows a blocking **Okay** dialog that closes the practice app (same as Logout / window **X**). Reopen the EXE manually so the window loads a settled labs view — do not submit before that reopen. **Manual** `rubric/` copy still needs fingerprint clear + restart so bootstrap can import. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
+**UI import** materializes the pack into the local DB and writes `data/desktop-pack-fingerprint.txt`, then shows a blocking **Okay** dialog. Clicking **Okay** posts `practice-restart`: the host stops the local backend, relaunches the EXE, and exits so the new window loads a settled labs view — do not submit until that reopen finishes. Logout / window **X** still quit without relaunch (`practice-quit`). **Manual** `rubric/` copy still needs fingerprint clear + restart so bootstrap can import. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
 
 If multiple quarter packs are present (manual copies), newest-by-mtime wins. UI term import still removes sibling quarter packs.
 
@@ -51,7 +51,7 @@ In the practice EXE, **Logout** closes the window and stops the local backend (s
 
 ## Student: import or update rubrics
 
-**In the app (recommended):** header → **Import rubric pack** → choose `Rubric_….agpack` → confirm replace if prompted → click **Okay** (app closes) → open the practice EXE again.
+**In the app (recommended):** header → **Import rubric pack** → choose `Rubric_….agpack` → confirm replace if prompted → click **Okay** (app closes and reopens automatically).
 
 **Manual:** copy packs into `rubric/` with exact names above, delete extra quarter `Rubric_*_Q*.agpack` files if you only want one quarter, delete `data/desktop-pack-fingerprint.txt`, restart.
 
@@ -87,6 +87,6 @@ Offline prerequisites: bundled `runtime/jdk` + thin host EXE (no system Java, no
 
 - No login; fixed local student `practice@desktop.local`.
 - `GET /api/desktop/status` — `ready`, `packMissing`, `error`, `bootstrapComplete` (launcher and UI wait for `bootstrapComplete` before showing labs / settled banner).
-- `POST /api/desktop/packs/import` — multipart `file` (up to **50MB**), optional `confirmReplace=true` for lab name conflicts; stages under `rubric/`, **materializes** into H2, writes fingerprint; UI then forces close via **Okay** so the student reopens for a settled labs view. Oversized files return **413** with a clear message (not a generic 500).
+- `POST /api/desktop/packs/import` — multipart `file` (up to **50MB**), optional `confirmReplace=true` for lab name conflicts; stages under `rubric/`, **materializes** into H2, writes fingerprint; UI then shows **Okay**, which posts `practice-restart` so the host relaunches for a settled labs view. Oversized files return **413** with a clear message (not a generic 500).
 - Grading uses local `worker.jar` with `DESKTOP_WORKER_JAVA` pointing at bundled `runtime/jdk/bin/java.exe` when present. Operational testcases are **not** container-sandboxed; they use the same isolated worker JVM as dev. Desktop profile sizes the worker for a student PC (`app.grading.worker-xmx=512m`, `worker-max-metaspace=256m`, OT pool = available processors) and the launcher/API JVM uses `-Xmx512m` — unlike Render free-tier (`-Xmx64m` worker). Local IPC reads lab-wide OT responses in chunks (not byte-at-a-time).
 - H2 under `data/`; `LabStructureService` bulk deletes use portable SQL (no PostgreSQL-only CTE deletes).

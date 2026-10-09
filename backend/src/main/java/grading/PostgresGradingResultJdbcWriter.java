@@ -27,6 +27,7 @@ import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.isUniqueViolation;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.statusName;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withConnection;
+import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withTransaction;
 
 @Component
 @Profile("!desktop")
@@ -201,20 +202,30 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
         if (payload == null || payload.submissionId() == null) {
             return;
         }
+        if (isEmpty(payload.fields()) && isEmpty(payload.methods()) && isEmpty(payload.constructors())
+                && isEmpty(payload.relations()) && isEmpty(payload.testcases())) {
+            return;
+        }
         UUID submissionId = payload.submissionId();
-        upsertFlags(submissionId, "submission_field_result", "field_id", "submission_field_result_key",
-                payload.fields());
-        upsertFlags(submissionId, "submission_method_result", "method_id", "submission_method_result_key",
-                payload.methods());
-        upsertFlags(submissionId, "submission_constructor_result", "constructor_id",
-                "submission_constructor_result_key", payload.constructors());
-        upsertFlags(submissionId, "submission_relation_result", "class_relation_id",
-                "submission_relation_result_key", payload.relations());
-        upsertTestcases(submissionId, payload.testcases());
+        withTransaction(dataSource, "Failed to upsert submission details", connection -> {
+            upsertFlags(connection, submissionId, "submission_field_result", "field_id",
+                    "submission_field_result_key", payload.fields());
+            upsertFlags(connection, submissionId, "submission_method_result", "method_id",
+                    "submission_method_result_key", payload.methods());
+            upsertFlags(connection, submissionId, "submission_constructor_result", "constructor_id",
+                    "submission_constructor_result_key", payload.constructors());
+            upsertFlags(connection, submissionId, "submission_relation_result", "class_relation_id",
+                    "submission_relation_result_key", payload.relations());
+            upsertTestcases(connection, submissionId, payload.testcases());
+        });
     }
 
-    private void upsertFlags(UUID submissionId, String table, String elementColumn, String constraint,
-                             List<MemberFlag> rows) {
+    private static boolean isEmpty(List<?> rows) {
+        return rows == null || rows.isEmpty();
+    }
+
+    private void upsertFlags(Connection connection, UUID submissionId, String table, String elementColumn,
+                             String constraint, List<MemberFlag> rows) throws SQLException {
         if (rows == null || rows.isEmpty()) {
             return;
         }
@@ -231,17 +242,16 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 ON CONFLICT ON CONSTRAINT %s
                 DO UPDATE SET is_correct = EXCLUDED.is_correct
                 """.formatted(table, elementColumn, constraint);
-        withConnection(dataSource, "Failed to upsert " + table, connection -> {
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                statement.setObject(1, submissionId);
-                statement.setArray(2, connection.createArrayOf("uuid", ids));
-                statement.setArray(3, connection.createArrayOf("bool", correct));
-                statement.executeUpdate();
-            }
-        });
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setObject(1, submissionId);
+            statement.setArray(2, connection.createArrayOf("uuid", ids));
+            statement.setArray(3, connection.createArrayOf("bool", correct));
+            statement.executeUpdate();
+        }
     }
 
-    private void upsertTestcases(UUID submissionId, List<TestcaseRow> testcases) {
+    private void upsertTestcases(Connection connection, UUID submissionId, List<TestcaseRow> testcases)
+            throws SQLException {
         if (testcases == null || testcases.isEmpty()) {
             return;
         }
@@ -277,25 +287,23 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                     actual_display = EXCLUDED.actual_display
                 RETURNING id, testcase_id
                 """;
-        withConnection(dataSource, "Failed to upsert testcase results", connection -> {
-            Map<UUID, UUID> resultIdByTestcaseId = new HashMap<>();
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                statement.setObject(1, submissionId);
-                statement.setArray(2, uuidArray(connection, testcaseIds));
-                statement.setArray(3, connection.createArrayOf("text", results));
-                statement.setArray(4, connection.createArrayOf("text", feedback));
-                statement.setArray(5, connection.createArrayOf("text", input));
-                statement.setArray(6, connection.createArrayOf("text", expected));
-                statement.setArray(7, connection.createArrayOf("text", actual));
-                try (ResultSet rs = statement.executeQuery()) {
-                    while (rs.next()) {
-                        resultIdByTestcaseId.put(rs.getObject("testcase_id", UUID.class),
-                                rs.getObject("id", UUID.class));
-                    }
+        Map<UUID, UUID> resultIdByTestcaseId = new HashMap<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setObject(1, submissionId);
+            statement.setArray(2, uuidArray(connection, testcaseIds));
+            statement.setArray(3, connection.createArrayOf("text", results));
+            statement.setArray(4, connection.createArrayOf("text", feedback));
+            statement.setArray(5, connection.createArrayOf("text", input));
+            statement.setArray(6, connection.createArrayOf("text", expected));
+            statement.setArray(7, connection.createArrayOf("text", actual));
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    resultIdByTestcaseId.put(rs.getObject("testcase_id", UUID.class),
+                            rs.getObject("id", UUID.class));
                 }
             }
-            upsertAssertions(connection, testcases, resultIdByTestcaseId);
-        });
+        }
+        upsertAssertions(connection, testcases, resultIdByTestcaseId);
     }
 
     private void upsertAssertions(Connection connection, List<TestcaseRow> testcases,

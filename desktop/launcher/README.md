@@ -25,5 +25,6 @@ Requires **WebView2 Runtime** (Evergreen; preinstalled on most Windows 10/11) an
 - Polls `GET /api/desktop/status` on port **18002** until `bootstrapComplete` (2-minute bound).
 - Loads the practice UI in the same WebView2 window at `http://127.0.0.1:18002/` (no external browser).
 - Stops the Java process tree when the window closes or the UI posts `practice-quit`.
+- On `practice-restart` (post-import **Okay**): stops Java, waits for port **18002** to free, spawns a new EXE instance, then exits.
 
 See `docs/DESKTOP_STUDENT_DIST.md` and `scripts/assemble-student-desktop.ps1`.

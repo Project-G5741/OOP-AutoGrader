@@ -11,6 +11,7 @@ import FirstTimeSetupUI from './FirstTimeSetupUI';
 import ForgotPasswordUI from './ForgotPasswordUI';
 import { getLoginFieldErrors, isFormValid } from '../utils/validation';
 import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { enterRateLimitJail } from '../utils/rateLimitJail';
 
 function decodeJwtPayload(token) {
   try {
@@ -89,6 +90,9 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ irn, password }),
       });
+      if (enterRateLimitJail(response)) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(await readFriendlyAuthError(response, 'login'));
@@ -129,6 +133,9 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: idToken }),
       });
+      if (enterRateLimitJail(resp)) {
+        return;
+      }
 
       if (resp.ok) {
         const data = await resp.json();
@@ -198,7 +205,6 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
           <div className="logo-title">
             <AppLogo variant="login" />
             <h1 className="main-title">{brand.loginTitle}</h1>
-            <p className="subtitle">Sign in to your account</p>
           </div>
 
           <div className="card">

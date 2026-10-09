@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.DTO.plagiarism.LabPlagiarismReportDTO;
@@ -29,8 +30,9 @@ public class DesktopPlagiarismService extends PlagiarismService {
             SubmissionPlagiarismFingerprintRepository fingerprintRepository,
             SubmissionPlagiarismMatchRepository matchRepository,
             LabSubmissionRepository labSubmissionRepository,
-            ObjectMapper objectMapper) {
-        super(fingerprintRepository, matchRepository, labSubmissionRepository, objectMapper);
+            ObjectMapper objectMapper,
+            PlatformTransactionManager transactionManager) {
+        super(fingerprintRepository, matchRepository, labSubmissionRepository, objectMapper, transactionManager);
     }
 
     @Override

@@ -1,10 +1,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Eye, Upload } from 'lucide-react';
+import { SyncLoader } from 'react-spinners';
+import { Eye, FlaskConical, Upload } from 'lucide-react';
+import Combobox from '../ui/Combobox';
+import Progress from '../ui/Progress';
 import {
   challengeCountForLab,
   modeMatchesLab,
   parseBulkMainFolder,
 } from '../../utils/bulkFolderParse';
+import { useTheme } from '../../context/ThemeContext';
+import { theme } from '../../theme/tokens';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
@@ -92,7 +97,9 @@ function buildStudentMultipart(student) {
 }
 
 export default function BulkGradingPanel({ labs = [] }) {
+  const { isDark } = useTheme();
   const inputRef = useRef(null);
+  const cancelGradingRef = useRef(false);
   const [labId, setLabId] = useState('');
   const [mode, setMode] = useState('EXAM');
   const [isDragging, setIsDragging] = useState(false);
@@ -104,6 +111,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [gradeError, setGradeError] = useState(null);
   const [drawerStudent, setDrawerStudent] = useState(null);
   const [resultsTab, setResultsTab] = useState('overview');
+  const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -116,7 +124,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const challengeCount = challengeCountForLab(selectedLab);
   const modeOk = modeMatchesLab(mode, challengeCount);
   const modeBlockMessage = !selectedLab
-    ? 'Select a lab first.'
+    ? null
     : mode === 'EXAM' && challengeCount !== 1
       ? `Exam mode requires a lab with exactly 1 challenge (this lab has ${challengeCount}).`
       : mode === 'LAB' && challengeCount < 1
@@ -131,6 +139,25 @@ export default function BulkGradingPanel({ labs = [] }) {
   }, [resultsTab, labChallenges]);
   const lockDrawerToChallenge = resultsTab !== 'overview';
 
+  const gradingTotal = parseResult?.accepted?.length || rows.length || 0;
+  const gradingPercent = gradingTotal > 0
+    ? Math.min(100, Math.round((gradedCount / gradingTotal) * 100))
+    : 0;
+  const gradingProgressLabel = grading
+    ? 'Grading in progress'
+    : gradingStoppedEarly
+      ? 'Grading stopped'
+      : 'Grading complete';
+  const gradingBarClass = grading && gradedCount < gradingTotal
+    ? 'bg-primary'
+    : gradingStoppedEarly && !grading
+      ? 'bg-warning'
+      : 'bg-success';
+  const syncLoaderColor = useMemo(
+    () => (isDark ? theme.dark.secondary : theme.light.secondary),
+    [isDark],
+  );
+
   const applyEntries = useCallback((entries, label) => {
     const result = parseBulkMainFolder(entries, mode);
     setParseResult(result);
@@ -138,6 +165,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setRows([]);
     setGradedCount(0);
     setGradeError(null);
+    setGradingStoppedEarly(false);
     setDrawerStudent(null);
     setResultsTab('overview');
   }, [mode]);
@@ -171,8 +199,14 @@ export default function BulkGradingPanel({ labs = [] }) {
     && parseResult
     && parseResult.accepted.length > 0;
 
+  const requestCancelGrading = () => {
+    cancelGradingRef.current = true;
+  };
+
   const startGrading = async () => {
     if (!canStart || !selectedLab) return;
+    cancelGradingRef.current = false;
+    setGradingStoppedEarly(false);
     setGrading(true);
     setGradeError(null);
     setRows([]);
@@ -183,8 +217,13 @@ export default function BulkGradingPanel({ labs = [] }) {
     const accepted = parseResult.accepted;
     const nextRows = [];
     const payloadsByIrn = {};
+    let stoppedEarly = false;
 
     for (let i = 0; i < accepted.length; i += 1) {
+      if (cancelGradingRef.current) {
+        stoppedEarly = true;
+        break;
+      }
       const student = accepted[i];
       try {
         const form = buildStudentMultipart(student);
@@ -231,12 +270,15 @@ export default function BulkGradingPanel({ labs = [] }) {
         });
       }
       setGradedCount(i + 1);
-      setRows([...nextRows]);
+    }
+
+    if (stoppedEarly) {
+      setGradingStoppedEarly(true);
     }
 
     const withHashes = await attachClientHashes(Object.values(payloadsByIrn));
     const plag = computeWithinBatchPlagiarism(withHashes);
-    setRows((prev) => prev.map((row) => ({
+    setRows(nextRows.map((row) => ({
       ...row,
       plagiarismLabel: plag[row.studentId]?.label || '—',
       plagiarismOverlap: plag[row.studentId]?.overlap ?? null,
@@ -254,31 +296,27 @@ export default function BulkGradingPanel({ labs = [] }) {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-foreground-secondary">
-        Ephemeral bulk grade for a Main folder dump. Results stay on this page and are not written to Score or the lab roster.
-      </p>
-
       <div className="flex flex-wrap items-end gap-4">
-        <label className="flex min-w-[14rem] flex-col gap-1 text-sm">
-          <span className="font-medium text-foreground">Lab</span>
-          <select
+        <div className="flex min-w-[14rem] flex-col gap-1.5 text-sm">
+          <span className="font-semibold tracking-tight text-foreground">Lab</span>
+          <Combobox
+            aria-label="Lab"
             value={labId}
-            onChange={(e) => {
-              setLabId(e.target.value);
+            disabled={grading}
+            placeholder="Select lab…"
+            icon={FlaskConical}
+            options={labs.map((lab) => ({
+              value: String(lab.id),
+              label: lab.name || lab.labName || String(lab.id),
+            }))}
+            onChange={(next) => {
+              setLabId(next);
               setRows([]);
               setGradedCount(0);
               setResultsTab('overview');
             }}
-            className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-foreground"
-          >
-            <option value="">Select lab…</option>
-            {labs.map((lab) => (
-              <option key={lab.id} value={lab.id}>
-                {lab.name || lab.labName || lab.id}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
 
         <div className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-foreground">Mode</span>
@@ -369,10 +407,12 @@ export default function BulkGradingPanel({ labs = [] }) {
                 type="button"
                 disabled={grading}
                 onClick={() => {
+                  cancelGradingRef.current = false;
                   setParseResult(null);
                   setFolderLabel('');
                   setRows([]);
                   setGradedCount(0);
+                  setGradingStoppedEarly(false);
                   setResultsTab('overview');
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface-secondary"
@@ -387,6 +427,15 @@ export default function BulkGradingPanel({ labs = [] }) {
               >
                 Start Grading ({parseResult.accepted.length})
               </button>
+              {grading && (
+                <button
+                  type="button"
+                  onClick={requestCancelGrading}
+                  className="rounded-lg border border-error/40 px-4 py-2 text-sm font-semibold text-error-text hover:bg-error-bg"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </div>
 
@@ -398,24 +447,56 @@ export default function BulkGradingPanel({ labs = [] }) {
             </ul>
           )}
           {parseResult.accepted.length > 0 && (
-            <ul className="max-h-40 overflow-auto text-xs text-foreground-secondary">
+            <ul
+              className="grid max-h-40 grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-x-3 gap-y-1 overflow-auto text-xs text-foreground-secondary"
+              aria-label="Accepted student folders"
+            >
               {parseResult.accepted.map((s) => (
-                <li key={s.folderName}>✓ {s.studentId}_{s.studentName}</li>
+                <li key={s.folderName} className="min-w-0 truncate" title={`${s.studentId}_${s.studentName}`}>
+                  ✓ {s.studentId}_{s.studentName}
+                </li>
               ))}
             </ul>
           )}
         </div>
       )}
 
-      {(grading || rows.length > 0) && (
+      {grading && (
+        <div
+          className="space-y-4 rounded-xl border border-border bg-surface p-6"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-medium text-foreground">{gradingProgressLabel}</span>
+              <span className="tabular-nums text-foreground-muted">{gradingPercent}%</span>
+            </div>
+            <Progress
+              value={gradedCount}
+              max={gradingTotal}
+              aria-label="Bulk grading progress"
+              barClassName={gradingBarClass}
+            />
+          </div>
+          <div className="flex flex-col items-center justify-center gap-3 py-8">
+            <SyncLoader color={syncLoaderColor} size={22} margin={3} speedMultiplier={0.5} />
+            <p className="text-sm text-foreground-muted">Grading submissions…</p>
+          </div>
+        </div>
+      )}
+
+      {!grading && rows.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-success">
-            Graded {gradedCount} / {parseResult?.accepted.length || rows.length} students
-            {grading ? '…' : ''}
-          </p>
           {gradeError && <p className="text-sm text-error">{gradeError}</p>}
 
-          {rows.length > 0 && labChallenges.length > 0 && (
+          {gradingStoppedEarly && (
+            <p className="text-sm text-foreground-muted">
+              Grading stopped — showing {rows.length} of {gradingTotal} students.
+            </p>
+          )}
+
+          {labChallenges.length > 0 && (
             <div className="flex min-w-0 flex-wrap gap-2 border-b border-border pb-2 sm:gap-3">
               <button
                 type="button"

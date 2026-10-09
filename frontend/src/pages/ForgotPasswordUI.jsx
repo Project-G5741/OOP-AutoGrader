@@ -6,6 +6,7 @@ import './LoginUI.css';
 import ThemeToggle from '../components/ThemeToggle';
 import { validateEmail } from '../utils/validation';
 import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { enterRateLimitJail } from '../utils/rateLimitJail';
 import { useToast } from '../components/ui/Toast';
 
 export default function ForgotPasswordUI({ onBack, onSuccess }) {
@@ -43,6 +44,9 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
+      if (enterRateLimitJail(response)) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(await readFriendlyAuthError(response, 'forgot-password'));
@@ -70,11 +74,7 @@ export default function ForgotPasswordUI({ onBack, onSuccess }) {
           <div className="logo-title">
             <AppLogo variant="login" />
             <h1 className="main-title">Forgot password</h1>
-            <p className="subtitle">
-              {sent
-                ? 'Check your inbox for a reset link'
-                : 'Enter your school email to receive a reset link'}
-            </p>
+            {sent ? <p className="subtitle">Check your inbox for a reset link</p> : null}
           </div>
 
           <div className="card">

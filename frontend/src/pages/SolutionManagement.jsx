@@ -546,7 +546,7 @@ export default function SolutionManagement() {
   const handleDownloadLabPracticePack = async () => {
     if (!selectedLabId) return;
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/desktop-pack`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/desktop-pack`, {
         headers: authHeaders(),
       });
       if (!response.ok) {
@@ -889,10 +889,7 @@ export default function SolutionManagement() {
 
       {showCopyLab && (
         <Modal onClose={() => setShowCopyLab(false)} showClose={false}>
-          <h3 className="mb-2 text-lg font-semibold text-foreground">Copy lab</h3>
-          <p className="mb-4 text-sm text-foreground-secondary">
-            Copy selected labs from the previous current quarter into a target quarter. Rubric and operational testcases are copied; deadlines and visibility start fresh.
-          </p>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Copy lab</h3>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Target quarter</label>

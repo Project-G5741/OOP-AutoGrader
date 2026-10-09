@@ -146,7 +146,7 @@ public class LabResultAssembler {
             }
 
             List<TestcaseResultDTO> testcases = pillarScores.testcaseApplicable()
-                    ? buildTestcaseResults(challengeRubric, testcaseResultsById)
+                    ? buildTestcaseResults(challengeRubric, testcaseResultsById, mode)
                     : List.of();
 
             Map<String, BigDecimal> scores = Map.of(
@@ -198,10 +198,12 @@ public class LabResultAssembler {
 
     private List<TestcaseResultDTO> buildTestcaseResults(
             ChallengeRubric challengeRubric,
-            Map<UUID, SubmissionTestcaseResult> testcaseResultsById) {
+            Map<UUID, SubmissionTestcaseResult> testcaseResultsById,
+            DisclosureMode disclosureMode) {
         return testcaseResultMapper.mapChallengeTestcases(
                 challengeRubric.testcases(),
-                testcaseResultsById);
+                testcaseResultsById,
+                disclosureMode);
     }
 
     public static String toFrontendResult(TestcaseResultStatus status) {

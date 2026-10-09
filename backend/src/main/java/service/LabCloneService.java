@@ -32,6 +32,8 @@ import com.eiu.capstone.backend.DTO.CloneLabRefDTO;
 import com.eiu.capstone.backend.DTO.CloneLabsResponse;
 import com.eiu.capstone.backend.DTO.CloneSourceTermDTO;
 import com.eiu.capstone.backend.DTO.CloneSourcesResponse;
+import com.eiu.capstone.backend.DTO.TermSyncLabRefDTO;
+import com.eiu.capstone.backend.DTO.TermSyncLabsResponse;
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
@@ -115,6 +117,27 @@ public class LabCloneService {
         return new CloneSourcesResponse(sourceTerm, labs);
     }
 
+    @Transactional(readOnly = true)
+    public TermSyncLabsResponse listSyncLabSources(UUID targetTermId) {
+        if (targetTermId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetTermId is required");
+        }
+        if (!termRepository.existsById(targetTermId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found");
+        }
+        List<TermSyncLabRefDTO> labs = labRepository.findAllWithTermExcludingTerm(targetTermId).stream()
+                .sorted(Comparator
+                        .comparing((Lab lab) -> lab.getTerm().getAcademicYear().getYearLabel()).reversed()
+                        .thenComparing(lab -> lab.getTerm().getTermNumber(), Comparator.reverseOrder())
+                        .thenComparing(Lab::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .map(lab -> new TermSyncLabRefDTO(
+                        lab.getId(),
+                        lab.getName(),
+                        TermService.buildTermLabel(lab.getTerm())))
+                .toList();
+        return new TermSyncLabsResponse(labs);
+    }
+
     /**
      * Validates membership then clones each lab in its own short transaction (REQUIRES_NEW)
      * so Neon round-trips are not held inside one giant create-term transaction.
@@ -134,7 +157,25 @@ public class LabCloneService {
             return new CloneLabsResponse(List.of(), List.of());
         }
         requireLabsInTerm(ids, allowedSourceTermId);
+        return cloneManyBestEffort(ids, targetTermId);
+    }
 
+    public CloneLabsResponse cloneLabsToTargetTerm(List<UUID> sourceLabIds, UUID targetTermId) {
+        if (targetTermId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetTermId is required");
+        }
+        if (!termRepository.existsById(targetTermId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found");
+        }
+        List<UUID> ids = sourceLabIds != null ? sourceLabIds : List.of();
+        if (ids.isEmpty()) {
+            return new CloneLabsResponse(List.of(), List.of());
+        }
+        requireLabsEligibleToSync(ids, targetTermId);
+        return cloneManyBestEffort(ids, targetTermId);
+    }
+
+    private CloneLabsResponse cloneManyBestEffort(List<UUID> ids, UUID targetTermId) {
         if (ids.size() == 1) {
             return cloneOneBestEffort(ids.get(0), targetTermId);
         }
@@ -225,6 +266,39 @@ public class LabCloneService {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Lab " + lab.getId() + " is not in the allowed source quarter");
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public void requireLabsEligibleToSync(List<UUID> sourceLabIds, UUID targetTermId) {
+        if (sourceLabIds != null && sourceLabIds.stream().anyMatch(Objects::isNull)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceLabIds must not contain null");
+        }
+        List<UUID> ids = sourceLabIds != null
+                ? sourceLabIds.stream().distinct().toList()
+                : List.of();
+        if (ids.isEmpty()) {
+            return;
+        }
+        List<Lab> labs = labRepository.findAllByIdWithTerm(ids);
+        if (labs.size() != ids.size()) {
+            Set<UUID> found = new HashSet<>();
+            for (Lab lab : labs) {
+                found.add(lab.getId());
+            }
+            for (UUID id : ids) {
+                if (!found.contains(id)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab not found: " + id);
+                }
+            }
+        }
+        for (Lab lab : labs) {
+            UUID termId = lab.getTerm() != null ? lab.getTerm().getId() : null;
+            if (Objects.equals(termId, targetTermId)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Cannot sync a lab that already belongs to this quarter");
             }
         }
     }

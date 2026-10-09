@@ -29,6 +29,7 @@ import com.eiu.capstone.backend.DTO.ImportUnmatchedStudent;
 import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
+import com.eiu.capstone.backend.DTO.TermSyncLabsResponse;
 import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
@@ -75,6 +76,16 @@ public class TermService {
         this.labCloneService = labCloneService;
         this.labStructureService = labStructureService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
+
+    @Transactional(readOnly = true)
+    public TermSyncLabsResponse listSyncLabSources(UUID termId) {
+        requireTermExists(termId);
+        return labCloneService.listSyncLabSources(termId);
+    }
+
+    public CloneLabsResponse syncLabs(UUID termId, List<UUID> sourceLabIds) {
+        return labCloneService.cloneLabsToTargetTerm(sourceLabIds, termId);
     }
 
     @Transactional(readOnly = true)

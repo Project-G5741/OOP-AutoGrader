@@ -5,7 +5,7 @@ import { cn } from './cn';
 import './datepicker.css';
 
 const INPUT_CLASSES =
-  'rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted dark:bg-surface';
+  'rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted dark:border-surface-tertiary dark:bg-surface';
 
 export default function DatePicker({
   id,
@@ -27,6 +27,13 @@ export default function DatePicker({
     const input = inputRef.current;
     if (!input) return undefined;
 
+    const applyAltInputTheme = (instance) => {
+      const alt = instance?.altInput;
+      if (!alt) return;
+      alt.classList.add(...INPUT_CLASSES.split(/\s+/).filter(Boolean));
+      alt.placeholder = placeholder;
+    };
+
     pickerRef.current = flatpickr(input, {
       dateFormat: 'Y-m-d',
       altInput: true,
@@ -34,6 +41,9 @@ export default function DatePicker({
       allowInput: false,
       disableMobile: true,
       clickOpens: !disabled,
+      onReady(_dates, _dateStr, instance) {
+        applyAltInputTheme(instance);
+      },
       onChange(_dates, dateStr) {
         onChangeRef.current?.(dateStr || '');
       },
@@ -43,7 +53,7 @@ export default function DatePicker({
       pickerRef.current?.destroy();
       pickerRef.current = null;
     };
-  }, []);
+  }, [placeholder]);
 
   useEffect(() => {
     const picker = pickerRef.current;

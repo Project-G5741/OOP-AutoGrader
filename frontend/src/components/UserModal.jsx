@@ -141,11 +141,7 @@ export default function UserModal({
                 </div>
                 {fieldErrors.roles ? (
                   <p className="mt-1.5 text-xs text-error">{fieldErrors.roles}</p>
-                ) : (
-                  <p className="mt-1.5 text-xs text-foreground-muted">
-                    Student-only accounts need a Student IRN. Lecturer accounts (including dual-role) use Lecturer ID only.
-                  </p>
-                )}
+                ) : null}
               </div>
 
               {hasStudentOnly && (

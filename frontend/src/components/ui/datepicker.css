@@ -1,15 +1,42 @@
-/* Flatpickr calendar — project tokens (not OpenFrontend CSS). */
+/* Flatpickr calendar — project tokens (overrides flatpickr.min.css). */
 .flatpickr-calendar {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--surface-tertiary);
   box-shadow: 0 10px 24px rgb(15 23 42 / 0.16);
   color: var(--text-primary);
   z-index: 70;
 }
 
+.dark .flatpickr-calendar {
+  border-color: var(--surface-tertiary);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.55);
+}
+
+/* Gap between input and dropdown (default is ~2px) */
+.flatpickr-calendar.arrowTop.open {
+  margin-top: 0.75rem;
+}
+
+.flatpickr-calendar.static {
+  top: calc(100% + 0.75rem);
+}
+
+.dark .flatpickr-calendar.arrowTop:before {
+  border-bottom-color: var(--surface-tertiary);
+}
+
+.dark .flatpickr-calendar.arrowTop:after {
+  border-bottom-color: var(--surface);
+}
+
 .flatpickr-months {
   background: var(--surface);
   color: var(--text-primary);
+  padding: 0.5rem 0 0.25rem;
+}
+
+.flatpickr-days {
+  padding: 0.25rem 0 0.75rem;
 }
 
 .flatpickr-months .flatpickr-month,
@@ -19,16 +46,33 @@
   fill: var(--text-primary);
 }
 
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: var(--surface);
+}
+
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  fill: var(--text-secondary);
+}
+
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg {
+  fill: var(--text-secondary);
+}
+
 .flatpickr-weekdays {
   background: var(--surface-secondary);
+  padding: 0.25rem 0;
 }
 
 span.flatpickr-weekday {
   color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .flatpickr-day {
   color: var(--text-primary);
+  border-color: transparent;
 }
 
 .flatpickr-day:hover,
@@ -40,20 +84,54 @@ span.flatpickr-weekday {
 
 .flatpickr-day.today {
   border-color: var(--primary);
+  font-weight: 600;
+}
+
+.dark .flatpickr-day.today:not(.selected):not(.startRange):not(.endRange) {
+  border-color: var(--info);
+  background: var(--surface-secondary);
+  color: var(--text-primary);
 }
 
 .flatpickr-day.selected,
 .flatpickr-day.startRange,
-.flatpickr-day.endRange {
+.flatpickr-day.endRange,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
+.dark .flatpickr-day:hover,
+.dark .flatpickr-day:focus,
+.dark .flatpickr-day.selected,
+.dark .flatpickr-day.startRange,
+.dark .flatpickr-day.endRange,
+.dark .flatpickr-day.selected:hover,
+.dark .flatpickr-day.startRange:hover,
+.dark .flatpickr-day.endRange:hover {
+  background: var(--chart-blue);
+  border-color: var(--chart-blue);
+  color: #fff;
+}
+
+/* Flatpickr default uses rgba(57,57,57,0.3) — unreadable on dark surfaces */
 .flatpickr-day.flatpickr-disabled,
 .flatpickr-day.prevMonthDay,
-.flatpickr-day.nextMonthDay {
-  color: var(--text-muted);
+.flatpickr-day.nextMonthDay,
+.flatpickr-day.notAllowed,
+.flatpickr-day.notAllowed.prevMonthDay,
+.flatpickr-day.notAllowed.nextMonthDay {
+  color: var(--text-muted) !important;
+  opacity: 1 !important;
+  background: transparent !important;
+}
+
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+  color: var(--text-disabled) !important;
 }
 
 .flatpickr-months .flatpickr-prev-month:hover svg,
@@ -61,14 +139,49 @@ span.flatpickr-weekday {
   fill: var(--primary);
 }
 
+.dark .flatpickr-months .flatpickr-prev-month:hover svg,
+.dark .flatpickr-months .flatpickr-next-month:hover svg {
+  fill: var(--info);
+}
+
 input.flatpickr-input[readonly],
 input.flatpickr-alt-input[readonly] {
   cursor: pointer;
-  background: var(--surface);
 }
 
 input.flatpickr-alt-input {
   box-sizing: border-box;
   min-width: 11rem;
   width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--surface-tertiary);
+  background: var(--surface);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--text-primary);
+}
+
+input.flatpickr-alt-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+input.flatpickr-alt-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input.flatpickr-alt-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.dark input.flatpickr-alt-input {
+  border-color: var(--surface-tertiary);
+  background: var(--surface);
+}
+
+.dark input.flatpickr-alt-input:focus {
+  outline-color: var(--info);
 }

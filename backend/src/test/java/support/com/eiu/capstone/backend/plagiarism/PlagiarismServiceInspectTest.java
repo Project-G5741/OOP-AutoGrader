@@ -1,13 +1,18 @@
 package support.com.eiu.capstone.backend.plagiarism;
 
-import com.eiu.capstone.backend.plagiarism.*;
+import com.eiu.capstone.backend.plagiarism.PlagiarismService;
+import com.eiu.capstone.backend.plagiarism.PlagiarismService.InspectPrep;
+import com.eiu.capstone.backend.plagiarism.PlagiarismSignals;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +32,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -49,6 +59,8 @@ class PlagiarismServiceInspectTest {
     @Mock
     private LabSubmissionRepository labSubmissionRepository;
 
+    private final AtomicInteger executeCount = new AtomicInteger();
+    private TransactionTemplate transactionTemplate;
     private PlagiarismService service;
 
     private final UUID labId = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -61,8 +73,19 @@ class PlagiarismServiceInspectTest {
 
     @BeforeEach
     void setUp() {
+        executeCount.set(0);
+        transactionTemplate = spy(new TransactionTemplate());
+        // executeWithoutResult delegates to execute — one stub covers both Neon phases.
+        doAnswer(invocation -> {
+            executeCount.incrementAndGet();
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            TransactionStatus status = new SimpleTransactionStatus();
+            return callback.doInTransaction(status);
+        }).when(transactionTemplate).execute(any());
+
         service = new PlagiarismService(
-                fingerprintRepository, matchRepository, labSubmissionRepository, new ObjectMapper());
+                fingerprintRepository, matchRepository, labSubmissionRepository, new ObjectMapper(),
+                transactionTemplate);
     }
 
     @Test
@@ -80,6 +103,7 @@ class PlagiarismServiceInspectTest {
         verify(matchRepository, never()).findByLabIdAndOtherSubmissionIdIn(any(), any());
         verify(matchRepository).deleteInvolvingSubmission(submissionId);
         verify(fingerprintRepository).save(any());
+        assertEquals(1, executeCount.get());
     }
 
     @Test
@@ -105,6 +129,7 @@ class PlagiarismServiceInspectTest {
         verify(matchRepository, never()).saveAll(any());
         verify(matchRepository, never()).findByLabId(any());
         verify(matchRepository).findByLabIdAndOtherSubmissionIdIn(eq(labId), any());
+        assertEquals(2, executeCount.get());
     }
 
     @Test
@@ -135,6 +160,7 @@ class PlagiarismServiceInspectTest {
         assertEquals(peerSubmissionId, match.getOtherSubmissionId());
         assertTrue(match.isFlagged());
         assertEquals(new BigDecimal("1.00"), match.getHashSimilarity());
+        assertEquals(2, executeCount.get());
     }
 
     @Test
@@ -239,6 +265,54 @@ class PlagiarismServiceInspectTest {
         SubmissionPlagiarismMatch promoted = allSaves.get(allSaves.size() - 1).get(0);
         assertTrue(promoted.isFlagged());
         assertEquals(peerSubmissionId, promoted.getSubmissionId());
+        assertEquals(2, executeCount.get());
+    }
+
+    @Test
+    void inspectUpload_writePhaseThrow_afterPrepare_stillRanPrepare() {
+        String hash = sha256(JAVA_SOURCE);
+        LabSubmission submission = submission(userId, submissionId, new BigDecimal("100.00"));
+        SubmissionPlagiarismFingerprint copied = fingerprint(peerSubmissionId, peerUserId, List.of(hash));
+        List<LabSubmission> attempts = List.of(
+                attempt(userId, submissionId, new BigDecimal("100.00"), 1),
+                attempt(peerUserId, peerSubmissionId, new BigDecimal("100.00"), 1));
+        when(fingerprintRepository.findByLabIdAndUserIdNot(labId, userId)).thenReturn(List.of(copied));
+        when(labSubmissionRepository.findByLabIdAndUserIdIn(eq(labId), any())).thenReturn(attempts);
+        when(matchRepository.saveAll(any())).thenThrow(new RuntimeException("write boom"));
+
+        assertThrows(RuntimeException.class,
+                () -> service.inspectUpload(submission, new PlagiarismSignals(List.of(), "", List.of(hash))));
+
+        verify(fingerprintRepository).save(any());
+        verify(matchRepository).deleteInvolvingSubmission(submissionId);
+        assertEquals(2, executeCount.get());
+    }
+
+    @Test
+    void inspectUpload_compareThrow_afterPrepare_skipsWritePhase() {
+        LabSubmission submission = submission(userId, submissionId, new BigDecimal("100.00"));
+        SubmissionPlagiarismFingerprint peer = fingerprint(peerSubmissionId, peerUserId, List.of("deadbeef"));
+        List<LabSubmission> attempts = List.of(
+                attempt(userId, submissionId, new BigDecimal("100.00"), 1),
+                attempt(peerUserId, peerSubmissionId, new BigDecimal("100.00"), 1));
+        when(fingerprintRepository.findByLabIdAndUserIdNot(labId, userId)).thenReturn(List.of(peer));
+        when(labSubmissionRepository.findByLabIdAndUserIdIn(eq(labId), any())).thenReturn(attempts);
+
+        PlagiarismService exploding = new PlagiarismService(
+                fingerprintRepository, matchRepository, labSubmissionRepository, new ObjectMapper(),
+                transactionTemplate) {
+            @Override
+            protected List<SubmissionPlagiarismMatch> compareInMemory(InspectPrep prep) {
+                throw new RuntimeException("compare boom");
+            }
+        };
+
+        assertThrows(RuntimeException.class, () -> exploding.inspectUpload(submission, List.of()));
+
+        verify(fingerprintRepository).save(any());
+        verify(matchRepository).deleteInvolvingSubmission(submissionId);
+        verify(matchRepository, never()).saveAll(any());
+        assertEquals(1, executeCount.get());
     }
 
     private LabSubmission submission(UUID ownerId, UUID id, BigDecimal score) {

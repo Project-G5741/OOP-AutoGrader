@@ -81,6 +81,7 @@ public class SubmissionController {
     private final StudentTermAccessService studentTermAccessService;
     private final UploadPersistService uploadPersistService;
     private final ExecutorService persistExecutor;
+    private final ExecutorService rubricOverlapExecutor;
     private final boolean timingLog;
     private final DesktopRuntimeState desktopRuntimeState;
 
@@ -100,6 +101,7 @@ public class SubmissionController {
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
                                  @Qualifier("persistExecutor") ExecutorService persistExecutor,
+                                 @Qualifier("rubricOverlapExecutor") ExecutorService rubricOverlapExecutor,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog,
                                  @Autowired(required = false) DesktopRuntimeState desktopRuntimeState) {
         this.jwtAuthHelper = jwtAuthHelper;
@@ -118,6 +120,7 @@ public class SubmissionController {
         this.studentTermAccessService = studentTermAccessService;
         this.uploadPersistService = uploadPersistService;
         this.persistExecutor = persistExecutor;
+        this.rubricOverlapExecutor = rubricOverlapExecutor;
         this.timingLog = timingLog;
         this.desktopRuntimeState = desktopRuntimeState;
     }
@@ -176,7 +179,7 @@ public class SubmissionController {
         Path submissionFolderToDelete = null;
         try {
             CompletableFuture<LabRubricSnapshot> rubricFuture = CompletableFuture.supplyAsync(
-                    () -> labRubricCache.get(lab), persistExecutor);
+                    () -> labRubricCache.get(lab), rubricOverlapExecutor);
 
             long processStart = System.currentTimeMillis();
             SubmissionStorageService.ProcessResult uploadResult =

@@ -910,9 +910,6 @@ export default function StudentUI({
                 <p className="text-sm font-medium text-foreground-secondary">
                   {currentChallenge?.name || 'Challenge'}
                 </p>
-                <p className="mt-2 max-w-sm text-sm text-foreground-muted">
-                  Submit your project to view MMD, Declaration, and Operation results.
-                </p>
               </div>
             )}
           </div>

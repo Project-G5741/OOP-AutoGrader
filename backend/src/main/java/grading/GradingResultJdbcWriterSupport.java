@@ -29,6 +29,48 @@ final class GradingResultJdbcWriterSupport {
         }
     }
 
+    /**
+     * One DataSource borrow with an explicit transaction: disable autocommit, run work,
+     * commit on success, rollback on {@link SQLException} or {@link RuntimeException}, then restore
+     * autocommit and release. Used by detail UPSERT so all member/testcase/assertion writes share
+     * one checkout cycle.
+     */
+    static void withTransaction(DataSource dataSource, String failureMessage, ConnectionWork work) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        try {
+            boolean previousAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                work.run(connection);
+                connection.commit();
+            } catch (SQLException e) {
+                rollbackQuietly(connection, e);
+                throw new IllegalStateException(failureMessage, e);
+            } catch (RuntimeException e) {
+                rollbackQuietly(connection, e);
+                throw e;
+            } finally {
+                try {
+                    connection.setAutoCommit(previousAutoCommit);
+                } catch (SQLException ignored) {
+                    // Connection may already be broken; release still runs.
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(failureMessage, e);
+        } finally {
+            DataSourceUtils.releaseConnection(connection, dataSource);
+        }
+    }
+
+    private static void rollbackQuietly(Connection connection, Exception primary) {
+        try {
+            connection.rollback();
+        } catch (SQLException rollbackEx) {
+            primary.addSuppressed(rollbackEx);
+        }
+    }
+
     static String statusName(TestcaseResultStatus status) {
         return status == null ? TestcaseResultStatus.ERROR.name() : status.name();
     }

@@ -5,6 +5,8 @@ import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
 import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
+import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
+import { enterRateLimitJail } from '../utils/rateLimitJail';
 import { useToast } from '../components/ui/Toast';
 
 export default function FirstTimeSetupUI({ token, profile = {}, onClose, onComplete }) {
@@ -48,6 +50,9 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, irn: irn.trim(), password, role: 'STUDENT' }),
       });
+      if (enterRateLimitJail(resp)) {
+        return;
+      }
       if (!resp.ok) {
         throw new Error(await readFriendlyAuthError(resp, 'setup'));
       }
@@ -135,9 +140,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                 </div>
                 {fieldErrors.irn ? (
                   <p className="mt-1 text-xs text-error">{fieldErrors.irn}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-foreground-disabled">10-digit student identification number</p>
-                )}
+                ) : null}
               </div>
 
               <div>

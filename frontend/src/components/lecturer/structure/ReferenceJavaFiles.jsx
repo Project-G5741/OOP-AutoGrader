@@ -231,9 +231,6 @@ export default function ReferenceJavaFiles({ sources, onChange, onError }) {
           <p className="text-sm font-medium text-foreground-secondary">
             Drop a challenge folder or Java files here
           </p>
-          <p className="mt-1 text-xs text-foreground-secondary">
-            All <code className="text-primary">.java</code> files inside the folder are loaded automatically
-          </p>
           <button
             type="button"
             onClick={openFolderPicker}

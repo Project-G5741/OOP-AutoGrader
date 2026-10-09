@@ -29,7 +29,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
 
-**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-quit` so the app closes — student must reopen manually), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses the same `quitPracticeApp` bridge (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`) as post-import close. Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses `quitPracticeApp` (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`). Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
 
 ### Run
 
@@ -45,14 +45,14 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Expired JWT (`exp` in the past) clears storage and counts as logged out; revoked sessions still hard-cut on presence/API **401**
 - Web entry (`main.jsx`) must not statically import `App.desktop.jsx` — that module’s top-level session seed would overwrite a real JWT with `desktop-local` on every reload
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
-- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login.
+- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration
 
-- Shared `apiFetch` in `src/utils/apiFetch.js` for signed-in calls (401 → login, 403 → `/no-access`)
-- Login / Google / first-time setup / forgot / reset keep native `fetch` plus `readFriendlyApiError`
-- Change password uses `apiFetch` with `authHandling: 'self'` so 401 stays on the form
+- Shared `apiFetch` in `src/utils/apiFetch.js` for signed-in calls (401 → login, 403 → `/no-access`, 429 → `/rate-limited` via `enterRateLimitJail`; desktop SPA skips jail)
+- Login / Google / first-time setup / forgot / reset keep native `fetch` plus `readFriendlyAuthError` and call `enterRateLimitJail` on 429
+- Change password uses `apiFetch` with `authHandling: 'self'` so 401 stays on the form (429 still opens the jail)
 - No Vite proxy — backend must allow CORS for frontend origin
 - Upload endpoint requires `Authorization: Bearer <token>` header
 
@@ -66,6 +66,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
+- Dark mode in `src/index.css`: drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
 
@@ -96,8 +97,9 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
-- API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy"). **Exception:** context `import` (desktop rubric pack import) may show the backend message for HTTP 400/409/413/422 so students see pack name/conflict/size reasons instead of "Server Busy"; network failure on import → "Practice backend is not running…" (not "Server Busy").
-- Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login.
+- API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy"). **429** is not toast-only busy — jail navigation owns it. **Exception:** context `import` (desktop rubric pack import) may show the backend message for HTTP 400/409/413/422 so students see pack name/conflict/size reasons instead of "Server Busy"; network failure on import → "Practice backend is not running…" (not "Server Busy").
+- Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login. Presence paths are excluded from the server burst budget.
+- Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
 - `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard and history routes use it for the fox mascot.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`

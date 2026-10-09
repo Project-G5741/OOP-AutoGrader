@@ -20,6 +20,7 @@ import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.model.SubmissionTestcaseAssertionResult;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
+import com.eiu.capstone.backend.service.DisclosureMode;
 
 @Component
 public class TestcaseResultMapper {
@@ -35,22 +36,32 @@ public class TestcaseResultMapper {
 
     public List<TestcaseResultDTO> mapChallengeTestcases(List<TestcaseRubric> testcases,
                                                          Map<UUID, SubmissionTestcaseResult> resultsById) {
+        return mapChallengeTestcases(testcases, resultsById, DisclosureMode.STUDENT);
+    }
+
+    public List<TestcaseResultDTO> mapChallengeTestcases(List<TestcaseRubric> testcases,
+                                                         Map<UUID, SubmissionTestcaseResult> resultsById,
+                                                         DisclosureMode disclosureMode) {
         if (testcases == null || testcases.isEmpty()) {
             return List.of();
         }
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
         return testcases.stream()
                 .sorted(Comparator.comparingInt(TestcaseRubric::orderIndex))
-                .map(testcase -> mapOne(testcase, resultsById.get(testcase.id())))
+                .map(testcase -> mapOne(testcase, resultsById.get(testcase.id()), mode))
                 .toList();
     }
 
-    private TestcaseResultDTO mapOne(TestcaseRubric testcase, SubmissionTestcaseResult submissionResult) {
+    private TestcaseResultDTO mapOne(TestcaseRubric testcase,
+                                     SubmissionTestcaseResult submissionResult,
+                                     DisclosureMode disclosureMode) {
         String frontendResult = submissionResult != null
                 ? LabResultAssembler.toFrontendResult(submissionResult.getResult())
                 : "SKIPPED";
         String feedback = submissionResult != null ? submissionResult.getFeedback() : null;
 
-        if (testcase.hidden()) {
+        boolean redactHiddenIo = testcase.hidden() && disclosureMode != DisclosureMode.LECTURER;
+        if (redactHiddenIo) {
             return new TestcaseResultDTO(
                     testcase.name(),
                     frontendResult,
@@ -86,7 +97,7 @@ public class TestcaseResultMapper {
                 testcase.name(),
                 frontendResult,
                 feedback,
-                false,
+                testcase.hidden(),
                 input,
                 expectedOutput,
                 actualOutput,
