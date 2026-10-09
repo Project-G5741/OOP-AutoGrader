@@ -546,7 +546,7 @@ export default function SolutionManagement() {
   const handleDownloadLabPracticePack = async () => {
     if (!selectedLabId) return;
     try {
-      const response = await fetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/desktop-pack`, {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/desktop-pack`, {
         headers: authHeaders(),
       });
       if (!response.ok) {

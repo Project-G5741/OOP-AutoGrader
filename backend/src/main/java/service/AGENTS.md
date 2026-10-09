@@ -22,7 +22,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
-| `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
+| `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, bounded TTL success cache + scheduled sweep); other submit paths still use `requireCanSubmit` |
 | `StudentDesktopPracticeBundleService` | (`!desktop`) Current-quarter gate then stream fixed prebuilt zip (`target/OOP-AutoGrader-Practice.zip` or cwd `OOP-AutoGrader-Practice.zip`); no pack export, no env, no request-time zip |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
 | `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |
@@ -53,7 +53,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
-- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect.
+- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect. Upload rubric overlap uses `rubricOverlapExecutor`, not this pool.
 
 ### Java compilation
 

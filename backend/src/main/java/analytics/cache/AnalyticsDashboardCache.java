@@ -13,12 +13,21 @@ public class AnalyticsDashboardCache {
     private final InProcessTtlCache<CacheKey, AnalyticsDashboardResponse> cache;
 
     public AnalyticsDashboardCache(
-            @Value("${app.analytics.dashboard-cache-ttl-seconds:180}") long ttlSeconds) {
-        this.cache = new InProcessTtlCache<>(ttlSeconds);
+            @Value("${app.analytics.dashboard-cache-ttl-seconds:180}") long ttlSeconds,
+            @Value("${app.analytics.dashboard-cache-max-size:256}") int maxSize) {
+        this.cache = new InProcessTtlCache<>(ttlSeconds, maxSize);
     }
 
     public AnalyticsDashboardResponse get(CacheKey key, Loader loader) {
         return cache.get(key, loader::load);
+    }
+
+    public void sweepExpired() {
+        cache.sweepExpired();
+    }
+
+    public int sizeForTests() {
+        return cache.size();
     }
 
     public record CacheKey(UUID academicYearId, UUID semesterId, UUID labId, String course) {

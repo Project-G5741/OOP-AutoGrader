@@ -10,9 +10,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Profile;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.DTO.plagiarism.LabPlagiarismReportDTO;
@@ -44,15 +47,29 @@ public class PlagiarismService {
     private final SubmissionPlagiarismMatchRepository matchRepository;
     private final LabSubmissionRepository labSubmissionRepository;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
+    @Autowired
     public PlagiarismService(SubmissionPlagiarismFingerprintRepository fingerprintRepository,
                              SubmissionPlagiarismMatchRepository matchRepository,
                              LabSubmissionRepository labSubmissionRepository,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper,
+                             PlatformTransactionManager transactionManager) {
+        this(fingerprintRepository, matchRepository, labSubmissionRepository, objectMapper,
+                new TransactionTemplate(transactionManager));
+    }
+
+    /** Test seam: inject a template that runs callbacks inline (no real Neon connection). */
+    public PlagiarismService(SubmissionPlagiarismFingerprintRepository fingerprintRepository,
+                             SubmissionPlagiarismMatchRepository matchRepository,
+                             LabSubmissionRepository labSubmissionRepository,
+                             ObjectMapper objectMapper,
+                             TransactionTemplate transactionTemplate) {
         this.fingerprintRepository = fingerprintRepository;
         this.matchRepository = matchRepository;
         this.labSubmissionRepository = labSubmissionRepository;
         this.objectMapper = objectMapper;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public PlagiarismSignals snapshotSignals(List<MultipartFile> files) {
@@ -61,14 +78,18 @@ public class PlagiarismService {
 
     /**
      * Convenience for tests: extract signals then inspect. Production must call
-     * {@link #inspectUpload(LabSubmission, PlagiarismSignals)} on the Spring bean
-     * (this overload self-invokes, so {@code @Transactional} would not apply).
+     * {@link #inspectUpload(LabSubmission, PlagiarismSignals)} on the Spring bean.
      */
     public void inspectUpload(LabSubmission submission, List<MultipartFile> files) {
         inspectUpload(submission, snapshotSignals(files));
     }
 
-    @Transactional
+    /**
+     * Two short Neon transactions around in-memory compare: prepare/load commits,
+     * connection returns to the pool, pairwise compare runs, then write commits.
+     * No outer {@code @Transactional} — holding a pool connection during CPU compare
+     * would pin Neon while walking every peer fingerprint.
+     */
     public void inspectUpload(LabSubmission submission, PlagiarismSignals signals) {
         if (submission == null || submission.getId() == null || submission.getLab() == null
                 || submission.getUser() == null) {
@@ -77,8 +98,24 @@ public class PlagiarismService {
         UUID submissionId = submission.getId();
         UUID labId = submission.getLab().getId();
         UUID userId = submission.getUser().getId();
-
         PlagiarismSignals captured = signals == null ? PlagiarismSignals.empty() : signals;
+
+        InspectPrep prep = transactionTemplate.execute(status ->
+                prepareInspect(submission, captured, submissionId, labId, userId));
+        if (prep == null || prep.peers().isEmpty()) {
+            return;
+        }
+
+        List<SubmissionPlagiarismMatch> matches = compareInMemory(prep);
+        transactionTemplate.executeWithoutResult(status ->
+                persistInspectWrites(prep, matches));
+    }
+
+    private InspectPrep prepareInspect(LabSubmission submission,
+                                       PlagiarismSignals captured,
+                                       UUID submissionId,
+                                       UUID labId,
+                                       UUID userId) {
         SubmissionPlagiarismFingerprint fingerprint = new SubmissionPlagiarismFingerprint();
         fingerprint.setSubmissionId(submissionId);
         fingerprint.setLabId(labId);
@@ -93,15 +130,18 @@ public class PlagiarismService {
         List<SubmissionPlagiarismFingerprint> others =
                 fingerprintRepository.findByLabIdAndUserIdNot(labId, userId);
         if (others.isEmpty()) {
-            return;
+            return new InspectPrep(submissionId, labId, userId, captured, List.of(),
+                    Map.of(), Map.of(), BigDecimal.ZERO, BigDecimal.ZERO, Map.of());
         }
 
         Set<UUID> scoreUserIds = new HashSet<>();
         scoreUserIds.add(userId);
+        List<PeerCandidate> peers = new ArrayList<>(others.size());
         for (SubmissionPlagiarismFingerprint other : others) {
             if (other.getUserId() != null) {
                 scoreUserIds.add(other.getUserId());
             }
+            peers.add(new PeerCandidate(other.getSubmissionId(), other.getUserId(), toSignals(other)));
         }
         Map<UUID, List<LabSubmission>> attemptsByUser = attemptsByUser(labId, scoreUserIds);
         Map<UUID, LabSubmission> submissionsById = submissionsById(attemptsByUser);
@@ -111,30 +151,54 @@ public class PlagiarismService {
         BigDecimal priorBest = bestScoreExcluding(
                 attemptsByUser.getOrDefault(userId, List.of()), submissionId);
         Map<UUID, BigDecimal> bestByUser = bestScoresFromAttempts(attemptsByUser);
+        return new InspectPrep(submissionId, labId, userId, captured, peers,
+                attemptsByUser, submissionsById, currentScore, priorBest, bestByUser);
+    }
 
+    /** No Session / DataSource — runs with the pool connection released. */
+    protected List<SubmissionPlagiarismMatch> compareInMemory(InspectPrep prep) {
         List<SubmissionPlagiarismMatch> matches = new ArrayList<>();
-        for (SubmissionPlagiarismFingerprint other : others) {
-            PlagiarismComparison comparison = PlagiarismComparator.compare(captured, toSignals(other));
+        for (PeerCandidate peer : prep.peers()) {
+            PlagiarismComparison comparison = PlagiarismComparator.compare(prep.captured(), peer.signals());
             if (!comparison.flagged()) {
                 continue;
             }
-            BigDecimal otherBest = bestByUser.getOrDefault(other.getUserId(), BigDecimal.ZERO);
-            boolean scoreGate = scoreGateAllowsFlag(priorBest, otherBest, currentScore);
+            BigDecimal otherBest = prep.bestByUser().getOrDefault(peer.userId(), BigDecimal.ZERO);
+            boolean scoreGate = scoreGateAllowsFlag(prep.priorBest(), otherBest, prep.currentScore());
             SubmissionPlagiarismMatch match = new SubmissionPlagiarismMatch();
-            match.setLabId(labId);
-            match.setSubmissionId(submissionId);
-            match.setOtherSubmissionId(other.getSubmissionId());
+            match.setLabId(prep.labId());
+            match.setSubmissionId(prep.submissionId());
+            match.setOtherSubmissionId(peer.submissionId());
             match.setGitMatch(comparison.gitMatch());
             match.setMetadataMatch(comparison.metadataMatch());
             match.setHashSimilarity(comparison.hashSimilarity());
             match.setFlagged(scoreGate);
             matches.add(match);
         }
+        return matches;
+    }
+
+    private void persistInspectWrites(InspectPrep prep, List<SubmissionPlagiarismMatch> matches) {
         if (!matches.isEmpty()) {
             matchRepository.saveAll(matches);
         }
-        reevaluateMatchesAgainstUploader(labId, userId, attemptsByUser, submissionsById);
+        reevaluateMatchesAgainstUploader(
+                prep.labId(), prep.userId(), prep.attemptsByUser(), prep.submissionsById());
     }
+
+    public record PeerCandidate(UUID submissionId, UUID userId, PlagiarismSignals signals) {}
+
+    public record InspectPrep(
+            UUID submissionId,
+            UUID labId,
+            UUID userId,
+            PlagiarismSignals captured,
+            List<PeerCandidate> peers,
+            Map<UUID, List<LabSubmission>> attemptsByUser,
+            Map<UUID, LabSubmission> submissionsById,
+            BigDecimal currentScore,
+            BigDecimal priorBest,
+            Map<UUID, BigDecimal> bestByUser) {}
 
     /**
      * Flag when content matches and the uploader had not already matched/exceeded the peer's lab best

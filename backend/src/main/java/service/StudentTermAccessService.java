@@ -3,7 +3,6 @@ package com.eiu.capstone.backend.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.analytics.cache.InProcessTtlCache;
 import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
 
 import com.eiu.capstone.backend.model.Lab;
@@ -23,28 +23,24 @@ public class StudentTermAccessService {
 
     public record UploadAccess(UserAccount user, Lab lab) {}
 
-    private record CachedAccess(UploadAccess access, Instant expiresAt) {
-        boolean expired() {
-            return Instant.now().isAfter(expiresAt);
-        }
-    }
-
     private final TermService termService;
     private final LabDeadlineHelper labDeadlineHelper;
     private final UserAccountRepository userAccountRepository;
-    private final long accessCacheTtlSeconds;
-    private final ConcurrentHashMap<String, CachedAccess> accessCache = new ConcurrentHashMap<>();
+    private final InProcessTtlCache<String, UploadAccess> accessCache;
     private final DesktopLocalUserService desktopLocalUserService;
 
     public StudentTermAccessService(TermService termService,
                                     LabDeadlineHelper labDeadlineHelper,
                                     UserAccountRepository userAccountRepository,
                                     @Value("${app.upload.access-cache-ttl-seconds:30}") long accessCacheTtlSeconds,
+                                    @Value("${app.upload.access-cache-max-size:4096}") int accessCacheMaxSize,
                                     @Autowired(required = false) DesktopLocalUserService desktopLocalUserService) {
         this.termService = termService;
         this.labDeadlineHelper = labDeadlineHelper;
         this.userAccountRepository = userAccountRepository;
-        this.accessCacheTtlSeconds = accessCacheTtlSeconds;
+        this.accessCache = accessCacheTtlSeconds > 0
+                ? new InProcessTtlCache<>(accessCacheTtlSeconds, Math.max(accessCacheMaxSize, 1))
+                : null;
         this.desktopLocalUserService = desktopLocalUserService;
     }
 
@@ -83,15 +79,11 @@ public class StudentTermAccessService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
         }
         String cacheKey = email.trim().toLowerCase() + '\0' + labId;
-        if (accessCacheTtlSeconds > 0) {
-            CachedAccess cached = accessCache.get(cacheKey);
-            if (cached != null) {
-                UploadAccess hit = cached.access();
-                if (!cached.expired() && hit.user() != null && hit.user().getIsActive()) {
-                    requireLabOpenForStudent(hit.lab());
-                    return hit;
-                }
-                accessCache.remove(cacheKey, cached);
+        if (accessCache != null) {
+            UploadAccess hit = accessCache.getIfPresent(cacheKey);
+            if (hit != null && hit.user() != null && hit.user().getIsActive()) {
+                requireLabOpenForStudent(hit.lab());
+                return hit;
             }
         }
         List<Object[]> rows = userAccountRepository.findUploadAccess(email, labId);
@@ -142,15 +134,24 @@ public class StudentTermAccessService {
     }
 
     private void rememberSuccessfulAccess(String email, UUID labId, UploadAccess access) {
-        if (accessCacheTtlSeconds <= 0 || access == null || labId == null) {
+        if (accessCache == null || access == null || labId == null) {
             return;
         }
         if (email == null || email.isBlank()) {
             return;
         }
         String cacheKey = email.trim().toLowerCase() + '\0' + labId;
-        accessCache.put(cacheKey, new CachedAccess(
-                access, Instant.now().plusSeconds(accessCacheTtlSeconds)));
+        accessCache.put(cacheKey, access);
+    }
+
+    public void sweepExpired() {
+        if (accessCache != null) {
+            accessCache.sweepExpired();
+        }
+    }
+
+    public int accessCacheSizeForTests() {
+        return accessCache == null ? 0 : accessCache.size();
     }
 
     public void requireStudentLabAccess(UserAccount user, Lab lab) {
