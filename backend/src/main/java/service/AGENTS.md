@@ -53,7 +53,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
-- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect.
+- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect. Upload rubric overlap uses `rubricOverlapExecutor`, not this pool.
 
 ### Java compilation
 

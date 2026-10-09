@@ -227,7 +227,7 @@ When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 ```
 1. JWT email → `requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs`)
-2. LabRubricCache.get(lab) starts in parallel with compile → immutable rubric snapshot (cached 30 min)
+2. LabRubricCache.get(lab) starts in parallel with compile on `rubricOverlapExecutor` → immutable rubric snapshot (cached 30 min)
 3. SubmissionStorageService.processUpload(irn, requestId, files)
 4. Assign lab_submission.id in memory (path attempt unused)
 5. GradingService.gradeSubmission(...) compute + lab_result assemble

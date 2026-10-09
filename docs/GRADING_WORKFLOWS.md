@@ -43,7 +43,7 @@ Each **challenge** in a lab is graded on up to **three independent pillars**. Cl
 POST /api/submissions/{labId}/{attemptNumber}/upload
   │
   ├─ requireUploadAccess                          ← one query (cached 30s on success; warmed by GET /api/labs)
-  ├─ LabRubricCache.get(lab)                      ← overlaps compile (cache hit is leftover 0ms)
+  ├─ LabRubricCache.get(lab)                      ← overlaps compile on rubricOverlapExecutor (cache hit leftover 0ms)
   ├─ SubmissionStorageService.processUpload()     ← validate paths, in-memory compile .java per challenge
   ├─ assign lab_submission.id in memory (path attempt unused)
   ├─ GradingService.gradeSubmission()             ← compute + lab_result assemble only
@@ -718,7 +718,8 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
 | (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped) |
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; upload/bulk/dry-run acquire on the HTTP thread |
-| (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, rubric overlap, sidecars, plagiarism inspect, temp delete |
+| (fixed) | 2, not CPU-capped | `rubricOverlapExecutor` | Upload rubric cache load overlapping compile |
+| (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, sidecars, plagiarism inspect, temp delete |
 | `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-batch-item student-code execution timeout (transport wait adds 30s slack) |
 | `app.grading.ot-batch-parallelism` | 0 | — | Cap in-worker OT pool (0 = `availableProcessors()`) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
