@@ -28,7 +28,7 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 
 | Variable | Purpose |
 |---|---|
-| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM |
+| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM; prefer `socketTimeout=30&tcpKeepAlive=true` (also set in `application.properties` with Hikari `keepalive-time=120000`) |
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials |
 | `GOOGLE_CLIENT_ID` | Google OAuth audience validation |
 | `JWT_SECRET` | HS256 JWT signing key (**required**, ≥32 bytes). Missing or too-short values fail startup. Generate locally with `openssl rand -base64 32`. Never commit a production value. |

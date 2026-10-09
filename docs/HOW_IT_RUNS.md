@@ -334,7 +334,7 @@ erDiagram
 
 ### 6.3 JPA configuration
 
-- Connection pool: HikariCP (max 10 connections)
+- Connection pool: HikariCP (max 10 connections; `keepalive-time=120000`; pgjdbc `socketTimeout=30` + `tcpKeepAlive=true` for Neon suspend fail-fast)
 - `spring.jpa.open-in-view=false` — no lazy-loading outside transactions
 - Batch inserts/updates enabled for performance
 - UUID primary keys on most entities
