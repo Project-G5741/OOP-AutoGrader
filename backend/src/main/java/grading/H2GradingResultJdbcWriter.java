@@ -24,6 +24,7 @@ import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.isUniqueViolation;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.statusName;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withConnection;
+import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withTransaction;
 
 @Component
 @Profile("desktop")
@@ -270,15 +271,28 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
         if (payload == null || payload.submissionId() == null) {
             return;
         }
+        if (isEmpty(payload.fields()) && isEmpty(payload.methods()) && isEmpty(payload.constructors())
+                && isEmpty(payload.relations()) && isEmpty(payload.testcases())) {
+            return;
+        }
         UUID submissionId = payload.submissionId();
-        mergeFlags(submissionId, "submission_field_result", "field_id", payload.fields());
-        mergeFlags(submissionId, "submission_method_result", "method_id", payload.methods());
-        mergeFlags(submissionId, "submission_constructor_result", "constructor_id", payload.constructors());
-        mergeFlags(submissionId, "submission_relation_result", "class_relation_id", payload.relations());
-        mergeTestcases(submissionId, payload.testcases());
+        withTransaction(dataSource, "Failed to upsert submission details", connection -> {
+            mergeFlags(connection, submissionId, "submission_field_result", "field_id", payload.fields());
+            mergeFlags(connection, submissionId, "submission_method_result", "method_id", payload.methods());
+            mergeFlags(connection, submissionId, "submission_constructor_result", "constructor_id",
+                    payload.constructors());
+            mergeFlags(connection, submissionId, "submission_relation_result", "class_relation_id",
+                    payload.relations());
+            mergeTestcases(connection, submissionId, payload.testcases());
+        });
     }
 
-    private void mergeFlags(UUID submissionId, String table, String elementColumn, List<MemberFlag> rows) {
+    private static boolean isEmpty(List<?> rows) {
+        return rows == null || rows.isEmpty();
+    }
+
+    private void mergeFlags(Connection connection, UUID submissionId, String table, String elementColumn,
+                            List<MemberFlag> rows) throws SQLException {
         if (rows == null || rows.isEmpty()) {
             return;
         }
@@ -287,51 +301,48 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                 KEY (submission_id, %s)
                 VALUES (?, ?, ?, ?)
                 """.formatted(table, elementColumn, elementColumn);
-        withConnection(dataSource, "Failed to upsert " + table, connection -> {
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                for (MemberFlag row : rows) {
-                    statement.setObject(1, UUID.randomUUID());
-                    statement.setObject(2, submissionId);
-                    statement.setObject(3, row.elementId());
-                    statement.setBoolean(4, row.correct());
-                    statement.addBatch();
-                }
-                statement.executeBatch();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (MemberFlag row : rows) {
+                statement.setObject(1, UUID.randomUUID());
+                statement.setObject(2, submissionId);
+                statement.setObject(3, row.elementId());
+                statement.setBoolean(4, row.correct());
+                statement.addBatch();
             }
-        });
+            statement.executeBatch();
+        }
     }
 
-    private void mergeTestcases(UUID submissionId, List<TestcaseRow> testcases) {
+    private void mergeTestcases(Connection connection, UUID submissionId, List<TestcaseRow> testcases)
+            throws SQLException {
         if (testcases == null || testcases.isEmpty()) {
             return;
         }
-        withConnection(dataSource, "Failed to upsert testcase results", connection -> {
-            Map<UUID, UUID> resultIdByTestcaseId = new HashMap<>();
-            String merge = """
-                    MERGE INTO submission_testcase_result (
-                        id, submission_id, testcase_id, result, feedback,
-                        input_display, expected_display, actual_display, created_at)
-                    KEY (submission_id, testcase_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    """;
-            try (PreparedStatement statement = connection.prepareStatement(merge)) {
-                for (TestcaseRow row : testcases) {
-                    UUID resultId = UUID.randomUUID();
-                    resultIdByTestcaseId.put(row.testcaseId(), resultId);
-                    statement.setObject(1, resultId);
-                    statement.setObject(2, submissionId);
-                    statement.setObject(3, row.testcaseId());
-                    statement.setString(4, statusName(row.status()));
-                    statement.setString(5, row.feedback());
-                    statement.setString(6, row.inputDisplay());
-                    statement.setString(7, row.expectedDisplay());
-                    statement.setString(8, row.actualDisplay());
-                    statement.addBatch();
-                }
-                statement.executeBatch();
+        Map<UUID, UUID> resultIdByTestcaseId = new HashMap<>();
+        String merge = """
+                MERGE INTO submission_testcase_result (
+                    id, submission_id, testcase_id, result, feedback,
+                    input_display, expected_display, actual_display, created_at)
+                KEY (submission_id, testcase_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(merge)) {
+            for (TestcaseRow row : testcases) {
+                UUID resultId = UUID.randomUUID();
+                resultIdByTestcaseId.put(row.testcaseId(), resultId);
+                statement.setObject(1, resultId);
+                statement.setObject(2, submissionId);
+                statement.setObject(3, row.testcaseId());
+                statement.setString(4, statusName(row.status()));
+                statement.setString(5, row.feedback());
+                statement.setString(6, row.inputDisplay());
+                statement.setString(7, row.expectedDisplay());
+                statement.setString(8, row.actualDisplay());
+                statement.addBatch();
             }
-            mergeAssertions(connection, testcases, resultIdByTestcaseId);
-        });
+            statement.executeBatch();
+        }
+        mergeAssertions(connection, testcases, resultIdByTestcaseId);
     }
 
     private void mergeAssertions(Connection connection,
