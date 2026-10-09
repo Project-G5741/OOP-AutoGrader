@@ -66,6 +66,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
+- Dark mode in `src/index.css`: drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
 

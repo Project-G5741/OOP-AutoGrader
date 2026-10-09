@@ -34,10 +34,6 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
 
   return (
     <div className="min-w-0 space-y-3">
-      <p className="text-xs text-foreground-muted">
-        One constructor or method, then assertions. Instance methods use a hidden receiver (not shown as a step).
-      </p>
-
       <label className="block text-xs text-foreground-muted">
         Member
         <select

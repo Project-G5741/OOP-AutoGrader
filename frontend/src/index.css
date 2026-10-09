@@ -71,3 +71,8 @@ body {
 .dark .bg-surface.border-border-subtle {
   border-color: transparent;
 }
+
+/* Outline buttons: light semantic borders (error/40, etc.) read as white halos on navy */
+.dark :is(button, [type='button'], [type='submit'], [type='reset']) {
+  border-color: transparent;
+}

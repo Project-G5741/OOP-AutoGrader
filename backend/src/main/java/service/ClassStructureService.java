@@ -682,6 +682,14 @@ public class ClassStructureService {
                                                    UUID challengeId,
                                                    UUID studentId,
                                                    UUID submissionId) {
+        return getTestcaseData(labId, challengeId, studentId, submissionId, DisclosureMode.STUDENT);
+    }
+
+    public List<TestcaseResultDTO> getTestcaseData(UUID labId,
+                                                   UUID challengeId,
+                                                   UUID studentId,
+                                                   UUID submissionId,
+                                                   DisclosureMode disclosureMode) {
         long start = System.currentTimeMillis();
         UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
         if (resolvedSubmissionId == null) {
@@ -689,7 +697,7 @@ public class ClassStructureService {
         }
         detailPersistGate.await(resolvedSubmissionId);
         List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(
-                labId, resolvedSubmissionId, challengeId);
+                labId, resolvedSubmissionId, challengeId, disclosureMode);
         TimingLog.line(timingLog, "Read testcases", System.currentTimeMillis() - start);
         return result;
     }
@@ -697,6 +705,13 @@ public class ClassStructureService {
     public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
                                                                   UUID submissionId,
                                                                   UUID challengeId) {
+        return buildTestcaseDataForSubmission(labId, submissionId, challengeId, DisclosureMode.LECTURER);
+    }
+
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
+                                                                  UUID submissionId,
+                                                                  UUID challengeId,
+                                                                  DisclosureMode disclosureMode) {
         ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
         if (challengeRubric == null || challengeRubric.testcases().isEmpty()) {
             return List.of();
@@ -717,7 +732,9 @@ public class ClassStructureService {
         if (resultsByTestcaseId.isEmpty()) {
             return List.of();
         }
-        return testcaseResultMapper.mapChallengeTestcases(challengeRubric.testcases(), resultsByTestcaseId);
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
+        return testcaseResultMapper.mapChallengeTestcases(
+                challengeRubric.testcases(), resultsByTestcaseId, mode);
     }
 
     public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {

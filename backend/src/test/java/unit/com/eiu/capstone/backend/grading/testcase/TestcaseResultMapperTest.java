@@ -23,6 +23,7 @@ import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
+import com.eiu.capstone.backend.service.DisclosureMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 class TestcaseResultMapperTest {
@@ -51,6 +52,26 @@ class TestcaseResultMapperTest {
         assertNull(dto.getAssertions());
         assertNull(dto.getFeedback());
         assertNull(dto.getOopPrincipleTag());
+    }
+
+    @Test
+    void hiddenTestcaseIncludesIoFieldsForLecturer() {
+        TestcaseRubric rubric = visibleRubric(UUID.randomUUID(), "Hidden case", true);
+        SubmissionTestcaseResult submissionResult = resultFor(rubric.id(), TestcaseResultStatus.FAILED);
+        submissionResult.setInputDisplay("input");
+        submissionResult.setExpectedDisplay("expected");
+        submissionResult.setActualDisplay("actual");
+
+        TestcaseResultDTO dto = mapper.mapChallengeTestcases(
+                List.of(rubric),
+                Map.of(rubric.id(), submissionResult),
+                DisclosureMode.LECTURER).get(0);
+
+        assertEquals(true, dto.getHidden());
+        assertEquals("FAIL", dto.getResult());
+        assertEquals("input", dto.getInput());
+        assertEquals("expected", dto.getExpectedOutput());
+        assertEquals("actual", dto.getActualOutput());
     }
 
     @Test

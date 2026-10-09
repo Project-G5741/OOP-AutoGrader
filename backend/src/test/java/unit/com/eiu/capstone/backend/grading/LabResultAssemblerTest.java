@@ -29,6 +29,7 @@ import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.service.ClassStructureService;
+import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.LabChallengeStructureBundle;
 import com.eiu.capstone.backend.service.SubmissionCorrectIds;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
@@ -254,7 +255,8 @@ class LabResultAssemblerTest {
         @Override
         public List<TestcaseResultDTO> mapChallengeTestcases(
                 List<TestcaseRubric> testcases,
-                Map<UUID, SubmissionTestcaseResult> resultsById) {
+                Map<UUID, SubmissionTestcaseResult> resultsById,
+                DisclosureMode disclosureMode) {
             return List.of();
         }
     }
@@ -269,7 +271,8 @@ class LabResultAssemblerTest {
         @Override
         public List<TestcaseResultDTO> mapChallengeTestcases(
                 List<TestcaseRubric> testcases,
-                Map<UUID, SubmissionTestcaseResult> resultsById) {
+                Map<UUID, SubmissionTestcaseResult> resultsById,
+                DisclosureMode disclosureMode) {
             calls++;
             return testcases.stream()
                     .map(tc -> new TestcaseResultDTO(tc.name(), "SKIPPED", null))
@@ -285,7 +288,8 @@ class LabResultAssemblerTest {
         @Override
         public List<TestcaseResultDTO> mapChallengeTestcases(
                 List<TestcaseRubric> testcases,
-                Map<UUID, SubmissionTestcaseResult> resultsById) {
+                Map<UUID, SubmissionTestcaseResult> resultsById,
+                DisclosureMode disclosureMode) {
             fail("upload assemble must not map testcases when the pillar is not applicable");
             return List.of();
         }

@@ -100,9 +100,7 @@ export default function ResetPasswordUI({ token, onComplete }) {
           <div className="logo-title">
             <AppLogo variant="login" />
             <h1 className="main-title">Set new password</h1>
-            <p className="subtitle">
-              {success ? 'Password updated successfully' : 'Choose a new password for your account'}
-            </p>
+            {success ? <p className="subtitle">Password updated successfully</p> : null}
           </div>
 
           <div className="card">

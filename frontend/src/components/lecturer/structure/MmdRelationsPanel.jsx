@@ -57,12 +57,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 dark:border-border">
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-chart-blue" />
-            <div>
-              <h3 className="font-medium text-foreground">MMD Relationships</h3>
-              <p className="text-xs text-foreground-secondary">
-                {challenge.name} — define class-to-class relations graded from the student MMD diagram.
-              </p>
-            </div>
+            <h3 className="font-medium text-foreground">MMD Relationships</h3>
           </div>
           <label className="flex shrink-0 items-center gap-2 text-sm text-foreground-secondary">
             <input
@@ -75,14 +70,6 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
           </label>
         </div>
 
-        {!hasMmd && (
-          <div className="mx-4 mt-4 rounded-lg border border-warning bg-warning-bg px-3 py-2 text-sm text-warning-text">
-            This problem doesn't require an MMD diagram. The MMD pillar won't be graded — the total score
-            is redistributed across the remaining pillars. Inheritance and implementation rows are still
-            graded on the Java class shell when set. Other relation kinds are saved but not scored.
-          </div>
-        )}
-
         <div className="space-y-3 px-4 py-4">
           {classes.length < 2 && (
             <p className="rounded-lg border border-warning bg-warning-bg px-3 py-2 text-sm text-warning-text">
@@ -91,9 +78,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
           )}
 
           {relations.length === 0 && classes.length >= 2 && (
-            <p className="text-sm text-foreground-secondary">
-              No relationships yet. Class declarations are graded separately; add relations here for inheritance, composition, association, and other MMD arrows.
-            </p>
+            <p className="text-sm text-foreground-secondary">No relationships yet.</p>
           )}
 
           {relations.map((relation, index) => (

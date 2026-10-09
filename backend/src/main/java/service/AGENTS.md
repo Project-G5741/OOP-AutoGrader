@@ -103,6 +103,8 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GET /api/lecturer/labs/clone-sources` — labs from the previous-current quarter (ordinal: yearLabel desc, termNumber desc; entry after current). Empty when none.
 - `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
+- `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter (for Terms page sync UI).
+- `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target).
 - Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied.
 
 ### Operational testcase save

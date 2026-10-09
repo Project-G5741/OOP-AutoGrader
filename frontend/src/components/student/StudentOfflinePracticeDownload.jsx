@@ -35,16 +35,12 @@ export default function StudentOfflinePracticeDownload({ onToast }) {
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface-elevated p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Laptop className="h-5 w-5" aria-hidden />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-foreground">Offline practice on your PC</h2>
-            <p className="mt-1 max-w-2xl text-sm text-foreground-muted">
-              Download a Windows folder with the local grader, and OOP-AutoGrader-Practice.exe to start.
-              Practice scores stay on your machine and are not submitted here.
-            </p>
           </div>
         </div>
         <button

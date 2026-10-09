@@ -20,9 +20,12 @@ import com.eiu.capstone.backend.DTO.CreateTermRequest;
 import com.eiu.capstone.backend.DTO.EnrollStudentsRequest;
 import com.eiu.capstone.backend.DTO.ImportStudentsRequest;
 import com.eiu.capstone.backend.DTO.ImportStudentsResult;
+import com.eiu.capstone.backend.DTO.CloneLabsResponse;
 import com.eiu.capstone.backend.DTO.TermRosterDTO;
 import com.eiu.capstone.backend.DTO.TermStudentDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
+import com.eiu.capstone.backend.DTO.TermSyncLabsRequest;
+import com.eiu.capstone.backend.DTO.TermSyncLabsResponse;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackExportService;
 import com.eiu.capstone.backend.service.TermService;
 
@@ -58,6 +61,21 @@ public class LecturerTermController {
     @GetMapping("/{termId}/roster")
     public TermRosterDTO listRoster(@PathVariable UUID termId) {
         return termService.listRoster(termId);
+    }
+
+    @GetMapping("/{termId}/sync-labs")
+    public TermSyncLabsResponse listSyncLabs(@PathVariable UUID termId) {
+        return termService.listSyncLabSources(termId);
+    }
+
+    @PostMapping("/{termId}/sync-labs")
+    public CloneLabsResponse syncLabs(
+            @PathVariable UUID termId,
+            @RequestBody TermSyncLabsRequest request) {
+        List<UUID> sourceLabIds = request != null && request.sourceLabIds() != null
+                ? request.sourceLabIds()
+                : List.of();
+        return termService.syncLabs(termId, sourceLabIds);
     }
 
     @GetMapping("/{termId}/desktop-pack")
