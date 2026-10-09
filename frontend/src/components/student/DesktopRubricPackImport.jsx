@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
-import { quitPracticeApp } from '../../utils/desktopQuit';
+import { restartPracticeApp } from '../../utils/desktopQuit';
 
 const API_BASE = import.meta.env.VITE_API_URL
   || (import.meta.env.VITE_APP_MODE === 'desktop' ? 'http://127.0.0.1:18002' : 'http://localhost:18002');
@@ -100,7 +100,7 @@ export default function DesktopRubricPackImport({ onToast }) {
         className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-light px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-light/80 disabled:opacity-50"
         title={busy
           ? 'Importing pack into local practice…'
-          : 'Import Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack — app closes after import'}
+          : 'Import Rubric_{year}_Q{n}.agpack or Rubric_{name}.agpack — app restarts after import'}
       >
         <FolderOpen className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />
         {busy ? 'Importing…' : 'Import rubric pack'}
@@ -116,7 +116,7 @@ export default function DesktopRubricPackImport({ onToast }) {
             <h2 className="text-base font-semibold text-foreground">Replace existing lab?</h2>
             <p className="mt-2 text-sm text-foreground-muted">
               A lab named &quot;{conflicts[0].labName}&quot; is already in your offline sidebar. Importing will
-              replace it with the pack you selected. The app will then close so you can reopen it.
+              replace it with the pack you selected. The app will then restart with the updated labs.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -151,13 +151,13 @@ export default function DesktopRubricPackImport({ onToast }) {
               Restart required
             </h2>
             <p className="mt-2 text-sm text-foreground-muted">
-              Pack imported successfully. The practice app will close now. Open it again manually to use
-              the updated labs.
+              Pack imported successfully. Click Okay and the practice app will close and reopen with the
+              updated labs.
             </p>
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
-                onClick={quitPracticeApp}
+                onClick={restartPracticeApp}
                 className="rounded-lg bg-primary px-4 py-1.5 text-sm text-white hover:bg-primary-hover"
               >
                 Okay

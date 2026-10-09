@@ -7,19 +7,34 @@ use backend::Backend;
 use std::env;
 use std::error::Error;
 use std::io;
-use std::path::PathBuf;
-use std::process;
+use std::path::{Path, PathBuf};
+use std::process::{self, Command};
+use std::thread;
+use std::time::{Duration, Instant};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::http::Request;
 use wry::WebViewBuilder;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 const PRACTICE_QUIT: &str = "practice-quit";
+const PRACTICE_RESTART: &str = "practice-restart";
+const BACKEND_PORT: u16 = 18002;
+const PORT_FREE_TIMEOUT: Duration = Duration::from_secs(15);
+const PORT_FREE_POLL: Duration = Duration::from_millis(100);
+
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x0000_0008;
 
 #[derive(Debug)]
 enum UserEvent {
     PracticeQuit,
+    PracticeRestart,
 }
 
 fn main() {
@@ -63,8 +78,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     window.set_title("OOP AutoGrader — Practice");
 
     let ipc_handler = move |req: Request<String>| {
-        if is_practice_quit(req.body()) {
-            let _ = proxy.send_event(UserEvent::PracticeQuit);
+        match host_ipc_type(req.body()) {
+            Some(PRACTICE_RESTART) => {
+                let _ = proxy.send_event(UserEvent::PracticeRestart);
+            }
+            Some(PRACTICE_QUIT) => {
+                let _ = proxy.send_event(UserEvent::PracticeQuit);
+            }
+            _ => {}
         }
     };
 
@@ -86,6 +107,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     let mut backend = Some(backend);
     let mut webview = Some(webview);
+    let install_dir_for_restart = install_dir.clone();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -100,20 +122,63 @@ fn run() -> Result<(), Box<dyn Error>> {
                 webview.take();
                 *control_flow = ControlFlow::Exit;
             }
+            Event::UserEvent(UserEvent::PracticeRestart) => {
+                backend.take();
+                let _ = wait_until_port_free(BACKEND_PORT, PORT_FREE_TIMEOUT);
+                relaunch_self(&install_dir_for_restart);
+                webview.take();
+                *control_flow = ControlFlow::Exit;
+            }
             _ => {}
         }
     });
 }
 
-fn is_practice_quit(body: &str) -> bool {
+fn host_ipc_type(body: &str) -> Option<&'static str> {
     let trimmed = body.trim();
     if trimmed == PRACTICE_QUIT {
-        return true;
+        return Some(PRACTICE_QUIT);
+    }
+    if trimmed == PRACTICE_RESTART {
+        return Some(PRACTICE_RESTART);
     }
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        return value.get("type").and_then(|v| v.as_str()) == Some(PRACTICE_QUIT);
+        return match value.get("type").and_then(|v| v.as_str()) {
+            Some(PRACTICE_QUIT) => Some(PRACTICE_QUIT),
+            Some(PRACTICE_RESTART) => Some(PRACTICE_RESTART),
+            _ => None,
+        };
+    }
+    None
+}
+
+fn wait_until_port_free(port: u16, timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return true;
+        }
+        thread::sleep(PORT_FREE_POLL);
     }
     false
+}
+
+fn relaunch_self(install_dir: &Path) {
+    let Ok(exe) = env::current_exe() else {
+        return;
+    };
+    let mut cmd = Command::new(&exe);
+    cmd.current_dir(install_dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+
+    #[cfg(windows)]
+    {
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+
+    let _ = cmd.spawn();
 }
 
 fn is_missing_backend(err: &(dyn Error + 'static)) -> bool {
