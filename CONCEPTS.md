@@ -210,3 +210,11 @@ Signed, encrypted `.agpack` files in the install `rubric/` folder. **Required na
 
 ### Eager pack materialization
 Desktop practice completes heavy pack-to-local-DB work during the import (pre-close) step so the next double-click can open a ready labs/dashboard quickly. The next launch still applies pack presence rules; it should not redo expensive materialization when import already finished.
+
+## API abuse guard
+
+### Global API burst guard
+Server-side short-window limit on API request volume: more than 20 requests in 10 seconds for one identity key is over limit. Authenticated traffic is keyed by user email (JWT principal); anonymous traffic by client IP. All roles share the same budget. Presence heartbeat/leave and other infra paths are not counted. Over-limit calls receive HTTP 429 and do not run protected work. Web/cloud only — not the desktop practice profile.
+
+### Rate-limit jail
+SPA screen shown after a burst-guard 429. Explains what the user did and what to do next, holds them for 5 seconds, then returns them to the location they were on when jailed.

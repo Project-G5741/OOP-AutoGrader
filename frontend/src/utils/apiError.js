@@ -86,7 +86,8 @@ export function isNetworkError(error) {
 }
 
 export function isServerBusyStatus(status) {
-  return status === 0 || status >= 500 || status === 408 || status === 429;
+  // 429 is handled by the rate-limit jail navigation; do not treat it as toast-only busy.
+  return status === 0 || status >= 500 || status === 408;
 }
 
 export function isFriendlyMessage(message) {

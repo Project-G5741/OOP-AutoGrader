@@ -18,6 +18,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test when OT applies; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on submit and history views |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
+| `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, current-term flag, student enrollment, Excel import |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
@@ -40,6 +41,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/student-dashboard` | STUDENT | Student main |
 | `/student-history` | STUDENT | Student history |
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
+| `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
 
 Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
 
