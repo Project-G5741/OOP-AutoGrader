@@ -34,13 +34,17 @@ export default function ReportsPage() {
       if (fresh) {
         invalidateLecturerBootstrap('reports');
       }
-      const data = await getOrFetchLecturerBootstrap('reports', async (path) => {
-        const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
-        if (!response.ok) {
-          throw new Error(await friendlyLoadErrorFromResponse(response));
-        }
-        return response.json();
-      });
+      const data = await getOrFetchLecturerBootstrap(
+        'reports',
+        async (path) => {
+          const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+          if (!response.ok) {
+            throw new Error(await friendlyLoadErrorFromResponse(response));
+          }
+          return response.json();
+        },
+        { fresh },
+      );
       setReportData({
         ...EMPTY_REPORT,
         ...data,
@@ -62,7 +66,7 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    fetchReportData();
+    fetchReportData({ fresh: true });
   }, [fetchReportData]);
 
   return (

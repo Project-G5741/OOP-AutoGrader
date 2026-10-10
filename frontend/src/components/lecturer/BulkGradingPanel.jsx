@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { BeatLoader } from 'react-spinners';
 import { Eye, FlaskConical, Upload } from 'lucide-react';
 import Combobox from '../ui/Combobox';
 import Progress from '../ui/Progress';
@@ -8,8 +7,6 @@ import {
   modeMatchesLab,
   parseBulkMainFolder,
 } from '../../utils/bulkFolderParse';
-import { useTheme } from '../../context/ThemeContext';
-import { theme } from '../../theme/tokens';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
@@ -102,7 +99,6 @@ function buildStudentMultipart(student) {
 }
 
 export default function BulkGradingPanel({ labs = [] }) {
-  const { isDark } = useTheme();
   const inputRef = useRef(null);
   const cancelGradingRef = useRef(false);
   const [labId, setLabId] = useState('');
@@ -159,11 +155,6 @@ export default function BulkGradingPanel({ labs = [] }) {
     : gradingStoppedEarly && !grading
       ? 'bg-warning'
       : 'bg-success';
-  const gradingLoaderColor = useMemo(
-    () => (isDark ? theme.dark.primary : theme.light.primary),
-    [isDark],
-  );
-
   const resultsPagination = useMemo(() => {
     const total = rows.length;
     const totalPages = Math.max(Math.ceil(total / BULK_RESULTS_PAGE_SIZE), 1);
@@ -532,7 +523,11 @@ export default function BulkGradingPanel({ labs = [] }) {
             />
           </div>
           <div className="flex flex-col items-center justify-center gap-3 py-8">
-            <BeatLoader color={gradingLoaderColor} size={12} margin={6} speedMultiplier={0.65} />
+            <div
+              className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"
+              role="status"
+              aria-label="Grading in progress"
+            />
             <p className="text-sm text-foreground-muted">Grading submissions…</p>
           </div>
         </div>

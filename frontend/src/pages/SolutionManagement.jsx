@@ -204,7 +204,7 @@ export default function SolutionManagement() {
           if (!response.ok) throw new Error(await readFriendlyApiError(response, 'read'));
           return response.json();
         };
-        const data = await getOrFetchLecturerBootstrap('projects', bootstrapJson);
+        const data = await getOrFetchLecturerBootstrap('projects', bootstrapJson, { fresh: true });
         if (!active) return;
         if (data.scopeOptions) setScopeOptions(data.scopeOptions);
         if (data.declaringTypeOptions) setDeclaringTypeOptions(data.declaringTypeOptions);
@@ -623,8 +623,11 @@ export default function SolutionManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-foreground-secondary">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading data...
+      <div className="flex items-center justify-center h-64">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-foreground-secondary">Loading data...</p>
+        </div>
       </div>
     );
   }

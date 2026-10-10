@@ -31,7 +31,6 @@ import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiErro
 import {
   getOrFetchLecturerBootstrap,
   invalidateLecturerBootstrap,
-  prefetchLecturerBootstrap,
 } from '../utils/lecturerBootstrapStore';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -281,7 +280,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingOverview(true);
     setOverviewError(null);
     try {
-      const data = await getOrFetchLecturerBootstrap('dashboard', bootstrapJson);
+      const data = await getOrFetchLecturerBootstrap('dashboard', bootstrapJson, { fresh: true });
       setOverview({
         ...EMPTY_OVERVIEW,
         ...data,
@@ -437,7 +436,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         page === 0 && sort === 'studentName,asc' && !String(search || '').trim();
       let data;
       if (useBootstrap) {
-        data = await getOrFetchLecturerBootstrap('score', bootstrapJson);
+        data = await getOrFetchLecturerBootstrap('score', bootstrapJson, { fresh: true });
       } else {
         const searchQuery = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
         const response = await apiFetch(
@@ -466,12 +465,11 @@ export default function LecturerDashboard({ user, onLogout }) {
     setLoadingLabs(true);
     setLabsError(null);
     try {
-      let data = await getOrFetchLecturerBootstrap('grading', bootstrapJson);
+      let data = await getOrFetchLecturerBootstrap('grading', bootstrapJson, { fresh: true });
       let nextLabs = Array.isArray(data) ? data : [];
-      // Drop visit-cache entries that predate challenges on the grading bootstrap.
       if (nextLabs.some((lab) => !Array.isArray(lab.challenges))) {
         invalidateLecturerBootstrap('grading');
-        data = await getOrFetchLecturerBootstrap('grading', bootstrapJson);
+        data = await getOrFetchLecturerBootstrap('grading', bootstrapJson, { fresh: true });
         nextLabs = Array.isArray(data) ? data : [];
       }
       setLabs(nextLabs);
@@ -516,25 +514,6 @@ export default function LecturerDashboard({ user, onLogout }) {
       fetchGradeOverview(0, formatGradeOverviewSortParam(gradeOverviewSort), gradeOverviewSearch);
     }
   }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
-
-  useEffect(() => {
-    const idle =
-      typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
-        ? window.requestIdleCallback.bind(window)
-        : (cb) => setTimeout(cb, 200);
-    const cancel =
-      typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'
-        ? window.cancelIdleCallback.bind(window)
-        : clearTimeout;
-    const id = idle(() => {
-      ['score', 'grading', 'users', 'terms', 'projects', 'reports'].forEach((tabId) => {
-        if (tabId !== activeNav) {
-          prefetchLecturerBootstrap(tabId, bootstrapJson);
-        }
-      });
-    });
-    return () => cancel(id);
-  }, [activeNav, bootstrapJson]);
 
   useEffect(() => {
     if (selectedLabId) {
@@ -841,10 +820,6 @@ export default function LecturerDashboard({ user, onLogout }) {
     if (target) navigate(target);
   }, [navigate]);
 
-  const handleNavPrefetch = useCallback((navId) => {
-    prefetchLecturerBootstrap(navId, bootstrapJson);
-  }, [bootstrapJson]);
-
   // Grading must not wait on overview; Dashboard first paint is overview only.
   const isInitialLoading =
     activeNav === 'dashboard'
@@ -862,7 +837,6 @@ export default function LecturerDashboard({ user, onLogout }) {
         hideHistory
         activeNav={activeNav}
         onNavigate={handleNavChange}
-        onPrefetch={handleNavPrefetch}
         onCommand={handleShellCommand}
       >
         {isInitialLoading ? (

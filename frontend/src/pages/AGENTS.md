@@ -57,7 +57,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
 
-Visit-scoped prefetch: `frontend/src/utils/lecturerBootstrapStore.js` + NavBar hover/idle (survives route remount).
+Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
 ### Student in-dashboard sections
 

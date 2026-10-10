@@ -1,7 +1,7 @@
 /**
- * Visit-scoped lecturer tab bootstrap cache.
+ * Lecturer tab bootstrap cache (dedupe in-flight requests only).
  * Survives App.jsx remount of LecturerDashboard on each lecturer route.
- * Always-fresh: only store successful fetches for this browser session; clear on logout / invalidate.
+ * Callers pass `{ fresh: true }` on tab click so each visit refetches; clear on logout.
  */
 
 const TAB_PATHS = {
@@ -39,12 +39,17 @@ export function invalidateLecturerBootstrap(tabId) {
 /**
  * @param {string} tabId
  * @param {(url: string) => Promise<unknown>} fetcher — resolves JSON body
+ * @param {{ fresh?: boolean }} [options]
  * @returns {Promise<unknown>}
  */
-export function getOrFetchLecturerBootstrap(tabId, fetcher) {
+export function getOrFetchLecturerBootstrap(tabId, fetcher, { fresh = false } = {}) {
   const path = TAB_PATHS[tabId];
   if (!path) {
     return Promise.reject(new Error(`Unknown lecturer tab: ${tabId}`));
+  }
+
+  if (fresh) {
+    invalidateLecturerBootstrap(tabId);
   }
 
   const existing = entries.get(tabId);
