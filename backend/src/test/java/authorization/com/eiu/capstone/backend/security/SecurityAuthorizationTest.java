@@ -147,6 +147,26 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentSolutionImport_is403() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/solution-import")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerSolutionImport_isNotDenied() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/solution-import")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousSolutionImport_is401() throws Exception {
+        mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/solution-import"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void dualRoleOverview_isNotDenied() throws Exception {
         mockMvc.perform(get("/api/lecturer/overview")
                         .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER))))

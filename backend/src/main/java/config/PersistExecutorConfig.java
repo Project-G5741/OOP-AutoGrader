@@ -33,4 +33,17 @@ public class PersistExecutorConfig {
             return t;
         });
     }
+
+    /**
+     * Lecturer Solution bootstrap: independent read fan-out (master data / terms / labs / structure).
+     * Separate from upload pools so bootstrap never queues behind persist/inspect.
+     */
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService lecturerBootstrapExecutor() {
+        return Executors.newFixedThreadPool(4, r -> {
+            Thread t = new Thread(r, "lecturer-bootstrap-worker");
+            t.setDaemon(true);
+            return t;
+        });
+    }
 }

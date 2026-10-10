@@ -153,21 +153,25 @@ export default function SolutionImportPanel({
 
   const handleImport = async () => {
     if (!selection || importing) return;
-    if (typeof onImport === 'function') {
-      setImporting(true);
-      try {
-        await onImport(selection);
-      } finally {
-        setImporting(false);
-      }
+    if (typeof onImport !== 'function') {
+      showToast({
+        message: 'Solution import is not available on this screen.',
+        type: 'warning',
+      });
       return;
     }
-    const { folderLabel, javaCount, mmdCount } = selection;
-    showToast({
-      message: `${folderLabel}: ${javaCount} Java and ${mmdCount} MMD file(s) ready. Server import is not connected yet.`,
-      type: 'warning',
-      durationMs: 5000,
-    });
+    setImporting(true);
+    try {
+      await onImport(selection);
+      clearSelection();
+    } catch (e) {
+      showToast({
+        message: e?.message || 'Import failed.',
+        type: 'error',
+      });
+    } finally {
+      setImporting(false);
+    }
   };
 
   const dropZoneClass = `flex min-h-[7.5rem] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-4 text-sm transition-colors ${

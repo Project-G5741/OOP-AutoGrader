@@ -19,6 +19,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
+| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist |
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
@@ -105,7 +106,7 @@ Per upload request (unique `requestId` prevents collisions):
 - `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
 - `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter (for Terms page sync UI).
 - `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target).
-- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied.
+- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied. Postgres needs Hikari `stringtype=unspecified` (with `reWriteBatchedInserts`) so VARCHAR-mapped OT enums cast into native enum columns on flush.
 
 ### Operational testcase save
 
@@ -117,7 +118,8 @@ Per upload request (unique `requestId` prevents collisions):
 - GET returns `testcaseType` plus ordered `invocations`. No `oopPrincipleTag`, COMPARISON instances, or per-testcase weight
 - `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 - `LabStructureService.deleteLabsCascadeBulk` / `deleteLabCascade` wipe labs with ~20 set-based SQL statements (runtime → OT → members → classes → challenges → lab) — do not use per-entity cascades for term delete on Neon
-- `LabStructureService.saveLabStructureInsertOnly` (clone path) uses an empty save context (master data only) and defers intermediate flushes to one commit flush; editor saves keep load + per-batch flush
+- `LabStructureService.saveLabStructure` (editor) and `saveLabStructureInsertOnly` (clone) both defer intermediate flushes to one commit flush (Neon RTT). Editor still loads `SaveContext` and upserts; clone uses an empty save context (master data only)
+- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete class trees with `skipTestcaseGuards` (challenge rows kept for stable ids), flush, then upsert challenge fields + insert-style child sync (solution-import replaces). No N× `PUT .../testcases` wipe from the SPA
 - Clone OT write batches membership loads for all challenges and sets FKs via `EntityManager.getReference` (no per-member SELECT)
 
 ## Work Guidance
@@ -149,8 +151,9 @@ Per upload request (unique `requestId` prevents collisions):
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
-- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
+- Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases
 - Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 

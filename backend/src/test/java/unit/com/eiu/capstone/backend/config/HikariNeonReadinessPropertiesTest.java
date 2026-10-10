@@ -23,6 +23,12 @@ class HikariNeonReadinessPropertiesTest {
         assertEquals("120000", properties.getProperty("spring.datasource.hikari.keepalive-time"));
         assertEquals("30", properties.getProperty("spring.datasource.hikari.data-source-properties.socketTimeout"));
         assertEquals("true", properties.getProperty("spring.datasource.hikari.data-source-properties.tcpKeepAlive"));
+        // VARCHAR-mapped Java enums + reWriteBatchedInserts need unspecified string params
+        // so Postgres can cast into native enums (testcase_type, assertion_kind, …).
+        assertEquals("unspecified",
+                properties.getProperty("spring.datasource.hikari.data-source-properties.stringtype"));
+        assertEquals("true",
+                properties.getProperty("spring.datasource.hikari.data-source-properties.reWriteBatchedInserts"));
         assertEquals("10", properties.getProperty("spring.datasource.hikari.maximum-pool-size"));
         assertEquals("2", properties.getProperty("spring.datasource.hikari.minimum-idle"));
         assertEquals("30000", properties.getProperty("spring.datasource.hikari.connection-timeout"));

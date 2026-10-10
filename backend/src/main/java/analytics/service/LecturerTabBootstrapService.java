@@ -4,7 +4,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,7 @@ public class LecturerTabBootstrapService {
     private final MasterDataRepository masterDataRepository;
     private final LabStructureService labStructureService;
     private final ChallengeService challengeService;
+    private final ExecutorService lecturerBootstrapExecutor;
 
     public LecturerTabBootstrapService(
             LecturerAnalyticsService lecturerAnalyticsService,
@@ -54,7 +59,8 @@ public class LecturerTabBootstrapService {
             LabDeadlineHelper labDeadlineHelper,
             MasterDataRepository masterDataRepository,
             LabStructureService labStructureService,
-            ChallengeService challengeService) {
+            ChallengeService challengeService,
+            @Qualifier("lecturerBootstrapExecutor") ExecutorService lecturerBootstrapExecutor) {
         this.lecturerAnalyticsService = lecturerAnalyticsService;
         this.analyticsService = analyticsService;
         this.termService = termService;
@@ -64,6 +70,7 @@ public class LecturerTabBootstrapService {
         this.masterDataRepository = masterDataRepository;
         this.labStructureService = labStructureService;
         this.challengeService = challengeService;
+        this.lecturerBootstrapExecutor = lecturerBootstrapExecutor;
     }
 
     public LecturerOverviewResponse dashboard() {
@@ -106,17 +113,46 @@ public class LecturerTabBootstrapService {
     }
 
     public SolutionBootstrapResponse solution() {
-        List<MasterDataItemDTO> scope = masterDataItems("SCOPE");
-        List<MasterDataItemDTO> declaring = masterDataItems("DECLARING_TYPE");
-        List<MasterDataItemDTO> relation = masterDataItems("RELATION_TYPE");
-        List<TermSummaryDTO> terms = termService.listTerms();
-        List<SolutionBootstrapResponse.LabItem> labs = currentTermLabs();
-        UUID selectedLabId = labs.isEmpty() ? null : labs.get(0).id();
-        LabStructureResponse structure = null;
-        if (selectedLabId != null) {
-            structure = labStructureService.loadForEditor(selectedLabId);
+        ExecutorService pool = lecturerBootstrapExecutor;
+        CompletableFuture<List<MasterDataItemDTO>> scopeF =
+                CompletableFuture.supplyAsync(() -> masterDataItems("SCOPE"), pool);
+        CompletableFuture<List<MasterDataItemDTO>> declaringF =
+                CompletableFuture.supplyAsync(() -> masterDataItems("DECLARING_TYPE"), pool);
+        CompletableFuture<List<MasterDataItemDTO>> relationF =
+                CompletableFuture.supplyAsync(() -> masterDataItems("RELATION_TYPE"), pool);
+        CompletableFuture<List<TermSummaryDTO>> termsF =
+                CompletableFuture.supplyAsync(termService::listTerms, pool);
+        CompletableFuture<List<SolutionBootstrapResponse.LabItem>> labsF =
+                CompletableFuture.supplyAsync(this::currentTermLabs, pool);
+
+        CompletableFuture<LabStructureResponse> structureF = labsF.thenComposeAsync(labs -> {
+            if (labs.isEmpty()) {
+                return CompletableFuture.completedFuture(null);
+            }
+            UUID labId = labs.get(0).id();
+            return CompletableFuture.supplyAsync(
+                    () -> labStructureService.loadForEditor(labId), pool);
+        }, pool);
+
+        try {
+            CompletableFuture.allOf(scopeF, declaringF, relationF, termsF, labsF, structureF).join();
+            List<SolutionBootstrapResponse.LabItem> labs = labsF.join();
+            UUID selectedLabId = labs.isEmpty() ? null : labs.get(0).id();
+            return new SolutionBootstrapResponse(
+                    scopeF.join(),
+                    declaringF.join(),
+                    relationF.join(),
+                    termsF.join(),
+                    labs,
+                    selectedLabId,
+                    structureF.join());
+        } catch (CompletionException ex) {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException(cause);
         }
-        return new SolutionBootstrapResponse(scope, declaring, relation, terms, labs, selectedLabId, structure);
     }
 
     private List<MasterDataItemDTO> masterDataItems(String category) {

@@ -20,6 +20,10 @@ public interface ParameterRepository extends JpaRepository<Parameter, UUID> {
     List<Parameter> findByMethodIn(List<Method> methods);
     List<Parameter> findByConstructorEntityIn(List<Constructor> constructorEntities);
 
+    List<Parameter> findByMethod_IdIn(Collection<UUID> methodIds);
+
+    List<Parameter> findByConstructorEntity_IdIn(Collection<UUID> constructorIds);
+
     List<Parameter> findByConstructorEntity_IdOrderByOrderIndexAsc(UUID constructorId);
 
     List<Parameter> findByMethod_IdOrderByOrderIndexAsc(UUID methodId);

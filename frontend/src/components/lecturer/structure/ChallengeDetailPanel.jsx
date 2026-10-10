@@ -12,6 +12,7 @@ export default function ChallengeDetailPanel({
   onTabChange,
   labId,
   structureDirty,
+  suppressOtLoad = false,
   onToast,
 }) {
   if (!challenge) {
@@ -90,6 +91,7 @@ export default function ChallengeDetailPanel({
           relationTypeOptions={relationTypeOptions}
           declaringTypeOptions={declaringTypeOptions}
           structureDirty={structureDirty}
+          suppressServerLoad={suppressOtLoad}
           onToast={onToast}
         />
       )}

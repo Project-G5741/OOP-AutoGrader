@@ -59,6 +59,7 @@ export default function TestcasesPanel({
   relationTypeOptions = [],
   declaringTypeOptions = [],
   structureDirty,
+  suppressServerLoad = false,
   onToast,
 }) {
   const [testcases, setTestcases] = useState([]);
@@ -143,7 +144,15 @@ export default function TestcasesPanel({
   }, [labId, challenge?.id, onToast]);
 
   useEffect(() => {
-    loadTestcases();
+    if (suppressServerLoad) {
+      setTestcases([]);
+      setSnapshot(JSON.stringify([]));
+      setSelectedId(null);
+      setDryRunResults({});
+      setLoading(false);
+    } else {
+      loadTestcases();
+    }
     const stored = sessionStorage.getItem(refStorageKey(labId, challenge?.id));
     if (stored) {
       try {
@@ -156,7 +165,7 @@ export default function TestcasesPanel({
       setReferenceSources([]);
     }
     setDryRunResults({});
-  }, [labId, challenge?.id, loadTestcases]);
+  }, [labId, challenge?.id, loadTestcases, suppressServerLoad]);
 
   useEffect(() => {
     if (structureDirty) setWarnStructure(true);

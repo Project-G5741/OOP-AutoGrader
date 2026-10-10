@@ -135,13 +135,17 @@ export default function TermManagement() {
     if (fresh) {
       invalidateLecturerBootstrap('terms');
     }
-    const data = await getOrFetchLecturerBootstrap('terms', async (path) => {
-      const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
-      if (!response.ok) {
-        throw new Error(await readFriendlyApiError(response, 'read'));
-      }
-      return response.json();
-    });
+    const data = await getOrFetchLecturerBootstrap(
+      'terms',
+      async (path) => {
+        const response = await apiFetch(`${API_BASE}${path}`, { headers: authHeaders() });
+        if (!response.ok) {
+          throw new Error(await readFriendlyApiError(response, 'read'));
+        }
+        return response.json();
+      },
+      { fresh },
+    );
     const list = Array.isArray(data) ? data : [];
     setTerms(list);
     return list;
@@ -201,7 +205,7 @@ export default function TermManagement() {
       setLoading(true);
       setError('');
       try {
-      const data = await loadTerms();
+      const data = await loadTerms({ fresh: true });
         if (cancelled) return;
         const current = data.find((term) => term.current) ?? data[0];
         setSelectedTermId(current?.id ?? null);
@@ -586,6 +590,7 @@ export default function TermManagement() {
       if (!response.ok) {
         throw new Error(await readFriendlyApiError(response, 'save'));
       }
+      invalidateLecturerBootstrap('users');
       await refreshSelectedTerm(selectedTermId);
       showToast({
         message: suspending
@@ -841,7 +846,7 @@ export default function TermManagement() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
                   >
                     <Download className="h-4 w-4" />
-                    Download practice pack
+                    Practice pack
                   </button>
                   {!selectedTerm.current && (
                     <button

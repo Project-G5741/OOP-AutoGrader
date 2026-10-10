@@ -3,11 +3,15 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 import jakarta.persistence.EntityManager;
 
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
@@ -113,6 +118,7 @@ class LabStructureServiceSaveTest {
                 labStatisticsCache,
                 labDeadlineHelper,
                 entityManager,
+                null,
                 false);
 
         labId = UUID.randomUUID();
@@ -399,6 +405,116 @@ class LabStructureServiceSaveTest {
         type.setName(name);
         type.setCategory("RELATION_TYPE");
         return type;
+    }
+
+    @Test
+    void saveLabStructure_replacedChallengeIds_wipesOtThenRebuilds() {
+        UUID challengeId = UUID.randomUUID();
+        UUID oldClassId = UUID.randomUUID();
+        UUID newClassId = UUID.randomUUID();
+
+        Challenge existing = new Challenge();
+        existing.setId(challengeId);
+        existing.setLab(lab);
+        existing.setName("Old");
+        existing.setChallengeNumber(1);
+
+        ClassEntity oldClass = new ClassEntity();
+        oldClass.setId(oldClassId);
+        oldClass.setChallenge(existing);
+        oldClass.setName("OldCar");
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                challengeId,
+                "Car Class",
+                1,
+                List.of(new ClassStructureDTO(
+                        newClassId,
+                        "Car",
+                        1,
+                        2,
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of())),
+                List.of());
+        LabStructureResponse payload = new LabStructureResponse(
+                labId, "Lab 2", termId, null, true, null, List.of(challengeDto));
+
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(existing));
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of(oldClass));
+        when(fieldRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of());
+        when(methodRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of());
+        when(constructorRepository.findByClassEntityInWithDeclaration(any())).thenReturn(List.of());
+        when(classRelationRepository.findByClassEntityInWithEndpoints(any())).thenReturn(List.of());
+        when(classRelationRepository.findByClassEntity_Id(any())).thenReturn(List.of());
+        when(classRelationRepository.findByTargetClassEntity_Id(any())).thenReturn(List.of());
+        when(challengeRepository.save(any(Challenge.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
+        when(masterDataRepository.findById(2)).thenReturn(Optional.of(declaringType));
+
+        labStructureService.saveLabStructure(labId, payload, List.of(challengeId));
+
+        verify(testcaseRubricService).deleteAllForChallenges(eq(List.of(challengeId)));
+        verify(classEntityRepository).delete(oldClass);
+        verify(challengeRepository, never()).delete(existing);
+        ArgumentCaptor<Object> persistCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).persist(persistCaptor.capture());
+        long newClassPersists = persistCaptor.getAllValues().stream()
+                .filter(ClassEntity.class::isInstance)
+                .map(ClassEntity.class::cast)
+                .filter(c -> newClassId.equals(c.getId()))
+                .count();
+        assertEquals(1, newClassPersists);
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).flush();
+    }
+
+    @Test
+    void saveLabStructure_withoutReplacedIds_doesNotWipeOt() {
+        UUID challengeId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                challengeId,
+                "Car Class",
+                1,
+                List.of(new ClassStructureDTO(
+                        classId, "Car", 1, 2, false, List.of(), List.of(), List.of())),
+                List.of());
+        LabStructureResponse payload = new LabStructureResponse(
+                labId, "Lab 2", termId, null, true, null, List.of(challengeDto));
+
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of());
+        when(challengeRepository.save(any(Challenge.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of());
+        when(masterDataRepository.findById(1)).thenReturn(Optional.of(scope));
+        when(masterDataRepository.findById(2)).thenReturn(Optional.of(declaringType));
+
+        labStructureService.saveLabStructure(labId, payload);
+
+        verify(testcaseRubricService, never()).deleteAllForChallenges(any());
+        // Phased deferral: at least one phase flush + final commit flush.
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).flush();
+    }
+
+    @Test
+    void createLab_assignsIdBeforeSave() {
+        UUID targetTermId = UUID.randomUUID();
+        Term targetTerm = new Term();
+        targetTerm.setId(targetTermId);
+        targetTerm.setEndDate(LocalDate.of(2026, 12, 31));
+        when(termRepository.findById(targetTermId)).thenReturn(Optional.of(targetTerm));
+        when(labRepository.save(any(Lab.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LabStructureResponse created = labStructureService.createLab(
+                new CreateLabRequest("Lab 1", targetTermId, null));
+
+        ArgumentCaptor<Lab> captor = ArgumentCaptor.forClass(Lab.class);
+        verify(labRepository).save(captor.capture());
+        assertNotNull(captor.getValue().getId());
+        assertEquals(captor.getValue().getId(), created.id());
+        assertEquals(targetTerm.getEndDate(), created.deadlineDate());
     }
 
     private void stubMasterData(MasterData... extraTypes) {
