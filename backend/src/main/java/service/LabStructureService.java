@@ -542,6 +542,8 @@ public class LabStructureService {
         Term term = termRepository.findById(request.termId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid termId"));
         Lab lab = new Lab();
+        // Lab.id has no @GeneratedValue so desktop pack import can keep a preset UUID.
+        lab.setId(UUID.randomUUID());
         lab.setName(labName);
         lab.setTerm(term);
         LocalDate deadline = request.deadlineDate() != null ? request.deadlineDate() : term.getEndDate();

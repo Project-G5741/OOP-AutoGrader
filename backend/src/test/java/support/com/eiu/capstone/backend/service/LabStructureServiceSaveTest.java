@@ -3,11 +3,13 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 import jakarta.persistence.EntityManager;
 
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
@@ -399,6 +402,25 @@ class LabStructureServiceSaveTest {
         type.setName(name);
         type.setCategory("RELATION_TYPE");
         return type;
+    }
+
+    @Test
+    void createLab_assignsIdBeforeSave() {
+        UUID targetTermId = UUID.randomUUID();
+        Term targetTerm = new Term();
+        targetTerm.setId(targetTermId);
+        targetTerm.setEndDate(LocalDate.of(2026, 12, 31));
+        when(termRepository.findById(targetTermId)).thenReturn(Optional.of(targetTerm));
+        when(labRepository.save(any(Lab.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LabStructureResponse created = labStructureService.createLab(
+                new CreateLabRequest("Lab 1", targetTermId, null));
+
+        ArgumentCaptor<Lab> captor = ArgumentCaptor.forClass(Lab.class);
+        verify(labRepository).save(captor.capture());
+        assertNotNull(captor.getValue().getId());
+        assertEquals(captor.getValue().getId(), created.id());
+        assertEquals(targetTerm.getEndDate(), created.deadlineDate());
     }
 
     private void stubMasterData(MasterData... extraTypes) {
