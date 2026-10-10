@@ -97,7 +97,7 @@ export default function SolutionManagement() {
   const [deadlineSaving, setDeadlineSaving] = useState(false);
   const [studentVisibleInput, setStudentVisibleInput] = useState(true);
   const [studentAccessSaving, setStudentAccessSaving] = useState(false);
-  /** Challenge ids whose OT was cleared by solution import (wipe on Save Lab Structure). */
+  /** Challenge ids replaced by solution import — sent as replacedChallengeIds on Save Lab Structure. */
   const [importReplacedChallengeIds, setImportReplacedChallengeIds] = useState([]);
 
   const isDirty = useMemo(() => {

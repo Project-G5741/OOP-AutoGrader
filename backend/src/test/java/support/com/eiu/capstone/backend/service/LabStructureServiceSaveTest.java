@@ -456,7 +456,8 @@ class LabStructureServiceSaveTest {
         labStructureService.saveLabStructure(labId, payload, List.of(challengeId));
 
         verify(testcaseRubricService).deleteAllForChallenges(eq(List.of(challengeId)));
-        verify(challengeRepository).delete(existing);
+        verify(classEntityRepository).delete(oldClass);
+        verify(challengeRepository, never()).delete(existing);
         ArgumentCaptor<Object> persistCaptor = ArgumentCaptor.forClass(Object.class);
         verify(entityManager, org.mockito.Mockito.atLeast(1)).persist(persistCaptor.capture());
         long newClassPersists = persistCaptor.getAllValues().stream()
@@ -465,7 +466,7 @@ class LabStructureServiceSaveTest {
                 .filter(c -> newClassId.equals(c.getId()))
                 .count();
         assertEquals(1, newClassPersists);
-        verify(entityManager).flush();
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).flush();
     }
 
     @Test

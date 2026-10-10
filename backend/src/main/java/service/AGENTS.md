@@ -119,7 +119,7 @@ Per upload request (unique `requestId` prevents collisions):
 - `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 - `LabStructureService.deleteLabsCascadeBulk` / `deleteLabCascade` wipe labs with ~20 set-based SQL statements (runtime → OT → members → classes → challenges → lab) — do not use per-entity cascades for term delete on Neon
 - `LabStructureService.saveLabStructure` (editor) and `saveLabStructureInsertOnly` (clone) both defer intermediate flushes to one commit flush (Neon RTT). Editor still loads `SaveContext` and upserts; clone uses an empty save context (master data only)
-- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete those challenges with `skipTestcaseGuards`, then insert-style sync from the payload (solution-import replaces). No N× `PUT .../testcases` wipe from the SPA
+- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete class trees with `skipTestcaseGuards` (challenge rows kept for stable ids), flush, then upsert challenge fields + insert-style child sync (solution-import replaces). No N× `PUT .../testcases` wipe from the SPA
 - Clone OT write batches membership loads for all challenges and sets FKs via `EntityManager.getReference` (no per-member SELECT)
 
 ## Work Guidance

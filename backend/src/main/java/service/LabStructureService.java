@@ -258,13 +258,17 @@ public class LabStructureService {
                     .filter(ctx.challengesById::containsKey)
                     .toList();
             if (!replacedOnLab.isEmpty()) {
+                // Keep Challenge rows (stable ids / submission FKs). Wipe OT + class trees,
+                // flush deletes, then upsert fields and insert-style sync children.
                 testcaseRubricService.deleteAllForChallenges(replacedOnLab);
                 for (UUID challengeId : replacedOnLab) {
-                    Challenge existing = ctx.challengesById.get(challengeId);
-                    if (existing != null) {
-                        deleteChallengeCascade(ctx, existing, true);
+                    List<ClassEntity> classes = List.copyOf(
+                            ctx.classesByChallengeId.getOrDefault(challengeId, List.of()));
+                    for (ClassEntity classEntity : classes) {
+                        deleteClassCascade(ctx, classEntity, true);
                     }
                 }
+                entityManager.flush();
             }
 
             Set<UUID> payloadChallengeIds = challengePayloads.stream()
