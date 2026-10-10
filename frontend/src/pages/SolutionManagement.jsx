@@ -91,6 +91,7 @@ export default function SolutionManagement() {
   const [newLabTermId, setNewLabTermId] = useState('');
   const [newLabDeadline, setNewLabDeadline] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [pendingLabSwitch, setPendingLabSwitch] = useState(null);
   const [challengeTabById, setChallengeTabById] = useState({});
   const [deadlineInput, setDeadlineInput] = useState('');
   const [deadlineSaving, setDeadlineSaving] = useState(false);
@@ -105,6 +106,7 @@ export default function SolutionManagement() {
   }, [draft, savedSnapshot]);
 
   const isDirtyRef = useRef(isDirty);
+  const selectedLabIdRef = useRef(null);
   const savingRef = useRef(false);
   const structureCacheRef = useRef({});
   useEffect(() => {
@@ -158,26 +160,50 @@ export default function SolutionManagement() {
     }));
     const snapshot = cloneDraft(structure);
     structureCacheRef.current[labId] = { draft: cloneDraft(nextDraft), snapshot };
+    selectedLabIdRef.current = labId;
     setSelectedLabId(labId);
     setDraft(nextDraft);
     setSavedSnapshot(snapshot);
   }, []);
 
+  const discardUnsavedLab = useCallback((labId) => {
+    const cached = structureCacheRef.current[labId];
+    if (!cached?.snapshot) return;
+    const saved = cloneDraft(cached.snapshot);
+    cached.draft = cloneDraft(saved);
+    setLabs((prev) => prev.map((lab) => (
+      String(lab.id) === String(labId)
+        ? { ...lab, name: saved.name ?? lab.name }
+        : lab
+    )));
+  }, []);
+
   const selectLab = useCallback(async (labId, force = false) => {
+    if (selectedLabIdRef.current != null && String(labId) === String(selectedLabIdRef.current)) return;
     if (!force && isDirtyRef.current) {
-      const proceed = window.confirm('You have unsaved changes. Discard them and switch labs?');
-      if (!proceed) return;
+      setPendingLabSwitch(labId);
+      return;
     }
+    const leavingId = selectedLabIdRef.current;
+    const shouldDiscard = Boolean(
+      force
+      && isDirtyRef.current
+      && leavingId != null
+      && String(leavingId) !== String(labId),
+    );
     setError('');
     setImportReplacedChallengeIds([]);
     const cached = structureCacheRef.current[labId];
-    if (cached) {
+    if (cached?.snapshot) {
+      if (shouldDiscard) discardUnsavedLab(leavingId);
+      discardUnsavedLab(labId);
+      const saved = cloneDraft(cached.snapshot);
+      selectedLabIdRef.current = labId;
       setSelectedLabId(labId);
-      const nextDraft = cloneDraft(cached.draft);
-      setDraft(nextDraft);
+      setDraft(saved);
       setSavedSnapshot(cloneDraft(cached.snapshot));
       setSelectedClassRef(null);
-      const challenges = nextDraft.challenges || [];
+      const challenges = saved.challenges || [];
       setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
       setSelectedChallengeId(challenges[0]?.id ?? null);
       return;
@@ -185,6 +211,7 @@ export default function SolutionManagement() {
     setStructureLoading(true);
     try {
       const structure = await loadStructure(labId);
+      if (shouldDiscard) discardUnsavedLab(leavingId);
       applyStructure(labId, structure);
       setSelectedClassRef(null);
       const challenges = structure.challenges || [];
@@ -195,7 +222,7 @@ export default function SolutionManagement() {
     } finally {
       setStructureLoading(false);
     }
-  }, [loadStructure, applyStructure]);
+  }, [loadStructure, applyStructure, discardUnsavedLab]);
 
   useEffect(() => {
     let active = true;
@@ -424,12 +451,6 @@ export default function SolutionManagement() {
     );
     const nextDraft = { ...draft, challenges: nextChallenges };
     setDraft(nextDraft);
-    if (structureCacheRef.current[selectedLabId]) {
-      structureCacheRef.current[selectedLabId] = {
-        ...structureCacheRef.current[selectedLabId],
-        draft: cloneDraft(nextDraft),
-      };
-    }
     if (replacedIds.length > 0) {
       setImportReplacedChallengeIds((prev) => Array.from(new Set([...prev, ...replacedIds])));
     }
@@ -479,6 +500,14 @@ export default function SolutionManagement() {
     } catch (e) {
       showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
     }
+  };
+
+  const openCreateLab = () => {
+    const currentTerm = terms.find((term) => term.current);
+    setNewLabName('');
+    setNewLabTermId(currentTerm?.id ? String(currentTerm.id) : '');
+    setNewLabDeadline(currentTerm?.endDate ?? '');
+    setShowCreateLab(true);
   };
 
   const openCopyLab = async () => {
@@ -763,7 +792,7 @@ export default function SolutionManagement() {
         labs={labs}
         selectedLabId={selectedLabId}
         onSelectLab={(labId) => selectLab(labId)}
-        onAddLab={() => setShowCreateLab(true)}
+        onAddLab={openCreateLab}
         onCopyLab={openCopyLab}
         onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
       />
@@ -1082,6 +1111,35 @@ export default function SolutionManagement() {
                 Cancel
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {pendingLabSwitch != null && (
+        <Modal onClose={() => setPendingLabSwitch(null)} showClose={false}>
+          <h3 className="mb-3 text-lg font-semibold text-foreground">Unsaved changes</h3>
+          <p className="mb-4 text-sm text-foreground-secondary">
+            You have unsaved changes. Discard them and switch labs?
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPendingLabSwitch(null)}
+              className="rounded-lg border border-border px-4 py-2 text-sm text-foreground-secondary hover:bg-surface-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const nextLabId = pendingLabSwitch;
+                setPendingLabSwitch(null);
+                if (nextLabId != null) selectLab(nextLabId, true);
+              }}
+              className="rounded-lg bg-error px-4 py-2 text-sm font-medium text-white hover:bg-error-hover"
+            >
+              OK
+            </button>
           </div>
         </Modal>
       )}

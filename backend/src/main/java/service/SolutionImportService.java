@@ -7,10 +7,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -198,9 +200,14 @@ public class SolutionImportService {
                     1));
         }
 
-        List<RelationStructureDTO> relations = new ArrayList<>();
-        relations.addAll(heritageRelations(parsedClasses, classIdBySimple, masterData));
-        relations.addAll(mmdToRelations(mmdRelations, classIdBySimple, masterData));
+        // MMD owns relation rows when present; Java heritage fills Extends/Implements gaps only.
+        // Emitting both for the same extends pair fails save (at most one inheritance per source).
+        List<RelationStructureDTO> relations = new ArrayList<>(
+                mmdToRelations(mmdRelations, classIdBySimple, masterData));
+        relations.addAll(heritageRelationsMissingFrom(
+                heritageRelations(parsedClasses, classIdBySimple, masterData),
+                relations,
+                masterData));
 
         return new ChallengeStructureDTO(
                 UUID.randomUUID(),
@@ -262,6 +269,57 @@ public class SolutionImportService {
             relations.add(new RelationStructureDTO(UUID.randomUUID(), sourceId, targetId, typeId));
         }
         return relations;
+    }
+
+    /**
+     * Adds Java-derived heritage only when MMD did not already supply that relationship.
+     * Inheritance: skip if the source already has any inheritance row.
+     * Realization: skip if the same source→target already exists as realization.
+     */
+    private List<RelationStructureDTO> heritageRelationsMissingFrom(
+            List<RelationStructureDTO> heritage,
+            List<RelationStructureDTO> existing,
+            MasterDataIndex masterData) {
+        Integer inheritanceId = masterData.relationTypeId("inheritance");
+        Integer realizationId = masterData.relationTypeId("realization");
+        Set<UUID> sourcesWithInheritance = new HashSet<>();
+        Set<String> realizationPairs = new HashSet<>();
+        for (RelationStructureDTO rel : existing) {
+            if (rel == null || rel.sourceClassId() == null) {
+                continue;
+            }
+            if (inheritanceId != null && inheritanceId.equals(rel.relationTypeId())) {
+                sourcesWithInheritance.add(rel.sourceClassId());
+            }
+            if (realizationId != null && realizationId.equals(rel.relationTypeId())
+                    && rel.targetClassId() != null) {
+                realizationPairs.add(rel.sourceClassId() + "->" + rel.targetClassId());
+            }
+        }
+        List<RelationStructureDTO> missing = new ArrayList<>();
+        for (RelationStructureDTO rel : heritage) {
+            if (rel == null || rel.sourceClassId() == null) {
+                continue;
+            }
+            if (inheritanceId != null && inheritanceId.equals(rel.relationTypeId())) {
+                if (sourcesWithInheritance.contains(rel.sourceClassId())) {
+                    continue;
+                }
+                sourcesWithInheritance.add(rel.sourceClassId());
+                missing.add(rel);
+                continue;
+            }
+            if (realizationId != null && realizationId.equals(rel.relationTypeId())
+                    && rel.targetClassId() != null) {
+                String key = rel.sourceClassId() + "->" + rel.targetClassId();
+                if (realizationPairs.contains(key)) {
+                    continue;
+                }
+                realizationPairs.add(key);
+                missing.add(rel);
+            }
+        }
+        return missing;
     }
 
     private static String simpleName(String name) {

@@ -846,7 +846,7 @@ export default function TermManagement() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
                   >
                     <Download className="h-4 w-4" />
-                    Download practice pack
+                    Practice pack
                   </button>
                   {!selectedTerm.current && (
                     <button

@@ -103,6 +103,42 @@ class SolutionImportServiceTest {
     }
 
     @Test
+    void javaAndMmdInheritance_doesNotDuplicateExtends() {
+        String java = """
+                public class Shape {}
+                """;
+        String child = """
+                public class Circle extends Shape {}
+                """;
+        String mmd = """
+                classDiagram
+                class Circle
+                class Shape
+                Circle --|> Shape
+                """;
+        List<MultipartFile> files = List.of(
+                javaFile("challenge_1/Shape.java", java),
+                javaFile("challenge_1/Circle.java", child),
+                mmdFile("challenge_1/diagram.mmd", mmd));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        SolutionImportChallengeResult row = response.challenges().get(0);
+        assertEquals("applied", row.status());
+        ChallengeStructureDTO challenge = row.challenge();
+        assertTrue(challenge.hasMmd());
+
+        var circle = challenge.classes().stream()
+                .filter(c -> "Circle".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        long inheritanceCount = challenge.relations().stream()
+                .filter(r -> circle.id().equals(r.sourceClassId()))
+                .filter(r -> Integer.valueOf(20).equals(r.relationTypeId()))
+                .count();
+        assertEquals(1, inheritanceCount, "Circle must have exactly one inheritance relation after import");
+    }
+
+    @Test
     void nestedStaticClass_mapsOuterLink() {
         String source = """
                 public class Pen {
