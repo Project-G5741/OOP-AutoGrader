@@ -118,6 +118,7 @@ class LabStructureServiceSaveTest {
                 labStatisticsCache,
                 labDeadlineHelper,
                 entityManager,
+                null,
                 false);
 
         labId = UUID.randomUUID();
@@ -493,7 +494,8 @@ class LabStructureServiceSaveTest {
         labStructureService.saveLabStructure(labId, payload);
 
         verify(testcaseRubricService, never()).deleteAllForChallenges(any());
-        verify(entityManager).flush();
+        // Phased deferral: at least one phase flush + final commit flush.
+        verify(entityManager, org.mockito.Mockito.atLeast(1)).flush();
     }
 
     @Test

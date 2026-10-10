@@ -68,7 +68,10 @@ import com.eiu.capstone.backend.utility.TimingLog;
 @Service
 public class LabStructureService {
 
-    /** When true, structure sync skips intermediate flushes (clone insert path — Neon RTT). */
+    /**
+     * When true, skip per-batch flushes but still run {@link #flushStructurePhase()} at
+     * cycle-breaking boundaries so Hibernate can JDBC-batch (outer_class / relation cycles).
+     */
     private final ThreadLocal<Boolean> deferStructureFlush = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private final LabRepository labRepository;
@@ -89,6 +92,7 @@ public class LabStructureService {
     private final LabStatisticsCache labStatisticsCache;
     private final LabDeadlineHelper labDeadlineHelper;
     private final EntityManager entityManager;
+    private final LabStructureGraphLoader labStructureGraphLoader;
     private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
@@ -109,6 +113,7 @@ public class LabStructureService {
                                LabStatisticsCache labStatisticsCache,
                                LabDeadlineHelper labDeadlineHelper,
                                EntityManager entityManager,
+                               LabStructureGraphLoader labStructureGraphLoader,
                                @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
@@ -128,14 +133,19 @@ public class LabStructureService {
         this.labStatisticsCache = labStatisticsCache;
         this.labDeadlineHelper = labDeadlineHelper;
         this.entityManager = entityManager;
+        this.labStructureGraphLoader = labStructureGraphLoader;
         this.timingLog = timingLog;
     }
 
     @Transactional(readOnly = true)
     public LabStructureResponse loadForEditor(UUID labId) {
-        Lab lab = labRepository.findById(labId)
+        long startedAt = System.currentTimeMillis();
+        Lab lab = labRepository.findByIdWithTerm(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
-        return buildLabStructureResponse(lab);
+        LabStructureResponse response = buildLabStructureResponse(lab);
+        TimingLog.block(timingLog, "Load lab structure (editor)",
+                "total", System.currentTimeMillis() - startedAt);
+        return response;
     }
 
     private LabStructureResponse buildLabStructureResponse(Lab lab) {
@@ -149,17 +159,22 @@ public class LabStructureService {
         }
 
         List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
-        List<Field> fields = classes.isEmpty() ? List.of()
-                : fieldRepository.findByClassEntityInWithDeclaration(classes);
-        List<Method> methods = classes.isEmpty() ? List.of()
-                : methodRepository.findByClassEntityInWithDeclaration(classes);
-        List<Constructor> constructors = classes.isEmpty() ? List.of()
-                : constructorRepository.findByClassEntityInWithDeclaration(classes);
-        List<Parameter> methodParams = methods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(methods);
-        List<Parameter> constructorParams = constructors.isEmpty() ? List.of()
-                : parameterRepository.findByConstructorEntityIn(constructors);
-        List<ClassRelation> allRelations = classes.isEmpty() ? List.of()
-                : classRelationRepository.findByClassEntityInWithEndpoints(classes);
+        List<UUID> classIds = classes.stream().map(ClassEntity::getId).toList();
+        LabStructureGraphLoader.MemberWave members = labStructureGraphLoader != null
+                ? labStructureGraphLoader.loadMemberWave(classIds)
+                : loadMemberWaveSerial(classes);
+        List<Field> fields = members.fields();
+        List<Method> methods = members.methods();
+        List<Constructor> constructors = members.constructors();
+        List<ClassRelation> allRelations = members.relations();
+
+        List<UUID> methodIds = methods.stream().map(Method::getId).toList();
+        List<UUID> constructorIds = constructors.stream().map(Constructor::getId).toList();
+        LabStructureGraphLoader.ParameterWave params = labStructureGraphLoader != null
+                ? labStructureGraphLoader.loadParameterWave(methodIds, constructorIds)
+                : loadParameterWaveSerial(methods, constructors);
+        List<Parameter> methodParams = params.methodParams();
+        List<Parameter> constructorParams = params.constructorParams();
 
         Map<UUID, List<ClassEntity>> classesByChallenge = classes.stream()
                 .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
@@ -170,8 +185,10 @@ public class LabStructureService {
         Map<UUID, List<Constructor>> constructorsByClass = constructors.stream()
                 .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
         Map<UUID, List<Parameter>> paramsByMethod = methodParams.stream()
+                .filter(p -> p.getMethod() != null)
                 .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
         Map<UUID, List<Parameter>> paramsByConstructor = constructorParams.stream()
+                .filter(p -> p.getConstructorEntity() != null)
                 .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
         Map<UUID, List<ClassRelation>> relationsByChallenge = allRelations.stream()
                 .collect(Collectors.groupingBy(r -> r.getClassEntity().getChallenge().getId()));
@@ -192,6 +209,25 @@ public class LabStructureService {
                 lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
                 lab.isStudentVisible(), lab.getReleaseDate(),
                 challengeDtos);
+    }
+
+    private LabStructureGraphLoader.MemberWave loadMemberWaveSerial(List<ClassEntity> classes) {
+        if (classes.isEmpty()) {
+            return new LabStructureGraphLoader.MemberWave(List.of(), List.of(), List.of(), List.of());
+        }
+        return new LabStructureGraphLoader.MemberWave(
+                fieldRepository.findByClassEntityInWithDeclaration(classes),
+                methodRepository.findByClassEntityInWithDeclaration(classes),
+                constructorRepository.findByClassEntityInWithDeclaration(classes),
+                classRelationRepository.findByClassEntityInWithEndpoints(classes));
+    }
+
+    private LabStructureGraphLoader.ParameterWave loadParameterWaveSerial(List<Method> methods,
+                                                                           List<Constructor> constructors) {
+        List<Parameter> methodParams = methods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(methods);
+        List<Parameter> constructorParams = constructors.isEmpty() ? List.of()
+                : parameterRepository.findByConstructorEntityIn(constructors);
+        return new LabStructureGraphLoader.ParameterWave(methodParams, constructorParams);
     }
 
     /**
@@ -289,11 +325,43 @@ public class LabStructureService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(HashSet::new));
 
+        Set<UUID> replacedSet = replacedChallengeIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
         long syncStartedAt = System.currentTimeMillis();
+        boolean phased = Boolean.TRUE.equals(deferStructureFlush.get());
+        List<PendingOuter> pendingOuters = new ArrayList<>();
+        List<PendingRelations> pendingRelations = new ArrayList<>();
         for (ChallengeStructureDTO challengeDto : challengePayloads) {
             Challenge challenge = upsertChallenge(ctx, lab, challengeDto, usedChallengeNumbers, keptChallengeIds);
-            syncClasses(ctx, challenge, challengeDto.classes());
-            syncRelations(ctx, challenge, challengeDto.relations());
+            if (!insertOnly
+                    && challengeDto.id() != null
+                    && !replacedSet.contains(challengeDto.id())
+                    && challengeTreeUnchanged(ctx, challengeDto)) {
+                continue;
+            }
+            syncClasses(ctx, challenge, challengeDto.classes(), phased ? pendingOuters : null);
+            if (phased) {
+                pendingRelations.add(new PendingRelations(challenge, challengeDto.relations()));
+            } else {
+                syncRelations(ctx, challenge, challengeDto.relations());
+            }
+        }
+        if (phased) {
+            // Phase 1: challenges + class shells (outer null) + members + params — batchable.
+            flushStructurePhase();
+            for (PendingOuter pending : pendingOuters) {
+                applyOuterClass(ctx, Map.of(), pending.challenge(), pending.classEntity(), pending.dto());
+            }
+            // Phase 2: outer_class UPDATEs only (breaks self-FK cycle with inserts).
+            if (!pendingOuters.isEmpty()) {
+                flushStructurePhase();
+            }
+            for (PendingRelations pending : pendingRelations) {
+                syncRelations(ctx, pending.challenge(), pending.relations());
+            }
+            // Phase 3 relations flush at save* final entityManager.flush().
         }
         long syncMs = System.currentTimeMillis() - syncStartedAt;
 
@@ -396,6 +464,14 @@ public class LabStructureService {
         Map<UUID, List<ClassRelation>> relationsByChallengeId = relations.stream()
                 .collect(Collectors.groupingBy(r -> r.getClassEntity().getChallenge().getId()));
 
+        List<Parameter> methodParams = methods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(methods);
+        List<Parameter> constructorParams = constructors.isEmpty() ? List.of()
+                : parameterRepository.findByConstructorEntityIn(constructors);
+        Map<UUID, List<Parameter>> paramsByMethodId = methodParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
+        Map<UUID, List<Parameter>> paramsByConstructorId = constructorParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
+
         Map<Integer, MasterData> masterDataById = masterDataRepository.findAll().stream()
                 .collect(Collectors.toMap(MasterData::getId, Function.identity()));
 
@@ -411,6 +487,8 @@ public class LabStructureService {
                 constructorsByClassId,
                 relationsById,
                 relationsByChallengeId,
+                paramsByMethodId,
+                paramsByConstructorId,
                 masterDataById);
     }
 
@@ -419,6 +497,8 @@ public class LabStructureService {
         Map<Integer, MasterData> masterDataById = masterDataRepository.findAll().stream()
                 .collect(Collectors.toMap(MasterData::getId, Function.identity()));
         return new SaveContext(
+                new LinkedHashMap<>(),
+                new LinkedHashMap<>(),
                 new LinkedHashMap<>(),
                 new LinkedHashMap<>(),
                 new LinkedHashMap<>(),
@@ -445,6 +525,8 @@ public class LabStructureService {
         final Map<UUID, List<Constructor>> constructorsByClassId;
         final Map<UUID, ClassRelation> relationsById;
         final Map<UUID, List<ClassRelation>> relationsByChallengeId;
+        final Map<UUID, List<Parameter>> paramsByMethodId;
+        final Map<UUID, List<Parameter>> paramsByConstructorId;
         final Map<Integer, MasterData> masterDataById;
 
         SaveContext(Map<UUID, Challenge> challengesById,
@@ -458,6 +540,8 @@ public class LabStructureService {
                     Map<UUID, List<Constructor>> constructorsByClassId,
                     Map<UUID, ClassRelation> relationsById,
                     Map<UUID, List<ClassRelation>> relationsByChallengeId,
+                    Map<UUID, List<Parameter>> paramsByMethodId,
+                    Map<UUID, List<Parameter>> paramsByConstructorId,
                     Map<Integer, MasterData> masterDataById) {
             this.challengesById = new HashMap<>(challengesById);
             this.classesById = new HashMap<>(classesById);
@@ -470,6 +554,8 @@ public class LabStructureService {
             this.constructorsByClassId = new HashMap<>(constructorsByClassId);
             this.relationsById = new HashMap<>(relationsById);
             this.relationsByChallengeId = new HashMap<>(relationsByChallengeId);
+            this.paramsByMethodId = new HashMap<>(paramsByMethodId);
+            this.paramsByConstructorId = new HashMap<>(paramsByConstructorId);
             this.masterDataById = masterDataById;
         }
 
@@ -816,6 +902,15 @@ public class LabStructureService {
         entityManager.flush();
     }
 
+    /** Always flush — used at cycle-breaking phase boundaries under deferred sync. */
+    private void flushStructurePhase() {
+        entityManager.flush();
+    }
+
+    private record PendingOuter(Challenge challenge, ClassEntity classEntity, ClassStructureDTO dto) {}
+
+    private record PendingRelations(Challenge challenge, List<RelationStructureDTO> relations) {}
+
     private Challenge upsertChallenge(SaveContext ctx, Lab lab, ChallengeStructureDTO dto,
                                         Set<Integer> usedChallengeNumbers, Set<UUID> keptChallengeIds) {
         Challenge challenge;
@@ -894,7 +989,10 @@ public class LabStructureService {
         return number;
     }
 
-    private void syncClasses(SaveContext ctx, Challenge challenge, List<ClassStructureDTO> classDtos) {
+    private void syncClasses(SaveContext ctx,
+                             Challenge challenge,
+                             List<ClassStructureDTO> classDtos,
+                             List<PendingOuter> pendingOuters) {
         List<ClassEntity> existingClasses = List.copyOf(ctx.classesByChallengeId.getOrDefault(challenge.getId(), List.of()));
         Set<UUID> keptClassIds = new HashSet<>();
         List<ClassStructureDTO> payloads = classDtos != null ? classDtos : List.of();
@@ -913,8 +1011,17 @@ public class LabStructureService {
             isNewFlags.add(isNew);
             batchById.put(shell.getId(), shell);
         }
-        for (int i = 0; i < payloads.size(); i++) {
-            applyOuterClass(ctx, batchById, challenge, prepared.get(i), payloads.get(i));
+        if (pendingOuters != null) {
+            // Defer outer_class so class INSERTs are not in a circular Hibernate batch with self-FKs.
+            for (int i = 0; i < payloads.size(); i++) {
+                if (payloads.get(i).outerClassId() != null) {
+                    pendingOuters.add(new PendingOuter(challenge, prepared.get(i), payloads.get(i)));
+                }
+            }
+        } else {
+            for (int i = 0; i < payloads.size(); i++) {
+                applyOuterClass(ctx, batchById, challenge, prepared.get(i), payloads.get(i));
+            }
         }
 
         for (int i = 0; i < prepared.size(); i++) {
@@ -1037,20 +1144,19 @@ public class LabStructureService {
     }
 
     private void deleteRelationsForClass(SaveContext ctx, UUID classId) {
-        List<ClassRelation> asSource = classRelationRepository.findByClassEntity_Id(classId);
-        List<ClassRelation> asTarget = classRelationRepository.findByTargetClassEntity_Id(classId);
-        Set<UUID> deleted = new HashSet<>();
-        for (ClassRelation relation : asSource) {
-            if (deleted.add(relation.getId())) {
-                classRelationRepository.delete(relation);
-                ctx.removeRelation(relation.getId(), relation.getClassEntity().getChallenge().getId());
-            }
-        }
-        for (ClassRelation relation : asTarget) {
-            if (deleted.add(relation.getId())) {
-                classRelationRepository.delete(relation);
-                ctx.removeRelation(relation.getId(), relation.getClassEntity().getChallenge().getId());
-            }
+        // Prefer SaveContext (already loaded) — avoids 2 Neon SELECTs per deleted class.
+        List<ClassRelation> touching = ctx.relationsById.values().stream()
+                .filter(relation -> {
+                    UUID sourceId = relation.getClassEntity() != null ? relation.getClassEntity().getId() : null;
+                    UUID targetId = relation.getTargetClassEntity() != null
+                            ? relation.getTargetClassEntity().getId() : null;
+                    return classId.equals(sourceId) || classId.equals(targetId);
+                })
+                .toList();
+        for (ClassRelation relation : touching) {
+            UUID challengeId = relation.getClassEntity().getChallenge().getId();
+            classRelationRepository.delete(relation);
+            ctx.removeRelation(relation.getId(), challengeId);
         }
     }
 
@@ -1549,6 +1655,110 @@ public class LabStructureService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " is required");
         }
         return value.trim();
+    }
+
+    /**
+     * Light-save fast path: when the editor re-sends an unchanged challenge tree, skip
+     * class/member/relation upsert work (challenge metadata already updated by upsertChallenge).
+     */
+    private boolean challengeTreeUnchanged(SaveContext ctx, ChallengeStructureDTO payload) {
+        Challenge existing = ctx.challengesById.get(payload.id());
+        if (existing == null) {
+            return false;
+        }
+        ChallengeStructureDTO current = toChallengeDto(
+                existing,
+                ctx.classesByChallengeId.getOrDefault(payload.id(), List.of()),
+                ctx.fieldsByClassId,
+                ctx.methodsByClassId,
+                ctx.constructorsByClassId,
+                ctx.paramsByMethodId,
+                ctx.paramsByConstructorId,
+                ctx.relationsByChallengeId.getOrDefault(payload.id(), List.of()));
+        return canonicalizeChallenge(current).equals(canonicalizeChallenge(payload));
+    }
+
+    private static ChallengeStructureDTO canonicalizeChallenge(ChallengeStructureDTO dto) {
+        List<ClassStructureDTO> classes = (dto.classes() != null ? dto.classes() : List.<ClassStructureDTO>of()).stream()
+                .sorted(Comparator.comparing(c -> c.id() != null ? c.id().toString() : c.name(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(LabStructureService::canonicalizeClass)
+                .toList();
+        List<RelationStructureDTO> relations = (dto.relations() != null ? dto.relations() : List.<RelationStructureDTO>of())
+                .stream()
+                .sorted(Comparator
+                        .comparing((RelationStructureDTO r) -> r.id() != null ? r.id().toString() : "")
+                        .thenComparing(r -> r.sourceClassId() != null ? r.sourceClassId().toString() : "")
+                        .thenComparing(r -> r.targetClassId() != null ? r.targetClassId().toString() : ""))
+                .toList();
+        return new ChallengeStructureDTO(
+                dto.id(),
+                dto.name() != null ? dto.name().trim() : null,
+                dto.challengeNumber(),
+                classes,
+                relations,
+                dto.hasMmd(),
+                normalizeWeight(dto.weight()),
+                normalizeWeight(dto.classWeight()),
+                normalizeWeight(dto.mmdWeight()),
+                normalizeWeight(dto.testcaseWeight()));
+    }
+
+    private static ClassStructureDTO canonicalizeClass(ClassStructureDTO dto) {
+        List<FieldStructureDTO> fields = (dto.fields() != null ? dto.fields() : List.<FieldStructureDTO>of()).stream()
+                .sorted(Comparator.comparing(f -> f.id() != null ? f.id().toString() : f.name(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        List<MethodStructureDTO> methods = (dto.methods() != null ? dto.methods() : List.<MethodStructureDTO>of()).stream()
+                .sorted(Comparator.comparing(m -> m.id() != null ? m.id().toString() : m.name(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(m -> new MethodStructureDTO(
+                        m.id(),
+                        m.name(),
+                        m.returnType(),
+                        m.scopeId(),
+                        m.isStatic(),
+                        m.isAbstract(),
+                        canonicalizeParams(m.parameters())))
+                .toList();
+        List<ConstructorStructureDTO> constructors = (dto.constructors() != null ? dto.constructors()
+                : List.<ConstructorStructureDTO>of()).stream()
+                .sorted(Comparator.comparing(c -> c.id() != null ? c.id().toString() : "",
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(c -> new ConstructorStructureDTO(
+                        c.id(),
+                        c.name(),
+                        c.scopeId(),
+                        c.isDefault(),
+                        canonicalizeParams(c.parameters())))
+                .toList();
+        return new ClassStructureDTO(
+                dto.id(),
+                dto.name() != null ? dto.name().trim() : null,
+                dto.scopeId(),
+                dto.declaringTypeId(),
+                dto.isAbstract(),
+                dto.isStatic(),
+                fields,
+                methods,
+                constructors,
+                dto.outerClassId(),
+                normalizeWeight(dto.weight()));
+    }
+
+    private static List<ParameterStructureDTO> canonicalizeParams(List<ParameterStructureDTO> params) {
+        if (params == null || params.isEmpty()) {
+            return List.of();
+        }
+        return params.stream()
+                .sorted(Comparator.comparingInt(ParameterStructureDTO::orderIndex))
+                .map(p -> new ParameterStructureDTO(
+                        p.id(),
+                        p.name() != null ? p.name().trim() : null,
+                        p.dataType() != null ? p.dataType().trim() : null,
+                        p.orderIndex(),
+                        p.isFinal()))
+                .toList();
     }
 
     private ChallengeStructureDTO toChallengeDto(Challenge challenge,

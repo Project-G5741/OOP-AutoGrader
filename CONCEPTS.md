@@ -190,6 +190,9 @@ A single request/response that returns everything a lecturer nav tab needs for *
 ### First useful data
 The primary content that makes a lecturer tab usable after click (for example Score’s first grade-overview page, or Solution’s structure editor for the default lab). Secondary drill-downs after that paint are outside the first-useful-data clock.
 
+### Phased structure flush
+Deferred structure sync (editor Save and clone insert-only) still flushes at cycle-breaking boundaries: class shells with `outer_class` null plus members, then outer-class updates, then relations. That keeps Hibernate JDBC batching effective over Neon instead of falling back to one statement per RTT when `outer_class` self-FKs make a single unsorted batch.
+
 ### Replace-aware structure save
 When **Save Lab Structure** follows solution-import challenge replaces (or an equivalent heavy challenge rewrite), those challenges clear persisted operational testcases and rebuild insert-style instead of member-by-member upsert of the old tree. Light edits that are not replaces keep normal upsert semantics.
 
