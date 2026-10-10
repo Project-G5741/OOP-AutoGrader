@@ -190,6 +190,9 @@ A single request/response that returns everything a lecturer nav tab needs for *
 ### First useful data
 The primary content that makes a lecturer tab usable after click (for example Score’s first grade-overview page, or Solution’s structure editor for the default lab). Secondary drill-downs after that paint are outside the first-useful-data clock.
 
+### Replace-aware structure save
+When **Save Lab Structure** follows solution-import challenge replaces (or an equivalent heavy challenge rewrite), those challenges clear persisted operational testcases and rebuild insert-style instead of member-by-member upsert of the old tree. Light edits that are not replaces keep normal upsert semantics.
+
 ## Backend tests
 
 ### Aspect-root test home

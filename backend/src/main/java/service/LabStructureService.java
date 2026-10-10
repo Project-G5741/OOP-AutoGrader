@@ -195,14 +195,14 @@ public class LabStructureService {
     }
 
     /**
-     * Clone insert path: same as {@link #saveLabStructure} but skips loading an empty tree
+     * Clone insert path: same as editor save but skips loading an empty tree
      * and defers flushes to one commit flush (Neon RTT).
      */
     @Transactional
     public LabStructureResponse saveLabStructureInsertOnly(UUID labId, LabStructureResponse payload) {
         deferStructureFlush.set(Boolean.TRUE);
         try {
-            LabStructureResponse saved = saveLabStructure(labId, payload, true);
+            LabStructureResponse saved = syncLabStructure(labId, payload, true, List.of());
             entityManager.flush();
             return saved;
         } finally {
@@ -212,10 +212,32 @@ public class LabStructureService {
 
     @Transactional
     public LabStructureResponse saveLabStructure(UUID labId, LabStructureResponse payload) {
-        return saveLabStructure(labId, payload, false);
+        return saveLabStructure(labId, payload, List.of());
     }
 
-    private LabStructureResponse saveLabStructure(UUID labId, LabStructureResponse payload, boolean insertOnly) {
+    /**
+     * Editor save: defer flushes to one commit flush; optional {@code replacedChallengeIds}
+     * wipe OT once and rebuild those challenges insert-style (solution-import replaces).
+     */
+    @Transactional
+    public LabStructureResponse saveLabStructure(UUID labId,
+                                                 LabStructureResponse payload,
+                                                 List<UUID> replacedChallengeIds) {
+        deferStructureFlush.set(Boolean.TRUE);
+        try {
+            LabStructureResponse saved = syncLabStructure(
+                    labId, payload, false, replacedChallengeIds != null ? replacedChallengeIds : List.of());
+            entityManager.flush();
+            return saved;
+        } finally {
+            deferStructureFlush.remove();
+        }
+    }
+
+    private LabStructureResponse syncLabStructure(UUID labId,
+                                                  LabStructureResponse payload,
+                                                  boolean insertOnly,
+                                                  List<UUID> replacedChallengeIds) {
         long startedAt = System.currentTimeMillis();
         Lab lab = labRepository.findById(labId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
@@ -230,6 +252,21 @@ public class LabStructureService {
         Set<UUID> keptChallengeIds = new HashSet<>();
 
         if (!insertOnly) {
+            List<UUID> replacedOnLab = replacedChallengeIds.stream()
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .filter(ctx.challengesById::containsKey)
+                    .toList();
+            if (!replacedOnLab.isEmpty()) {
+                testcaseRubricService.deleteAllForChallenges(replacedOnLab);
+                for (UUID challengeId : replacedOnLab) {
+                    Challenge existing = ctx.challengesById.get(challengeId);
+                    if (existing != null) {
+                        deleteChallengeCascade(ctx, existing, true);
+                    }
+                }
+            }
+
             Set<UUID> payloadChallengeIds = challengePayloads.stream()
                     .map(ChallengeStructureDTO::id)
                     .filter(Objects::nonNull)

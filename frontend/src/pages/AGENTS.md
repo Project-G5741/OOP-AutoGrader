@@ -111,7 +111,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
 | `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
-| `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenges wipe OT on save |
+| `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenge ids sent as `replacedChallengeIds` on structure PUT (server wipes OT + rebuilds those challenges) |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 

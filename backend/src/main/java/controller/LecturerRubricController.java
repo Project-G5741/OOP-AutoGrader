@@ -27,6 +27,7 @@ import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
+import com.eiu.capstone.backend.DTO.rubric.LabStructureSaveRequest;
 import com.eiu.capstone.backend.DTO.rubric.SolutionImportResponse;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
@@ -98,8 +99,9 @@ public class LecturerRubricController {
     @PutMapping("/{labId}/structure")
     public LabStructureResponse saveStructure(
             @PathVariable UUID labId,
-            @RequestBody LabStructureResponse payload) {
-        return labStructureService.saveLabStructure(labId, payload);
+            @RequestBody LabStructureSaveRequest request) {
+        return labStructureService.saveLabStructure(
+                labId, request.toStructure(), request.replacedChallengeIdsOrEmpty());
     }
 
     @PostMapping(path = "/{labId}/solution-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

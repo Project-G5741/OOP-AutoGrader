@@ -330,23 +330,14 @@ export default function SolutionManagement() {
     setSaving(true);
     showToast(null);
     try {
-      for (const challengeId of importReplacedChallengeIds) {
-        const wipeRes = await apiFetch(
-          `${API_BASE}/api/lecturer/labs/${selectedLabId}/challenges/${challengeId}/testcases`,
-          {
-            method: 'PUT',
-            headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify([]),
-          },
-        );
-        if (!wipeRes.ok) {
-          throw new Error(await readFriendlyApiError(wipeRes, 'testcase-save'));
-        }
-      }
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ ...draft, name: String(draft.name).trim() }),
+        body: JSON.stringify({
+          ...draft,
+          name: String(draft.name).trim(),
+          replacedChallengeIds: importReplacedChallengeIds,
+        }),
       });
       if (!res.ok) {
         throw new Error(await readFriendlyApiError(res, 'save'));
