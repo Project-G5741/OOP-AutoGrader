@@ -151,7 +151,7 @@ Per upload request (unique `requestId` prevents collisions):
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
-- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
 - Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases
 - Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
