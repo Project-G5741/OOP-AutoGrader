@@ -17,6 +17,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
 import { validateLabName } from '../utils/validation';
+import { buildSolutionImportFormData, parseSolutionFolder } from '../utils/solutionFolderParse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -95,6 +96,8 @@ export default function SolutionManagement() {
   const [deadlineSaving, setDeadlineSaving] = useState(false);
   const [studentVisibleInput, setStudentVisibleInput] = useState(true);
   const [studentAccessSaving, setStudentAccessSaving] = useState(false);
+  /** Challenge ids whose OT was cleared by solution import (wipe on Save Lab Structure). */
+  const [importReplacedChallengeIds, setImportReplacedChallengeIds] = useState([]);
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) return false;
@@ -166,6 +169,7 @@ export default function SolutionManagement() {
       if (!proceed) return;
     }
     setError('');
+    setImportReplacedChallengeIds([]);
     const cached = structureCacheRef.current[labId];
     if (cached) {
       setSelectedLabId(labId);
@@ -299,6 +303,19 @@ export default function SolutionManagement() {
     setSaving(true);
     showToast(null);
     try {
+      for (const challengeId of importReplacedChallengeIds) {
+        const wipeRes = await apiFetch(
+          `${API_BASE}/api/lecturer/labs/${selectedLabId}/challenges/${challengeId}/testcases`,
+          {
+            method: 'PUT',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify([]),
+          },
+        );
+        if (!wipeRes.ok) {
+          throw new Error(await readFriendlyApiError(wipeRes, 'testcase-save'));
+        }
+      }
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -309,6 +326,7 @@ export default function SolutionManagement() {
       }
       const saved = await res.json();
       applyStructure(selectedLabId, saved);
+      setImportReplacedChallengeIds([]);
       const savedChallenges = saved.challenges || [];
       if (selectedClassRef) {
         const challenge = savedChallenges.find((c) => c.id === selectedClassRef.challengeId);
@@ -328,6 +346,109 @@ export default function SolutionManagement() {
     } finally {
       savingRef.current = false;
       setSaving(false);
+    }
+  };
+
+  const handleSolutionImport = async (selection) => {
+    if (!selectedLabId || !draft) {
+      throw new Error('Select a lab before importing a solution.');
+    }
+    const parsed = parseSolutionFolder(selection.entries || []);
+    if (!parsed.ok) {
+      throw new Error(parsed.error || 'Invalid solution folder.');
+    }
+    const form = buildSolutionImportFormData(parsed.challenges);
+    const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/solution-import`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    });
+    if (!res.ok) {
+      throw new Error(await readFriendlyApiError(res, 'import'));
+    }
+    const data = await res.json();
+    const rows = Array.isArray(data.challenges) ? data.challenges : [];
+    const existingByNumber = new Map(
+      (draft.challenges || []).map((c) => [Number(c.challengeNumber), c]),
+    );
+    let nextChallenges = [...(draft.challenges || [])];
+    const replacedIds = [];
+    let added = 0;
+    let replaced = 0;
+    const skipMessages = [...(parsed.skipped || []).map((s) => s.reason)];
+
+    for (const row of rows) {
+      if (row.status !== 'applied' || !row.challenge) {
+        if (row.message) {
+          skipMessages.push(`challenge_${row.challengeNumber}: ${row.message}`);
+        }
+        continue;
+      }
+      const fragment = row.challenge;
+      const number = Number(fragment.challengeNumber ?? row.challengeNumber);
+      const existing = existingByNumber.get(number);
+      if (existing) {
+        replacedIds.push(existing.id);
+        nextChallenges = nextChallenges.map((c) => (
+          c.id === existing.id
+            ? {
+              ...c,
+              classes: fragment.classes || [],
+              relations: fragment.relations || [],
+              hasMmd: fragment.hasMmd === true,
+            }
+            : c
+        ));
+        replaced += 1;
+      } else {
+        const created = {
+          id: fragment.id || crypto.randomUUID(),
+          name: fragment.name || `Problem ${number}`,
+          challengeNumber: number,
+          classes: fragment.classes || [],
+          relations: fragment.relations || [],
+          hasMmd: fragment.hasMmd === true,
+          weight: fragment.weight > 0 ? fragment.weight : 1,
+          classWeight: fragment.classWeight > 0 ? fragment.classWeight : 1,
+          mmdWeight: fragment.mmdWeight > 0 ? fragment.mmdWeight : 1,
+          testcaseWeight: fragment.testcaseWeight > 0 ? fragment.testcaseWeight : 1,
+        };
+        nextChallenges = [...nextChallenges, created];
+        existingByNumber.set(number, created);
+        added += 1;
+      }
+    }
+
+    nextChallenges = nextChallenges.sort(
+      (a, b) => (a.challengeNumber ?? 0) - (b.challengeNumber ?? 0),
+    );
+    const nextDraft = { ...draft, challenges: nextChallenges };
+    setDraft(nextDraft);
+    if (structureCacheRef.current[selectedLabId]) {
+      structureCacheRef.current[selectedLabId] = {
+        ...structureCacheRef.current[selectedLabId],
+        draft: cloneDraft(nextDraft),
+      };
+    }
+    if (replacedIds.length > 0) {
+      setImportReplacedChallengeIds((prev) => Array.from(new Set([...prev, ...replacedIds])));
+    }
+
+    const parts = [];
+    if (added) parts.push(`added ${added}`);
+    if (replaced) parts.push(`replaced ${replaced}`);
+    if (skipMessages.length) parts.push(`skipped ${skipMessages.length}`);
+    const summary = parts.length
+      ? `Import complete: ${parts.join(', ')}.`
+      : 'Import complete: no challenges applied.';
+    showToast({
+      message: summary,
+      type: skipMessages.length && !(added || replaced) ? 'warning' : 'success',
+    });
+    if (skipMessages.length > 0) {
+      const detail = skipMessages.slice(0, 3).join(' · ');
+      const more = skipMessages.length > 3 ? ` (+${skipMessages.length - 3} more)` : '';
+      showToast({ message: detail + more, type: 'warning' });
     }
   };
 
@@ -701,6 +822,7 @@ export default function SolutionManagement() {
               onSaveStudentAccess={handleStudentAccessSave}
               onSaveDeadline={() => handleDeadlineChange(deadlineInput)}
               onClearDeadline={() => handleDeadlineChange(null)}
+              onSolutionImport={handleSolutionImport}
             />
           )}
 
@@ -822,6 +944,14 @@ export default function SolutionManagement() {
                   }}
                   labId={selectedLabId}
                   structureDirty={isDirty}
+                  suppressOtLoad={
+                    Boolean(selectedChallengeId) && (
+                      importReplacedChallengeIds.includes(selectedChallengeId)
+                      || !(savedSnapshot?.challenges || []).some(
+                        (c) => c.id === selectedChallengeId,
+                      )
+                    )
+                  }
                   onToast={showToast}
                 />
               )}

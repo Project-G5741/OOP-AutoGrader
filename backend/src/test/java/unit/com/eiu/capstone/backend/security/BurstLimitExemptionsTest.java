@@ -37,6 +37,15 @@ class BurstLimitExemptionsTest {
     }
 
     @Test
+    void solutionImportPost_isExempt() {
+        UUID labId = UUID.randomUUID();
+        assertTrue(BurstLimitExemptions.isExempt(
+                "/api/lecturer/labs/" + labId + "/solution-import", "POST"));
+        assertFalse(BurstLimitExemptions.isExempt(
+                "/api/lecturer/labs/" + labId + "/solution-import", "GET"));
+    }
+
+    @Test
     void ordinaryUpload_isNotExempt() {
         assertFalse(BurstLimitExemptions.isExempt("/api/submissions/upload", "POST"));
     }

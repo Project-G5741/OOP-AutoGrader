@@ -36,6 +36,9 @@ public final class BurstLimitExemptions {
         if (normalizedPath.endsWith("/testcases/dry-run")) {
             return true;
         }
+        if (normalizedPath.endsWith("/solution-import")) {
+            return true;
+        }
         return TERM_STUDENT_IMPORT.matcher(normalizedPath).matches();
     }
 }

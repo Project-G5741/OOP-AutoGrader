@@ -34,6 +34,7 @@ export default function LabSchedulingPanel({
   onSaveStudentAccess,
   onSaveDeadline,
   onClearDeadline,
+  onSolutionImport,
 }) {
   const accessStatus = useMemo(() => {
     if (!savedStudentVisible) {
@@ -151,7 +152,10 @@ export default function LabSchedulingPanel({
 
         <section className={`space-y-7 px-5 py-6 ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
           <SectionHeader icon={FileInput} title="Solution import" />
-          <SolutionImportPanel disabled={studentAccessSaving || deadlineSaving} />
+          <SolutionImportPanel
+            disabled={studentAccessSaving || deadlineSaving}
+            onImport={onSolutionImport}
+          />
         </section>
       </div>
 
