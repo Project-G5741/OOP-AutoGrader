@@ -106,7 +106,7 @@ Per upload request (unique `requestId` prevents collisions):
 - `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
 - `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter (for Terms page sync UI).
 - `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target).
-- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied.
+- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied. Postgres needs Hikari `stringtype=unspecified` (with `reWriteBatchedInserts`) so VARCHAR-mapped OT enums cast into native enum columns on flush.
 
 ### Operational testcase save
 
