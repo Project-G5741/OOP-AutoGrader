@@ -1,71 +1,24 @@
-export const FRIENDLY = {
-  SERVER_BUSY: 'Server Busy',
-  LOGIN_WRONG: 'IRN or password is wrong',
-  SESSION_EXPIRED: 'Session expired. Please sign in again.',
-  SOMETHING_WRONG: 'Something went wrong. Please try again.',
-  LOAD_FAILED: 'Unable to load data. Please try again.',
-  SAVE_FAILED: 'Unable to save. Please try again.',
-  DELETE_FAILED: 'Unable to delete. Please try again.',
-  UPLOAD_FAILED: 'Upload failed. Please try again.',
-};
+import {
+  ACCOUNT_INACTIVE,
+  AUTH_ERROR_MESSAGES,
+  BACKEND_MESSAGE_CONTEXTS,
+  CLIENT_VALIDATION_PREFIXES,
+  DESKTOP_IMPORT_NETWORK,
+  FRIENDLY,
+  SOLUTION_IMPORT_ERROR_MESSAGES,
+  TESTCASE_CONFIG_FALLBACK,
+} from '../config/apiErrorMessages';
 
-const ACCOUNT_INACTIVE = 'This account is inactive.';
+export { FRIENDLY } from '../config/apiErrorMessages';
 
-const AUTH_ERROR_MESSAGES = {
-  login: {
-    401: FRIENDLY.LOGIN_WRONG,
-    403: ACCOUNT_INACTIVE,
-    default: FRIENDLY.SOMETHING_WRONG,
-  },
-  google: {
-    401: 'Unable to sign in with Google. Please try again.',
-    403: 'Unable to sign in with Google. Please try again.',
-    423: ACCOUNT_INACTIVE,
-    default: 'Unable to sign in with Google. Please try again.',
-  },
-  setup: {
-    400: 'Unable to complete setup. Please check your details and try again.',
-    409: 'Unable to complete setup. Please check your details and try again.',
-    default: 'Unable to complete setup. Please check your details and try again.',
-  },
-  'forgot-password': {
-    default: 'Unable to send reset email. Please try again.',
-  },
-  'reset-password': {
-    400: 'This reset link is invalid or expired. Please request a new one.',
-    404: 'This reset link is invalid or expired. Please request a new one.',
-    default: 'This reset link is invalid or expired. Please request a new one.',
-  },
-  'change-password': {
-    401: 'Current password is incorrect.',
-    default: 'Unable to change password. Please try again.',
-  },
-};
-
-const CLIENT_VALIDATION_PREFIXES = [
-  'Please drop',
-  'Invalid folder',
-  'Missing lab',
-  'You must be signed in',
-  'No authentication token',
-  'Google login did not receive',
-  'Google login failed',
-  'You are not authorized',
-  'Could not find Student ID',
-  'Not matched:',
-  'Step ',
-  'Testcase:',
-  'Add at least',
-  'Each ',
-  'Complete the',
-  'Check the testcase',
-  'Add reference Java',
-];
-
-const TESTCASE_API_CONTEXTS = new Set(['testcase-dry-run', 'testcase-save']);
+const BACKEND_MESSAGE_CONTEXT_SET = new Set(BACKEND_MESSAGE_CONTEXTS);
 
 function collectFriendlyMessages() {
   const messages = new Set(Object.values(FRIENDLY));
+  messages.add(ACCOUNT_INACTIVE);
+  messages.add(DESKTOP_IMPORT_NETWORK);
+  messages.add(TESTCASE_CONFIG_FALLBACK);
+  Object.values(SOLUTION_IMPORT_ERROR_MESSAGES).forEach((message) => messages.add(message));
   Object.values(AUTH_ERROR_MESSAGES).forEach((entry) => {
     Object.values(entry).forEach((message) => messages.add(message));
   });
@@ -129,11 +82,29 @@ export async function readFriendlyApiError(response, context = 'read') {
   }
 
   if (
-    (response.status === 400 || response.status === 413 || response.status === 422 || response.status === 409)
+    (response.status === 400
+      || response.status === 404
+      || response.status === 413
+      || response.status === 422
+      || response.status === 409)
     && backendMessage
-    && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'import')
+    && BACKEND_MESSAGE_CONTEXT_SET.has(context)
   ) {
     return backendMessage;
+  }
+
+  if (context === 'solution-import') {
+    if (response.status === 401) {
+      return FRIENDLY.SESSION_EXPIRED;
+    }
+    if (response.status === 403) {
+      return FRIENDLY.LOAD_FAILED;
+    }
+    const statusMessage = SOLUTION_IMPORT_ERROR_MESSAGES[response.status];
+    if (statusMessage) {
+      return statusMessage;
+    }
+    return SOLUTION_IMPORT_ERROR_MESSAGES.default;
   }
 
   const authMessages = AUTH_ERROR_MESSAGES[context];
@@ -156,7 +127,7 @@ export async function readFriendlyApiError(response, context = 'read') {
   switch (context) {
     case 'testcase-dry-run':
     case 'testcase-save':
-      return backendMessage || 'Check the testcase configuration and try again.';
+      return backendMessage || TESTCASE_CONFIG_FALLBACK;
     case 'save':
       return FRIENDLY.SAVE_FAILED;
     case 'delete':
@@ -170,6 +141,8 @@ export async function readFriendlyApiError(response, context = 'read') {
       return FRIENDLY.SERVER_BUSY;
     case 'import':
       return FRIENDLY.SOMETHING_WRONG;
+    case 'solution-import':
+      return SOLUTION_IMPORT_ERROR_MESSAGES.default;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;
@@ -191,7 +164,7 @@ export async function friendlyLoadErrorFromResponse(response) {
 export function toFriendlyError(error, context = 'read') {
   if (isNetworkError(error)) {
     if (context === 'import') {
-      return 'Practice backend is not running. Start OOP-AutoGrader-Practice and try again.';
+      return DESKTOP_IMPORT_NETWORK;
     }
     return FRIENDLY.SERVER_BUSY;
   }
@@ -202,7 +175,7 @@ export function toFriendlyError(error, context = 'read') {
   }
 
   // Already resolved by readFriendlyApiError (or a client-thrown Error with that text).
-  if (message && (TESTCASE_API_CONTEXTS.has(context) || context === 'delete' || context === 'save' || context === 'download' || context === 'import')) {
+  if (message && (BACKEND_MESSAGE_CONTEXT_SET.has(context) || context === 'download')) {
     return message;
   }
 
@@ -214,7 +187,7 @@ export function toFriendlyError(error, context = 'read') {
   switch (context) {
     case 'testcase-dry-run':
     case 'testcase-save':
-      return 'Check the testcase configuration and try again.';
+      return TESTCASE_CONFIG_FALLBACK;
     case 'save':
       return FRIENDLY.SAVE_FAILED;
     case 'delete':
@@ -225,6 +198,8 @@ export function toFriendlyError(error, context = 'read') {
       return FRIENDLY.SERVER_BUSY;
     case 'import':
       return FRIENDLY.SOMETHING_WRONG;
+    case 'solution-import':
+      return SOLUTION_IMPORT_ERROR_MESSAGES.default;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;
