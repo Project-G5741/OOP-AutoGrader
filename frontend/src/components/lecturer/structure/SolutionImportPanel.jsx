@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { FolderOpen, Loader2, Upload, X } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
+import { toFriendlyError } from '../../../utils/apiError';
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -166,7 +167,7 @@ export default function SolutionImportPanel({
       clearSelection();
     } catch (e) {
       showToast({
-        message: e?.message || 'Import failed.',
+        message: toFriendlyError(e, 'solution-import'),
         type: 'error',
       });
     } finally {
@@ -228,12 +229,17 @@ export default function SolutionImportPanel({
         >
           <Upload className={`h-6 w-6 ${isDragging ? 'text-primary' : 'text-foreground-muted'}`} aria-hidden="true" />
           <span className="text-center font-medium text-foreground">Drop folder or click to choose</span>
+          <span className="text-center text-xs text-foreground-muted">
+            Lab root with <span className="font-mono text-primary/80">challenge_n</span> folders, or one{' '}
+            <span className="font-mono text-primary/80">challenge_n</span> folder with .java and optional .mmd
+          </span>
           <button
             type="button"
             disabled={disabled}
             onClick={openFilePicker}
             className="mt-1 text-xs text-foreground-muted transition-colors hover:text-primary disabled:opacity-50"
           >
+            Or pick individual .java / .mmd files
           </button>
         </div>
       ) : (
