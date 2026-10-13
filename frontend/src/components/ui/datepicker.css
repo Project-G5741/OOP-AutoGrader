@@ -4,12 +4,14 @@
   border: 1px solid var(--surface-tertiary);
   box-shadow: 0 10px 24px rgb(15 23 42 / 0.16);
   color: var(--text-primary);
+  color-scheme: light;
   z-index: 70;
 }
 
 .dark .flatpickr-calendar {
   border-color: var(--surface-tertiary);
   box-shadow: 0 16px 40px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
 }
 
 /* Gap between input and dropdown (default is ~2px) */
@@ -48,6 +50,31 @@
 
 .flatpickr-current-month .flatpickr-monthDropdown-months {
   background: var(--surface);
+}
+
+/* Native month <select>: opaque options so Windows does not paint light text on a light popup. */
+.flatpickr-monthDropdown-months option,
+.flatpickr-monthDropdown-month {
+  background-color: var(--surface);
+  color: var(--text-primary);
+}
+
+.dark .flatpickr-monthDropdown-months option,
+.dark .flatpickr-monthDropdown-month {
+  background-color: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.flatpickr-monthDropdown-month:checked,
+.flatpickr-monthDropdown-month[selected] {
+  background-color: var(--primary);
+  color: #fff;
+}
+
+.dark .flatpickr-monthDropdown-month:checked,
+.dark .flatpickr-monthDropdown-month[selected] {
+  background-color: var(--chart-blue);
+  color: #fff;
 }
 
 .flatpickr-months .flatpickr-prev-month,
