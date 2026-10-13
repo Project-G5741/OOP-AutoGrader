@@ -3,6 +3,7 @@ package support.com.eiu.capstone.backend.service;
 import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
@@ -41,6 +42,29 @@ class StudentTermAccessServiceTest {
     @BeforeEach
     void setUp() {
         accessService = new StudentTermAccessService(termService, labDeadlineHelper, userAccountRepository, 30, 4096, null);
+    }
+
+    @Test
+    void enrolledQuarterName_returnsCurrentLabelWhenEnrolled() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = new UserAccount();
+        user.setIsActive(true);
+        setUserId(user, userId);
+        when(termService.isInCurrentTerm(userId)).thenReturn(true);
+        when(termService.currentTermLabel()).thenReturn(Optional.of("2025-2026 — Quarter 2"));
+
+        assertEquals("2025-2026 — Quarter 2", accessService.enrolledQuarterName(user));
+    }
+
+    @Test
+    void enrolledQuarterName_nullWhenNotEnrolled() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = new UserAccount();
+        user.setIsActive(true);
+        setUserId(user, userId);
+        when(termService.isInCurrentTerm(userId)).thenReturn(false);
+
+        assertNull(accessService.enrolledQuarterName(user));
     }
 
     @Test

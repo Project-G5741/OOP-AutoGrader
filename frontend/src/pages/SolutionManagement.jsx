@@ -382,7 +382,7 @@ export default function SolutionManagement() {
       body: form,
     });
     if (!res.ok) {
-      throw new Error(await readFriendlyApiError(res, 'import'));
+      throw new Error(await readFriendlyApiError(res, 'solution-import'));
     }
     const data = await res.json();
     const rows = Array.isArray(data.challenges) ? data.challenges : [];

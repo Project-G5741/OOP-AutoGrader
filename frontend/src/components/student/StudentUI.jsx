@@ -163,6 +163,7 @@ function formatScopeDetail(scope, detail) {
 
 export default function StudentUI({
   user,
+  quarterName = '',
   // Dữ liệu labs
   labs = [],
   labSummariesById = {},
@@ -337,10 +338,15 @@ export default function StudentUI({
         onSelectLab={onLabChange}
       />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
+        <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="min-w-0 flex-1">
+            {quarterName ? (
+              <p className="truncate text-xs text-foreground-muted">
+                Enrolled Quarter: <span className="font-medium text-foreground">{quarterName}</span>
+              </p>
+            ) : null}
             <p className="truncate text-sm font-semibold text-foreground">
               {selectedLab?.name ?? 'Select a lab'}
             </p>

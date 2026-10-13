@@ -66,7 +66,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
-- Dark mode in `src/index.css`: drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
+- Dark mode in `src/index.css`: `html` / `html.dark` set `color-scheme` so native controls (Flatpickr month `<select>`, file pickers) match the theme; drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md`
 
@@ -97,7 +97,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
-- API error bodies: `src/utils/apiError.js` — `readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`; never surface raw backend `message`/`error`/`detail` to users (login wrong credentials → "IRN or password is wrong"; fetch/network/5xx → "Server Busy"). **429** is not toast-only busy — jail navigation owns it. **Exception:** context `import` (desktop rubric pack import) may show the backend message for HTTP 400/409/413/422 so students see pack name/conflict/size reasons instead of "Server Busy"; network failure on import → "Practice backend is not running…" (not "Server Busy").
+- API error bodies: adjust copy in `src/config/apiErrorMessages.js`; mapping in `src/utils/apiError.js` (`readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`). Never surface raw backend `message`/`error`/`detail` except for contexts in `BACKEND_MESSAGE_CONTEXTS` (and download 403/404/503). **429** → rate-limit jail, not toast-only busy. Context `import` (desktop pack): backend message for 400/409/413/422; network → `DESKTOP_IMPORT_NETWORK`. Context `solution-import` (lecturer folder): backend message for 400/404/409/413/422; network → `FRIENDLY.SERVER_BUSY`.
 - Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login. Presence paths are excluded from the server burst budget.
 - Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
 - `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard and history routes use it for the fox mascot.

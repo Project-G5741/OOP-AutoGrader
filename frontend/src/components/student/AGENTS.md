@@ -57,7 +57,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 ### Lab list layout (`StudentUI.jsx`)
 
 - Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
-- Right: `SidebarInset` — selected-lab header, notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
+- Right: `SidebarInset` — selected-lab header (includes **Enrolled Quarter:** `{quarterName}` when the parent passes a current-quarter label), notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 - Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
 
