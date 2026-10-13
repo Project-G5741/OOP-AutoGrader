@@ -373,6 +373,11 @@ public class TermService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<String> currentTermLabel() {
+        return termRepository.findCurrentWithAcademicYear().map(TermService::buildTermLabel);
+    }
+
+    @Transactional(readOnly = true)
     public boolean isInCurrentTerm(UUID userId) {
         if (userId == null) {
             return false;

@@ -27,6 +27,6 @@ public class StudentAccessController {
     @GetMapping("/term-access")
     public TermAccessDTO termAccess(@AuthenticationPrincipal JwtUserPrincipal principal) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
-        return new TermAccessDTO(studentTermAccessService.isInCurrentTerm(user));
+        return studentTermAccessService.termAccessFor(user);
     }
 }

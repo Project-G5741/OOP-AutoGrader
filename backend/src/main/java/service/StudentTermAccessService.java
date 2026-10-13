@@ -10,9 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.TermAccessDTO;
 import com.eiu.capstone.backend.analytics.cache.InProcessTtlCache;
 import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
-
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -56,6 +56,18 @@ public class StudentTermAccessService {
             return false;
         }
         return termService.isInCurrentTerm(user.getId());
+    }
+
+    /** Enrollment flag plus the current quarter label when the student may submit. */
+    public TermAccessDTO termAccessFor(UserAccount user) {
+        boolean enrolled = isInCurrentTerm(user);
+        String quarterName = enrolled ? termService.currentTermLabel().orElse(null) : null;
+        return new TermAccessDTO(enrolled, quarterName);
+    }
+
+    /** Label of the current quarter when this student may use the submit dashboard. */
+    public String enrolledQuarterName(UserAccount user) {
+        return termAccessFor(user).quarterName();
     }
 
     public void requireCanSubmit(UserAccount user, Lab lab) {

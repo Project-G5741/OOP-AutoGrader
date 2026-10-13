@@ -187,6 +187,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const navigate = useNavigate();
   const showHistory = view === 'history';
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
+  const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
 
@@ -511,7 +512,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         const data = await res.json();
         if (!cancelled) {
           const next = Boolean(data.inCurrentTerm);
+          const name = typeof data.quarterName === 'string' ? data.quarterName.trim() : '';
           setInCurrentTerm((prev) => (prev === next ? prev : next));
+          setQuarterName(next ? name : '');
           patchStoredUser({ inCurrentTerm: next });
         }
       } catch {
@@ -887,6 +890,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           ) : (
             <StudentUI
               user={user}
+              quarterName={quarterName}
               labs={labs}
               labSummariesById={labSummariesById}
               selectedLabId={selectedLabId}
