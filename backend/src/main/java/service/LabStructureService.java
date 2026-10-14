@@ -1113,8 +1113,7 @@ public class LabStructureService {
 
         for (ClassRelation row : existing) {
             if (!kept.contains(row.getId())) {
-                classRelationRepository.delete(row);
-                ctx.removeRelation(row.getId(), challenge.getId());
+                deleteRelation(ctx, row);
             }
         }
     }
@@ -1154,10 +1153,27 @@ public class LabStructureService {
                 })
                 .toList();
         for (ClassRelation relation : touching) {
-            UUID challengeId = relation.getClassEntity().getChallenge().getId();
-            classRelationRepository.delete(relation);
-            ctx.removeRelation(relation.getId(), challengeId);
+            deleteRelation(ctx, relation);
         }
+    }
+
+    private void deleteRelation(SaveContext ctx, ClassRelation relation) {
+        UUID challengeId = relation.getClassEntity().getChallenge().getId();
+        deleteGradingRows("submission_relation_result", "class_relation_id", relation.getId());
+        classRelationRepository.delete(relation);
+        ctx.removeRelation(relation.getId(), challengeId);
+    }
+
+    /**
+     * Student attempts stay. Per-member grade rows cannot outlive the rubric member they point at.
+     */
+    private void deleteGradingRows(String table, String column, UUID memberId) {
+        if (memberId == null) {
+            return;
+        }
+        entityManager.createNativeQuery("DELETE FROM " + table + " WHERE " + column + " = :memberId")
+                .setParameter("memberId", memberId)
+                .executeUpdate();
     }
 
     private ClassEntity prepareClassShell(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
@@ -1590,6 +1606,7 @@ public class LabStructureService {
         }
         UUID classId = field.getClassEntity().getId();
         UUID declarationId = field.getFieldDeclaration().getId();
+        deleteGradingRows("submission_field_result", "field_id", field.getId());
         fieldRepository.delete(field);
         fieldDeclarationRepository.deleteById(declarationId);
         ctx.removeField(field.getId(), classId);
@@ -1607,6 +1624,7 @@ public class LabStructureService {
         UUID classId = method.getClassEntity().getId();
         parameterRepository.deleteByMethod_IdIn(List.of(method.getId()));
         UUID declarationId = method.getMethodDeclaration().getId();
+        deleteGradingRows("submission_method_result", "method_id", method.getId());
         methodRepository.delete(method);
         methodDeclarationRepository.deleteById(declarationId);
         ctx.removeMethod(method.getId(), classId);
@@ -1624,6 +1642,7 @@ public class LabStructureService {
         UUID classId = constructor.getClassEntity().getId();
         parameterRepository.deleteByConstructorEntity_IdIn(List.of(constructor.getId()));
         UUID declarationId = constructor.getConstructorDeclaration().getId();
+        deleteGradingRows("submission_constructor_result", "constructor_id", constructor.getId());
         constructorRepository.delete(constructor);
         constructorDeclarationRepository.deleteById(declarationId);
         ctx.removeConstructor(constructor.getId(), classId);
