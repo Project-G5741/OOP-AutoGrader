@@ -255,7 +255,7 @@ When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 When any challenge has operational testcases, grading runs in two phases: **(1)** parallel class + MMD per challenge on `gradingExecutor`; **(2)** acquire `workerJvmSlot`, open one worker session, then run the testcase pillar per OT challenge (sequential after class/MMD, not parallel with MMD). Labs without OT use a single parallel pass (`gradeChallenge`).
 
-Per challenge, pillar order is always **class → MMD (if `has_mmd`) → OT (if rubric rows exist)** on the same worker thread (no MMD∥OT overlap).
+Per challenge, pillar order is **Declaration (if `has_class`) → MMD (if `has_mmd`) → OT (if rubric rows exist)** on the same worker thread (no MMD∥OT overlap).
 
 1. **Class pillar**: `ReflectionClassParser` loads `.class` files; `ClassReflectionGrader` scores shells and members.
 2. **MMD pillar** (if `has_mmd`): `MmdParser` + `MmdComparisonService`.

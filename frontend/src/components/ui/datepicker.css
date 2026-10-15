@@ -49,20 +49,36 @@
 }
 
 .flatpickr-current-month .flatpickr-monthDropdown-months {
-  background: var(--surface);
+  background: transparent;
+  color: var(--text-primary);
 }
 
-/* Native month <select>: opaque options so Windows does not paint light text on a light popup. */
+/* Native month <select> extends below the header; clipping paints a white menulist strip on Windows. */
+.flatpickr-months .flatpickr-month {
+  overflow: visible;
+}
+
+/* Native month <select>: Windows/Chromium list popup stays light — use dark text, not --text-primary in .dark. */
 .flatpickr-monthDropdown-months option,
 .flatpickr-monthDropdown-month {
   background-color: var(--surface);
   color: var(--text-primary);
 }
 
+.dark .flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: transparent;
+  color: var(--text-primary);
+  color-scheme: dark;
+}
+
+.dark .flatpickr-current-month .flatpickr-monthDropdown-months:hover {
+  background: var(--surface-secondary);
+}
+
 .dark .flatpickr-monthDropdown-months option,
 .dark .flatpickr-monthDropdown-month {
-  background-color: var(--surface-secondary);
-  color: var(--text-primary);
+  background-color: #fff;
+  color: #0f172a;
 }
 
 .flatpickr-monthDropdown-month:checked,
@@ -71,6 +87,7 @@
   color: #fff;
 }
 
+.dark .flatpickr-monthDropdown-months option:checked,
 .dark .flatpickr-monthDropdown-month:checked,
 .dark .flatpickr-monthDropdown-month[selected] {
   background-color: var(--chart-blue);

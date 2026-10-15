@@ -63,6 +63,7 @@ import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
@@ -93,6 +94,7 @@ public class LabStructureService {
     private final LabDeadlineHelper labDeadlineHelper;
     private final EntityManager entityManager;
     private final LabStructureGraphLoader labStructureGraphLoader;
+    private final TestcaseRepository testcaseRepository;
     private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
@@ -114,6 +116,7 @@ public class LabStructureService {
                                LabDeadlineHelper labDeadlineHelper,
                                EntityManager entityManager,
                                LabStructureGraphLoader labStructureGraphLoader,
+                               TestcaseRepository testcaseRepository,
                                @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
@@ -134,6 +137,7 @@ public class LabStructureService {
         this.labDeadlineHelper = labDeadlineHelper;
         this.entityManager = entityManager;
         this.labStructureGraphLoader = labStructureGraphLoader;
+        this.testcaseRepository = testcaseRepository;
         this.timingLog = timingLog;
     }
 
@@ -365,6 +369,8 @@ public class LabStructureService {
         }
         long syncMs = System.currentTimeMillis() - syncStartedAt;
 
+        assertChallengesHaveApplicablePillars(challengePayloads, replacedSet, ctx);
+
         if (payload.name() != null && !payload.name().isBlank()) {
             lab.setName(com.eiu.capstone.backend.desktop.pack.LabNameRules.requireValid(payload.name()));
         }
@@ -387,6 +393,7 @@ public class LabStructureService {
                             dto.classes(),
                             dto.relations(),
                             saved.isHasMmd(),
+                            saved.isHasClass(),
                             saved.getWeight(),
                             saved.getClassWeight(),
                             saved.getMmdWeight(),
@@ -938,6 +945,7 @@ public class LabStructureService {
         }
         challenge.setName(requireNonBlank(dto.name(), "Challenge name"));
         challenge.setHasMmd(dto.hasMmd());
+        challenge.setHasClass(dto.hasClass());
         challenge.setWeight(normalizeWeight(dto.weight()));
         challenge.setClassWeight(normalizeWeight(dto.classWeight()));
         challenge.setMmdWeight(normalizeWeight(dto.mmdWeight()));
@@ -1113,8 +1121,7 @@ public class LabStructureService {
 
         for (ClassRelation row : existing) {
             if (!kept.contains(row.getId())) {
-                classRelationRepository.delete(row);
-                ctx.removeRelation(row.getId(), challenge.getId());
+                deleteRelation(ctx, row);
             }
         }
     }
@@ -1154,10 +1161,27 @@ public class LabStructureService {
                 })
                 .toList();
         for (ClassRelation relation : touching) {
-            UUID challengeId = relation.getClassEntity().getChallenge().getId();
-            classRelationRepository.delete(relation);
-            ctx.removeRelation(relation.getId(), challengeId);
+            deleteRelation(ctx, relation);
         }
+    }
+
+    private void deleteRelation(SaveContext ctx, ClassRelation relation) {
+        UUID challengeId = relation.getClassEntity().getChallenge().getId();
+        deleteGradingRows("submission_relation_result", "class_relation_id", relation.getId());
+        classRelationRepository.delete(relation);
+        ctx.removeRelation(relation.getId(), challengeId);
+    }
+
+    /**
+     * Student attempts stay. Per-member grade rows cannot outlive the rubric member they point at.
+     */
+    private void deleteGradingRows(String table, String column, UUID memberId) {
+        if (memberId == null) {
+            return;
+        }
+        entityManager.createNativeQuery("DELETE FROM " + table + " WHERE " + column + " = :memberId")
+                .setParameter("memberId", memberId)
+                .executeUpdate();
     }
 
     private ClassEntity prepareClassShell(SaveContext ctx, Challenge challenge, ClassStructureDTO dto) {
@@ -1590,6 +1614,7 @@ public class LabStructureService {
         }
         UUID classId = field.getClassEntity().getId();
         UUID declarationId = field.getFieldDeclaration().getId();
+        deleteGradingRows("submission_field_result", "field_id", field.getId());
         fieldRepository.delete(field);
         fieldDeclarationRepository.deleteById(declarationId);
         ctx.removeField(field.getId(), classId);
@@ -1607,6 +1632,7 @@ public class LabStructureService {
         UUID classId = method.getClassEntity().getId();
         parameterRepository.deleteByMethod_IdIn(List.of(method.getId()));
         UUID declarationId = method.getMethodDeclaration().getId();
+        deleteGradingRows("submission_method_result", "method_id", method.getId());
         methodRepository.delete(method);
         methodDeclarationRepository.deleteById(declarationId);
         ctx.removeMethod(method.getId(), classId);
@@ -1624,6 +1650,7 @@ public class LabStructureService {
         UUID classId = constructor.getClassEntity().getId();
         parameterRepository.deleteByConstructorEntity_IdIn(List.of(constructor.getId()));
         UUID declarationId = constructor.getConstructorDeclaration().getId();
+        deleteGradingRows("submission_constructor_result", "constructor_id", constructor.getId());
         constructorRepository.delete(constructor);
         constructorDeclarationRepository.deleteById(declarationId);
         ctx.removeConstructor(constructor.getId(), classId);
@@ -1636,6 +1663,39 @@ public class LabStructureService {
         if (!names.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Cannot delete: referenced by operational testcase(s): " + String.join(", ", names));
+        }
+    }
+
+    private void assertChallengesHaveApplicablePillars(List<ChallengeStructureDTO> challengePayloads,
+                                                       Set<UUID> replacedChallengeIds,
+                                                       SaveContext ctx) {
+        List<UUID> challengeIds = challengePayloads.stream()
+                .map(dto -> {
+                    if (dto.id() != null && ctx.challengesById.containsKey(dto.id())) {
+                        return dto.id();
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, Long> otCounts = new HashMap<>();
+        if (!challengeIds.isEmpty()) {
+            for (var testcase : testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(challengeIds)) {
+                UUID cid = testcase.getChallenge().getId();
+                otCounts.merge(cid, 1L, Long::sum);
+            }
+        }
+        for (ChallengeStructureDTO dto : challengePayloads) {
+            Challenge saved = dto.id() != null ? ctx.challengesById.get(dto.id()) : null;
+            if (saved == null) {
+                continue;
+            }
+            int otCount = replacedChallengeIds.contains(saved.getId())
+                    ? 0
+                    : otCounts.getOrDefault(saved.getId(), 0L).intValue();
+            ChallengePillarApplicability.requireAtLeastOne(
+                    dto.hasClass(), dto.hasMmd(), otCount, saved.getName());
         }
     }
 
@@ -1698,6 +1758,7 @@ public class LabStructureService {
                 classes,
                 relations,
                 dto.hasMmd(),
+                dto.hasClass(),
                 normalizeWeight(dto.weight()),
                 normalizeWeight(dto.classWeight()),
                 normalizeWeight(dto.mmdWeight()),
@@ -1793,6 +1854,7 @@ public class LabStructureService {
                 classDtos,
                 relationDtos,
                 challenge.isHasMmd(),
+                challenge.isHasClass(),
                 normalizeWeight(challenge.getWeight()),
                 normalizeWeight(challenge.getClassWeight()),
                 normalizeWeight(challenge.getMmdWeight()),

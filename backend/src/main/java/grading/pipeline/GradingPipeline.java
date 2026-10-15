@@ -88,6 +88,7 @@ public class GradingPipeline {
         long challengeStart = System.currentTimeMillis();
         String challengeKey = folderResult.challengeName;
 
+        boolean classApplicable = challengeRubric.hasClass();
         boolean mmdApplicable = challengeRubric.hasMmd();
         boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
 
@@ -108,7 +109,9 @@ public class GradingPipeline {
                 null);
 
         long classStart = System.currentTimeMillis();
-        ClassReflectionGrader.ClassPillarResult classResult = classReflectionGrader.grade(context);
+        ClassReflectionGrader.ClassPillarResult classResult = classApplicable
+                ? classReflectionGrader.grade(context)
+                : ClassReflectionGrader.notApplicable();
         long classMs = System.currentTimeMillis() - classStart;
 
         long mmdStart = System.currentTimeMillis();
@@ -128,6 +131,7 @@ public class GradingPipeline {
                 challengeRubric.challengeId(),
                 challengeRubric.name(),
                 challengeRubric,
+                classApplicable,
                 mmdApplicable,
                 testcaseApplicable,
                 classResult,
@@ -212,6 +216,7 @@ public class GradingPipeline {
         ChallengeRubric challengeRubric = phase.challengeRubric();
         BigDecimal challengePct = PillarScoreAggregator.challengePercentage(
                 phase.classResult().pillarPercentage(),
+                phase.classApplicable(),
                 challengeRubric.classWeight(),
                 phase.mmdResult().pillarPercentage(),
                 phase.mmdApplicable(),
@@ -220,7 +225,8 @@ public class GradingPipeline {
                 phase.testcaseApplicable(),
                 challengeRubric.testcaseWeight());
 
-        boolean fullyCorrect = phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0
+        boolean fullyCorrect = (!phase.classApplicable()
+                || phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0)
                 && (!phase.mmdApplicable()
                 || phase.mmdResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0)
                 && (!phase.testcaseApplicable()
@@ -232,6 +238,7 @@ public class GradingPipeline {
                 phase.challengeName(),
                 challengePct,
                 fullyCorrect,
+                phase.classApplicable(),
                 phase.mmdApplicable(),
                 phase.testcaseApplicable(),
                 phase.classResult(),
@@ -250,6 +257,7 @@ public class GradingPipeline {
             java.util.UUID challengeId,
             String challengeName,
             ChallengeRubric challengeRubric,
+            boolean classApplicable,
             boolean mmdApplicable,
             boolean testcaseApplicable,
             ClassReflectionGrader.ClassPillarResult classResult,
@@ -262,6 +270,7 @@ public class GradingPipeline {
             String challengeName,
             BigDecimal percentage,
             boolean fullyCorrect,
+            boolean classApplicable,
             boolean mmdApplicable,
             boolean testcaseApplicable,
             ClassReflectionGrader.ClassPillarResult classResult,

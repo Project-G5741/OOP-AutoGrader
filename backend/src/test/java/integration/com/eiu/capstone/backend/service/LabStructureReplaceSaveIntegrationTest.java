@@ -26,10 +26,13 @@ import com.eiu.capstone.backend.EiuCapstoneBackendApplication;
 import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.Field;
+import com.eiu.capstone.backend.model.FieldDeclaration;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.MasterData;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
+import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.model.TestcaseType;
@@ -37,10 +40,13 @@ import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationRepository;
+import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.MasterDataRepository;
 import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
+import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
@@ -48,7 +54,8 @@ import com.eiu.capstone.backend.service.LabStructureService;
 
 /**
  * H2 (desktop profile) coverage for replace-aware structure save: OT wipe,
- * stable challenge id (keeps submission_challenge_result FK), class rebuild.
+ * stable challenge id (keeps submission and submission_challenge_result),
+ * drops per-member grading rows that would block the old rubric delete, class rebuild.
  */
 @SpringBootTest(classes = EiuCapstoneBackendApplication.class)
 @ActiveProfiles("desktop")
@@ -82,6 +89,9 @@ class LabStructureReplaceSaveIntegrationTest {
     @Autowired private UserAccountRepository userAccountRepository;
     @Autowired private LabSubmissionRepository labSubmissionRepository;
     @Autowired private SubmissionChallengeResultRepository submissionChallengeResultRepository;
+    @Autowired private SubmissionFieldResultRepository submissionFieldResultRepository;
+    @Autowired private FieldRepository fieldRepository;
+    @Autowired private FieldDeclarationRepository fieldDeclarationRepository;
     @Autowired private TransactionTemplate transactionTemplate;
 
     private UUID labId;
@@ -95,8 +105,11 @@ class LabStructureReplaceSaveIntegrationTest {
 
     @BeforeEach
     void seed() {
+        submissionFieldResultRepository.deleteAll();
         submissionChallengeResultRepository.deleteAll();
         labSubmissionRepository.deleteAll();
+        fieldRepository.deleteAll();
+        fieldDeclarationRepository.deleteAll();
         testcaseRepository.deleteAll();
         classEntityRepository.deleteAll();
         challengeRepository.deleteAll();
@@ -223,5 +236,56 @@ class LabStructureReplaceSaveIntegrationTest {
         assertEquals(1, submissionChallengeResultRepository.findAll().stream()
                 .filter(row -> challengeId.equals(row.getChallenge().getId()))
                 .count());
+    }
+
+    @Test
+    void saveLabStructure_replacedChallenge_dropsFieldGradingRows_keepsSubmission() {
+        MasterData scope = masterDataRepository.findById(scopeId).orElseThrow();
+        FieldDeclaration declaration = new FieldDeclaration();
+        declaration.setName("speed");
+        declaration.setDataType("int");
+        declaration.setScope(scope);
+        declaration = fieldDeclarationRepository.save(declaration);
+
+        UUID fieldId = UUID.randomUUID();
+        Field field = new Field();
+        field.setId(fieldId);
+        field.setName("speed");
+        field.setClassEntity(classEntityRepository.findById(oldClassId).orElseThrow());
+        field.setFieldDeclaration(declaration);
+        fieldRepository.save(field);
+
+        LabSubmission submission = labSubmissionRepository.findAll().get(0);
+        SubmissionFieldResult fieldResult = new SubmissionFieldResult();
+        fieldResult.setSubmission(submission);
+        fieldResult.setField(field);
+        fieldResult.setCorrect(true);
+        submissionFieldResultRepository.save(fieldResult);
+
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                challengeId,
+                "Challenge 1 rebuilt",
+                1,
+                List.of(new ClassStructureDTO(
+                        newClassId,
+                        "NewCar",
+                        scopeId,
+                        declaringId,
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of())),
+                List.of());
+        LabStructureResponse payload = new LabStructureResponse(
+                labId, "Replace IT Lab", termId, null, true, null, List.of(challengeDto));
+
+        transactionTemplate.executeWithoutResult(status ->
+                labStructureService.saveLabStructure(labId, payload, List.of(challengeId)));
+
+        assertEquals(0, submissionFieldResultRepository.count());
+        assertFalse(fieldRepository.findById(fieldId).isPresent());
+        assertEquals(1, labSubmissionRepository.count());
+        assertEquals(1, submissionChallengeResultRepository.count());
+        assertTrue(classEntityRepository.findById(newClassId).isPresent());
     }
 }

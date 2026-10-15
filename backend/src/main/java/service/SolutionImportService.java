@@ -216,6 +216,7 @@ public class SolutionImportService {
                 classes,
                 relations,
                 hasMmd,
+                true,
                 1,
                 1,
                 1,

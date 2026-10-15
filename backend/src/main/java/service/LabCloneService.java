@@ -7,11 +7,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -125,7 +127,9 @@ public class LabCloneService {
         if (!termRepository.existsById(targetTermId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quarter not found");
         }
+        Set<String> namesInTarget = labNamesInTermLowercase(targetTermId);
         List<TermSyncLabRefDTO> labs = labRepository.findAllWithTermExcludingTerm(targetTermId).stream()
+                .filter(lab -> !labNameExistsInTerm(lab.getName(), namesInTarget))
                 .sorted(Comparator
                         .comparing((Lab lab) -> lab.getTerm().getAcademicYear().getYearLabel()).reversed()
                         .thenComparing(lab -> lab.getTerm().getTermNumber(), Comparator.reverseOrder())
@@ -293,6 +297,7 @@ public class LabCloneService {
                 }
             }
         }
+        Set<String> namesInTarget = labNamesInTermLowercase(targetTermId);
         for (Lab lab : labs) {
             UUID termId = lab.getTerm() != null ? lab.getTerm().getId() : null;
             if (Objects.equals(termId, targetTermId)) {
@@ -300,7 +305,24 @@ public class LabCloneService {
                         HttpStatus.BAD_REQUEST,
                         "Cannot sync a lab that already belongs to this quarter");
             }
+            if (labNameExistsInTerm(lab.getName(), namesInTarget)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Quarter already has a lab named \"" + lab.getName() + "\"");
+            }
         }
+    }
+
+    private Set<String> labNamesInTermLowercase(UUID termId) {
+        return labRepository.findByTerm_Id(termId).stream()
+                .map(Lab::getName)
+                .filter(Objects::nonNull)
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    private static boolean labNameExistsInTerm(String labName, Set<String> namesInTargetLowercase) {
+        return labName != null && namesInTargetLowercase.contains(labName.toLowerCase(Locale.ROOT));
     }
 
     public LabStructureResponse cloneLab(UUID sourceLabId, UUID targetTermId) {
@@ -382,6 +404,7 @@ public class LabCloneService {
                 classes,
                 relations,
                 source.hasMmd(),
+                source.hasClass(),
                 source.weight(),
                 source.classWeight(),
                 source.mmdWeight(),

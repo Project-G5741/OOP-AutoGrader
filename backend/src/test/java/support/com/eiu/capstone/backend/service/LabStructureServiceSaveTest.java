@@ -58,6 +58,7 @@ import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @ExtendWith(MockitoExtension.class)
@@ -82,6 +83,7 @@ class LabStructureServiceSaveTest {
     @Mock private LabStatisticsCache labStatisticsCache;
     @Mock private LabDeadlineHelper labDeadlineHelper;
     @Mock private EntityManager entityManager;
+    @Mock private TestcaseRepository testcaseRepository;
 
     private RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
 
@@ -99,6 +101,7 @@ class LabStructureServiceSaveTest {
     void setUp() {
         rubricCacheInvalidationSupport = new RubricCacheInvalidationSupport(
                 labRubricCache, new DryRunChallengeCatalogCache());
+        when(testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
         labStructureService = new LabStructureService(
                 labRepository,
                 termRepository,
@@ -119,6 +122,7 @@ class LabStructureServiceSaveTest {
                 labDeadlineHelper,
                 entityManager,
                 null,
+                testcaseRepository,
                 false);
 
         labId = UUID.randomUUID();
@@ -496,6 +500,46 @@ class LabStructureServiceSaveTest {
         verify(testcaseRubricService, never()).deleteAllForChallenges(any());
         // Phased deferral: at least one phase flush + final commit flush.
         verify(entityManager, org.mockito.Mockito.atLeast(1)).flush();
+    }
+
+    @Test
+    void saveLabStructure_rejectsZeroApplicablePillars() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                challengeId,
+                "Empty Pillars",
+                1,
+                List.of(),
+                List.of(),
+                false,
+                false);
+        LabStructureResponse payload = new LabStructureResponse(
+                labId, "Lab 2", termId, null, true, null, List.of(challengeDto));
+
+        Challenge challenge = new Challenge();
+        challenge.setId(challengeId);
+        challenge.setLab(lab);
+        challenge.setName("Empty Pillars");
+        challenge.setChallengeNumber(1);
+
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of());
+        when(challengeRepository.findById(challengeId)).thenReturn(Optional.empty());
+        when(challengeRepository.save(any(Challenge.class))).thenAnswer(invocation -> {
+            Challenge saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                saved.setId(challengeId);
+            }
+            return saved;
+        });
+        when(classEntityRepository.findByChallengeInWithAttributes(any())).thenReturn(List.of());
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(challenge));
+        stubMasterData();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> labStructureService.saveLabStructure(labId, payload));
+        assertEquals(400, ex.getStatusCode().value());
     }
 
     @Test

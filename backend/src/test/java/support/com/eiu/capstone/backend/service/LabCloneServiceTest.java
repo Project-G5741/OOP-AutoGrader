@@ -298,10 +298,33 @@ class LabCloneServiceTest {
         when(termRepository.existsById(targetTermId)).thenReturn(true);
         when(labRepository.findAllWithTermExcludingTerm(targetTermId)).thenReturn(List.of(lab));
 
+        when(labRepository.findByTerm_Id(targetTermId)).thenReturn(List.of());
         TermSyncLabsResponse response = labCloneService.listSyncLabSources(targetTermId);
         assertEquals(1, response.labs().size());
         assertEquals("Lab A", response.labs().get(0).name());
         assertTrue(response.labs().get(0).termLabel().contains("2025-2026"));
+    }
+
+    @Test
+    void listSyncLabSources_excludesLabsAlreadyInTargetByName() {
+        UUID targetTermId = UUID.randomUUID();
+        Term other = term("2025-2026", 1, true);
+        Lab sourceLab = new Lab();
+        setLabId(sourceLab, UUID.randomUUID());
+        sourceLab.setName("Lab A");
+        sourceLab.setTerm(other);
+
+        Lab existingInTarget = new Lab();
+        setLabId(existingInTarget, UUID.randomUUID());
+        existingInTarget.setName("lab a");
+        existingInTarget.setTerm(term("2026-2027", 1, false));
+
+        when(termRepository.existsById(targetTermId)).thenReturn(true);
+        when(labRepository.findByTerm_Id(targetTermId)).thenReturn(List.of(existingInTarget));
+        when(labRepository.findAllWithTermExcludingTerm(targetTermId)).thenReturn(List.of(sourceLab));
+
+        TermSyncLabsResponse response = labCloneService.listSyncLabSources(targetTermId);
+        assertTrue(response.labs().isEmpty());
     }
 
     @Test
@@ -321,6 +344,33 @@ class LabCloneServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> labCloneService.cloneLabsToTargetTerm(List.of(sourceLabId), targetTermId));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void cloneLabsToTargetTerm_rejectsWhenTargetAlreadyHasLabWithSameName() {
+        UUID targetTermId = UUID.randomUUID();
+        UUID sourceLabId = UUID.randomUUID();
+
+        Term allowedTerm = term("2025-2026", 1, false);
+        Term target = new Term();
+        setTermId(target, targetTermId);
+        Lab sourceLab = new Lab();
+        setLabId(sourceLab, sourceLabId);
+        sourceLab.setName("Shared Name");
+        sourceLab.setTerm(allowedTerm);
+
+        Lab existing = new Lab();
+        existing.setName("shared name");
+        existing.setTerm(target);
+
+        when(termRepository.existsById(targetTermId)).thenReturn(true);
+        when(labRepository.findAllByIdWithTerm(List.of(sourceLabId))).thenReturn(List.of(sourceLab));
+        when(labRepository.findByTerm_Id(targetTermId)).thenReturn(List.of(existing));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> labCloneService.cloneLabsToTargetTerm(List.of(sourceLabId), targetTermId));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("Shared Name"));
     }
 
     @Test

@@ -93,7 +93,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
-| `GET /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — labs from all other quarters (with `termLabel`) |
+| `GET /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — labs from other quarters not already present in the selected quarter by name (with `termLabel`) |
 | `POST /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — body `{ sourceLabIds }` deep-copies into selected quarter |
 | `GET /api/labs/{labId}/challenges/list?studentId=` | `StudentDashboard.jsx` |
 | `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |

@@ -220,6 +220,7 @@ public class LabRubricService {
                 byNumber.put(challenge.getChallengeNumber(),
                         new ChallengeRubric(challenge.getId(), challenge.getChallengeNumber(), challenge.getName(),
                                 classRubrics, relationRubrics, testcaseRubrics, challenge.isHasMmd(),
+                                challenge.isHasClass(),
                                 Math.max(1, challenge.getWeight()),
                                 Math.max(1, challenge.getClassWeight()),
                                 Math.max(1, challenge.getMmdWeight()),

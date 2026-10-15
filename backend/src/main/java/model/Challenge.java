@@ -40,6 +40,9 @@ public class Challenge {
     @Column(name = "has_mmd", nullable = false)
     private boolean hasMmd = true;
 
+    @Column(name = "has_class", nullable = false)
+    private boolean hasClass = true;
+
     @Column(name = "weight", nullable = false)
     private int weight = 1;
 
@@ -68,6 +71,9 @@ public class Challenge {
 
     public boolean isHasMmd() { return hasMmd; }
     public void setHasMmd(boolean hasMmd) { this.hasMmd = hasMmd; }
+
+    public boolean isHasClass() { return hasClass; }
+    public void setHasClass(boolean hasClass) { this.hasClass = hasClass; }
 
     public int getWeight() { return weight; }
     public void setWeight(int weight) { this.weight = weight; }

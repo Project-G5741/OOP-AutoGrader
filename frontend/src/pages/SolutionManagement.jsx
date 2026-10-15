@@ -149,6 +149,7 @@ export default function SolutionManagement() {
       ...challenge,
       relations: challenge.relations || [],
       hasMmd: challenge.hasMmd !== false,
+      hasClass: challenge.hasClass !== false,
       weight: challenge.weight > 0 ? challenge.weight : 1,
       classWeight: challenge.classWeight > 0 ? challenge.classWeight : 1,
       mmdWeight: challenge.mmdWeight > 0 ? challenge.mmdWeight : 1,
@@ -414,6 +415,7 @@ export default function SolutionManagement() {
               classes: fragment.classes || [],
               relations: fragment.relations || [],
               hasMmd: fragment.hasMmd === true,
+              hasClass: fragment.hasClass !== false,
             }
             : c
         ));
@@ -426,6 +428,7 @@ export default function SolutionManagement() {
           classes: fragment.classes || [],
           relations: fragment.relations || [],
           hasMmd: fragment.hasMmd === true,
+          hasClass: fragment.hasClass !== false,
           weight: fragment.weight > 0 ? fragment.weight : 1,
           classWeight: fragment.classWeight > 0 ? fragment.classWeight : 1,
           mmdWeight: fragment.mmdWeight > 0 ? fragment.mmdWeight : 1,
@@ -896,6 +899,7 @@ export default function SolutionManagement() {
                   classes: [],
                   relations: [],
                   hasMmd: true,
+                  hasClass: true,
                   weight: 1,
                   classWeight: 1,
                   mmdWeight: 1,

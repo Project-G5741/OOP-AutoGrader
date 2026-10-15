@@ -27,7 +27,7 @@ This document describes every step of the OOP AutoGrader grading pipeline: how s
 
 ## 1. High-Level Architecture
 
-Each **challenge** in a lab is graded on up to **three independent pillars**. Class is always applicable; MMD applies when `has_mmd` is true; operational testcases apply when the challenge has at least one authored Unit/Composition row. Student upload runs `TestcaseGrader` for applicable challenges (one worker session per upload when any challenge needs OT). Challenge `testcase_weight` scales the testcase pillar in student totals when applicable.
+Each **challenge** in a lab is graded on up to **three independent pillars**. Declaration (class) applies when `has_class` is true; MMD applies when `has_mmd` is true; operational testcases apply when the challenge has at least one authored Unit/Composition row. A challenge must keep at least one applicable pillar. Student upload runs `TestcaseGrader` for applicable challenges (one worker session per upload when any challenge needs OT). Challenge `testcase_weight` scales the testcase pillar in student totals when applicable. When Declaration is off and OT does not apply, students may upload MMD-only (no `.java`); OT still requires Java even if Declaration is off.
 
 | Pillar | Input | Grader class | What is compared |
 |--------|-------|--------------|------------------|
@@ -631,7 +631,7 @@ pillarPercentage = (Σ weightᵢ × accuracyᵢ) / (Σ weightᵢ) × 100
 challengePercentage = Σ (pillarWeight × pillarPct) / Σ pillarWeight
 ```
 
-Only **applicable** pillars are included: class always; MMD when `has_mmd`; operational testcases when the challenge has ≥1 authored testcase row. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1.
+Only **applicable** pillars are included: Declaration when `has_class`; MMD when `has_mmd`; operational testcases when the challenge has ≥1 authored testcase row. Lecturer-set `class_weight` / `mmd_weight` / `testcase_weight` default to 1.
 
 ### 10.3 Lab percentage
 

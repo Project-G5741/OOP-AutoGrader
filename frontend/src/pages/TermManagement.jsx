@@ -283,6 +283,7 @@ export default function TermManagement() {
           type: 'success',
         });
       }
+      await loadTermSyncSources(selectedTermId);
     } catch (err) {
       const message = toFriendlyError(err, 'save');
       setError(message);

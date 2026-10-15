@@ -104,8 +104,8 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GET /api/lecturer/labs/clone-sources` — labs from the previous-current quarter (ordinal: yearLabel desc, termNumber desc; entry after current). Empty when none.
 - `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
-- `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter (for Terms page sync UI).
-- `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target).
+- `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter whose name is not already in the target quarter (for Terms page sync UI).
+- `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target); rejected when the target quarter already has a lab with the same name (case-insensitive).
 - Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied. Postgres needs Hikari `stringtype=unspecified` (with `reWriteBatchedInserts`) so VARCHAR-mapped OT enums cast into native enum columns on flush.
 
 ### Operational testcase save
@@ -119,7 +119,8 @@ Per upload request (unique `requestId` prevents collisions):
 - `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 - `LabStructureService.deleteLabsCascadeBulk` / `deleteLabCascade` wipe labs with ~20 set-based SQL statements (runtime → OT → members → classes → challenges → lab) — do not use per-entity cascades for term delete on Neon
 - `LabStructureService.saveLabStructure` (editor) and `saveLabStructureInsertOnly` (clone) both defer intermediate flushes to one commit flush (Neon RTT). Editor still loads `SaveContext` and upserts; clone uses an empty save context (master data only)
-- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete class trees with `skipTestcaseGuards` (challenge rows kept for stable ids), flush, then upsert challenge fields + insert-style child sync (solution-import replaces). No N× `PUT .../testcases` wipe from the SPA
+- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete class trees with `skipTestcaseGuards` (challenge rows kept for stable ids), flush, then upsert challenge fields + insert-style child sync (solution-import replaces). Deleting a field, method, constructor, or relation also deletes its `submission_field_result` / `submission_method_result` / `submission_constructor_result` / `submission_relation_result` rows so a graded lab can be rebuilt. `lab_submission` and `submission_challenge_result` stay. No N× `PUT .../testcases` wipe from the SPA
+- Zero-pillar gate (`ChallengePillarApplicability`): structure PUT and OT PUT reject when `!hasClass && !hasMmd && OT count == 0` after the write (`400` with a clear lecturer-facing message). Solution import leaves `hasClass=true` (does not auto-off from missing Java).
 - Clone OT write batches membership loads for all challenges and sets FKs via `EntityManager.getReference` (no per-member SELECT)
 
 ## Work Guidance
