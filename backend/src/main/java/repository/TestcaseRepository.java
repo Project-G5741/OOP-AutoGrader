@@ -13,4 +13,6 @@ public interface TestcaseRepository extends JpaRepository<Testcase, UUID> {
     List<Testcase> findByChallenge_IdInOrderByOrderIndexAsc(Collection<UUID> challengeIds);
 
     List<Testcase> findByChallenge_IdOrderByOrderIndexAsc(UUID challengeId);
+
+    long countByChallenge_Id(UUID challengeId);
 }

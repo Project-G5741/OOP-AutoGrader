@@ -52,6 +52,26 @@ export default function ChallengeDetailPanel({
             onChange={(testcaseWeight) => onMmdChange({ ...challenge, testcaseWeight })}
           />
         </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-foreground-secondary sm:col-span-2 xl:col-span-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={challenge.hasMmd !== false}
+              onChange={(e) => onMmdChange({ ...challenge, hasMmd: e.target.checked })}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+            Requires MMD diagram
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={challenge.hasClass !== false}
+              onChange={(e) => onMmdChange({ ...challenge, hasClass: e.target.checked })}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+            Requires Declaration Test
+          </label>
+        </div>
       </div>
       <div className="flex gap-1 border-b border-border">
         <button

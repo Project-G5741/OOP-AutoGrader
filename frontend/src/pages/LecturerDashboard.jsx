@@ -1185,6 +1185,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         challengeId={activeTab !== 'overview' ? activeTab : null}
         challengeLabel={activeChallengeTab ? challengeTabLabel(activeChallengeTab.challenge, activeChallengeTab.index) : 'Challenge'}
         hasMmd={activeChallengeTab?.challenge?.hasMmd}
+        hasClass={activeChallengeTab?.challenge?.hasClass}
         student={selectedChallengeStudent}
       />
     </div>

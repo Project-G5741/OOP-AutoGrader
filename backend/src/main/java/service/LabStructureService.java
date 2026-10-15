@@ -63,6 +63,7 @@ import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.utility.TimingLog;
 
 @Service
@@ -93,6 +94,7 @@ public class LabStructureService {
     private final LabDeadlineHelper labDeadlineHelper;
     private final EntityManager entityManager;
     private final LabStructureGraphLoader labStructureGraphLoader;
+    private final TestcaseRepository testcaseRepository;
     private final boolean timingLog;
 
     public LabStructureService(LabRepository labRepository,
@@ -114,6 +116,7 @@ public class LabStructureService {
                                LabDeadlineHelper labDeadlineHelper,
                                EntityManager entityManager,
                                LabStructureGraphLoader labStructureGraphLoader,
+                               TestcaseRepository testcaseRepository,
                                @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
@@ -134,6 +137,7 @@ public class LabStructureService {
         this.labDeadlineHelper = labDeadlineHelper;
         this.entityManager = entityManager;
         this.labStructureGraphLoader = labStructureGraphLoader;
+        this.testcaseRepository = testcaseRepository;
         this.timingLog = timingLog;
     }
 
@@ -365,6 +369,8 @@ public class LabStructureService {
         }
         long syncMs = System.currentTimeMillis() - syncStartedAt;
 
+        assertChallengesHaveApplicablePillars(challengePayloads, replacedSet, ctx);
+
         if (payload.name() != null && !payload.name().isBlank()) {
             lab.setName(com.eiu.capstone.backend.desktop.pack.LabNameRules.requireValid(payload.name()));
         }
@@ -387,6 +393,7 @@ public class LabStructureService {
                             dto.classes(),
                             dto.relations(),
                             saved.isHasMmd(),
+                            saved.isHasClass(),
                             saved.getWeight(),
                             saved.getClassWeight(),
                             saved.getMmdWeight(),
@@ -938,6 +945,7 @@ public class LabStructureService {
         }
         challenge.setName(requireNonBlank(dto.name(), "Challenge name"));
         challenge.setHasMmd(dto.hasMmd());
+        challenge.setHasClass(dto.hasClass());
         challenge.setWeight(normalizeWeight(dto.weight()));
         challenge.setClassWeight(normalizeWeight(dto.classWeight()));
         challenge.setMmdWeight(normalizeWeight(dto.mmdWeight()));
@@ -1658,6 +1666,39 @@ public class LabStructureService {
         }
     }
 
+    private void assertChallengesHaveApplicablePillars(List<ChallengeStructureDTO> challengePayloads,
+                                                       Set<UUID> replacedChallengeIds,
+                                                       SaveContext ctx) {
+        List<UUID> challengeIds = challengePayloads.stream()
+                .map(dto -> {
+                    if (dto.id() != null && ctx.challengesById.containsKey(dto.id())) {
+                        return dto.id();
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, Long> otCounts = new HashMap<>();
+        if (!challengeIds.isEmpty()) {
+            for (var testcase : testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(challengeIds)) {
+                UUID cid = testcase.getChallenge().getId();
+                otCounts.merge(cid, 1L, Long::sum);
+            }
+        }
+        for (ChallengeStructureDTO dto : challengePayloads) {
+            Challenge saved = dto.id() != null ? ctx.challengesById.get(dto.id()) : null;
+            if (saved == null) {
+                continue;
+            }
+            int otCount = replacedChallengeIds.contains(saved.getId())
+                    ? 0
+                    : otCounts.getOrDefault(saved.getId(), 0L).intValue();
+            ChallengePillarApplicability.requireAtLeastOne(
+                    dto.hasClass(), dto.hasMmd(), otCount, saved.getName());
+        }
+    }
+
     private MasterData resolveMasterData(SaveContext ctx, Integer id, String label) {
         if (id == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing " + label + " id");
@@ -1717,6 +1758,7 @@ public class LabStructureService {
                 classes,
                 relations,
                 dto.hasMmd(),
+                dto.hasClass(),
                 normalizeWeight(dto.weight()),
                 normalizeWeight(dto.classWeight()),
                 normalizeWeight(dto.mmdWeight()),
@@ -1812,6 +1854,7 @@ public class LabStructureService {
                 classDtos,
                 relationDtos,
                 challenge.isHasMmd(),
+                challenge.isHasClass(),
                 normalizeWeight(challenge.getWeight()),
                 normalizeWeight(challenge.getClassWeight()),
                 normalizeWeight(challenge.getMmdWeight()),

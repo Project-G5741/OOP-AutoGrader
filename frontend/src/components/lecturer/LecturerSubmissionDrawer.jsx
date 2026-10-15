@@ -27,6 +27,13 @@ function tabClass(active) {
   }`;
 }
 
+function firstApplicableTab(classApplicable, mmdApplicable, testcaseApplicable) {
+  if (classApplicable) return 'class';
+  if (mmdApplicable) return 'mmd';
+  if (testcaseApplicable) return 'testcase';
+  return 'class';
+}
+
 export default function LecturerSubmissionDrawer({
   open,
   onClose,
@@ -34,8 +41,10 @@ export default function LecturerSubmissionDrawer({
   challengeId,
   challengeLabel,
   hasMmd = true,
+  hasClass = true,
   student,
 }) {
+  const classApplicable = hasClass !== false;
   const mmdApplicable = hasMmd !== false;
   const [activeTab, setActiveTab] = useState('class');
   const [classData, setClassData] = useState([]);
@@ -46,22 +55,25 @@ export default function LecturerSubmissionDrawer({
   const [mmdError, setMmdError] = useState(null);
 
   const testcaseApplicable = testcases.length > 0;
-  const showPillarTabs = mmdApplicable || testcaseApplicable;
+  const showPillarTabs = classApplicable || mmdApplicable || testcaseApplicable;
 
   useEffect(() => {
     if (!open) {
-      setActiveTab('class');
+      setActiveTab(firstApplicableTab(classApplicable, mmdApplicable, testcaseApplicable));
     }
-  }, [open]);
+  }, [open, classApplicable, mmdApplicable, testcaseApplicable]);
 
   useEffect(() => {
+    if (!classApplicable && activeTab === 'class') {
+      setActiveTab(firstApplicableTab(false, mmdApplicable, testcaseApplicable));
+    }
     if (!mmdApplicable && activeTab === 'mmd') {
-      setActiveTab('class');
+      setActiveTab(firstApplicableTab(classApplicable, false, testcaseApplicable));
     }
     if (!testcaseApplicable && activeTab === 'testcase') {
-      setActiveTab('class');
+      setActiveTab(firstApplicableTab(classApplicable, mmdApplicable, false));
     }
-  }, [mmdApplicable, testcaseApplicable, activeTab]);
+  }, [classApplicable, mmdApplicable, testcaseApplicable, activeTab]);
 
   useEffect(() => {
     if (!open || !labId || !challengeId || !student?.studentId) {
@@ -91,19 +103,21 @@ export default function LecturerSubmissionDrawer({
       const mmdUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd?${query}`;
       const testcasesUrl = `${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases?${query}`;
 
-      try {
-        const classResponse = await apiFetch(classUrl, { headers: authHeaders() });
-        if (!classResponse.ok) {
-          throw new Error(await friendlyLoadErrorFromResponse(classResponse));
-        }
-        const classJson = await classResponse.json();
-        if (!cancelled) {
-          setClassData(Array.isArray(classJson) ? classJson : (classJson?.classes ?? []));
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setClassData([]);
-          setError(toFriendlyError(err, 'read'));
+      if (classApplicable) {
+        try {
+          const classResponse = await apiFetch(classUrl, { headers: authHeaders() });
+          if (!classResponse.ok) {
+            throw new Error(await friendlyLoadErrorFromResponse(classResponse));
+          }
+          const classJson = await classResponse.json();
+          if (!cancelled) {
+            setClassData(Array.isArray(classJson) ? classJson : (classJson?.classes ?? []));
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setClassData([]);
+            setError(toFriendlyError(err, 'read'));
+          }
         }
       }
 
@@ -151,7 +165,7 @@ export default function LecturerSubmissionDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, labId, challengeId, mmdApplicable, student?.studentId, student?.submissionId]);
+  }, [open, labId, challengeId, classApplicable, mmdApplicable, student?.studentId, student?.submissionId]);
 
   if (!open || !student) {
     return null;
@@ -214,9 +228,11 @@ export default function LecturerSubmissionDrawer({
 
         {showPillarTabs ? (
           <div className={`flex border-b px-5 ${LECTURER_DRAWER_DIVIDER}`}>
-            <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
-              Declaration Test
-            </button>
+            {classApplicable && (
+              <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
+                Declaration Test
+              </button>
+            )}
             {mmdApplicable && (
               <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
                 MMD
@@ -239,17 +255,17 @@ export default function LecturerSubmissionDrawer({
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : activeTab === 'class' ? (
+          ) : activeTab === 'class' && classApplicable ? (
             error ? (
               <p className="text-sm text-warning-text">{error}</p>
             ) : (
               <ClassScoreBreakdown classData={classData} overallScore={student.score} />
             )
-          ) : activeTab === 'mmd' ? (
+          ) : activeTab === 'mmd' && mmdApplicable ? (
             <MmdScoreBreakdown mmdData={mmdData} mmdError={mmdError} />
-          ) : (
+          ) : activeTab === 'testcase' && testcaseApplicable ? (
             <OperationalTestcaseBreakdown bundle={{ testcases }} />
-          )}
+          ) : null}
         </div>
 
         <div className={`border-t px-5 py-4 ${LECTURER_DRAWER_DIVIDER}`}>

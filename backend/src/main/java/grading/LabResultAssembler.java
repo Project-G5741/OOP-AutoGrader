@@ -99,15 +99,8 @@ public class LabResultAssembler {
                     ? computed.snapshotsByChallengeId.get(challengeId)
                     : null;
 
-            List<ClassDetailDTO> classData = classStructureService.buildClassDataFromRubric(
-                    challengeRubric,
-                    correctIds,
-                    compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
-                    snapshot,
-                    mode);
-
             // Missing graded pillars (e.g. student omitted this challenge folder): keep scores at 0
-            // but honor the rubric's has_mmd / OT presence so drawers still show those tabs.
+            // but honor the rubric's has_class / has_mmd / OT presence so drawers still show those tabs.
             boolean defaultTestcaseApplicable = challengeRubric.testcases() != null
                     && !challengeRubric.testcases().isEmpty();
             PillarScoreBreakdown pillarScores = computed.pillarScoresByChallengeNumber.getOrDefault(
@@ -117,8 +110,18 @@ public class LabResultAssembler {
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
+                            challengeRubric.hasClass(),
                             challengeRubric.hasMmd(),
                             defaultTestcaseApplicable));
+
+            List<ClassDetailDTO> classData = pillarScores.classApplicable()
+                    ? classStructureService.buildClassDataFromRubric(
+                            challengeRubric,
+                            correctIds,
+                            compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
+                            snapshot,
+                            mode)
+                    : List.of();
 
             MmdResponseDTO mmdResponse;
             if (pillarScores.mmdApplicable()) {
@@ -156,7 +159,7 @@ public class LabResultAssembler {
                     "total", pillarScores.total());
 
             Map<String, Boolean> scoreApplicability = Map.of(
-                    "class", true,
+                    "class", pillarScores.classApplicable(),
                     "mmd", pillarScores.mmdApplicable(),
                     "testcase", pillarScores.testcaseApplicable());
 

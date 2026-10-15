@@ -42,9 +42,10 @@ dimensions that were never supposed to apply, and there was no way to express "t
 doesn't apply here" — only "this pillar scored zero."
 
 The fix generalizes the challenge percentage to the mean of whichever pillars are applicable
-(1, 2, or 3 of them), threads an explicit applicability signal from a new `has_mmd` DB column
-through every layer up to the UI, and — as a UX correction made mid-implementation — hides
-inapplicable pillars from the student tab bar entirely rather than showing them as "not scored."
+(1, 2, or 3 of them), threads explicit applicability signals from `has_mmd` and later `has_class`
+DB columns through every layer up to the UI, and hides inapplicable pillars from the student
+tab bar entirely rather than showing them as "not scored." A challenge must keep at least one
+applicable pillar (structure/OT save gate).
 
 ## Guidance
 
@@ -73,28 +74,22 @@ the aggregator accumulates a running sum and count, adding each pillar only if i
     }
 ```
 
-Class is always applicable (hence `sum`/`applicableCount` start seeded with it); MMD and
-Testcase are each folded in only when their flag is true. Adding a fourth conditional pillar
-later means adding one more `if (flagApplicable) { sum = sum.add(...); applicableCount++; }`
-block — no rewrite of existing branches.
+Declaration, MMD, and Testcase are each folded in only when their flag is true (`has_class`,
+`has_mmd`, OT row presence). The aggregator no longer seeds Declaration as always-on. Adding
+another conditional pillar means one more `if (flagApplicable)` fold — no rewrite of existing
+branches.
 
 ### (b) Explicit boolean applicability flag, never inferred from null/zero
 
 A zero score is ambiguous ("scored zero" vs. "doesn't apply"), so applicability is carried as
 its own boolean at every layer instead of being inferred from the score value:
 
-- `Challenge.hasMmd` (JPA entity)
-- `ChallengeRubric.hasMmd` — `backend/src/main/java/com/eiu/capstone/backend/grading/rubric/ChallengeRubric.java:13`
-- `ChallengeStructureDTO.hasMmd` — `backend/src/main/java/com/eiu/capstone/backend/DTO/rubric/ChallengeStructureDTO.java:12`
-- `GradingPipeline` computes both flags explicitly before scoring:
-
-```68:69:backend/src/main/java/com/eiu/capstone/backend/grading/pipeline/GradingPipeline.java
-        boolean mmdApplicable = challengeRubric.hasMmd();
-        boolean testcaseApplicable = !challengeRubric.testcases().isEmpty();
-```
-
-- `ChallengeDetailBundleDTO.scoreApplicability` is a `Map<String, Boolean>` (keys `"mmd"`,
-  `"testcase"`) that ships to the frontend as the single source of truth — `backend/src/main/java/com/eiu/capstone/backend/DTO/ChallengeDetailBundleDTO.java:14`.
+- `Challenge.hasMmd` / `Challenge.hasClass` (JPA entity)
+- `ChallengeRubric.hasMmd` / `hasClass`
+- `ChallengeStructureDTO.hasMmd` / `hasClass`
+- `GradingPipeline` computes all three flags explicitly before scoring (`hasClass()`, `hasMmd()`, OT rows non-empty)
+- `ChallengeDetailBundleDTO.scoreApplicability` is a `Map<String, Boolean>` (keys `"class"`, `"mmd"`,
+  `"testcase"`) that ships to the frontend as the single source of truth.
 - The frontend mirrors this discipline instead of re-deriving applicability from the score:
 
 ```42:44:frontend/src/components/ui/ScorePill.jsx

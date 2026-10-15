@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
+import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator.WeightedPercentage;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -140,6 +142,7 @@ public class GradingService {
                                       DisclosureMode disclosureMode) {
 
         long totalStart = System.currentTimeMillis();
+        requireJavaWhenOtApplies(rubric, challengeFolderResults);
 
         long loadStart = System.currentTimeMillis();
         GradingService.ExistingResults existing = emptyExistingResults();
@@ -265,6 +268,7 @@ public class GradingService {
                 phase.challengeName(),
                 PillarScoreAggregator.challengePercentage(
                         phase.classResult().pillarPercentage(),
+                        phase.classApplicable(),
                         phase.challengeRubric().classWeight(),
                         phase.mmdResult().pillarPercentage(),
                         phase.mmdApplicable(),
@@ -272,9 +276,11 @@ public class GradingService {
                         BigDecimal.ZERO,
                         false,
                         phase.challengeRubric().testcaseWeight()),
-                phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0
+                (!phase.classApplicable()
+                        || phase.classResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0)
                         && (!phase.mmdApplicable()
                         || phase.mmdResult().pillarPercentage().compareTo(BigDecimal.valueOf(100)) == 0),
+                phase.classApplicable(),
                 phase.mmdApplicable(),
                 phase.testcaseApplicable(),
                 phase.classResult(),
@@ -367,6 +373,7 @@ public class GradingService {
                                 cc.mmdPillarPct != null ? cc.mmdPillarPct : BigDecimal.ZERO,
                                 cc.testcasePillarPct != null ? cc.testcasePillarPct : BigDecimal.ZERO,
                                 cc.percentage != null ? cc.percentage : BigDecimal.ZERO,
+                                cc.classApplicable,
                                 cc.mmdApplicable,
                                 cc.testcaseApplicable));
             }
@@ -452,6 +459,7 @@ public class GradingService {
         computation.classPillarPct = pipelineResult.classResult().pillarPercentage();
         computation.mmdPillarPct = pipelineResult.mmdResult().pillarPercentage();
         computation.testcasePillarPct = pipelineResult.testcaseResult().pillarPercentage();
+        computation.classApplicable = pipelineResult.classApplicable();
         computation.mmdApplicable = pipelineResult.mmdApplicable();
         computation.testcaseApplicable = pipelineResult.testcaseApplicable();
         computation.snapshot = parsedSubmissionSnapshotBuilder.build(
@@ -459,9 +467,11 @@ public class GradingService {
                 pipelineResult.gradingContext().parsedByName(),
                 pipelineResult.gradingContext().parsedByQualifiedName(),
                 pipelineResult.mmdResult().diagram());
-        parsedSubmissionSnapshotBuilder.enrichMemberGrades(
-                computation.snapshot.classSnapshot,
-                pipelineResult.classResult());
+        if (pipelineResult.classApplicable()) {
+            parsedSubmissionSnapshotBuilder.enrichMemberGrades(
+                    computation.snapshot.classSnapshot,
+                    pipelineResult.classResult());
+        }
         return computation;
     }
 
@@ -656,6 +666,31 @@ public class GradingService {
         return false;
     }
 
+    private void requireJavaWhenOtApplies(
+            LabRubricSnapshot rubric,
+            List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
+        Map<Integer, SubmissionStorageService.ChallengeResult> byNumber = new HashMap<>();
+        if (challengeFolderResults != null) {
+            for (SubmissionStorageService.ChallengeResult folder : challengeFolderResults) {
+                Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(folder.challengeName);
+                if (matcher.matches()) {
+                    byNumber.put(Integer.parseInt(matcher.group(1)), folder);
+                }
+            }
+        }
+        for (ChallengeRubric challenge : rubric.byChallengeNumber().values()) {
+            if (challenge.testcases() == null || challenge.testcases().isEmpty()) {
+                continue;
+            }
+            SubmissionStorageService.ChallengeResult folder = byNumber.get(challenge.challengeNumber());
+            if (folder == null || folder.classFileCount <= 0) {
+                throw new SubmissionProcessingException(
+                        "Challenge " + challenge.challengeNumber()
+                                + " requires .java files for operational testcases.");
+            }
+        }
+    }
+
     private void acquireWorkerSlot() {
         try {
             workerJvmSlot.acquire();
@@ -697,6 +732,7 @@ public class GradingService {
         BigDecimal classPillarPct;
         BigDecimal mmdPillarPct;
         BigDecimal testcasePillarPct;
+        boolean classApplicable = true;
         boolean mmdApplicable;
         boolean testcaseApplicable;
         MmdPillarGrader.MmdPillarResult mmdResult;

@@ -31,7 +31,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `MmdScoreBreakdown.jsx` | Expandable MMD class + relations breakdown for lecturer drawer |
 
-| `LecturerSubmissionDrawer.jsx` | Right drawer: Declaration Test | MMD | Operation Test (MMD when `has_mmd`; OT when `/testcases` returns rows), challenge detail + export |
+| `LecturerSubmissionDrawer.jsx` | Right drawer: Declaration Test | MMD | Operation Test (Declaration when `hasClass`; MMD when `hasMmd`; OT when `/testcases` returns rows), challenge detail + export |
 
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View Submission |
 | `PlagiarismInvestigationDrawer.jsx` | Right drawer: flagged-student copy lineage + match signals (`GET .../students/{id}/plagiarism`) |
@@ -40,7 +40,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
 | `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — labs from `GET /api/lecturer/bootstrap/grading` (each lab must include `challenges` for Lab/Exam mode + results tabs), parse-then-confirm, sequential `/bulk-grade`, within-batch plagiarism |
-| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result`; from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
+| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result` (hides Declaration when `hasClass`/applicability false); from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
 | `lecturerDrawerChrome.js` | Shared overlay, elevated panel (`dark:bg-surface-secondary`), edge border, and internal dividers for lecturer right drawers |
 | `OperationalTestcaseBreakdown.jsx` | Expandable OT I/O cards for lecturer drawers; full rubric order with I/O for hidden rows (`DisclosureMode.LECTURER` on API / bulk `lab_result`) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |
@@ -51,7 +51,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
 | `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
-| `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase pillar weights (no per-testcase weight) |
+| `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase pillar weights; **Requires MMD diagram** (`hasMmd`) then **Requires Declaration Test** (`hasClass`) on challenge chrome (no per-testcase weight) |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list; **Add new testcase** (default UNIT) plus per-testcase Type dropdown; dry-run I/O, Run all, Save Testcases; shared `normalizeTestcaseForApi` for save and dry-run; list shows lecturer shorthand **Ex** (example, not hidden) or **TS*n*** (hidden) via `lecturerTestcaseShortLabels`; list/editor split is draggable on `lg+`; editor column stays `flex-1 min-w-0` so the panel cannot overflow the viewport |
 | `structure/UnitTestcaseWorksheet.jsx` | Closed Unit canvas: one member picker, scalar params, allowed assertions; no step list, instance names, `$instance`, or equals() |
@@ -92,7 +92,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Roster **View Submission** opens `LabAttemptHistoryDrawer`; flagged rows also show **View Plagiarism** → `PlagiarismInvestigationDrawer` (lineage rooted at earliest first-submit; match signals on edges; no code diffs)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with Declaration Test | MMD | Operation Test when applicable (`GET .../challenges/{id}/class?studentId=`, `/mmd`, `/testcases`; optional `submissionId`). MMD tab and `/mmd` fetch are omitted when `has_mmd` is false. Operation Test tab appears when `/testcases` returns at least one row. Wrong/missing Class and MMD members use the same generic student-facing labels and consolidation as the student dashboard (`studentDisplayConsolidation.js`); MMD class cards use the student primary-light list layout.
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with Declaration Test | MMD | Operation Test when applicable (`GET .../challenges/{id}/class?studentId=`, `/mmd`, `/testcases`; optional `submissionId`). Declaration tab and `/class` fetch are omitted when `hasClass` is false; MMD tab and `/mmd` when `hasMmd` is false. Operation Test tab appears when `/testcases` returns at least one row. Wrong/missing Class and MMD members use the same generic student-facing labels and consolidation as the student dashboard (`studentDisplayConsolidation.js`); MMD class cards use the student primary-light list layout.
 - Challenge tab lists **submitters only**; **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
 - Declaration Score member rows are pass or fail only; leftover `partial` flags render as fail, not a warning tick

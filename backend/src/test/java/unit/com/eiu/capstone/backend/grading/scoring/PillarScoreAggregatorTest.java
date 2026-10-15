@@ -48,6 +48,33 @@ class PillarScoreAggregatorTest {
     }
 
     @Test
+    void challengePercentage_classNotApplicable_equalsMmdPillar() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(999), false, 1,
+                BigDecimal.valueOf(70), true, 1,
+                BigDecimal.valueOf(999), false, 1);
+        assertEquals(new BigDecimal("70.00"), result);
+    }
+
+    @Test
+    void challengePercentage_classNotApplicable_averagesMmdAndTestcase() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(999), false, 1,
+                BigDecimal.valueOf(100), true, 1,
+                BigDecimal.valueOf(50), true, 1);
+        assertEquals(new BigDecimal("75.00"), result);
+    }
+
+    @Test
+    void challengePercentage_noPillarsApplicable_returnsZero() {
+        BigDecimal result = PillarScoreAggregator.challengePercentage(
+                BigDecimal.valueOf(100), false, 1,
+                BigDecimal.valueOf(100), false, 1,
+                BigDecimal.valueOf(100), false, 1);
+        assertEquals(new BigDecimal("0.00"), result);
+    }
+
+    @Test
     void pillarPercentage_weightedMemberAccuracies() {
         BigDecimal result = PillarScoreAggregator.pillarPercentage(List.of(
                 new PillarScoreAggregator.WeightedAccuracy(1, 1.0),

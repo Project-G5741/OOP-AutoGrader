@@ -133,6 +133,13 @@ public class ClassReflectionGrader {
     }
 
     /**
+     * Canonical result when {@code has_class} is false — the grader is never invoked.
+     */
+    public static ClassPillarResult notApplicable() {
+        return new ClassPillarResult(BigDecimal.ZERO, List.of(), List.of(), List.of());
+    }
+
+    /**
      * Reflection cannot distinguish an explicit no-arg constructor from a compiler default.
      * Only enforce the default-constructor rubric flag when the rubric expects one (public, no-arg).
      */
