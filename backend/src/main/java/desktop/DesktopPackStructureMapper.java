@@ -99,6 +99,7 @@ public class DesktopPackStructureMapper {
                 classes,
                 relations,
                 challenge.hasMmd(),
+                challenge.hasClass(),
                 challenge.weight(),
                 challenge.classWeight(),
                 challenge.mmdWeight(),

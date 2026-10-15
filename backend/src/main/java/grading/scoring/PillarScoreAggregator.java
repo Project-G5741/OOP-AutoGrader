@@ -7,11 +7,9 @@ import java.util.List;
 /**
  * Aggregates weighted member accuracies into pillar and challenge percentages.
  *
- * <p>Challenge score = weighted mean of the pillars applicable to that challenge. The class
- * (Declaration Test) pillar is always applicable; the mmd and testcase pillars are each
- * conditionally applicable (mmd when the challenge requires an MMD diagram, testcase when the
- * challenge has at least one operational testcase). When only class is applicable, the challenge
- * score equals the class pillar percentage. Default pillar weights are 1 (equal mean).
+ * <p>Challenge score = weighted mean of the pillars applicable to that challenge. Declaration
+ * (class) applies when {@code has_class} is true; MMD when {@code has_mmd} is true; testcase when
+ * the challenge has at least one operational testcase. Default pillar weights are 1 (equal mean).
  *
  * <p>Lab score = weighted mean across all rubric challenges; missing challenges count as 0.
  */
@@ -44,18 +42,19 @@ public final class PillarScoreAggregator {
     }
 
     /**
-     * Mean of the applicable pillar percentages. Class (Declaration Test) is always applicable;
-     * mmd and testcase are included only when their respective flags are true. When both flags
-     * are false, the result equals {@code classPct} alone.
+     * Mean of the applicable pillar percentages. Legacy overload treats Declaration as always
+     * applicable.
      */
     public static BigDecimal challengePercentage(BigDecimal classPct,
                                                 BigDecimal mmdPct,
                                                 boolean mmdApplicable,
                                                 BigDecimal testcasePct,
                                                 boolean testcaseApplicable) {
-        return challengePercentage(classPct, 1, mmdPct, mmdApplicable, 1, testcasePct, testcaseApplicable, 1);
+        return challengePercentage(classPct, true, 1, mmdPct, mmdApplicable, 1,
+                testcasePct, testcaseApplicable, 1);
     }
 
+    /** Legacy weighted overload — Declaration always applicable. */
     public static BigDecimal challengePercentage(BigDecimal classPct,
                                                 int classWeight,
                                                 BigDecimal mmdPct,
@@ -64,8 +63,26 @@ public final class PillarScoreAggregator {
                                                 BigDecimal testcasePct,
                                                 boolean testcaseApplicable,
                                                 int testcaseWeight) {
-        double weightSum = Math.max(1, classWeight);
-        double earned = safe(classPct).doubleValue() * Math.max(1, classWeight);
+        return challengePercentage(classPct, true, classWeight, mmdPct, mmdApplicable, mmdWeight,
+                testcasePct, testcaseApplicable, testcaseWeight);
+    }
+
+    public static BigDecimal challengePercentage(BigDecimal classPct,
+                                                boolean classApplicable,
+                                                int classWeight,
+                                                BigDecimal mmdPct,
+                                                boolean mmdApplicable,
+                                                int mmdWeight,
+                                                BigDecimal testcasePct,
+                                                boolean testcaseApplicable,
+                                                int testcaseWeight) {
+        double weightSum = 0;
+        double earned = 0;
+        if (classApplicable) {
+            int w = Math.max(1, classWeight);
+            weightSum += w;
+            earned += safe(classPct).doubleValue() * w;
+        }
         if (mmdApplicable) {
             int w = Math.max(1, mmdWeight);
             weightSum += w;
@@ -75,6 +92,9 @@ public final class PillarScoreAggregator {
             int w = Math.max(1, testcaseWeight);
             weightSum += w;
             earned += safe(testcasePct).doubleValue() * w;
+        }
+        if (weightSum <= 0) {
+            return BigDecimal.ZERO.setScale(SCALE, RoundingMode.DOWN);
         }
         return BigDecimal.valueOf(earned / weightSum).setScale(SCALE, RoundingMode.DOWN);
     }

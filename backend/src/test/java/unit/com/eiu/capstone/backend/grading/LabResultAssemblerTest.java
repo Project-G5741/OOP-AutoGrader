@@ -115,7 +115,7 @@ class LabResultAssemblerTest {
         RecordingTestcaseMapper testcaseMapper = new RecordingTestcaseMapper();
         LabResultAssembler assembler = new LabResultAssembler(structureService, testcaseMapper);
 
-        GradingService.GradingComputationResult computed = computed(challengeId, true, true);
+        GradingService.GradingComputationResult computed = computed(challengeId, true, true, true);
         computed.pillarScoresByChallengeNumber = Map.of();
 
         Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
@@ -127,6 +127,7 @@ class LabResultAssemblerTest {
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertTrue(bundle.getMmd().classes().isEmpty());
+        assertEquals(true, bundle.getScoreApplicability().get("class"));
         assertEquals(false, bundle.getScoreApplicability().get("mmd"));
         assertEquals(true, bundle.getScoreApplicability().get("testcase"));
         assertEquals(2, bundle.getTestcases().size());
@@ -134,8 +135,45 @@ class LabResultAssemblerTest {
         assertEquals(0, structureService.mmdBuilds);
     }
 
+    @Test
+    void assemble_skipsClassTreeWhenNotApplicable() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = new ChallengeRubric(
+                challengeId,
+                1,
+                "Challenge 1",
+                List.of(),
+                List.of(),
+                List.of(),
+                true,
+                false);
+        FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new EmptyTestcaseMapper());
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed(challengeId, false, true, false),
+                Map.of(),
+                Map.of());
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertTrue(bundle.getClassData().isEmpty());
+        assertEquals(false, bundle.getScoreApplicability().get("class"));
+        assertEquals(true, bundle.getScoreApplicability().get("mmd"));
+        assertEquals(false, bundle.getScoreApplicability().get("testcase"));
+    }
+
     private static GradingService.GradingComputationResult computed(
             UUID challengeId,
+            boolean mmdApplicable,
+            boolean testcaseApplicable) {
+        return computed(challengeId, true, mmdApplicable, testcaseApplicable);
+    }
+
+    private static GradingService.GradingComputationResult computed(
+            UUID challengeId,
+            boolean classApplicable,
             boolean mmdApplicable,
             boolean testcaseApplicable) {
         GradingService.GradingComputationResult computed = new GradingService.GradingComputationResult();
@@ -151,6 +189,7 @@ class LabResultAssemblerTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
+                        classApplicable,
                         mmdApplicable,
                         testcaseApplicable));
         computed.mmdResultsByChallengeNumber = Map.of();

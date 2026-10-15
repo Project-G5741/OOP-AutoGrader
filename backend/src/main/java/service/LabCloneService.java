@@ -404,6 +404,7 @@ public class LabCloneService {
                 classes,
                 relations,
                 source.hasMmd(),
+                source.hasClass(),
                 source.weight(),
                 source.classWeight(),
                 source.mmdWeight(),

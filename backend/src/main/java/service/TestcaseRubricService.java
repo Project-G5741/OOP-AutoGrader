@@ -351,6 +351,11 @@ public class TestcaseRubricService {
         Challenge challenge = requireChallengeInLab(labId, challengeId);
         ChallengeMemberIds memberIds = loadChallengeMemberIds(challenge.getId());
         List<TestcaseStructureDTO> testcasePayloads = payloads != null ? payloads : List.of();
+        ChallengePillarApplicability.requireAtLeastOne(
+                challenge.isHasClass(),
+                challenge.isHasMmd(),
+                testcasePayloads.size(),
+                challenge.getName());
 
         Set<UUID> payloadIds = testcasePayloads.stream()
                 .map(TestcaseStructureDTO::id)

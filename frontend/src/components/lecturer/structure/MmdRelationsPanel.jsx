@@ -27,10 +27,8 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
 
   const classes = challenge.classes || [];
   const relations = challenge.relations || [];
-  const hasMmd = challenge.hasMmd !== false;
 
   const patchRelations = (nextRelations) => onChange({ ...challenge, relations: nextRelations });
-  const setHasMmd = (next) => onChange({ ...challenge, hasMmd: next });
 
   const addRelation = () => {
     if (classes.length < 2) return;
@@ -54,20 +52,9 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
   return (
     <div className="space-y-4 pb-4">
       <div className="rounded-xl border border-border bg-surface dark:border-border">
-        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 dark:border-border">
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-chart-blue" />
-            <h3 className="font-medium text-foreground">MMD Relationships</h3>
-          </div>
-          <label className="flex shrink-0 items-center gap-2 text-sm text-foreground-secondary">
-            <input
-              type="checkbox"
-              checked={hasMmd}
-              onChange={(e) => setHasMmd(e.target.checked)}
-              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-            />
-            Requires MMD diagram
-          </label>
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3 dark:border-border">
+          <GitBranch className="h-4 w-4 text-chart-blue" />
+          <h3 className="font-medium text-foreground">MMD Relationships</h3>
         </div>
 
         <div className="space-y-3 px-4 py-4">
