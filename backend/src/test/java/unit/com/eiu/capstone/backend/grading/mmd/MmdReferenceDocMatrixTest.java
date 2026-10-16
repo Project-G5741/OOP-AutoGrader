@@ -128,7 +128,7 @@ class MmdReferenceDocMatrixTest {
                 Arguments.of("A *-- B", "composition"),
                 Arguments.of("A o-- B", "aggregation"),
                 Arguments.of("A --> B", "association"),
-                Arguments.of("A -- B", "link"),
+                Arguments.of("A -- B", "association"),
                 Arguments.of("A ..> B", "dependency"),
                 Arguments.of("A ..|> B", "realization"),
                 Arguments.of("A .. B", "dashed_link"));

@@ -1288,8 +1288,18 @@ public class LabStructureService {
                     isNew = true;
                 }
                 declaration.setName(requireNonBlank(dto.name(), "Field name"));
-                declaration.setDataType(requireNonBlank(dto.dataType(), "Field type"));
-                declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
+                boolean enumClass = isEnumDeclaringType(classEntity);
+                declaration.setDataType(enumClass
+                        ? blankToNull(dto.dataType())
+                        : requireNonBlank(dto.dataType(), "Field type"));
+                if (dto.scopeId() == null) {
+                    if (!enumClass) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing field scope id");
+                    }
+                    declaration.setScope(null);
+                } else {
+                    declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
+                }
                 declarationsToSave.add(declaration);
                 fieldsToSave.add(field);
                 isNewFlags.add(isNew);
@@ -1710,6 +1720,20 @@ public class LabStructureService {
         return masterData;
     }
 
+    private static boolean isEnumDeclaringType(ClassEntity classEntity) {
+        MasterData declaringType = classEntity.getDeclaringType();
+        return declaringType != null
+                && declaringType.getName() != null
+                && "ENUM".equalsIgnoreCase(declaringType.getName().trim());
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
     private static String requireNonBlank(String value, String label) {
         if (value == null || value.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " is required");
@@ -1872,7 +1896,9 @@ public class LabStructureService {
                         f.getId(),
                         f.getName(),
                         f.getFieldDeclaration().getDataType(),
-                        f.getFieldDeclaration().getScope().getId()))
+                        f.getFieldDeclaration().getScope() == null
+                                ? null
+                                : f.getFieldDeclaration().getScope().getId()))
                 .toList();
         List<MethodStructureDTO> methodDtos = methods.stream()
                 .map(m -> new MethodStructureDTO(

@@ -137,7 +137,7 @@ public class DesktopPackStructureMapper {
                 field.id(),
                 field.name(),
                 field.dataType(),
-                masterData.scopeId(field.scope()));
+                field.scope() == null ? null : masterData.scopeId(field.scope()));
     }
 
     private MethodStructureDTO toMethod(MethodRubric method) {

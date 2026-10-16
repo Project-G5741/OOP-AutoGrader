@@ -14,6 +14,7 @@ import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
+import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
 
 @Component
 public class MmdComparisonService {
@@ -51,10 +52,14 @@ public class MmdComparisonService {
 
             for (FieldRubric expectedField : expectedClass.fields()) {
                 ParsedField pf = fieldsByName.get(expectedField.name().toLowerCase(Locale.ROOT));
-                boolean correct = pf != null
-                        && !pf.invalidDeclarationFormat
-                        && scopesMatch(expectedField.scope(), pf.scope)
-                        && MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType);
+                boolean nameOnly = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
+                        || (!specified(expectedField.dataType()) && !specified(expectedField.scope()));
+                boolean correct = pf != null && (nameOnly
+                        || (!pf.invalidDeclarationFormat
+                                && PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
+                                && (specified(expectedField.dataType())
+                                        ? MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType)
+                                        : true)));
                 outcome.setField(expectedField.id(), correct);
             }
 
@@ -208,8 +213,7 @@ public class MmdComparisonService {
     }
 
     private static boolean isUndirectedRelationType(String relationType) {
-        return "link".equals(relationType)
-                || "dashed_link".equals(relationType)
+        return "dashed_link".equals(relationType)
                 || "bidirectional_association".equals(relationType)
                 || "bidirectional_inheritance".equals(relationType);
     }
@@ -238,7 +242,8 @@ public class MmdComparisonService {
         if (lower.contains("associ")) return "association";
         if (lower.contains("depend")) return "dependency";
         if (lower.contains("realiz") || lower.contains("implement")) return "realization";
-        if (lower.contains("link")) return "link";
+        // Legacy master-data / diagram labels: solid undirected link is association.
+        if (lower.contains("link")) return "association";
         return lower.replace(' ', '_');
     }
 
@@ -289,6 +294,10 @@ public class MmdComparisonService {
             }
         }
         return true;
+    }
+
+    private static boolean specified(String value) {
+        return value != null && !value.isBlank();
     }
 
     private boolean scopesMatch(String expected, String actual) {

@@ -14,6 +14,7 @@ import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
 import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
+import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.MmdGradingOutcome;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
@@ -453,11 +454,18 @@ public class ClassStructureService {
     }
 
     private String formatFieldName(Field field) {
-        return field.getName() + ": " + field.getFieldDeclaration().getDataType();
+        return formatFieldLabel(field.getName(), field.getFieldDeclaration().getDataType());
     }
 
     private String formatFieldName(FieldRubric field) {
-        return field.name() + ": " + field.dataType();
+        return formatFieldLabel(field.name(), field.dataType());
+    }
+
+    private static String formatFieldLabel(String name, String dataType) {
+        if (dataType == null || dataType.isBlank()) {
+            return name;
+        }
+        return name + ": " + dataType;
     }
 
     private String formatConstructorName(String className, ConstructorRubric constructor) {
@@ -802,7 +810,8 @@ public class ClassStructureService {
                                 : null;
                         MemberGrade memberGrade = gateMemberGrade(
                                 membersGated,
-                                resolveFieldGrade(classSnapshot, f, entry, masterData, correctIds));
+                                resolveFieldGrade(
+                                        classSnapshot, f, entry, masterData, correctIds, ce.getDeclaringType()));
                         return buildClassFieldDetail(
                                 disclosureMode,
                                 entry,
@@ -922,7 +931,8 @@ public class ClassStructureService {
                                 : null;
                         MemberGrade memberGrade = gateMemberGrade(
                                 membersGated,
-                                resolveFieldGrade(classSnapshot, field, entry, correctIds));
+                                resolveFieldGrade(
+                                        classSnapshot, field, entry, correctIds, classRubric.declaringType()));
                         return buildClassFieldDetail(
                                 disclosureMode,
                                 entry,
@@ -1313,7 +1323,8 @@ public class ClassStructureService {
                                            Field field,
                                            ClassFieldEntry entry,
                                            Map<Integer, String> masterData,
-                                           SubmissionCorrectIds correctIds) {
+                                           SubmissionCorrectIds correctIds,
+                                           MasterData declaringType) {
         String gradeLabel = classSnapshot != null
                 ? classSnapshot.fieldGrades.get(field.getId().toString())
                 : null;
@@ -1321,7 +1332,8 @@ public class ClassStructureService {
             return resolveMemberGradeFromLabel(gradeLabel);
         }
         if (entry != null) {
-            return memberGradeFromAccuracy(computeFieldAccuracy(field, entry, masterData));
+            return memberGradeFromAccuracy(computeFieldAccuracy(
+                    field, entry, masterData, declaringType == null ? null : declaringType.getName()));
         }
         return new MemberGrade(correctIds.fieldIds().contains(field.getId()), false);
     }
@@ -1329,7 +1341,8 @@ public class ClassStructureService {
     private MemberGrade resolveFieldGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
                                            FieldRubric field,
                                            ClassFieldEntry entry,
-                                           SubmissionCorrectIds correctIds) {
+                                           SubmissionCorrectIds correctIds,
+                                           String declaringType) {
         String gradeLabel = classSnapshot != null
                 ? classSnapshot.fieldGrades.get(field.id().toString())
                 : null;
@@ -1337,7 +1350,7 @@ public class ClassStructureService {
             return resolveMemberGradeFromLabel(gradeLabel);
         }
         if (entry != null) {
-            return memberGradeFromAccuracy(computeFieldAccuracy(field, entry));
+            return memberGradeFromAccuracy(computeFieldAccuracy(field, entry, declaringType));
         }
         return new MemberGrade(correctIds.fieldIds().contains(field.id()), false);
     }
@@ -1409,18 +1422,29 @@ public class ClassStructureService {
         return new MemberGrade(correctIds.constructorIds().contains(constructor.id()), false);
     }
 
-    private double computeFieldAccuracy(Field field, ClassFieldEntry entry, Map<Integer, String> masterData) {
+    private double computeFieldAccuracy(Field field,
+                                        ClassFieldEntry entry,
+                                        Map<Integer, String> masterData,
+                                        String declaringType) {
+        if (EnumDeclaringTypes.isEnum(declaringType)) {
+            return 1.0;
+        }
         FieldDeclaration declaration = field.getFieldDeclaration();
+        String scope = declaration.getScope() == null
+                ? null
+                : resolveMasterDataLabel(declaration.getScope(), masterData);
         return PartialCreditEvaluator.binaryAccuracy(
-                PartialCreditEvaluator.matches(
-                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
-                        && PartialCreditEvaluator.matches(declaration.getDataType(), entry.dataType).get(0));
+                PartialCreditEvaluator.matchesWhenSpecified(scope, entry.scope)
+                        && PartialCreditEvaluator.matchesWhenSpecified(declaration.getDataType(), entry.dataType));
     }
 
-    private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry) {
+    private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry, String declaringType) {
+        if (EnumDeclaringTypes.isEnum(declaringType)) {
+            return 1.0;
+        }
         return PartialCreditEvaluator.binaryAccuracy(
-                PartialCreditEvaluator.matches(field.scope(), entry.scope).get(0)
-                        && PartialCreditEvaluator.matches(field.dataType(), entry.dataType).get(0));
+                PartialCreditEvaluator.matchesWhenSpecified(field.scope(), entry.scope)
+                        && PartialCreditEvaluator.matchesWhenSpecified(field.dataType(), entry.dataType));
     }
 
     private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {

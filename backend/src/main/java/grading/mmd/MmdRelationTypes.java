@@ -36,9 +36,8 @@ public final class MmdRelationTypes {
             case "<|--|>" -> "bidirectional_inheritance";
             case "*--", "--*", "*-->", "--*>" -> "composition";
             case "o--", "--o", "o-->", "--o>" -> "aggregation";
-            case "-->", "<--" -> "association";
+            case "-->", "<--", "--" -> "association";
             case "<-->", "<--|>" -> "bidirectional_association";
-            case "--" -> "link";
             case ".." -> "dashed_link";
             case "..>", "<.." -> "dependency";
             case "..|>", "<|..", "()--", "--()" -> "realization";

@@ -193,7 +193,7 @@ public class SolutionImportService {
                     declaringTypeId,
                     parsed.isAbstract,
                     parsed.isStatic,
-                    mapFields(parsed.fields, masterData),
+                    mapFields(parsed, masterData),
                     mapMethods(parsed.methods, masterData),
                     mapConstructors(parsed, masterData),
                     outerId,
@@ -331,17 +331,19 @@ public class SolutionImportService {
         return dot >= 0 ? name.substring(dot + 1) : name;
     }
 
-    private List<FieldStructureDTO> mapFields(List<ParsedField> fields, MasterDataIndex masterData) {
-        if (fields == null) {
+    private List<FieldStructureDTO> mapFields(ParsedClass parsed, MasterDataIndex masterData) {
+        if (parsed.fields == null) {
             return List.of();
         }
+        boolean enumClass = parsed.declaringType != null && "enum".equalsIgnoreCase(parsed.declaringType.trim());
         List<FieldStructureDTO> out = new ArrayList<>();
-        for (ParsedField field : fields) {
+        for (ParsedField field : parsed.fields) {
+            boolean constant = enumClass && field.isEnumConstant;
             out.add(new FieldStructureDTO(
                     UUID.randomUUID(),
                     field.name,
-                    field.dataType,
-                    masterData.scopeId(field.scope)));
+                    constant ? null : field.dataType,
+                    constant ? null : masterData.scopeId(field.scope)));
         }
         return out;
     }

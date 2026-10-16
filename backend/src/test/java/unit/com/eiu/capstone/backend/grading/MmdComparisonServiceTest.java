@@ -2,6 +2,7 @@ package unit.com.eiu.capstone.backend.grading;
 
 import com.eiu.capstone.backend.grading.*;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -136,6 +137,75 @@ class MmdComparisonServiceTest {
 
         assertTrue(comparisonService.compare(rubric, parser.parse(arrowToInterface)).isRelationCorrect(relationId));
         assertTrue(comparisonService.compare(rubric, parser.parse(triangleOnInterface)).isRelationCorrect(relationId));
+    }
+
+    @Test
+    void enumConstantWithBlankTypeAndScopeMatchesBareDiagramName() {
+        UUID classId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        UUID missingId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "SessionType",
+                List.of(new ClassRubric(
+                        classId,
+                        "SessionType",
+                        "public",
+                        "ENUM",
+                        false,
+                        List.of(
+                                new FieldRubric(familyId, "FAMILY", null, null),
+                                new FieldRubric(missingId, "MISSING", null, null)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        String mmd = diagram("""
+                class SessionType {
+                  <<enumeration>>
+                  FAMILY
+                  EVENT
+                }
+                """);
+
+        MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+        assertTrue(outcome.isFieldCorrect(familyId));
+        assertFalse(outcome.isFieldCorrect(missingId));
+    }
+
+    @Test
+    void enumConstantIgnoresStoredTypeAndScopeOnBareDiagramName() {
+        UUID classId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "SessionType",
+                List.of(new ClassRubric(
+                        classId,
+                        "SessionType",
+                        "public",
+                        "ENUM",
+                        false,
+                        List.of(new FieldRubric(familyId, "FAMILY", "public", "SessionType")),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        String mmd = diagram("""
+                class SessionType {
+                  <<enumeration>>
+                  FAMILY
+                }
+                """);
+
+        MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+        assertTrue(outcome.isFieldCorrect(familyId));
     }
 
     @Test
