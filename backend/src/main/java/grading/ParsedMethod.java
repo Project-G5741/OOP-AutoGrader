@@ -10,4 +10,6 @@ public class ParsedMethod {
     public boolean isAbstract;
     public boolean isFinal;
     public List<String> parameterTypes;
+    /** True when any parameter was not {@code name: datatype} (spacing around {@code :} ignored). */
+    public boolean invalidDeclarationFormat;
 }

@@ -59,16 +59,18 @@ class MmdReferenceDocMatrixTest {
     void section13_colonSyntaxMatchesBlockMembers() {
         ParsedMmdDiagram block = parse(diagram("""
                 class BankAccount {
-                  +double balance
+                  +balance: double
                 }
                 """));
         ParsedMmdDiagram colon = parse(diagram("""
                 class BankAccount
-                BankAccount : +double balance
+                BankAccount : +balance: double
                 """));
 
         assertEquals(block.classes.get(0).fields.size(), colon.classes.get(0).fields.size());
         assertEquals(block.classes.get(0).fields.get(0).name, colon.classes.get(0).fields.get(0).name);
+        assertTrue(!block.classes.get(0).fields.get(0).invalidDeclarationFormat);
+        assertTrue(!colon.classes.get(0).fields.get(0).invalidDeclarationFormat);
     }
 
     @Test
@@ -85,10 +87,11 @@ class MmdReferenceDocMatrixTest {
     void section14_visibilitySymbols(char symbol, String scope) {
         ParsedMmdDiagram diagram = parse(diagram("""
                 class Demo {
-                  %cint count
+                  %ccount: int
                 }
                 """.formatted(symbol)));
         assertEquals(scope, diagram.classes.get(0).fields.get(0).scope);
+        assertTrue(!diagram.classes.get(0).fields.get(0).invalidDeclarationFormat);
     }
 
     private static Stream<Arguments> visibilitySymbols() {

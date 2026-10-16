@@ -52,6 +52,7 @@ public class MmdComparisonService {
             for (FieldRubric expectedField : expectedClass.fields()) {
                 ParsedField pf = fieldsByName.get(expectedField.name().toLowerCase(Locale.ROOT));
                 boolean correct = pf != null
+                        && !pf.invalidDeclarationFormat
                         && scopesMatch(expectedField.scope(), pf.scope)
                         && MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType);
                 outcome.setField(expectedField.id(), correct);
@@ -67,13 +68,16 @@ public class MmdComparisonService {
                     continue;
                 }
                 ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
-                boolean correct = match != null && methodMatches(expectedMethod, match, parsed);
+                boolean correct = match != null
+                        && !match.invalidDeclarationFormat
+                        && methodMatches(expectedMethod, match, parsed);
                 outcome.setMethod(expectedMethod.id(), correct);
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
                 ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
                 boolean correct = match != null
+                        && !match.invalidDeclarationFormat
                         && scopesMatch(expectedConstructor.scope(), match.scope)
                         && constructorTypesMatch(expectedConstructor.parameterTypes(), match.parameterTypes);
                 outcome.setConstructor(expectedConstructor.id(), correct);

@@ -484,13 +484,14 @@ Unclosed block at EOF → `MmdParseException`.
 | `-getter()` / `+getter()` etc. | Shorthand method `__getter_shorthand__` |
 | `-setter()` | Shorthand method `__setter_shorthand__` |
 | `scope name(params) returnType` | Method (or constructor if `name == className`) |
-| `scope name: type` | Field (`name:type` syntax) |
-| `scope type name` | Field (Mermaid-style, e.g. `-int yearModel`) |
+| `scope name: type` | Field (required form; spacing around `:` ignored) |
+| `scope type name` | Field still parsed for identity but grades incorrect |
 
 **Scope symbols:** `-` → private, `+` → public, `#` → protected.
 
 **Parameter parsing** (`parseParameterTypes`):
-- Supports `name: type` and `type name` formats
+- Required form: `name: type` (spacing around `:` ignored)
+- Other shapes still yield a best-effort type for matching identity, but mark the method/constructor `invalidDeclarationFormat` (grades incorrect)
 - Splits on commas respecting generic `<>` depth
 
 #### Relation arrows (lines 19–22, 241–298)

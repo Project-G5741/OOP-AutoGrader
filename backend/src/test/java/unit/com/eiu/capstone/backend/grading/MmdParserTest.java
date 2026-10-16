@@ -3,6 +3,7 @@ package unit.com.eiu.capstone.backend.grading;
 import com.eiu.capstone.backend.grading.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -27,12 +28,12 @@ class MmdParserTest {
   }
 
   @Test
-  void parsesMermaidStyleFieldsTypeThenName() {
+  void parsesNameColonTypeFields() {
     String mmd = withHeader("""
         class Car {
-          -int yearModel
-          -String make
-          -int speed
+          -yearModel: int
+          -make: String
+          -speed: int
         }
         """);
 
@@ -43,18 +44,19 @@ class MmdParserTest {
     assertEquals("yearModel", car.fields.get(0).name);
     assertEquals("int", car.fields.get(0).dataType);
     assertEquals("private", car.fields.get(0).scope);
+    assertFalse(car.fields.get(0).invalidDeclarationFormat);
     assertEquals("make", car.fields.get(1).name);
     assertEquals("String", car.fields.get(1).dataType);
     assertEquals("speed", car.fields.get(2).name);
   }
 
   @Test
-  void gradesMermaidStylePrivateFieldsAgainstRubric() {
+  void gradesNameColonTypePrivateFieldsAgainstRubric() {
     String mmd = withHeader("""
         class Car {
-          -int yearModel
-          -String make
-          -int speed
+          -yearModel: int
+          -make: String
+          -speed: int
         }
         """);
 
@@ -87,6 +89,42 @@ class MmdParserTest {
     assertTrue(outcome.isFieldCorrect(makeId));
     assertTrue(outcome.isFieldCorrect(speedId));
     assertTrue(outcome.isClassPresent(classId));
+  }
+
+  @Test
+  void gradesSpaceSeparatedFieldsAsIncorrect() {
+    String mmd = withHeader("""
+        class Car {
+          -int yearModel
+          -String make
+        }
+        """);
+
+    var yearModelId = java.util.UUID.randomUUID();
+    var makeId = java.util.UUID.randomUUID();
+    var classId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Car",
+        java.util.List.of(new ClassRubric(
+            classId,
+            "Car",
+            "public",
+            "CLASS",
+            false,
+            java.util.List.of(
+                new FieldRubric(yearModelId, "yearModel", "private", "int"),
+                new FieldRubric(makeId, "make", "private", "String")),
+            java.util.List.of(),
+            java.util.List.of())),
+        java.util.List.of(),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertFalse(outcome.isFieldCorrect(yearModelId));
+    assertFalse(outcome.isFieldCorrect(makeId));
   }
 
   @Test
@@ -142,9 +180,9 @@ class MmdParserTest {
   void parsesMermaidStaticAndAbstractMethodModifiers() {
     String mmd = withHeader("""
         class Logger {
-          -static Logger instance$
+          -static instance$: Logger
           +getInstance(): Logger$
-          +log(message String): void
+          +log(message: String): void
         }
         """);
 
@@ -153,6 +191,7 @@ class MmdParserTest {
 
     assertEquals("instance", logger.fields.get(0).name);
     assertEquals("Logger", logger.fields.get(0).dataType);
+    assertFalse(logger.fields.get(0).invalidDeclarationFormat);
 
     ParsedMethod getInstance = logger.methods.stream()
         .filter(method -> "getInstance".equals(method.name))
@@ -166,6 +205,39 @@ class MmdParserTest {
         .findFirst()
         .orElseThrow();
     assertEquals(List.of("String"), log.parameterTypes);
+    assertFalse(log.invalidDeclarationFormat);
+  }
+
+  @Test
+  void gradesSpaceSeparatedParametersAsIncorrect() {
+    String mmd = withHeader("""
+        class Logger {
+          +log(message String): void
+        }
+        """);
+
+    var logId = java.util.UUID.randomUUID();
+    var classId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Logger",
+        java.util.List.of(new ClassRubric(
+            classId,
+            "Logger",
+            "public",
+            "CLASS",
+            false,
+            java.util.List.of(),
+            java.util.List.of(new com.eiu.capstone.backend.grading.rubric.MethodRubric(
+                logId, "log", "public", "void", false, false, false, java.util.List.of("String"))),
+            java.util.List.of())),
+        java.util.List.of(),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+    assertFalse(outcome.isMethodCorrect(logId));
   }
 
   @Test
@@ -187,7 +259,7 @@ class MmdParserTest {
     String mmd = withHeader("""
         classDiagram
             class Logger {
-                -static Logger instance
+                -static instance: Logger
                 -Logger()
                 +getInstance(): Logger$
                 +log(message: String): void
