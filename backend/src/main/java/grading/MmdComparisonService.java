@@ -208,8 +208,7 @@ public class MmdComparisonService {
     }
 
     private static boolean isUndirectedRelationType(String relationType) {
-        return "link".equals(relationType)
-                || "dashed_link".equals(relationType)
+        return "dashed_link".equals(relationType)
                 || "bidirectional_association".equals(relationType)
                 || "bidirectional_inheritance".equals(relationType);
     }
@@ -238,7 +237,8 @@ public class MmdComparisonService {
         if (lower.contains("associ")) return "association";
         if (lower.contains("depend")) return "dependency";
         if (lower.contains("realiz") || lower.contains("implement")) return "realization";
-        if (lower.contains("link")) return "link";
+        // Legacy master-data / diagram labels: solid undirected link is association.
+        if (lower.contains("link")) return "association";
         return lower.replace(' ', '_');
     }
 

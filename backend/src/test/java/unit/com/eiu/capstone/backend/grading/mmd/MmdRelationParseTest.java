@@ -63,7 +63,7 @@ class MmdRelationParseTest {
                 Arguments.of("*--", "composition"),
                 Arguments.of("o--", "aggregation"),
                 Arguments.of("-->", "association"),
-                Arguments.of("--", "link"),
+                Arguments.of("--", "association"),
                 Arguments.of("..>", "dependency"),
                 Arguments.of("..|>", "realization"),
                 Arguments.of("..", "dashed_link"));

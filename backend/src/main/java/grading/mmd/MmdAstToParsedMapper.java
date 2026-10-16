@@ -489,7 +489,7 @@ public final class MmdAstToParsedMapper {
             return relation;
         }
 
-        if (relation.relationType.equals("link") || relation.relationType.equals("dashed_link")) {
+        if ("--".equals(arrow) || "dashed_link".equals(relation.relationType)) {
             relation.sourceClassName = left;
             relation.targetClassName = right;
             return relation;

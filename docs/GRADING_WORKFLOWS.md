@@ -508,9 +508,8 @@ Supported arrows (longest match first):
 | `<|--`, `--|>` | `inheritance` |
 | `*--`, `--*` | `composition` |
 | `o--`, `--o` | `aggregation` |
-| `-->`, `<--` | `association` |
+| `-->`, `<--`, `--` | `association` |
 | `<-->` | `bidirectional_association` |
-| `--` | `link` |
 | `..>`, `<..` | `dependency` |
 | `..|>`, `<|..` | `realization` |
 
@@ -551,7 +550,7 @@ boolean correct = diagram.relations.stream().anyMatch(parsed ->
 `relationMatches()`:
 1. Relation type must match (`normalizeRelationTypeName` handles synonyms like "inheritance", "generalization", "extends").
 2. Source/target class names must match in forward direction.
-3. For `link` type only: reverse direction also accepted.
+3. For undirected kinds (`dashed_link`, bidirectional variants): reverse direction also accepted.
 
 `relationPresentInDiagram()` (used for error labels) checks class connectivity regardless of relation type.
 

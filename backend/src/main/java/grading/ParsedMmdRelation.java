@@ -7,7 +7,7 @@ public class ParsedMmdRelation {
     public String targetClassName;
     /**
      * Canonical relation kind: inheritance, composition, aggregation, association,
-     * bidirectional_association, bidirectional_inheritance, link, dashed_link, dependency, realization.
+     * bidirectional_association, bidirectional_inheritance, dashed_link, dependency, realization.
      */
     public String relationType;
     /** Optional cardinality on the source side; parsed but not graded in v1. */
