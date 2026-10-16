@@ -178,8 +178,8 @@ CREATE TABLE IF NOT EXISTS class_entity (
 CREATE TABLE IF NOT EXISTS field_declaration (
     id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name      TEXT NOT NULL,
-    data_type TEXT NOT NULL,
-    scope     INTEGER NOT NULL REFERENCES master_data(id)
+    data_type TEXT,
+    scope     INTEGER REFERENCES master_data(id)
 );
 
 CREATE TABLE IF NOT EXISTS method_declaration (

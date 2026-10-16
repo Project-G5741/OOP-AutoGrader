@@ -87,6 +87,7 @@ public class ReflectionClassParser {
             }
             ParsedField pf = new ParsedField();
             pf.name = f.getName();
+            pf.isEnumConstant = f.isEnumConstant();
             pf.dataType = simpleGenericName(f.getGenericType());
             pf.scope = scopeOf(f.getModifiers());
             parsed.fields.add(pf);

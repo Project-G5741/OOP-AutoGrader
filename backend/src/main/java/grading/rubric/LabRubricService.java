@@ -240,7 +240,8 @@ public class LabRubricService {
         List<FieldRubric> fieldRubrics = fields.stream()
                 .map(f -> {
                     FieldDeclaration fd = f.getFieldDeclaration();
-                    return new FieldRubric(f.getId(), f.getName(), fd.getScope().getName(), fd.getDataType());
+                    String scope = fd.getScope() == null ? null : fd.getScope().getName();
+                    return new FieldRubric(f.getId(), f.getName(), scope, fd.getDataType());
                 })
                 .toList();
 

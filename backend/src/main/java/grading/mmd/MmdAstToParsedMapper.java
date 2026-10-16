@@ -172,6 +172,11 @@ public final class MmdAstToParsedMapper {
             return;
         }
 
+        if (isEnumeration(current) && isEnumConstantToken(stripTrailingComma(line))) {
+            addEnumConstant(current, stripTrailingComma(line), null);
+            return;
+        }
+
         char first = line.charAt(0);
         if (first != '-' && first != '+' && first != '#' && first != '~') {
             return;
@@ -180,6 +185,11 @@ public final class MmdAstToParsedMapper {
         String scope = scopeSymbol(first);
         String rest = line.substring(1).trim();
         rest = stripLeadingStaticKeyword(rest);
+
+        if (isEnumeration(current) && isEnumConstantToken(stripTrailingComma(rest))) {
+            addEnumConstant(current, stripTrailingComma(rest), scope);
+            return;
+        }
 
         if (rest.equals("getter()")) {
             ParsedMethod getter = new ParsedMethod();
@@ -312,6 +322,31 @@ public final class MmdAstToParsedMapper {
 
     private static boolean isJavaIdentifier(String value) {
         return value != null && value.matches("[A-Za-z_]\\w*");
+    }
+
+    private static boolean isEnumeration(ParsedMmdClass current) {
+        return current.stereotypeType != null && "Enumeration".equalsIgnoreCase(current.stereotypeType);
+    }
+
+    private static String stripTrailingComma(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.endsWith(",")) {
+            return trimmed.substring(0, trimmed.length() - 1).trim();
+        }
+        return trimmed;
+    }
+
+    private static boolean isEnumConstantToken(String value) {
+        return isJavaIdentifier(value) && !value.contains("(") && !value.contains(":") && !value.contains(" ");
+    }
+
+    private static void addEnumConstant(ParsedMmdClass current, String name, String scope) {
+        ParsedField field = new ParsedField();
+        field.scope = scope;
+        field.name = name;
+        field.dataType = "";
+        field.invalidDeclarationFormat = false;
+        current.fields.add(field);
     }
 
     private ParameterListParse parseParameterTypes(String paramsPart) {

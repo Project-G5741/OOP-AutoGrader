@@ -35,6 +35,16 @@ public final class PartialCreditEvaluator {
         return List.of(Objects.equals(normalize(expected), normalize(actual)));
     }
 
+    /**
+     * A blank rubric attribute is not graded. Enum constants omit type and scope.
+     */
+    public static boolean matchesWhenSpecified(String expected, String actual) {
+        if (expected == null || expected.isBlank()) {
+            return true;
+        }
+        return matches(expected, actual).get(0);
+    }
+
     public static List<Boolean> matches(boolean expected, boolean actual) {
         return List.of(expected == actual);
     }

@@ -281,6 +281,25 @@ class MmdMemberParseTest {
     }
 
     @Test
+    void enumerationConstantsAreNameOnlyFields() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class SessionType {
+                  <<enumeration>>
+                  FAMILY
+                  EVENT,
+                  +PORTRAIT
+                }
+                """)), "SessionType");
+
+        assertEquals(List.of("FAMILY", "EVENT", "PORTRAIT"),
+                parsed.fields.stream().map(field -> field.name).toList());
+        assertTrue(parsed.fields.stream().noneMatch(field -> field.invalidDeclarationFormat));
+        assertEquals("", parsed.fields.get(0).dataType);
+        assertEquals(null, parsed.fields.get(0).scope);
+        assertEquals("public", parsed.fields.get(2).scope);
+    }
+
+    @Test
     void staticOnlyFieldWithoutDatatypeIsInvalidDeclarationFormat() {
         ParsedMmdClass parsed = classNamed(parse(diagram("""
                 class Example {

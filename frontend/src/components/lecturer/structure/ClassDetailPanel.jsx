@@ -18,6 +18,11 @@ function ScopeSelect({ value, options, onChange }) {
   );
 }
 
+function isEnumDeclaringType(declaringTypeId, options) {
+  const match = (options || []).find((opt) => opt.id === declaringTypeId);
+  return !!match && String(match.name || '').trim().toUpperCase() === 'ENUM';
+}
+
 function Section({ title, count, children, defaultOpen = true }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
@@ -58,6 +63,20 @@ export default function ClassDetailPanel({
       </div>
     );
   }
+
+  const enumClass = isEnumDeclaringType(classData.declaringTypeId, declaringTypeOptions);
+
+  React.useEffect(() => {
+    if (!enumClass) return;
+    const fields = classData.fields || [];
+    if (!fields.some((field) => (field.dataType && String(field.dataType).trim()) || field.scopeId != null)) {
+      return;
+    }
+    onChange({
+      ...classData,
+      fields: fields.map((field) => ({ ...field, dataType: '', scopeId: null })),
+    });
+  }, [enumClass, classData, onChange]);
 
   const patch = (updates) => onChange({ ...classData, ...updates });
 
@@ -135,7 +154,15 @@ export default function ClassDetailPanel({
             <ScopeSelect
               value={classData.declaringTypeId}
               options={declaringTypeOptions}
-              onChange={(declaringTypeId) => patch({ declaringTypeId })}
+              onChange={(declaringTypeId) => {
+                const nextEnum = isEnumDeclaringType(declaringTypeId, declaringTypeOptions);
+                patch({
+                  declaringTypeId,
+                  fields: nextEnum
+                    ? (classData.fields || []).map((field) => ({ ...field, dataType: '', scopeId: null }))
+                    : classData.fields,
+                });
+              }}
             />
           </div>
           <div>
@@ -222,8 +249,8 @@ export default function ClassDetailPanel({
           {(classData.fields || []).map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
               <input
-                className="col-span-6 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-                placeholder="Field name"
+                className={`${enumClass ? 'col-span-11' : 'col-span-6'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
+                placeholder={enumClass ? 'Constant name' : 'Field name'}
                 value={field.name}
                 onChange={(e) => {
                   const fields = [...classData.fields];
@@ -231,27 +258,31 @@ export default function ClassDetailPanel({
                   updateFields(fields);
                 }}
               />
-              <input
-                className="col-span-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-                placeholder="type"
-                value={field.dataType}
-                onChange={(e) => {
-                  const fields = [...classData.fields];
-                  fields[index] = { ...field, dataType: e.target.value };
-                  updateFields(fields);
-                }}
-              />
-              <div className="col-span-2">
-                <ScopeSelect
-                  value={field.scopeId}
-                  options={scopeOptions}
-                  onChange={(scopeId) => {
-                    const fields = [...classData.fields];
-                    fields[index] = { ...field, scopeId };
-                    updateFields(fields);
-                  }}
-                />
-              </div>
+              {!enumClass && (
+                <>
+                  <input
+                    className="col-span-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                    placeholder="type"
+                    value={field.dataType}
+                    onChange={(e) => {
+                      const fields = [...classData.fields];
+                      fields[index] = { ...field, dataType: e.target.value };
+                      updateFields(fields);
+                    }}
+                  />
+                  <div className="col-span-2">
+                    <ScopeSelect
+                      value={field.scopeId}
+                      options={scopeOptions}
+                      onChange={(scopeId) => {
+                        const fields = [...classData.fields];
+                        fields[index] = { ...field, scopeId };
+                        updateFields(fields);
+                      }}
+                    />
+                  </div>
+                </>
+              )}
               <button
                 type="button"
                 className="col-span-1 text-foreground-muted hover:text-error"
@@ -265,7 +296,12 @@ export default function ClassDetailPanel({
             type="button"
             onClick={() => updateFields([
               ...(classData.fields || []),
-              { id: crypto.randomUUID(), name: '', dataType: '', scopeId: scopeOptions[0]?.id },
+              {
+                id: crypto.randomUUID(),
+                name: '',
+                dataType: '',
+                scopeId: enumClass ? null : scopeOptions[0]?.id,
+              },
             ])}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"
           >

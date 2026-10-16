@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
 import com.eiu.capstone.backend.grading.ParsedClass;
 import com.eiu.capstone.backend.grading.ParsedConstructor;
 import com.eiu.capstone.backend.grading.ParsedField;
@@ -77,8 +78,9 @@ public class ClassReflectionGrader {
                 } else if (pf == null) {
                     accuracy = 0;
                 } else {
-                    boolean allMatch = PartialCreditEvaluator.matches(expectedField.scope(), pf.scope).get(0)
-                            && PartialCreditEvaluator.matches(expectedField.dataType(), pf.dataType).get(0);
+                    boolean allMatch = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
+                            || (PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
+                                    && PartialCreditEvaluator.matchesWhenSpecified(expectedField.dataType(), pf.dataType));
                     accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));

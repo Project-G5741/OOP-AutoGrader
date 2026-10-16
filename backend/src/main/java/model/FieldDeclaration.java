@@ -14,11 +14,11 @@ public class FieldDeclaration {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "data_type", nullable = false)
+    @Column(name = "data_type")
     private String dataType;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "scope", nullable = false,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scope",
             foreignKey = @ForeignKey(name = "field_declaration_scope_fkey"))
     private MasterData scope;
 

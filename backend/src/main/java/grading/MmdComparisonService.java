@@ -14,6 +14,7 @@ import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
+import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
 
 @Component
 public class MmdComparisonService {
@@ -51,10 +52,14 @@ public class MmdComparisonService {
 
             for (FieldRubric expectedField : expectedClass.fields()) {
                 ParsedField pf = fieldsByName.get(expectedField.name().toLowerCase(Locale.ROOT));
-                boolean correct = pf != null
-                        && !pf.invalidDeclarationFormat
-                        && scopesMatch(expectedField.scope(), pf.scope)
-                        && MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType);
+                boolean nameOnly = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
+                        || (!specified(expectedField.dataType()) && !specified(expectedField.scope()));
+                boolean correct = pf != null && (nameOnly
+                        || (!pf.invalidDeclarationFormat
+                                && PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
+                                && (specified(expectedField.dataType())
+                                        ? MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType)
+                                        : true)));
                 outcome.setField(expectedField.id(), correct);
             }
 
@@ -289,6 +294,10 @@ public class MmdComparisonService {
             }
         }
         return true;
+    }
+
+    private static boolean specified(String value) {
+        return value != null && !value.isBlank();
     }
 
     private boolean scopesMatch(String expected, String actual) {
