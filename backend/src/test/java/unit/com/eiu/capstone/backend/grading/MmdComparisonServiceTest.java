@@ -74,12 +74,12 @@ class MmdComparisonServiceTest {
 
         String blockForm = diagram("""
                 class BankAccount {
-                  +double balance
+                  +balance: double
                 }
                 """);
         String colonForm = diagram("""
                 class BankAccount
-                BankAccount : +double balance
+                BankAccount : +balance: double
                 """);
 
         assertTrue(comparisonService.compare(rubric, parser.parse(blockForm)).isFieldCorrect(balanceId));
@@ -108,7 +108,7 @@ class MmdComparisonServiceTest {
 
         String student = diagram("""
                 class Team {
-                  -List<Member> members
+                  -members: List<Member>
                 }
                 """);
 
