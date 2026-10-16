@@ -42,14 +42,14 @@ class MmdMemberParseTest {
     void blockAndColonSyntaxProduceIdenticalMembers() {
         ParsedMmdClass blockClass = classNamed(parse(diagram("""
                 class BankAccount {
-                  +double balance
-                  +deposit(amount): void
+                  +balance: double
+                  +deposit(amount: int): void
                 }
                 """)), "BankAccount");
         ParsedMmdClass colonClass = classNamed(parse(diagram("""
                 class BankAccount
-                BankAccount : +double balance
-                BankAccount : +deposit(amount): void
+                BankAccount : +balance: double
+                BankAccount : +deposit(amount: int): void
                 """)), "BankAccount");
 
         assertMembersEqual(blockClass, colonClass);
@@ -69,13 +69,14 @@ class MmdMemberParseTest {
     void mapsVisibilitySymbolsToScopes(char symbol, String expectedScope) {
         ParsedMmdClass parsed = classNamed(parse(diagram("""
                 class Demo {
-                  %cint count
+                  %ccount: int
                 }
                 """.formatted(symbol))), "Demo");
 
         assertEquals(1, parsed.fields.size());
         assertEquals(expectedScope, parsed.fields.get(0).scope);
         assertEquals("count", parsed.fields.get(0).name);
+        assertTrue(!parsed.fields.get(0).invalidDeclarationFormat);
     }
 
     private static Stream<Arguments> visibilityScopes() {
@@ -149,12 +150,12 @@ class MmdMemberParseTest {
     void tildeAndAngleBracketGenericsNormalizeEquivalently() {
         ParsedMmdClass tilde = classNamed(parse(diagram("""
                 class Team {
-                  -List~Employee~ members
+                  -members: List~Employee~
                 }
                 """)), "Team");
         ParsedMmdClass angles = classNamed(parse(diagram("""
                 class Team {
-                  -List<Employee> members
+                  -members: List<Employee>
                 }
                 """)), "Team");
 
@@ -162,6 +163,62 @@ class MmdMemberParseTest {
                 tilde.fields.get(0).dataType, angles.fields.get(0).dataType));
         assertEquals("List~Employee~", tilde.fields.get(0).dataType);
         assertEquals("List<Employee>", angles.fields.get(0).dataType);
+        assertTrue(!tilde.fields.get(0).invalidDeclarationFormat);
+        assertTrue(!angles.fields.get(0).invalidDeclarationFormat);
+    }
+
+    @Test
+    void spaceSeparatedFieldIsInvalidDeclarationFormat() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Demo {
+                  +double balance
+                }
+                """)), "Demo");
+
+        assertEquals(1, parsed.fields.size());
+        assertEquals("balance", parsed.fields.get(0).name);
+        assertEquals("double", parsed.fields.get(0).dataType);
+        assertTrue(parsed.fields.get(0).invalidDeclarationFormat);
+    }
+
+    @Test
+    void spaceSeparatedParameterIsInvalidDeclarationFormat() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Logger {
+                  +log(message String): void
+                }
+                """)), "Logger");
+
+        ParsedMethod log = parsed.methods.get(0);
+        assertEquals(List.of("String"), log.parameterTypes);
+        assertTrue(log.invalidDeclarationFormat);
+    }
+
+    @Test
+    void bareParameterTypeIsInvalidDeclarationFormat() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Logger {
+                  +log(String): void
+                }
+                """)), "Logger");
+
+        ParsedMethod log = parsed.methods.get(0);
+        assertEquals(List.of("String"), log.parameterTypes);
+        assertTrue(log.invalidDeclarationFormat);
+    }
+
+    @Test
+    void colonFieldAndParameterAcceptFlexibleSpacing() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Demo {
+                  +balance:double
+                  +set(balance : double): void
+                }
+                """)), "Demo");
+
+        assertTrue(!parsed.fields.get(0).invalidDeclarationFormat);
+        assertTrue(!parsed.methods.get(0).invalidDeclarationFormat);
+        assertEquals(List.of("double"), parsed.methods.get(0).parameterTypes);
     }
 
     @Test
@@ -208,17 +265,51 @@ class MmdMemberParseTest {
     void parsesStaticFieldAndAbstractMethodMarkers() {
         ParsedMmdClass parsed = classNamed(parse(diagram("""
                 class Example {
-                  +instance$
+                  +instance$: Logger
                   +run()*: void
                 }
                 """)), "Example");
 
         assertEquals(1, parsed.fields.size());
         assertEquals("instance", parsed.fields.get(0).name);
+        assertEquals("Logger", parsed.fields.get(0).dataType);
+        assertTrue(!parsed.fields.get(0).invalidDeclarationFormat);
 
         ParsedMethod run = parsed.methods.get(0);
         assertEquals("run", run.name);
         assertTrue(run.isAbstract);
+    }
+
+    @Test
+    void enumerationConstantsAreNameOnlyFields() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class SessionType {
+                  <<enumeration>>
+                  FAMILY
+                  EVENT,
+                  +PORTRAIT
+                }
+                """)), "SessionType");
+
+        assertEquals(List.of("FAMILY", "EVENT", "PORTRAIT"),
+                parsed.fields.stream().map(field -> field.name).toList());
+        assertTrue(parsed.fields.stream().noneMatch(field -> field.invalidDeclarationFormat));
+        assertEquals("", parsed.fields.get(0).dataType);
+        assertEquals(null, parsed.fields.get(0).scope);
+        assertEquals("public", parsed.fields.get(2).scope);
+    }
+
+    @Test
+    void staticOnlyFieldWithoutDatatypeIsInvalidDeclarationFormat() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Example {
+                  +instance$
+                }
+                """)), "Example");
+
+        assertEquals(1, parsed.fields.size());
+        assertEquals("instance", parsed.fields.get(0).name);
+        assertTrue(parsed.fields.get(0).invalidDeclarationFormat);
     }
 
     private static ParsedMmdClass classNamed(ParsedMmdDiagram diagram, String name) {

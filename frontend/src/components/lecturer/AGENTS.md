@@ -50,7 +50,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
-| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity |
+| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity. ENUM classes edit constants by name only (type and scope stay empty) |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase pillar weights; **Requires MMD diagram** (`hasMmd`) then **Requires Declaration Test** (`hasClass`) on challenge chrome (no per-testcase weight) |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list; **Add new testcase** (default UNIT) plus per-testcase Type dropdown; dry-run I/O, Run all, Save Testcases; shared `normalizeTestcaseForApi` for save and dry-run; list shows lecturer shorthand **Ex** (example, not hidden) or **TS*n*** (hidden) via `lecturerTestcaseShortLabels`; list/editor split is draggable on `lg+`; editor column stays `flex-1 min-w-0` so the panel cannot overflow the viewport |

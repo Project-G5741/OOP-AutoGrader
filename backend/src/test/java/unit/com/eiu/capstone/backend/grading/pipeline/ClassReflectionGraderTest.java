@@ -325,6 +325,66 @@ class ClassReflectionGraderTest {
     }
 
     @Test
+    void enumConstantWithoutTypeOrScope_matchesByName() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(ageField("public", "SessionType"));
+        parsed.simpleName = "SessionType";
+        parsed.declaringType = "enum";
+        parsed.fields.get(0).name = "FAMILY";
+
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "SessionType",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "SessionType",
+                        "public",
+                        "ENUM",
+                        false,
+                        List.of(new FieldRubric(fieldId, "FAMILY", null, null)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(fieldResult(result, fieldId).correct());
+    }
+
+    @Test
+    void enumConstantIgnoresStoredTypeAndScope() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedClass parsed = personShell(ageField("public", "SessionType"));
+        parsed.simpleName = "SessionType";
+        parsed.declaringType = "enum";
+        parsed.fields.get(0).name = "FAMILY";
+
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "SessionType",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "SessionType",
+                        "public",
+                        "ENUM",
+                        false,
+                        List.of(new FieldRubric(fieldId, "FAMILY", "private", "String")),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(fieldResult(result, fieldId).correct());
+    }
+
+    @Test
     void fieldWrongType_isNotCorrectAndContributesZero() {
         UUID fieldId = UUID.randomUUID();
         ParsedClass parsed = personShell(ageField("private", "String"));

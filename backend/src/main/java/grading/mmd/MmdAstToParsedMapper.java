@@ -172,6 +172,11 @@ public final class MmdAstToParsedMapper {
             return;
         }
 
+        if (isEnumeration(current) && isEnumConstantToken(stripTrailingComma(line))) {
+            addEnumConstant(current, stripTrailingComma(line), null);
+            return;
+        }
+
         char first = line.charAt(0);
         if (first != '-' && first != '+' && first != '#' && first != '~') {
             return;
@@ -180,6 +185,11 @@ public final class MmdAstToParsedMapper {
         String scope = scopeSymbol(first);
         String rest = line.substring(1).trim();
         rest = stripLeadingStaticKeyword(rest);
+
+        if (isEnumeration(current) && isEnumConstantToken(stripTrailingComma(rest))) {
+            addEnumConstant(current, stripTrailingComma(rest), scope);
+            return;
+        }
 
         if (rest.equals("getter()")) {
             ParsedMethod getter = new ParsedMethod();
@@ -218,7 +228,7 @@ public final class MmdAstToParsedMapper {
             }
             String paramsPart = rest.substring(parenOpen + 1, parenClose).trim();
             String afterParen = rest.substring(parenClose + 1).trim();
-            List<String> paramTypes = parseParameterTypes(paramsPart);
+            ParameterListParse params = parseParameterTypes(paramsPart);
 
             if (beforeParen.equals(current.name)) {
                 if (!afterParen.isEmpty()) {
@@ -226,7 +236,8 @@ public final class MmdAstToParsedMapper {
                 }
                 ParsedConstructor ctor = new ParsedConstructor();
                 ctor.scope = scope;
-                ctor.parameterTypes = paramTypes;
+                ctor.parameterTypes = params.types();
+                ctor.invalidDeclarationFormat = params.invalidDeclarationFormat();
                 current.constructors.add(ctor);
             } else {
                 MermaidMemberSuffix nameSuffix = parseMermaidSuffixes(beforeParen);
@@ -234,7 +245,8 @@ public final class MmdAstToParsedMapper {
                 ParsedMethod method = new ParsedMethod();
                 method.name = nameSuffix.value();
                 method.scope = scope;
-                method.parameterTypes = paramTypes;
+                method.parameterTypes = params.types();
+                method.invalidDeclarationFormat = params.invalidDeclarationFormat();
                 method.isStatic = nameSuffix.isStatic() || returnClause.isStatic();
                 method.isAbstract = nameSuffix.isAbstract() || returnClause.isAbstract();
                 method.returnType = returnClause.returnType();
@@ -251,6 +263,7 @@ public final class MmdAstToParsedMapper {
             field.scope = scope;
             field.name = nameSuffix.value();
             field.dataType = typeSuffix.value();
+            field.invalidDeclarationFormat = field.name.isEmpty() || field.dataType.isEmpty();
             current.fields.add(field);
             return;
         }
@@ -274,6 +287,7 @@ public final class MmdAstToParsedMapper {
         field.scope = scope;
         field.name = suffix.value();
         field.dataType = "";
+        field.invalidDeclarationFormat = true;
         current.fields.add(field);
         return true;
     }
@@ -301,6 +315,7 @@ public final class MmdAstToParsedMapper {
         field.scope = scope;
         field.name = name;
         field.dataType = dataType;
+        field.invalidDeclarationFormat = true;
         current.fields.add(field);
         return true;
     }
@@ -309,38 +324,81 @@ public final class MmdAstToParsedMapper {
         return value != null && value.matches("[A-Za-z_]\\w*");
     }
 
-    private List<String> parseParameterTypes(String paramsPart) {
+    private static boolean isEnumeration(ParsedMmdClass current) {
+        return current.stereotypeType != null && "Enumeration".equalsIgnoreCase(current.stereotypeType);
+    }
+
+    private static String stripTrailingComma(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.endsWith(",")) {
+            return trimmed.substring(0, trimmed.length() - 1).trim();
+        }
+        return trimmed;
+    }
+
+    private static boolean isEnumConstantToken(String value) {
+        return isJavaIdentifier(value) && !value.contains("(") && !value.contains(":") && !value.contains(" ");
+    }
+
+    private static void addEnumConstant(ParsedMmdClass current, String name, String scope) {
+        ParsedField field = new ParsedField();
+        field.scope = scope;
+        field.name = name;
+        field.dataType = "";
+        field.invalidDeclarationFormat = false;
+        current.fields.add(field);
+    }
+
+    private ParameterListParse parseParameterTypes(String paramsPart) {
         if (paramsPart.isEmpty()) {
-            return List.of();
+            return new ParameterListParse(List.of(), false);
         }
         List<String> types = new ArrayList<>();
+        boolean invalid = false;
         for (String segment : splitParams(paramsPart)) {
             String trimmed = segment.trim();
             if (trimmed.isEmpty()) {
                 continue;
             }
-            types.add(extractParameterType(trimmed));
+            ParameterTypeParse parsed = extractParameterType(trimmed);
+            types.add(parsed.type());
+            if (parsed.invalidDeclarationFormat()) {
+                invalid = true;
+            }
         }
-        return types;
+        return new ParameterListParse(types, invalid);
     }
 
-    private String extractParameterType(String param) {
+    /**
+     * Parameters must be {@code name: datatype} (spacing around {@code :} ignored).
+     * Best-effort type extraction remains for matching identity when the format is wrong.
+     */
+    private ParameterTypeParse extractParameterType(String param) {
         param = param.trim();
         int colon = param.indexOf(':');
         if (colon > 0) {
-            return parseMermaidSuffixes(param.substring(colon + 1).trim()).value();
+            String name = parseMermaidSuffixes(param.substring(0, colon).trim()).value();
+            String type = parseMermaidSuffixes(param.substring(colon + 1).trim()).value();
+            if (!name.isEmpty() && !type.isEmpty()) {
+                return new ParameterTypeParse(type, false);
+            }
+            return new ParameterTypeParse(type.isEmpty() ? name : type, true);
         }
         int lastSpace = param.lastIndexOf(' ');
         if (lastSpace > 0) {
             String left = param.substring(0, lastSpace).trim();
             String right = param.substring(lastSpace + 1).trim();
             if (looksLikeType(left)) {
-                return parseMermaidSuffixes(left).value();
+                return new ParameterTypeParse(parseMermaidSuffixes(left).value(), true);
             }
-            return parseMermaidSuffixes(right).value();
+            return new ParameterTypeParse(parseMermaidSuffixes(right).value(), true);
         }
-        return parseMermaidSuffixes(param).value();
+        return new ParameterTypeParse(parseMermaidSuffixes(param).value(), true);
     }
+
+    private record ParameterListParse(List<String> types, boolean invalidDeclarationFormat) {}
+
+    private record ParameterTypeParse(String type, boolean invalidDeclarationFormat) {}
 
     private String stripLeadingStaticKeyword(String value) {
         if (value.regionMatches(true, 0, "static ", 0, 7)) {
@@ -466,7 +524,7 @@ public final class MmdAstToParsedMapper {
             return relation;
         }
 
-        if (relation.relationType.equals("link") || relation.relationType.equals("dashed_link")) {
+        if ("--".equals(arrow) || "dashed_link".equals(relation.relationType)) {
             relation.sourceClassName = left;
             relation.targetClassName = right;
             return relation;
