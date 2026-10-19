@@ -17,9 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
+import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.analytics.dto.UsersBootstrapResponse;
 import com.eiu.capstone.backend.analytics.service.LecturerTabBootstrapService;
-import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.service.UserService;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,8 +30,8 @@ class LecturerTabBootstrapUsersTest {
 
     @Test
     void usersBootstrapReturnsEveryAccountNotATruncatedPage() {
-        List<UserAccount> accounts = IntStream.range(0, 51)
-                .mapToObj(i -> mock(UserAccount.class))
+        List<UserDTO.UserResponse> accounts = IntStream.range(0, 51)
+                .mapToObj(i -> mock(UserDTO.UserResponse.class))
                 .toList();
         when(userService.getAllUser()).thenReturn(accounts);
 

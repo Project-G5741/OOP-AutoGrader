@@ -70,7 +70,7 @@ Config files: `src/main/resources/application.yml` (imports `.env`; multipart `m
 | `TermController` | `/api/terms` | `GET /list` — academic terms for lab creation |
 | `StudentAccessController` | `/api/students` | `GET /term-access` (`inCurrentTerm`, `quarterName` = current quarter label when enrolled); `StudentDesktopPracticeDownloadController` (`!desktop`) `GET /desktop-practice-bundle` — current-quarter students; streams fixed prebuilt zip `target/…` or `/app/OOP-AutoGrader-Practice.zip` (no `.agpack`, no runtime env; image packaging in `DEPLOY_RENDER.md`). SPA hands this GET to the browser via `?access_token=` (JWT filter accepts that query only on this path) so native download progress shows. |
 | `AnalyticsController` | `/api/analytics` | Dashboard, lab trend, student overview/report |
-| `UserController` | `/api/users` | `getAllUser`, `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
+| `UserController` | `/api/users` | `getAllUser` returns `UserResponse` list/page with `currentQuarter` (active + enrolled in system current term; blank otherwise; no DoB); `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
 | `PresenceController` | `/api/presence` | `GET /count` — public active-user count; a valid JWT records a heartbeat. `DELETE /leave` — signed-in leave (JWT required) |
 

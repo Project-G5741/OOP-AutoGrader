@@ -51,8 +51,7 @@ const normalizeUser = (user) => {
     role: uniqueRoles[0] || '',
     roles: uniqueRoles.map((name) => ({ name })),
     roleNames: uniqueRoles,
-    dob: user.dateOfBirth || '',
-    dateOfBirth: user.dateOfBirth || '',
+    currentQuarter: user.currentQuarter || '',
   };
 };
 

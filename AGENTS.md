@@ -96,6 +96,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/DESKTOP_STUDENT_DIST.md` | Windows offline student practice: pack naming, import/restart, lecturer export, assemble script, desktop API |
 | `docs/sql/2026-10-13-schema-baseline-reconstructed.sql` | Empty-DB PostgreSQL baseline reconstructed from JPA + operator SQL (not a live dump); use when Neon/introspection is unavailable |
 | `docs/sql/2026-10-14-challenge-has-class.sql` | Operator-run: `challenge.has_class` (Declaration applicability, default true) |
+| `docs/sql/2026-10-19-drop-user-account-date-of-birth.sql` | Operator-run: drop `user_account.date_of_birth` (PII removal) |
 
 ### Project facts
 

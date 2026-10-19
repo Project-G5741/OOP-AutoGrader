@@ -4,6 +4,7 @@ import com.eiu.capstone.backend.service.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -102,6 +103,9 @@ class UserServiceTest {
     private SessionValidityService sessionValidityService;
 
     @Mock
+    private TermService termService;
+
+    @Mock
     private UserAccount existingUser;
 
     private UserService userService;
@@ -127,7 +131,8 @@ class UserServiceTest {
                 termEnrollmentRepository,
                 labDeadlineEmailSentRepository,
                 passwordResetTokenRepository,
-                sessionValidityService);
+                sessionValidityService,
+                termService);
         userId = UUID.randomUUID();
         when(existingUser.getId()).thenReturn(userId);
         when(existingUser.getEmail()).thenReturn("student@eiu.edu.vn");
@@ -338,6 +343,60 @@ class UserServiceTest {
         assertEquals(400, ex.getStatusCode().value());
     }
 
+    @Test
+    void getAllUser_setsCurrentQuarterWhenActiveAndEnrolled() {
+        UUID enrolledId = UUID.randomUUID();
+        UUID otherId = UUID.randomUUID();
+        UserAccount enrolled = studentAccount();
+        setUserId(enrolled, enrolledId);
+        UserAccount notEnrolled = studentAccount();
+        notEnrolled.setEmail("other@eiu.edu.vn");
+        notEnrolled.setStudentCode("222");
+        setUserId(notEnrolled, otherId);
+
+        when(userRepository.findAllWithRoles()).thenReturn(List.of(enrolled, notEnrolled));
+        when(termService.currentTermLabel()).thenReturn(Optional.of("2026 — Quarter 1"));
+        when(termEnrollmentRepository.findUserIdsEnrolledInCurrentTerm()).thenReturn(List.of(enrolledId));
+
+        List<UserDTO.UserResponse> rows = userService.getAllUser();
+
+        assertEquals(2, rows.size());
+        assertEquals("2026 — Quarter 1", rows.get(0).getCurrentQuarter());
+        assertNull(rows.get(1).getCurrentQuarter());
+    }
+
+    @Test
+    void getAllUser_blanksCurrentQuarterWhenInactiveEvenIfEnrolled() {
+        UUID enrolledId = UUID.randomUUID();
+        UserAccount inactive = studentAccount();
+        inactive.setIsActive(false);
+        setUserId(inactive, enrolledId);
+
+        when(userRepository.findAllWithRoles()).thenReturn(List.of(inactive));
+        when(termService.currentTermLabel()).thenReturn(Optional.of("2026 — Quarter 1"));
+        when(termEnrollmentRepository.findUserIdsEnrolledInCurrentTerm()).thenReturn(List.of(enrolledId));
+
+        List<UserDTO.UserResponse> rows = userService.getAllUser();
+
+        assertEquals(1, rows.size());
+        assertNull(rows.get(0).getCurrentQuarter());
+    }
+
+    @Test
+    void getAllUser_blanksCurrentQuarterWhenNoCurrentTerm() {
+        UserAccount student = studentAccount();
+        setUserId(student, UUID.randomUUID());
+
+        when(userRepository.findAllWithRoles()).thenReturn(List.of(student));
+        when(termService.currentTermLabel()).thenReturn(Optional.empty());
+
+        List<UserDTO.UserResponse> rows = userService.getAllUser();
+
+        assertEquals(1, rows.size());
+        assertNull(rows.get(0).getCurrentQuarter());
+        verify(termEnrollmentRepository, never()).findUserIdsEnrolledInCurrentTerm();
+    }
+
     private UserAccount studentAccount() {
         UserAccount student = new UserAccount();
         student.setFullName("Student One");
@@ -347,5 +406,15 @@ class UserServiceTest {
         student.setIsActive(true);
         student.setRoles(new HashSet<>(Set.of(new Role("STUDENT"))));
         return student;
+    }
+
+    private static void setUserId(UserAccount user, UUID id) {
+        try {
+            var field = UserAccount.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(user, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

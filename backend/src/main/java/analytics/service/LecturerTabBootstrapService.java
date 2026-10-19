@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
 import com.eiu.capstone.backend.DTO.MasterDataItemDTO;
 import com.eiu.capstone.backend.DTO.TermSummaryDTO;
+import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.analytics.dto.AnalyticsDashboardResponse;
 import com.eiu.capstone.backend.analytics.dto.GradeOverviewResponse;
@@ -93,7 +94,7 @@ public class LecturerTabBootstrapService {
 
     /** Full account list for User Management client-side search/sort/stats (not paged). */
     public UsersBootstrapResponse users() {
-        List<UserAccount> all = userService.getAllUser();
+        List<UserDTO.UserResponse> all = userService.getAllUser();
         int total = all.size();
         return new UsersBootstrapResponse(all, 0, total, total, total == 0 ? 0 : 1);
     }
