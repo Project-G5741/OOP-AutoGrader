@@ -874,14 +874,9 @@ public class PlagiarismService {
         return visited;
     }
 
-    private static final java.time.format.DateTimeFormatter DISPLAY_TIME =
-            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-
     private static String formatOffset(OffsetDateTime value) {
-        if (value == null) {
-            return "";
-        }
-        return DISPLAY_TIME.format(value.atZoneSameInstant(TimeUtil.VIETNAM_ZONE));
+        String formatted = TimeUtil.formatDisplayTimestamp(value);
+        return formatted == null ? "" : formatted;
     }
 
     private PlagiarismSignals toSignals(SubmissionPlagiarismFingerprint fingerprint) {

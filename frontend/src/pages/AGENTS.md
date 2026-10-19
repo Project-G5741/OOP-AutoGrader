@@ -52,7 +52,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` from the overview payload | First paint: `GET /api/lecturer/bootstrap/dashboard` (fresh overview). Secondary: labs list, `/api/labs/{id}/statistics`, submissions, plagiarism flags |
 | `score` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | First paint: `GET /api/lecturer/bootstrap/score`. Sort/search/page: `GET /api/lecturer/grade-overview` |
 | `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list) |
-| `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` |
+| `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` (full account list — client search/stats; not paged like Score) |
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |

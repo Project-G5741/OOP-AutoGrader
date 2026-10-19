@@ -1,6 +1,5 @@
 package com.eiu.capstone.backend.service;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import com.eiu.capstone.backend.utility.TimeUtil;
@@ -66,6 +65,7 @@ public class UserService {
     private final LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final SessionValidityService sessionValidityService;
+    private final TermService termService;
 
     public UserService(UserAccountRepository userRepository,
             RoleRepository roleRepository,
@@ -83,7 +83,8 @@ public class UserService {
             TermEnrollmentRepository termEnrollmentRepository,
             LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
-            SessionValidityService sessionValidityService) {
+            SessionValidityService sessionValidityService,
+            TermService termService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -101,16 +102,19 @@ public class UserService {
         this.labDeadlineEmailSentRepository = labDeadlineEmailSentRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.sessionValidityService = sessionValidityService;
+        this.termService = termService;
     }
 
     @Transactional
-    public List<UserAccount> getAllUser() {
-        return userRepository.findAllWithRoles();
+    public List<UserDTO.UserResponse> getAllUser() {
+        return toListResponses(userRepository.findAllWithRoles());
     }
 
     @Transactional
-    public Page<UserAccount> getAllUser(Pageable pageable) {
-        return userRepository.findAllWithRoles(pageable);
+    public Page<UserDTO.UserResponse> getAllUser(Pageable pageable) {
+        Page<UserAccount> page = userRepository.findAllWithRoles(pageable);
+        List<UserDTO.UserResponse> mapped = toListResponses(page.getContent());
+        return new org.springframework.data.domain.PageImpl<>(mapped, pageable, page.getTotalElements());
     }
 
     @Transactional
@@ -139,7 +143,6 @@ public class UserService {
         user.setEmail(request.email());
         user.setStudentCode(blankToNull(request.studentCode()));
         user.setTeacherCode(blankToNull(request.teacherCode()));
-        user.setDateOfBirth(request.dateOfBirth());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setIsActive(true);
         user.setCreateAt(nowInVietnam());
@@ -205,7 +208,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserAccount createOrUpdateGoogleUser(String email, String fullName, LocalDate dateOfBirth, String irn,
+    public UserAccount createOrUpdateGoogleUser(String email, String fullName, String irn,
             String password, String roleName) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Email is required");
@@ -234,7 +237,6 @@ public class UserService {
 
         user.setEmail(email);
         user.setFullName(fullName);
-        user.setDateOfBirth(dateOfBirth);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setStudentCode(irn);
         user.setTeacherCode(null);
@@ -478,6 +480,28 @@ public class UserService {
 
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * Map users for list/bootstrap: Current Quarter label when active and enrolled in the
+     * system current term (same rule as student Enrolled Quarter); otherwise null.
+     */
+    private List<UserDTO.UserResponse> toListResponses(List<UserAccount> users) {
+        if (users == null || users.isEmpty()) {
+            return List.of();
+        }
+        Optional<String> labelOpt = termService.currentTermLabel();
+        if (labelOpt.isEmpty()) {
+            return users.stream().map(UserDTO.UserResponse::fromEntity).toList();
+        }
+        String label = labelOpt.get();
+        Set<UUID> enrolledIds = new HashSet<>(termEnrollmentRepository.findUserIdsEnrolledInCurrentTerm());
+        List<UserDTO.UserResponse> mapped = new ArrayList<>(users.size());
+        for (UserAccount user : users) {
+            String quarter = (user.getIsActive() && enrolledIds.contains(user.getId())) ? label : null;
+            mapped.add(UserDTO.UserResponse.fromEntity(user, quarter));
+        }
+        return mapped;
     }
 
     private static OffsetDateTime nowInVietnam() {

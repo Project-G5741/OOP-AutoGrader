@@ -19,6 +19,9 @@ public interface TermEnrollmentRepository extends JpaRepository<TermEnrollment, 
     @Query("SELECT te.user.id FROM TermEnrollment te WHERE te.term.id = :termId")
     List<UUID> findUserIdsByTermId(@Param("termId") UUID termId);
 
+    @Query("SELECT te.user.id FROM TermEnrollment te WHERE te.term.current = true")
+    List<UUID> findUserIdsEnrolledInCurrentTerm();
+
     @Query(value = """
             SELECT DISTINCT u.id
             FROM term_enrollment te

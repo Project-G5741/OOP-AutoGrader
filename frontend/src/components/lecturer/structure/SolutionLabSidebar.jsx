@@ -1,10 +1,10 @@
-import { BookOpen, Copy, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpen, Copy, Plus, Search, Trash2 } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   useSidebar,
 } from '../../ui/sidebar';
@@ -44,6 +44,12 @@ export default function SolutionLabSidebar({
   onDeleteLab = () => {},
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
+  const [search, setSearch] = useState('');
+
+  const query = search.trim().toLowerCase();
+  const filteredLabs = query
+    ? labs.filter((lab) => String(lab.name || '').toLowerCase().includes(query))
+    : labs;
 
   function handleSelect(labId) {
     onSelectLab(labId);
@@ -82,15 +88,31 @@ export default function SolutionLabSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Assignments</SidebarGroupLabel>
+          <div className="px-2 pb-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-muted" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search labs…"
+                aria-label="Search labs"
+                className="w-full rounded-lg border border-border bg-surface-secondary py-1.5 pl-8 pr-3 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
           <SidebarGroupContent>
             {labs.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-foreground-muted">
                 No labs yet. Click + to create one.
               </p>
+            ) : filteredLabs.length === 0 ? (
+              <p className="px-2 py-6 text-center text-sm text-foreground-muted">
+                No labs match “{search.trim()}”.
+              </p>
             ) : (
               <ItemGroup>
-                {labs.map((lab) => {
+                {filteredLabs.map((lab) => {
                   const selected = String(lab.id) === String(selectedLabId);
                   const badge = labBadge(lab);
                   return (

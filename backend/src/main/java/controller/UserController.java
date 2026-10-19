@@ -47,10 +47,10 @@ public class UserController {
         if (page != null || size != null) {
             int safePage = page != null ? Math.max(page, 0) : 0;
             int safeSize = size != null && size > 0 ? Math.min(size, 100) : 50;
-            Page<UserAccount> userPage = userService.getAllUser(PageRequest.of(safePage, safeSize));
+            Page<UserDTO.UserResponse> userPage = userService.getAllUser(PageRequest.of(safePage, safeSize));
             return ResponseEntity.ok(userPage);
         }
-        List<UserAccount> userList = userService.getAllUser();
+        List<UserDTO.UserResponse> userList = userService.getAllUser();
         return ResponseEntity.ok(userList);
     }
 

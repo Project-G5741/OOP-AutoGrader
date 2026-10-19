@@ -2,10 +2,10 @@ package com.eiu.capstone.backend.analytics.dto;
 
 import java.util.List;
 
-import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.DTO.UserDTO;
 
 public record UsersBootstrapResponse(
-        List<UserAccount> content,
+        List<UserDTO.UserResponse> content,
         int page,
         int size,
         long totalElements,
