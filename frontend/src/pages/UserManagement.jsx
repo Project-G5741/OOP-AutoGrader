@@ -257,7 +257,17 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
           },
           { fresh: true },
         );
-        const items = Array.isArray(data) ? data : (data.content ?? []);
+        let items = Array.isArray(data) ? data : (data.content ?? []);
+        const reportedTotal = Array.isArray(data) ? items.length : Number(data.totalElements ?? items.length);
+        // Bootstrap must return every account for client-side search; fall back if truncated.
+        if (reportedTotal > items.length) {
+          const resp = await apiFetch(`${API_BASE}/api/users/getAllUser`, { headers: authHeaders() });
+          if (!resp.ok) {
+            throw new Error(await readFriendlyApiError(resp, 'read'));
+          }
+          const full = await resp.json();
+          items = Array.isArray(full) ? full : (full.content ?? []);
+        }
         const normalized = items.map(normalizeUser);
         setUsers(normalized);
       } catch (error) {

@@ -9,8 +9,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.DTO.ChallengeDTO;
@@ -36,7 +34,6 @@ import com.eiu.capstone.backend.service.UserService;
 @Service
 public class LecturerTabBootstrapService {
 
-    private static final int USERS_PAGE_SIZE = 50;
     private static final int SCORE_PAGE_SIZE = 12;
 
     private final LecturerAnalyticsService lecturerAnalyticsService;
@@ -94,14 +91,11 @@ public class LecturerTabBootstrapService {
                 .toList();
     }
 
+    /** Full account list for User Management client-side search/sort/stats (not paged). */
     public UsersBootstrapResponse users() {
-        Page<UserAccount> page = userService.getAllUser(PageRequest.of(0, USERS_PAGE_SIZE));
-        return new UsersBootstrapResponse(
-                page.getContent(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages());
+        List<UserAccount> all = userService.getAllUser();
+        int total = all.size();
+        return new UsersBootstrapResponse(all, 0, total, total, total == 0 ? 0 : 1);
     }
 
     public List<TermSummaryDTO> quarters() {
