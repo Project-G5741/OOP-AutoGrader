@@ -1,6 +1,5 @@
 package com.eiu.capstone.backend.model;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -30,9 +29,6 @@ public class UserAccount {
 
     @Column(nullable = false, unique = true)
     private String email;
-
-    @Column(name = "date_of_birth")
-    private LocalDate dateOfBirth;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -88,14 +84,6 @@ public class UserAccount {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public LocalDate getDateOfBirth() {
-        return dateOfBirth;
-    }
-
-    public void setDateOfBirth(LocalDate dateOfBirth) {
-        this.dateOfBirth = dateOfBirth;
     }
 
     @JsonIgnore

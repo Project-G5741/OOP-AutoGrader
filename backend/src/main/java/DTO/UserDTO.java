@@ -1,6 +1,5 @@
 package com.eiu.capstone.backend.DTO;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -24,7 +23,6 @@ public class UserDTO {
             String password,
             String studentCode,
             String teacherCode,
-            LocalDate dateOfBirth,
             Set<String> roleNames) {
     }
 
@@ -101,8 +99,14 @@ public class UserDTO {
         private String teacherCode;
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX", timezone = "Asia/Ho_Chi_Minh")
         private OffsetDateTime createAt;
+        /** System current-quarter label when active and enrolled; null otherwise. */
+        private String currentQuarter;
 
         public static UserResponse fromEntity(UserAccount user) {
+            return fromEntity(user, null);
+        }
+
+        public static UserResponse fromEntity(UserAccount user, String currentQuarter) {
             UserResponse response = new UserResponse();
             response.id = user.getId();
             response.fullName = user.getFullName();
@@ -119,6 +123,7 @@ public class UserDTO {
                     ? user.getStudentCode()
                     : user.getTeacherCode();
             response.createAt = user.getCreateAt();
+            response.currentQuarter = currentQuarter;
 
             return response;
         }
@@ -132,5 +137,6 @@ public class UserDTO {
         public String getStudentCode() { return studentCode; }
         public String getTeacherCode() { return teacherCode; }
         public OffsetDateTime getCreateAt() { return createAt; }
+        public String getCurrentQuarter() { return currentQuarter; }
     }
 }

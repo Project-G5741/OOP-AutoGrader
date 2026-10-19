@@ -76,7 +76,6 @@ public class AuthController {
         var userAccount = userService.createOrUpdateGoogleUser(
                 tokenInfo.getEmail(),
                 tokenInfo.getName(),
-                null,
                 request.irn(),
                 request.password(),
                 request.role());

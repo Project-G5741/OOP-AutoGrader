@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS user_account (
     teacher_code    TEXT UNIQUE,
     full_name       TEXT NOT NULL,
     email           TEXT NOT NULL UNIQUE,
-    date_of_birth   DATE,
     password_hash   TEXT NOT NULL,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     session_version INTEGER NOT NULL DEFAULT 0,

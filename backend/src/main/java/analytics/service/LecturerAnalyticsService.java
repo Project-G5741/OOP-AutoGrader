@@ -2,7 +2,6 @@ package com.eiu.capstone.backend.analytics.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,12 +34,11 @@ import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.service.ChallengeService;
 import com.eiu.capstone.backend.service.TermService;
+import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
 public class LecturerAnalyticsService {
 
-    private static final DateTimeFormatter SUBMISSION_TIME_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("70");
 
     private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
@@ -451,7 +449,7 @@ public class LecturerAnalyticsService {
                 AnalyticsMapper.toString(row[2]),
                 AnalyticsMapper.toBigDecimal(row[3]),
                 AnalyticsMapper.toInt(row[4]),
-                formatTimestamp(row[5])
+                TimeUtil.formatDisplayTimestamp(row[5])
         );
     }
 
@@ -513,7 +511,7 @@ public class LecturerAnalyticsService {
                 AnalyticsMapper.toString(row[2]),
                 AnalyticsMapper.toBigDecimal(row[3]),
                 AnalyticsMapper.toInt(row[4]),
-                formatTimestamp(row[5]),
+                TimeUtil.formatDisplayTimestamp(row[5]),
                 AnalyticsMapper.toBoolean(row[6]),
                 submissionId,
                 submissionId != null
@@ -539,7 +537,7 @@ public class LecturerAnalyticsService {
                 AnalyticsMapper.toString(row[2]),
                 score,
                 AnalyticsMapper.toInt(row[4]),
-                formatTimestamp(row[5]),
+                TimeUtil.formatDisplayTimestamp(row[5]),
                 hasSubmission,
                 submissionId
         );
@@ -552,26 +550,10 @@ public class LecturerAnalyticsService {
         return new LabAttemptHistoryItemDTO(
                 AnalyticsMapper.toInt(row[0]),
                 AnalyticsMapper.toBigDecimal(row[1]),
-                formatTimestamp(row[2]),
+                TimeUtil.formatDisplayTimestamp(row[2]),
                 AnalyticsMapper.toUuid(row[3]),
                 AnalyticsMapper.toBoolean(row[4])
         );
-    }
-
-    private String formatTimestamp(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof java.time.OffsetDateTime offsetDateTime) {
-            return SUBMISSION_TIME_FORMAT.format(offsetDateTime);
-        }
-        if (value instanceof java.time.LocalDateTime localDateTime) {
-            return SUBMISSION_TIME_FORMAT.format(localDateTime);
-        }
-        if (value instanceof java.time.Instant instant) {
-            return SUBMISSION_TIME_FORMAT.format(instant.atZone(java.time.ZoneId.systemDefault()));
-        }
-        return value.toString();
     }
 
     private SortSpec resolveChallengeSort(String sort) {

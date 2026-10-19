@@ -7,7 +7,7 @@ const HEADER_CLASS = 'px-6 py-3 text-left text-xs font-semibold text-foreground-
 const USER_COLUMNS = [
   { key: 'irn', label: 'IRN' },
   { key: 'fullname', label: 'Full Name' },
-  { key: 'dob', label: 'Date of Birth' },
+  { key: 'currentQuarter', label: 'Current Quarter' },
   { key: 'email', label: 'Email' },
   { key: 'createAt', label: 'Create At' },
   { key: 'role', label: 'Role' },
@@ -96,7 +96,7 @@ export default function UserTable({
               <tr key={u.id} className="hover:bg-surface-secondary hover:bg-surface-secondary transition-colors">
                 <td className="px-6 py-4 font-mono text-foreground-secondary break-words">{u.irn}</td>
                 <td className="px-6 py-4 text-foreground font-medium break-words">{u.fullname}</td>
-                <td className="px-6 py-4 text-foreground-muted break-words">{u.dob}</td>
+                <td className="px-6 py-4 text-foreground-muted whitespace-nowrap">{u.currentQuarter}</td>
                 <td className="px-6 py-4 text-foreground-muted break-words">{u.email}</td>
                 <td className="px-6 py-4 text-foreground-muted break-words whitespace-nowrap">{formatDateTime(u.createAt)}</td>
                 <td className="px-6 py-4">
