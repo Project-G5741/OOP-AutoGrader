@@ -587,11 +587,15 @@ public class ClassStructureService {
                                                       String rubricScope,
                                                       String rubricDataType) {
         if (entry == null) {
+            // Snapshot wipe / legacy: correct members fall back to rubric labels (same as MMD).
+            if (grade.ok()) {
+                return new ClassFieldDetailDTO(rubricName, rubricScope, rubricDataType, true, false);
+            }
             return new ClassFieldDetailDTO(
                     StudentDisplayMessages.MISSING_VARIABLE,
                     StudentDisplayMessages.PLACEHOLDER,
                     StudentDisplayMessages.PLACEHOLDER,
-                    grade.ok(),
+                    false,
                     grade.partial());
         }
         if (grade.ok()) {
@@ -613,11 +617,14 @@ public class ClassStructureService {
                                                                   String rubricScope,
                                                                   String rubricParams) {
         if (entry == null) {
+            if (grade.ok()) {
+                return new ClassConstructorDetailDTO(rubricName, rubricScope, rubricParams, true, false);
+            }
             return new ClassConstructorDetailDTO(
                     StudentDisplayMessages.MISSING_CONSTRUCTOR,
                     StudentDisplayMessages.PLACEHOLDER,
                     StudentDisplayMessages.PLACEHOLDER,
-                    grade.ok(),
+                    false,
                     grade.partial());
         }
         if (grade.ok()) {
@@ -638,11 +645,14 @@ public class ClassStructureService {
                                                       String rubricScope,
                                                       String rubricReturnType) {
         if (entry == null) {
+            if (grade.ok()) {
+                return new ClassMethodDetailDTO(rubricName, rubricScope, rubricReturnType, true, false);
+            }
             return new ClassMethodDetailDTO(
                     StudentDisplayMessages.MISSING_METHOD,
                     StudentDisplayMessages.PLACEHOLDER,
                     StudentDisplayMessages.PLACEHOLDER,
-                    grade.ok(),
+                    false,
                     grade.partial());
         }
         if (grade.ok()) {
