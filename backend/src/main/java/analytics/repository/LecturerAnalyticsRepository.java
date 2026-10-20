@@ -92,6 +92,26 @@ public class LecturerAnalyticsRepository {
               AND LOWER(r.name) = 'student'
             """;
 
+    /**
+     * Active student-only accounts enrolled in the lab's quarter (not lecturers/teachers).
+     */
+    private static final String ACTIVE_TERM_STUDENTS_FOR_LAB_FROM = """
+            FROM term_enrollment te
+            JOIN lab l ON l.term_id = te.term_id AND l.id = :labId
+            JOIN user_account u ON u.id = te.user_id
+            JOIN user_role ur ON ur.user_id = u.id
+            JOIN role r ON r.id = ur.role_id
+            WHERE u.is_active = true
+              AND LOWER(r.name) = 'student'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM user_role ur_lect
+                  JOIN role r_lect ON r_lect.id = ur_lect.role_id
+                  WHERE ur_lect.user_id = u.id
+                    AND LOWER(r_lect.name) IN ('lecturer', 'teacher')
+              )
+            """;
+
     private static final String QUALIFYING_SCORES_CTE = """
                 qualifying_scores AS (
                     SELECT s.user_id, s.lab_id, MAX(s.score) AS score
@@ -446,35 +466,18 @@ public class LecturerAnalyticsRepository {
     }
 
     public long countActiveEnrolledStudentsForLab(UUID labId) {
-        String sql = """
-                SELECT COUNT(DISTINCT u.id)
-                FROM term_enrollment te
-                JOIN lab l ON l.term_id = te.term_id AND l.id = :labId
-                JOIN user_account u ON u.id = te.user_id
-                JOIN user_role ur ON ur.user_id = u.id
-                JOIN role r ON r.id = ur.role_id
-                WHERE u.is_active = true AND LOWER(r.name) = 'student'
-                """;
+        String sql = "SELECT COUNT(DISTINCT u.id) " + ACTIVE_TERM_STUDENTS_FOR_LAB_FROM;
         return singleLong(sql, Map.of("labId", labId));
     }
 
+    /** Enrolled quarter students with at least one lab submission (any attempt; deadline not applied). */
     public long countActiveStudentsSubmittedForLab(UUID labId) {
-        String sql = """
-                SELECT COUNT(DISTINCT u.id)
-                FROM term_enrollment te
-                JOIN lab l ON l.term_id = te.term_id AND l.id = :labId
-                JOIN user_account u ON u.id = te.user_id
-                JOIN user_role ur ON ur.user_id = u.id
-                JOIN role r ON r.id = ur.role_id
-                WHERE u.is_active = true
-                  AND LOWER(r.name) = 'student'
-                  AND EXISTS (
-                      SELECT 1
-                      FROM lab_submission s
-                      WHERE s.user_id = u.id AND s.lab_id = :labId
-                        AND (l.deadline_date IS NULL
-                             OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                  )
+        String sql = "SELECT COUNT(DISTINCT u.id) " + ACTIVE_TERM_STUDENTS_FOR_LAB_FROM + """
+                AND EXISTS (
+                    SELECT 1
+                    FROM lab_submission s
+                    WHERE s.user_id = u.id AND s.lab_id = :labId
+                )
                 """;
         return singleLong(sql, Map.of("labId", labId));
     }
