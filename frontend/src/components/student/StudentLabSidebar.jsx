@@ -75,7 +75,16 @@ export default function StudentLabSidebar({
                       variant={selected ? 'muted' : 'default'}
                       aria-current={selected ? 'true' : undefined}
                       onClick={() => handleSelect(lab.id)}
-                      className={selected ? 'ring-1 ring-primary' : ''}
+                      className={
+                        selected
+                          ? 'ring-1 ring-primary'
+                          : [
+                              'relative overflow-hidden',
+                              'after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-0',
+                              "after:bg-primary after:content-[''] after:transition-[width] after:duration-200 after:ease-out",
+                              'hover:after:w-full focus-visible:after:w-full',
+                            ].join(' ')
+                      }
                     >
                       <ItemMedia variant="icon">
                         <BookOpen className="h-4 w-4 text-primary" />

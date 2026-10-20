@@ -20,12 +20,18 @@ function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWid
       onClick={() => onClick(id)}
       onMouseEnter={() => onPrefetch?.(id)}
       onFocus={() => onPrefetch?.(id)}
-      className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
+      className={`relative flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
         fullWidth ? 'w-full gap-3 rounded-xl px-4 py-3' : ''
       } ${
         isActive
           ? 'bg-primary text-white shadow-sm'
-          : 'text-foreground-secondary hover:bg-surface-secondary'
+          : [
+              'text-foreground-secondary hover:bg-surface-secondary',
+              'overflow-hidden',
+              'after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-0',
+              "after:bg-primary after:content-[''] after:transition-[width] after:duration-200 after:ease-out",
+              'hover:after:w-full focus-visible:after:w-full',
+            ].join(' ')
       } ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
