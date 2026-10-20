@@ -79,12 +79,12 @@ export function buildFeedbackReplyNotifications(replies = []) {
   return replies
     .filter((reply) => reply?.id && String(reply.lecturerResponse || '').trim())
     .map((reply) => {
-      const kind = reply.itemType === 'CONTRIBUTION' ? 'Contribution' : 'Bug report';
+      const title = reply.itemType === 'CONTRIBUTION' ? 'Re: Contribution' : 'Re: Bug Report';
       return {
         id: `feedback-reply-${reply.id}-${reply.responseAt || ''}`,
         type: 'feedback-reply',
         severity: 'info',
-        title: `Lecturer replied to your ${kind}`,
+        title,
         message: String(reply.lecturerResponse).trim(),
       };
     });

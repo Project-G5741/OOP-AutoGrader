@@ -1,9 +1,11 @@
 package unit.com.eiu.capstone.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.feedback.FeedbackAuthorReplyDTO;
 import com.eiu.capstone.backend.DTO.feedback.FeedbackListItemDTO;
 import com.eiu.capstone.backend.model.FeedbackAttachment;
 import com.eiu.capstone.backend.model.FeedbackItem;
@@ -51,7 +54,8 @@ class FeedbackServiceInboxTest {
     void defaultListIsOpenNewestAndShowsEveryAuthor() {
         FeedbackItem student = item("OPEN", "2331200001", "Student A", "Need help");
         FeedbackItem lecturer = item("OPEN", "T001", "Lecturer B", "Idea");
-        when(itemRepository.findByStatusOrderByCreatedAtDesc("OPEN")).thenReturn(List.of(lecturer, student));
+        when(itemRepository.findByStatusAndArchivedAtIsNullOrderByCreatedAtDesc("OPEN"))
+                .thenReturn(List.of(lecturer, student));
         when(attachmentRepository.countByItem_Id(any())).thenReturn(0L);
 
         List<FeedbackListItemDTO> rows = service.list(null);
@@ -66,9 +70,10 @@ class FeedbackServiceInboxTest {
     void resolvedIsHiddenUntilFilterChanges() {
         FeedbackItem open = item("OPEN", "1", "A", "open");
         FeedbackItem resolved = item("RESOLVED", "2", "B", "done");
-        when(itemRepository.findByStatusOrderByCreatedAtDesc("OPEN")).thenReturn(List.of(open));
-        when(itemRepository.findByStatusOrderByCreatedAtDesc("RESOLVED")).thenReturn(List.of(resolved));
-        when(itemRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(open, resolved));
+        when(itemRepository.findByStatusAndArchivedAtIsNullOrderByCreatedAtDesc("OPEN")).thenReturn(List.of(open));
+        when(itemRepository.findByStatusAndArchivedAtIsNullOrderByCreatedAtDesc("RESOLVED"))
+                .thenReturn(List.of(resolved));
+        when(itemRepository.findByArchivedAtIsNullOrderByCreatedAtDesc()).thenReturn(List.of(open, resolved));
         when(attachmentRepository.countByItem_Id(any())).thenReturn(0L);
 
         assertEquals(1, service.list("OPEN").size());
@@ -123,10 +128,12 @@ class FeedbackServiceInboxTest {
     void downloadReturnsStoredWebpType() {
         UUID itemId = UUID.randomUUID();
         UUID attachmentId = UUID.randomUUID();
+        FeedbackItem resolved = item("RESOLVED", "1", "A", "done");
         FeedbackAttachment attachment = new FeedbackAttachment();
         attachment.setStoredContentType("image/webp");
         attachment.setOriginalFilename("shot.png");
         attachment.setContent(new byte[] { 1, 2 });
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(resolved));
         when(attachmentRepository.findByIdAndItem_Id(attachmentId, itemId)).thenReturn(Optional.of(attachment));
 
         FeedbackAttachment found = service.getAttachment(itemId, attachmentId);
@@ -134,13 +141,97 @@ class FeedbackServiceInboxTest {
     }
 
     @Test
-    void deleteResolvedRemovesItem() {
+    void deleteResolvedWithReplySoftArchives() {
+        UUID id = UUID.randomUUID();
+        FeedbackItem resolved = item("RESOLVED", "1", "A", "done");
+        resolved.setLecturerResponse("Fixed in lab 3");
+        resolved.setResponseAt(OffsetDateTime.parse("2026-10-20T02:00:00Z"));
+        when(itemRepository.findById(id)).thenReturn(Optional.of(resolved));
+        when(itemRepository.save(resolved)).thenReturn(resolved);
+
+        service.deleteResolved(id);
+
+        assertNotNull(resolved.getArchivedAt());
+        verify(itemRepository).save(resolved);
+        verify(itemRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteResolvedWithoutReplyHardDeletes() {
         UUID id = UUID.randomUUID();
         FeedbackItem resolved = item("RESOLVED", "1", "A", "done");
         when(itemRepository.findById(id)).thenReturn(Optional.of(resolved));
 
         service.deleteResolved(id);
         verify(itemRepository).delete(resolved);
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void deleteResolvedWithWhitespaceOnlyReplyHardDeletes() {
+        UUID id = UUID.randomUUID();
+        FeedbackItem resolved = item("RESOLVED", "1", "A", "done");
+        resolved.setLecturerResponse("   ");
+        when(itemRepository.findById(id)).thenReturn(Optional.of(resolved));
+
+        service.deleteResolved(id);
+        verify(itemRepository).delete(resolved);
+    }
+
+    @Test
+    void consumeRepliesHardDeletesOwnedRepliedItems() {
+        UUID userId = UUID.randomUUID();
+        UUID replyId = UUID.randomUUID();
+        UserAccount user = mock(UserAccount.class);
+        when(user.getId()).thenReturn(userId);
+        FeedbackItem archived = item("RESOLVED", "1", "A", "done");
+        archived.setLecturerResponse("Fixed in lab 3");
+        archived.setArchivedAt(OffsetDateTime.parse("2026-10-20T03:00:00Z"));
+        when(itemRepository.findByIdInAndUser_IdAndLecturerResponseIsNotNull(List.of(replyId), userId))
+                .thenReturn(List.of(archived));
+
+        service.consumeRepliesForAuthor(user, List.of(replyId));
+
+        verify(itemRepository).deleteAll(List.of(archived));
+    }
+
+    @Test
+    void consumeRepliesWithEmptyIdsIsNoOp() {
+        UserAccount user = mock(UserAccount.class);
+        when(user.getId()).thenReturn(UUID.randomUUID());
+
+        service.consumeRepliesForAuthor(user, List.of());
+
+        verify(itemRepository, never()).deleteAll(any());
+        verify(itemRepository, never()).findByIdInAndUser_IdAndLecturerResponseIsNotNull(any(), any());
+    }
+
+    @Test
+    void listRepliesForAuthorIncludesSoftArchived() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = mock(UserAccount.class);
+        when(user.getId()).thenReturn(userId);
+        FeedbackItem archived = item("RESOLVED", "1", "A", "done");
+        archived.setLecturerResponse("Fixed in lab 3");
+        archived.setResponseAt(OffsetDateTime.parse("2026-10-20T02:00:00Z"));
+        archived.setArchivedAt(OffsetDateTime.parse("2026-10-20T03:00:00Z"));
+        when(itemRepository.findByUser_IdAndLecturerResponseIsNotNullOrderByResponseAtDesc(userId))
+                .thenReturn(List.of(archived));
+
+        List<FeedbackAuthorReplyDTO> replies = service.listRepliesForAuthor(user);
+        assertEquals(1, replies.size());
+        assertEquals("Fixed in lab 3", replies.get(0).lecturerResponse());
+    }
+
+    @Test
+    void archivedItemIsNotFoundForDetail() {
+        UUID id = UUID.randomUUID();
+        FeedbackItem archived = item("RESOLVED", "1", "A", "done");
+        archived.setArchivedAt(OffsetDateTime.parse("2026-10-20T03:00:00Z"));
+        when(itemRepository.findById(id)).thenReturn(Optional.of(archived));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.detail(id));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
 
     @Test

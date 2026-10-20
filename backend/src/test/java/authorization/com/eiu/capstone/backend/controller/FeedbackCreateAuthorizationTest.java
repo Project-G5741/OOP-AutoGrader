@@ -3,11 +3,15 @@ package authorization.com.eiu.capstone.backend.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.springframework.http.MediaType;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -119,5 +123,25 @@ class FeedbackCreateAuthorizationTest {
                 "student@eiu.edu.vn", "Student", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN001");
         mockMvc.perform(get("/api/feedback/replies").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void studentCanConsumeReplies() throws Exception {
+        doNothing().when(feedbackService).consumeRepliesForAuthor(any(), any());
+        String token = jwtService.createToken(
+                "student@eiu.edu.vn", "Student", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "IRN001");
+        mockMvc.perform(delete("/api/feedback/replies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[\"" + UUID.randomUUID() + "\"]}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void anonymousCannotConsumeReplies() throws Exception {
+        mockMvc.perform(delete("/api/feedback/replies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[]}"))
+                .andExpect(status().isUnauthorized());
     }
 }

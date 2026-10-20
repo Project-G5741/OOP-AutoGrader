@@ -35,7 +35,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan; `requireChallengeAccessible` for dry-run |
 | `TestcaseDryRunService` | Reference Java compile + `gradeSingle` preview; reuses local worker (`SharedLocalWorkerCache`) and compiled classes (`DryRunCompileCache`, 60s TTL) |
 | `DryRunCompileCache` | Fingerprint-keyed classes dir reuse for unchanged dry-run reference sources |
-| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved (attachments cascade). Author `GET /replies` for the student notification bell. Attachments in Postgres `bytea` |
+| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved — soft-archive (`archived_at`) when a reply exists, else hard-delete. Author `GET /replies` includes archived replies; `DELETE /replies` consume hard-deletes those rows after the student reload/logout. Attachments in Postgres `bytea` |
 | `FeedbackImageConverter` | ImageIO PNG/JPG → WebP (quality ~80, longest side 1920). Fail 422 instead of storing original raster |
 
 ## Local Contracts
