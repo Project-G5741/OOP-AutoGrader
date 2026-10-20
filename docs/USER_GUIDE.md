@@ -511,7 +511,7 @@ A flame icon sits beside the mascot in the top-right header (submit dashboard an
 - Click the flame to see today's three missions: open the page, submit 3 times, and pet the mascot 4 times.
 - Finishing any one mission shows **Mission complete**.
 - Pet the fox by clicking it. Pets after the fourth today are not counted.
-- When all three are done on the same day, the streak increases by 1 and you receive 50 points. Day 5 pays 55, day 10 pays 60, and each later multiple of 5 adds another 5 points.
+- When all three are done on the same day, the streak increases by 1. You receive 50 points, plus 5 points for every 5 streak days you have reached. Day 5 pays 55, day 6 still pays 55, day 10 pays 60, and day 101 pays 150.
 - Missing a day pauses the streak. You can restore it once each month from the mission list, or finish that day's missions to start again at day 1.
 - The flame has no separate button. The point total sits on the shop button beside the flame.
 

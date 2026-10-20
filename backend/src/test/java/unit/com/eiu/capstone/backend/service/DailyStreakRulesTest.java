@@ -29,8 +29,10 @@ class DailyStreakRulesTest {
         assertEquals(50, DailyStreakRules.rewardFor(1));
         assertEquals(50, DailyStreakRules.rewardFor(4));
         assertEquals(55, DailyStreakRules.rewardFor(5));
+        assertEquals(55, DailyStreakRules.rewardFor(6));
         assertEquals(60, DailyStreakRules.rewardFor(10));
         assertEquals(65, DailyStreakRules.rewardFor(15));
+        assertEquals(150, DailyStreakRules.rewardFor(101));
     }
 
     @Test
@@ -81,9 +83,9 @@ class DailyStreakRulesTest {
         DailyStreakRules.roll(row, TODAY);
         fillMissions(row);
         DailyStreakRules.restore(row, TODAY);
-        assertEquals(50, DailyStreakRules.awardIfReady(row, TODAY));
+        assertEquals(55, DailyStreakRules.awardIfReady(row, TODAY));
         assertEquals(8, row.getStreakCount());
-        assertEquals(150, row.getPoints());
+        assertEquals(155, row.getPoints());
         assertEquals("2026-10", row.getRestoreYearMonth());
 
         row.setStreakBroken(true);

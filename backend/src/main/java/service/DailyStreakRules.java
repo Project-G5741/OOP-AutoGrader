@@ -9,8 +9,9 @@ import com.eiu.capstone.backend.model.StudentStreak;
 /**
  * Daily streak: log in, submit {@value #SUBMIT_GOAL} times, pet {@value #PET_GOAL} times.
  * Completing all three adds one streak day and {@value #BASE_POINTS} points.
- * A streak day that is a multiple of 5 also adds {@code 5 * (day / 5)} points
- * (day 5 → 55, day 10 → 60). One restore per calendar month continues a broken streak.
+ * Each block of 5 streak days adds 5 points, and that bonus stays on later days
+ * (day 1 → 50, day 5 → 55, day 6 → 55, day 10 → 60, day 101 → 150).
+ * One restore per calendar month continues a broken streak.
  */
 public final class DailyStreakRules {
 
@@ -24,9 +25,6 @@ public final class DailyStreakRules {
     public static int rewardFor(int streakDay) {
         if (streakDay <= 0) {
             return 0;
-        }
-        if (streakDay % 5 != 0) {
-            return BASE_POINTS;
         }
         return BASE_POINTS + (streakDay / 5) * 5;
     }
