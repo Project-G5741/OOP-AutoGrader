@@ -176,6 +176,8 @@ public class LecturerAnalyticsService {
 
     private LabStatisticsResponse loadLabStatistics(UUID labId) {
         Object[] summary = lecturerAnalyticsRepository.findLabStatisticsSummary(labId);
+        // Completion = quarter-enrolled active students who submitted ÷ quarter-enrolled active students
+        // (student role only; lecturers/teachers excluded — not all accounts in the system).
         long activeEnrolledCount = lecturerAnalyticsRepository.countActiveEnrolledStudentsForLab(labId);
         long studentsSubmitted = lecturerAnalyticsRepository.countActiveStudentsSubmittedForLab(labId);
 

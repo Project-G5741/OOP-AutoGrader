@@ -6,6 +6,7 @@ export const ROUTES = {
   lecturerUsers: '/lecturer-users',
   lecturerSolution: '/lecturer-solution',
   lecturerReport: '/lecturer-report',
+  lecturerFeedback: '/lecturer-feedback',
   lecturerTerms: '/lecturer-terms',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
@@ -154,6 +155,7 @@ export const LECTURER_NAV_TO_ROUTE = {
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,
   reports: ROUTES.lecturerReport,
+  feedback: ROUTES.lecturerFeedback,
   terms: ROUTES.lecturerTerms,
 };
 

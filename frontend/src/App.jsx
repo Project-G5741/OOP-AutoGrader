@@ -154,6 +154,14 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route
+            path={ROUTES.lecturerFeedback}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
 
           <Route
             path={ROUTES.lecturerTerms}
