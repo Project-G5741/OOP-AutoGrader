@@ -304,7 +304,7 @@ export default function StudentStreakFlame({
           <p className="u379-note">
             {completedToday
               ? 'Today is complete.'
-              : 'Complete all three to earn 50 points. Every 5th day adds 5 more.'}
+              : 'Complete all three to earn 50 points, plus 5 for every 5 streak days. That bonus stays.'}
           </p>
           {broken && (
             <p className="u379-note">
