@@ -17,6 +17,7 @@ import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
 import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
 import com.eiu.capstone.backend.grading.MmdComparisonService;
 import com.eiu.capstone.backend.grading.MmdGradingOutcome;
+import com.eiu.capstone.backend.grading.MmdOutcomesCodec;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassConstructorEntry;
@@ -48,6 +49,7 @@ public class ClassStructureService {
     private final ClassRelationRepository classRelationRepository;
     private final SubmissionResolutionService submissionResolutionService;
     private final SubmissionResultLoader submissionResultLoader;
+    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
     private final MasterDataCache masterDataCache;
     private final SubmissionCompileErrorStore compileErrorStore;
     private final SubmissionPackageNormalizationStore packageNormalizationStore;
@@ -68,6 +70,7 @@ public class ClassStructureService {
                                   ClassRelationRepository classRelationRepository,
                                   SubmissionResolutionService submissionResolutionService,
                                   SubmissionResultLoader submissionResultLoader,
+                                  SubmissionChallengeResultRepository submissionChallengeResultRepository,
                                   MasterDataCache masterDataCache,
                                   SubmissionCompileErrorStore compileErrorStore,
                                   SubmissionPackageNormalizationStore packageNormalizationStore,
@@ -87,6 +90,7 @@ public class ClassStructureService {
         this.classRelationRepository = classRelationRepository;
         this.submissionResolutionService = submissionResolutionService;
         this.submissionResultLoader = submissionResultLoader;
+        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
         this.masterDataCache = masterDataCache;
         this.compileErrorStore = compileErrorStore;
         this.packageNormalizationStore = packageNormalizationStore;
@@ -214,10 +218,17 @@ public class ClassStructureService {
         SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
         ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
         ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        MmdGradingOutcome effectiveOutcome = mmdOutcome;
+        if (effectiveOutcome == null && submissionChallengeResultRepository != null) {
+            effectiveOutcome = MmdOutcomesCodec.fromJson(
+                    submissionChallengeResultRepository
+                            .findMmdOutcomesBySubmissionIdAndChallengeId(submissionId, challengeId)
+                            .orElse(null));
+        }
         List<MmdClassDTO> classes = buildMmdDataFromRubric(
                 challengeRubric,
                 correctIds,
-                mmdOutcome,
+                effectiveOutcome,
                 mmdSubmittedOverride,
                 mmdMeta,
                 submissionId,

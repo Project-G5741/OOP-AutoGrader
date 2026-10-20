@@ -329,6 +329,7 @@ CREATE TABLE IF NOT EXISTS submission_challenge_result (
     challenge_id  UUID NOT NULL REFERENCES challenge(id),
     is_correct    BOOLEAN NOT NULL DEFAULT FALSE,
     score         NUMERIC(6, 2) NOT NULL DEFAULT 0,
+    mmd_outcomes  JSONB,
     CONSTRAINT submission_challenge_result_key UNIQUE (submission_id, challenge_id)
 );
 

@@ -155,7 +155,7 @@ Grading tuning properties (`application.properties`):
 
 **Detail persist gate:** In-process `CompletableFuture` per submission. A Class-tab GET that hits a different instance than the upload may not wait; details should already be in Postgres if the UPSERT finished.
 
-**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`). OT rebuild: apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a copy first, then restart the API so `TestcaseSchemaMigrator` + `LabRubricCache.invalidateAll()` drop stale rubric graphs. Feedback inbox: apply `docs/sql/2026-10-20-feedback-inbox.sql` (tables `feedback_item`, `feedback_attachment`) on Neon and local Postgres before create/list. Lecturer reply columns: `docs/sql/2026-10-20-feedback-lecturer-response.sql` if the tables already exist.
+**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`). OT rebuild: apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a copy first, then restart the API so `TestcaseSchemaMigrator` + `LabRubricCache.invalidateAll()` drop stale rubric graphs. Feedback inbox: apply `docs/sql/2026-10-20-feedback-inbox.sql` (tables `feedback_item`, `feedback_attachment`) on Neon and local Postgres before create/list. Lecturer reply columns: `docs/sql/2026-10-20-feedback-lecturer-response.sql` if the tables already exist. MMD revisit outcomes: `docs/sql/2026-10-20-scr-mmd-outcomes.sql` (`submission_challenge_result.mmd_outcomes`; also applied by `MmdOutcomesSchemaMigrator` on cloud startup).
 
 ### Read-path performance
 

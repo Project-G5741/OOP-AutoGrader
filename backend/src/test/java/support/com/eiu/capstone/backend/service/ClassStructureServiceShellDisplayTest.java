@@ -38,7 +38,7 @@ class ClassStructureServiceShellDisplayTest {
   @BeforeEach
   void setUp() {
     service = new ClassStructureService(
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
   }
 
   @Test

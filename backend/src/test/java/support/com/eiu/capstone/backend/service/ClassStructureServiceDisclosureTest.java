@@ -17,6 +17,7 @@ import com.eiu.capstone.backend.DTO.ClassFieldDetailDTO;
 import com.eiu.capstone.backend.DTO.ClassMethodDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.MmdRelationDTO;
+import com.eiu.capstone.backend.grading.MmdGradingOutcome;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
@@ -38,7 +39,7 @@ class ClassStructureServiceDisclosureTest {
     @BeforeEach
     void setUp() {
         service = new ClassStructureService(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
     }
 
     @Test
@@ -188,6 +189,45 @@ class ClassStructureServiceDisclosureTest {
         assertEquals("getName", method.name());
         assertEquals("public", method.scope());
         assertEquals("String", method.returnType());
+    }
+
+    @Test
+    void mmdOutcome_overridesClassCorrectIds_forFailedMember() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+
+        ClassRubric classRubric = new ClassRubric(
+                classId,
+                "Employee",
+                "PUBLIC",
+                "CLASS",
+                false,
+                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String")),
+                List.of(),
+                List.of());
+        ChallengeRubric challengeRubric = new ChallengeRubric(
+                UUID.randomUUID(), 0, "Challenge 0", List.of(classRubric), List.of());
+
+        MmdGradingOutcome mmdOutcome = new MmdGradingOutcome();
+        mmdOutcome.setClassPresent(classId, true);
+        mmdOutcome.setClass(classId, true);
+        mmdOutcome.setField(fieldId, false);
+
+        List<MmdClassDTO> result = service.buildMmdDataFromRubric(
+                challengeRubric,
+                new SubmissionCorrectIds(Set.of(fieldId), Set.of(), Set.of(), Set.of()),
+                mmdOutcome,
+                true,
+                new ChallengeMmdMeta(),
+                UUID.randomUUID(),
+                new ChallengeSnapshot(),
+                DisclosureMode.STUDENT);
+
+        var fieldAttr = result.get(0).attributes().stream()
+                .filter(a -> "field".equals(a.type()))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(fieldAttr.ok());
     }
 
     @Test
