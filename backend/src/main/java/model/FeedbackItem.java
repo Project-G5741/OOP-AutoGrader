@@ -56,6 +56,9 @@ public class FeedbackItem {
     @Column(name = "response_at")
     private OffsetDateTime responseAt;
 
+    @Column(name = "archived_at")
+    private OffsetDateTime archivedAt;
+
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FeedbackAttachment> attachments = new ArrayList<>();
 
@@ -141,6 +144,14 @@ public class FeedbackItem {
 
     public void setResponseAt(OffsetDateTime responseAt) {
         this.responseAt = responseAt;
+    }
+
+    public OffsetDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(OffsetDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public List<FeedbackAttachment> getAttachments() {

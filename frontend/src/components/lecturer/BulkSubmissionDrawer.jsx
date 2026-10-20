@@ -55,7 +55,7 @@ export default function BulkSubmissionDrawer({
 }) {
   const challenges = lab?.challenges || [];
   const [challengeId, setChallengeId] = useState(null);
-  const [activeTab, setActiveTab] = useState('class');
+  const [activeTab, setActiveTab] = useState('mmd');
 
   const indexed = useMemo(() => indexLabResult(student?.labResult), [student?.labResult]);
 
@@ -98,13 +98,14 @@ export default function BulkSubmissionDrawer({
 
   useEffect(() => {
     if (!open) return;
-    const firstApplicable = classApplicable
-      ? 'class'
-      : mmdApplicable
-        ? 'mmd'
+    // Same pillar order as student dashboard: MMD → Declaration → Operation Test.
+    const firstApplicable = mmdApplicable
+      ? 'mmd'
+      : classApplicable
+        ? 'class'
         : testcaseApplicable
           ? 'testcase'
-          : 'class';
+          : 'mmd';
     if (activeTab === 'class' && !classApplicable) setActiveTab(firstApplicable);
     else if (activeTab === 'mmd' && !mmdApplicable) setActiveTab(firstApplicable);
     else if (activeTab === 'testcase' && !testcaseApplicable) setActiveTab(firstApplicable);
@@ -187,14 +188,14 @@ export default function BulkSubmissionDrawer({
 
         {showPillarTabs && (
           <div className={`flex gap-1 border-b px-3 ${LECTURER_DRAWER_DIVIDER}`}>
-            {classApplicable && (
-              <button type="button" className={tabClass(activeTab === 'class')} onClick={() => setActiveTab('class')}>
-                Declaration Test
-              </button>
-            )}
             {mmdApplicable && (
               <button type="button" className={tabClass(activeTab === 'mmd')} onClick={() => setActiveTab('mmd')}>
                 MMD
+              </button>
+            )}
+            {classApplicable && (
+              <button type="button" className={tabClass(activeTab === 'class')} onClick={() => setActiveTab('class')}>
+                Declaration Test
               </button>
             )}
             {testcaseApplicable && (

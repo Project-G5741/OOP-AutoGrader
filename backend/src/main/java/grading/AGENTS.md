@@ -119,7 +119,7 @@ Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.per
 
 | Entity | Stores |
 |---|---|
-| `SubmissionChallengeResult` | Per-challenge score (0–100) |
+| `SubmissionChallengeResult` | Per-challenge score (0–100) plus optional `mmd_outcomes` JSONB (versioned MMD member flags for revisit GET `/mmd`) |
 | `SubmissionFieldResult` / `Method` / `Constructor` / `Relation` | Element match outcomes |
 | `SubmissionTestcaseResult` | Testcase rollup + primary `input_display` / `expected_display` / `actual_display` |
 | `SubmissionTestcaseAssertionResult` | Per-assertion status, `actual_value` JSONB, feedback |

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS feedback_item (
     resolved_at        TIMESTAMPTZ,
     lecturer_response  TEXT,
     response_at        TIMESTAMPTZ,
+    archived_at        TIMESTAMPTZ,
     CONSTRAINT feedback_item_type_chk CHECK (item_type IN ('BUG', 'CONTRIBUTION')),
     CONSTRAINT feedback_item_status_chk CHECK (status IN ('OPEN', 'RESOLVED'))
 );
@@ -34,3 +35,4 @@ CREATE INDEX IF NOT EXISTS idx_feedback_attachment_item
 
 ALTER TABLE feedback_item ADD COLUMN IF NOT EXISTS lecturer_response TEXT;
 ALTER TABLE feedback_item ADD COLUMN IF NOT EXISTS response_at TIMESTAMPTZ;
+ALTER TABLE feedback_item ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;

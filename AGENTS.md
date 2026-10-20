@@ -99,6 +99,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-19-drop-user-account-date-of-birth.sql` | Operator-run: drop `user_account.date_of_birth` (PII removal) |
 | `docs/sql/2026-10-20-feedback-inbox.sql` | Operator-run: `feedback_item` + `feedback_attachment` (Bug/Contribution inbox) |
 | `docs/sql/2026-10-20-feedback-lecturer-response.sql` | Operator-run: `feedback_item.lecturer_response` + `response_at` |
+| `docs/sql/2026-10-20-feedback-soft-archive.sql` | Operator-run: `feedback_item.archived_at` (soft-archive Resolved items that have a reply) |
+| `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
 
 ### Project facts
 

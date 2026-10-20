@@ -27,11 +27,12 @@ function tabClass(active) {
   }`;
 }
 
+/** Same pillar order as student dashboard: MMD → Declaration → Operation Test. */
 function firstApplicableTab(classApplicable, mmdApplicable, testcaseApplicable) {
-  if (classApplicable) return 'class';
   if (mmdApplicable) return 'mmd';
+  if (classApplicable) return 'class';
   if (testcaseApplicable) return 'testcase';
-  return 'class';
+  return 'mmd';
 }
 
 export default function LecturerSubmissionDrawer({
@@ -46,7 +47,7 @@ export default function LecturerSubmissionDrawer({
 }) {
   const classApplicable = hasClass !== false;
   const mmdApplicable = hasMmd !== false;
-  const [activeTab, setActiveTab] = useState('class');
+  const [activeTab, setActiveTab] = useState('mmd');
   const [classData, setClassData] = useState([]);
   const [mmdData, setMmdData] = useState([]);
   const [testcases, setTestcases] = useState([]);
@@ -228,14 +229,14 @@ export default function LecturerSubmissionDrawer({
 
         {showPillarTabs ? (
           <div className={`flex border-b px-5 ${LECTURER_DRAWER_DIVIDER}`}>
-            {classApplicable && (
-              <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
-                Declaration Test
-              </button>
-            )}
             {mmdApplicable && (
               <button type="button" onClick={() => setActiveTab('mmd')} className={tabClass(activeTab === 'mmd')}>
                 MMD
+              </button>
+            )}
+            {classApplicable && (
+              <button type="button" onClick={() => setActiveTab('class')} className={tabClass(activeTab === 'class')}>
+                Declaration Test
               </button>
             )}
             {testcaseApplicable && (
