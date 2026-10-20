@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Mascot } from 'page-mascot';
-
-const FOX_DIRECTIONS = '/mascots/fox-directions.webp';
-const FOX_REACTIONS = '/mascots/fox-reactions.webp';
+import { mascotArt } from './studentMascots';
 
 const REACTIONS = [
   'blink',
@@ -20,7 +18,7 @@ function spritePosition(index) {
   return `${(index % 3) * 50}% ${Math.floor(index / 3) * 50}%`;
 }
 
-function FoxCoveringEyes({ size, className }) {
+function FoxCoveringEyes({ size, className, art }) {
   const squashRef = useRef(null);
   const bashfulIndex = REACTIONS.indexOf('bashful');
 
@@ -42,7 +40,7 @@ function FoxCoveringEyes({ size, className }) {
     <div
       className={className}
       role="img"
-      aria-label="Fox mascot covering its eyes"
+      aria-label={`${art.name} mascot covering its eyes`}
       style={{
         position: 'relative',
         display: 'block',
@@ -65,7 +63,7 @@ function FoxCoveringEyes({ size, className }) {
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: `url(${FOX_REACTIONS})`,
+            backgroundImage: `url(${art.reactions})`,
             backgroundSize: '300% 300%',
             backgroundRepeat: 'no-repeat',
             backgroundPosition: spritePosition(bashfulIndex),
@@ -76,18 +74,19 @@ function FoxCoveringEyes({ size, className }) {
   );
 }
 
-export default function StudentFoxMascot({ size = 88, className = '', coverEyes = false }) {
+export default function StudentFoxMascot({ size = 88, className = '', coverEyes = false, mascotId = 'fox' }) {
+  const art = mascotArt(mascotId);
   if (coverEyes) {
-    return <FoxCoveringEyes size={size} className={className} />;
+    return <FoxCoveringEyes size={size} className={className} art={art} />;
   }
 
   return (
     <Mascot
       className={className}
       size={size}
-      label="Fox mascot"
-      directions={FOX_DIRECTIONS}
-      reactions={FOX_REACTIONS}
+      label={`${art.name} mascot`}
+      directions={art.directions}
+      reactions={art.reactions}
     />
   );
 }

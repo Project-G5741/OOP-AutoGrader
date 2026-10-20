@@ -1,0 +1,276 @@
+/* Scoped to .u379 — tokens follow html / html.dark theme variables. */
+
+.u379 {
+  --ux-page: var(--background);
+  --ux-surface: var(--surface);
+  --ux-surface-2: var(--surface-secondary);
+  --ux-surface-3: var(--surface-tertiary);
+  --ux-ink: var(--text-primary);
+  --ux-ink-2: var(--text-secondary);
+  --ux-ink-3: var(--text-muted);
+  --ux-line: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --ux-line-2: color-mix(in srgb, var(--text-primary) 17%, transparent);
+  --ux-accent: var(--purple);
+  --ux-accent-2: var(--info);
+  --ux-accent-soft: var(--purple-light);
+  --ux-accent-ink: var(--surface);
+  --ux-mint: var(--success);
+  --ux-warn: var(--warning);
+  --ux-danger: var(--error);
+  --ux-glass: color-mix(in srgb, var(--surface) 58%, transparent);
+  --ux-glass-line: color-mix(in srgb, var(--surface) 85%, white);
+  --ux-shadow: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --ux-shadow-strong: color-mix(in srgb, var(--text-primary) 30%, transparent);
+  --ux-ease: cubic-bezier(.2, .8, .2, 1);
+  --ux-spring: cubic-bezier(.34, 1.45, .64, 1);
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ux-ink);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.u379,
+.u379 *,
+.u379 *::before,
+.u379 *::after {
+  box-sizing: border-box;
+}
+
+.u379-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.u379-hit:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+.u379-clip {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 48px;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.u379:not(.is-lit) .u379-fl {
+  filter: grayscale(1);
+}
+
+.u379:not(.is-lit) .u379-fo {
+  filter: none;
+}
+
+.u379-fl {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 34px;
+  height: 42px;
+  margin-left: -17px;
+  transform-origin: 50% 96%;
+  transition: transform .6s cubic-bezier(.3, 1.5, .5, 1);
+}
+
+.u379-fl svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.u379.is-lit .u379-fo {
+  filter: drop-shadow(0 0 10px rgba(255, 110, 40, .55));
+}
+
+.u379-sp circle {
+  fill: #FFD08A;
+}
+
+.u379-glow {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 146, 43, .35), transparent);
+  transition: opacity .6s, transform .6s;
+  pointer-events: none;
+}
+
+.u379-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 60;
+  width: min(18rem, calc(100vw - 2rem));
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--ux-surface);
+  color: var(--ux-ink);
+  border: 1px solid var(--ux-line);
+  box-shadow: 0 16px 40px -24px var(--ux-shadow-strong);
+  text-align: left;
+  cursor: default;
+}
+
+.u379-panel:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+.u379-ct {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.u379-nw {
+  display: inline-block;
+  height: 44px;
+  overflow: hidden;
+}
+
+.u379-ns {
+  display: block;
+  transition: transform .5s cubic-bezier(.3, 1.5, .5, 1);
+}
+
+.u379-ns i {
+  display: block;
+  height: 44px;
+  font-style: normal;
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--ux-warn);
+  text-align: center;
+}
+
+.u379-ct b {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ux-ink-2);
+}
+
+.u379-missions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.u379-mission {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ux-ink);
+}
+
+.u379-dt {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  border: 2px dashed color-mix(in srgb, var(--ux-warn) 55%, transparent);
+  display: grid;
+  place-items: center;
+}
+
+.u379-dt.is-on {
+  border: 0;
+  background: linear-gradient(135deg, #FF922B, #F03E3E);
+  animation: u379-pop .45s cubic-bezier(.3, 1.8, .5, 1);
+}
+
+.u379-dt.is-on::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border-left: 2.5px solid #fff;
+  border-bottom: 2.5px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.u379-dt.is-today {
+  box-shadow: 0 0 0 2px var(--ux-warn);
+}
+
+@keyframes u379-pop {
+  from { transform: scale(.3); }
+}
+
+.u379-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ux-ink-2);
+}
+
+.u379-go {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FF922B, #F03E3E);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px -8px rgba(240, 62, 62, .7);
+}
+
+.u379-go:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: 3px;
+}
+
+.u379-go:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u379,
+  .u379 *,
+  .u379 *::before,
+  .u379 *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .u379-fl {
+    transition: none;
+  }
+}
