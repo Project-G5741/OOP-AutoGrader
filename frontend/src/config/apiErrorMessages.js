@@ -85,6 +85,7 @@ export const BACKEND_MESSAGE_CONTEXTS = [
   'save',
   'import',
   'solution-import',
+  'feedback',
 ];
 
 /**

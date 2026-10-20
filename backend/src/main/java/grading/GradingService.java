@@ -355,12 +355,16 @@ public class GradingService {
             }
             if (cc.pendingChallenge != null) {
                 BigDecimal challengeScore = cc.percentage != null ? cc.percentage : BigDecimal.ZERO;
+                String mmdOutcomesJson = cc.mmdApplicable && cc.mmdResult != null
+                        ? MmdOutcomesCodec.toJson(cc.mmdResult.outcome())
+                        : null;
                 result.challengeResults.add(buildChallengeResult(
                         existing.challengeResults,
                         submission,
                         cc.pendingChallenge.challengeId(),
                         cc.pendingChallenge.correct(),
-                        challengeScore));
+                        challengeScore,
+                        mmdOutcomesJson));
             }
             if (cc.challengeNumber != null && cc.percentage != null) {
                 percentagesByChallengeNumber.put(cc.challengeNumber, cc.percentage);
@@ -629,12 +633,14 @@ public class GradingService {
                                                            LabSubmission submission,
                                                            UUID challengeId,
                                                            boolean correct,
-                                                           BigDecimal score) {
+                                                           BigDecimal score,
+                                                           String mmdOutcomesJson) {
         SubmissionChallengeResult result = existing.getOrDefault(challengeId, new SubmissionChallengeResult());
         result.setSubmission(submission);
         result.setChallenge(challengeRepository.getReferenceById(challengeId));
         result.setCorrect(correct);
         result.setScore(score);
+        result.setMmdOutcomes(mmdOutcomesJson);
         return result;
     }
 

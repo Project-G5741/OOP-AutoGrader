@@ -255,7 +255,7 @@ class LabResultAssemblerTest {
         private int mmdBuilds;
 
         private FailOnLoadClassStructureService() {
-            super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+            super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
         }
 
         @Override

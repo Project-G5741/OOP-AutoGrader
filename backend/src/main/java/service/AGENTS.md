@@ -31,10 +31,12 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
 | `ChallengeService` | Challenge sidebar scores + per-submission breakdown (stored or recomputed from element results); student `GET /api/labs` uses `listSidebarChallengesByLabIds` (no score load) |
 | `ParsedSubmissionSnapshotStore` | Per-challenge parsed Class/MMD display snapshots (`_parsed_snapshot/`) for result tabs |
-| `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / persisted testcase rows + `TestcaseResultMapper`; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher`; student GET `/testcases` returns `[]` when no persisted OT results |
+| `ClassStructureService` | Class / MMD / testcase tabs: GET and upload `lab_result` use `LabRubricCache` + `buildClassDataFromRubric` / `buildMmdDataFromRubric` / persisted testcase rows + `TestcaseResultMapper`; GET `/mmd` prefers `submission_challenge_result.mmd_outcomes` over Class `correctIds` when present; **`DisclosureMode.STUDENT`** redacts rubric fallbacks for student JWT and upload paths; **`DisclosureMode.LECTURER`** when lecturer passes `studentId`; class-shell display includes declared Extends/Implements via `HeritageShellMatcher`; student GET `/testcases` returns `[]` when no persisted OT results |
 | `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan; `requireChallengeAccessible` for dry-run |
 | `TestcaseDryRunService` | Reference Java compile + `gradeSingle` preview; reuses local worker (`SharedLocalWorkerCache`) and compiled classes (`DryRunCompileCache`, 60s TTL) |
 | `DryRunCompileCache` | Fingerprint-keyed classes dir reuse for unchanged dry-run reference sources |
+| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved — soft-archive (`archived_at`) when a reply exists, else hard-delete. Author `GET /replies` includes archived replies; `DELETE /replies` consume hard-deletes those rows after the student reload/logout. Attachments in Postgres `bytea` |
+| `FeedbackImageConverter` | ImageIO PNG/JPG → WebP (quality ~80, longest side 1920). Fail 422 instead of storing original raster |
 
 ## Local Contracts
 
@@ -148,7 +150,8 @@ Per upload request (unique `requestId` prevents collisions):
 - Class tab display: `support` `ClassStructureServiceShellDisplayTest` (JPA bundle and from-rubric snapshot shells, including Extends/Implements; `challengeById`)
 - Compile-error convention: `support` `CompileErrorMessageTest`, `support` `CompileClassAttributionTest`
 - Student javac isolation: `support` `JavaCompilerServiceTest` (JDK types compile; Spring classpath types do not)
-- Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them)
+- Class/MMD disclosure: `support` `ClassStructureServiceDisclosureTest` (student mode redacts missing/wrong rubric labels; lecturer mode keeps them; MMD outcome overrides Class correctIds)
+- MMD outcomes codec: `unit` `MmdOutcomesCodecTest` (round-trip present/typeOk + member flags)
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)

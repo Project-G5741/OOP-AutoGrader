@@ -70,6 +70,26 @@ export function buildStudentNotifications(labs = [], labSummariesById = {}) {
   return items;
 }
 
+/**
+ * Lecturer replies on the author's resolved Feedback items.
+ * @param {Array<{ id: string, itemType?: string, lecturerResponse?: string, responseAt?: string }>} replies
+ * @returns {StudentNotification[]}
+ */
+export function buildFeedbackReplyNotifications(replies = []) {
+  return replies
+    .filter((reply) => reply?.id && String(reply.lecturerResponse || '').trim())
+    .map((reply) => {
+      const title = reply.itemType === 'CONTRIBUTION' ? 'Re: Contribution' : 'Re: Bug Report';
+      return {
+        id: `feedback-reply-${reply.id}-${reply.responseAt || ''}`,
+        type: 'feedback-reply',
+        severity: 'info',
+        title,
+        message: String(reply.lecturerResponse).trim(),
+      };
+    });
+}
+
 export function notificationSeverityClasses(severity) {
   switch (severity) {
     case 'urgent':

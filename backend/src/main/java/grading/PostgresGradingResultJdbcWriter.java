@@ -50,11 +50,11 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 RETURNING id, attempt_number, score, submitted_at
             ),
             scores AS (
-                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score)
-                SELECT gen_random_uuid(), ins.id, x.challenge_id, x.is_correct, x.score
+                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
+                SELECT gen_random_uuid(), ins.id, x.challenge_id, x.is_correct, x.score, x.mmd_outcomes::jsonb
                 FROM ins,
-                     unnest(?::uuid[], ?::boolean[], ?::numeric[])
-                         AS x(challenge_id, is_correct, score)
+                     unnest(?::uuid[], ?::boolean[], ?::numeric[], ?::text[])
+                         AS x(challenge_id, is_correct, score, mmd_outcomes)
                 RETURNING submission_id
             ),
             prog AS (
@@ -117,19 +117,23 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
         UUID[] challengeIds;
         Boolean[] correct;
         BigDecimal[] scores;
+        String[] mmdOutcomes;
         if (challengeRows == null || challengeRows.isEmpty()) {
             challengeIds = new UUID[0];
             correct = new Boolean[0];
             scores = new BigDecimal[0];
+            mmdOutcomes = new String[0];
         } else {
             challengeIds = new UUID[challengeRows.size()];
             correct = new Boolean[challengeRows.size()];
             scores = new BigDecimal[challengeRows.size()];
+            mmdOutcomes = new String[challengeRows.size()];
             for (int i = 0; i < challengeRows.size(); i++) {
                 SubmissionChallengeResult row = challengeRows.get(i);
                 challengeIds[i] = row.getChallenge().getId();
                 correct[i] = row.isCorrect();
                 scores[i] = row.getScore() == null ? BigDecimal.ZERO : row.getScore();
+                mmdOutcomes[i] = row.getMmdOutcomes();
             }
         }
         BigDecimal persistedScore = score == null ? BigDecimal.ZERO : score;
@@ -148,6 +152,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 statement.setArray(idx++, uuidArray(connection, challengeIds));
                 statement.setArray(idx++, connection.createArrayOf("bool", correct));
                 statement.setArray(idx++, connection.createArrayOf("numeric", scores));
+                statement.setArray(idx++, connection.createArrayOf("text", mmdOutcomes));
                 statement.setObject(idx++, userId);
                 statement.setObject(idx, labId);
                 try (ResultSet rs = statement.executeQuery()) {
@@ -172,19 +177,24 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
         UUID[] challengeIds = new UUID[rows.size()];
         Boolean[] correct = new Boolean[rows.size()];
         BigDecimal[] scores = new BigDecimal[rows.size()];
+        String[] mmdOutcomes = new String[rows.size()];
         for (int i = 0; i < rows.size(); i++) {
             SubmissionChallengeResult row = rows.get(i);
             challengeIds[i] = row.getChallenge().getId();
             correct[i] = row.isCorrect();
             scores[i] = row.getScore() == null ? BigDecimal.ZERO : row.getScore();
+            mmdOutcomes[i] = row.getMmdOutcomes();
         }
         String sql = """
-                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score)
-                SELECT gen_random_uuid(), ?, x.challenge_id, x.is_correct, x.score
-                FROM unnest(?::uuid[], ?::boolean[], ?::numeric[])
-                    AS x(challenge_id, is_correct, score)
+                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
+                SELECT gen_random_uuid(), ?, x.challenge_id, x.is_correct, x.score, x.mmd_outcomes::jsonb
+                FROM unnest(?::uuid[], ?::boolean[], ?::numeric[], ?::text[])
+                    AS x(challenge_id, is_correct, score, mmd_outcomes)
                 ON CONFLICT ON CONSTRAINT submission_challenge_result_key
-                DO UPDATE SET is_correct = EXCLUDED.is_correct, score = EXCLUDED.score
+                DO UPDATE SET
+                    is_correct = EXCLUDED.is_correct,
+                    score = EXCLUDED.score,
+                    mmd_outcomes = EXCLUDED.mmd_outcomes
                 """;
         withConnection(dataSource, "Failed to upsert challenge results", connection -> {
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -192,6 +202,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 statement.setArray(2, connection.createArrayOf("uuid", challengeIds));
                 statement.setArray(3, connection.createArrayOf("bool", correct));
                 statement.setArray(4, connection.createArrayOf("numeric", scores));
+                statement.setArray(5, connection.createArrayOf("text", mmdOutcomes));
                 statement.executeUpdate();
             }
         });

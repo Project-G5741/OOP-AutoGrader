@@ -3,6 +3,9 @@ package com.eiu.capstone.backend.model;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -45,6 +48,11 @@ public class SubmissionChallengeResult {
     @Column(name = "score", nullable = false, precision = 6, scale = 2)
     private BigDecimal score = BigDecimal.ZERO;
 
+    /** Versioned MMD member outcomes JSON; null when MMD not applicable or legacy row. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "mmd_outcomes")
+    private String mmdOutcomes;
+
     public SubmissionChallengeResult() {}
 
     public UUID getId() { return id; }
@@ -60,4 +68,7 @@ public class SubmissionChallengeResult {
 
     public BigDecimal getScore() { return score; }
     public void setScore(BigDecimal score) { this.score = score == null ? BigDecimal.ZERO : score; }
+
+    public String getMmdOutcomes() { return mmdOutcomes; }
+    public void setMmdOutcomes(String mmdOutcomes) { this.mmdOutcomes = mmdOutcomes; }
 }

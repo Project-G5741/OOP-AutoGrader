@@ -24,6 +24,7 @@ import {
 } from "./utils/authRoutes";
 import { leavePresence } from "./utils/presence";
 import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
+import { consumeFeedbackRepliesOnLeave } from "./utils/feedbackReplyConsume";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -67,6 +68,7 @@ export default function App() {
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
+    consumeFeedbackRepliesOnLeave();
     leavePresence();
     clearAuthSession();
     clearLecturerBootstrapStore();
@@ -148,6 +150,14 @@ export default function App() {
           />
           <Route
             path={ROUTES.lecturerReport}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.lecturerFeedback}
             element={
               <RequireRole anyOf={["LECTURER"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />

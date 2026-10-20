@@ -31,7 +31,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `MmdScoreBreakdown.jsx` | Expandable MMD class + relations breakdown for lecturer drawer |
 
-| `LecturerSubmissionDrawer.jsx` | Right drawer: Declaration Test | MMD | Operation Test (Declaration when `hasClass`; MMD when `hasMmd`; OT when `/testcases` returns rows), challenge detail + export |
+| `LecturerSubmissionDrawer.jsx` | Right drawer: MMD | Declaration Test | Operation Test — same order as student dashboard (MMD when `hasMmd`; Declaration when `hasClass`; OT when `/testcases` returns rows), challenge detail + export |
 
 | `LabAttemptHistoryDrawer.jsx` | Right drawer: lab attempt history for roster View Submission |
 | `PlagiarismInvestigationDrawer.jsx` | Right drawer: flagged-student copy lineage + match signals (`GET .../students/{id}/plagiarism`) |
@@ -40,7 +40,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `GradeOverviewTable.jsx` | Cross-lab grade matrix on the **Score** nav page: two panels (Student/IRN/Total fixed left; labs scroll right), synced vertical scroll, clickable rows |
 | `BulkGradingPanel.jsx` | **Grading** nav: ephemeral Main-folder bulk grade — labs from `GET /api/lecturer/bootstrap/grading` (each lab must include `challenges` for Lab/Exam mode + results tabs), parse-then-confirm, sequential `/bulk-grade`, within-batch plagiarism |
-| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style Declaration / MMD / Operation Test drawer from in-memory `lab_result` (hides Declaration when `hasClass`/applicability false); from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
+| `BulkSubmissionDrawer.jsx` | Ephemeral Score-style MMD / Declaration / Operation Test drawer from in-memory `lab_result` (same tab order as student dashboard; hides Declaration when `hasClass`/applicability false); from a Bulk **challenge** results tab (`lockToChallenge`) shows only that challenge (Dashboard-style); from Overview allows challenge switching |
 | `lecturerDrawerChrome.js` | Shared overlay, elevated panel (`dark:bg-surface-secondary`), edge border, and internal dividers for lecturer right drawers |
 | `OperationalTestcaseBreakdown.jsx` | Expandable OT I/O cards for lecturer drawers; full rubric order with I/O for hidden rows (`DisclosureMode.LECTURER` on API / bulk `lab_result`) |
 | `PlagiarismDangerMark.jsx` | Lecturer-only marks: yellow warning (victim / lab presence), red warning (plagiarizer); roles mutually exclusive; helpers for flags, roles, overlap % |
@@ -86,13 +86,13 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - `SubmissionTable` on the lab overview lists submitters only; **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; when `plagiarismFlagged` is true the Plagiarism column shows one role icon from `plagiarismRole` (`ORIGINAL` or `PLAGIARIZER`) plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY still shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
 - Lecturer-only `PlagiarismDangerMark`: victim (earlier first submit in lab) = yellow warning; plagiarizer (later first submit) = red warning; lab presence = yellow. Roles are mutually exclusive and use earliest lab submission time (a victim's later re-upload does not flip them to plagiarizer). On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab` / `rolesByStudentAndLab`) sit to the right on one line when flagged. Roster / challenge tables use the same marks in the Plagiarism column. Display-only (no click-to-details). Students are not notified.
-- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer.
+- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer. On the **Score** nav page the matrix grows to fill remaining viewport height (`flex-1` chain from `AppShell` through `DashboardSection`).
 
 - Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)
 
 - Roster **View Submission** opens `LabAttemptHistoryDrawer`; flagged rows also show **View Plagiarism** → `PlagiarismInvestigationDrawer` (lineage rooted at earliest first-submit; match signals on edges; no code diffs)
 
-- Challenge tab **View** opens `LecturerSubmissionDrawer` with Declaration Test | MMD | Operation Test when applicable (`GET .../challenges/{id}/class?studentId=`, `/mmd`, `/testcases`; optional `submissionId`). Declaration tab and `/class` fetch are omitted when `hasClass` is false; MMD tab and `/mmd` when `hasMmd` is false. Operation Test tab appears when `/testcases` returns at least one row. Wrong/missing Class and MMD members use the same generic student-facing labels and consolidation as the student dashboard (`studentDisplayConsolidation.js`); MMD class cards use the student primary-light list layout.
+- Challenge tab **View** opens `LecturerSubmissionDrawer` with MMD | Declaration Test | Operation Test when applicable (`GET .../challenges/{id}/class?studentId=`, `/mmd`, `/testcases`; optional `submissionId`) — same pillar tab order as the student dashboard. Declaration tab and `/class` fetch are omitted when `hasClass` is false; MMD tab and `/mmd` when `hasMmd` is false. Operation Test tab appears when `/testcases` returns at least one row. Wrong/missing Class and MMD members use the same generic student-facing labels and consolidation as the student dashboard (`studentDisplayConsolidation.js`); correct Class members with a missing parsed snapshot fall back to rubric labels (not "Missing…"); MMD class cards use the student primary-light list layout.
 - Challenge tab lists **submitters only**; **Score** is the student's **highest qualifying challenge score** (deadline-aware); **Attempts** / **Submitted At** are from the latest graded attempt for that challenge; **View** opens the latest attempt's submission
 - `ClassScoreBreakdown` treats a type with no fields/constructors/methods as one shell check (`1/1 · 100%` or `0/1 · 0%`) with a status icon; do not display `0/1 · 100%`
 - Declaration Score member rows are pass or fail only; leftover `partial` flags render as fail, not a warning tick
