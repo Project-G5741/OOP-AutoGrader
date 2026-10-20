@@ -485,6 +485,7 @@ The **bell icon** (🔔) in the top-right of the student dashboard shows a red d
 
 - Click the bell to open the notification dropdown. Opening it marks every current notification as read; you do not need to click each item.
 - Notifications indicate labs where you have not submitted yet (based on your submission history vs. the lab list).
+- When a lecturer replies to your resolved Feedback item, that short note also appears here.
 - After you open the list, the red dot disappears for the current session until a new notification appears.
 
 ---

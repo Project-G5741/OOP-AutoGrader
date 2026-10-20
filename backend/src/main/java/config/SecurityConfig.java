@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .hasRole(JwtRoleNames.LECTURER)
                     .requestMatchers("/api/labs/**").hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER)
                     .requestMatchers("/api/submissions/**", "/api/students/**").hasRole(JwtRoleNames.STUDENT)
+                    .requestMatchers("/api/feedback/**")
+                        .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER)
                     .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         BurstLimitFilter burst = burstLimitFilter.getIfAvailable();

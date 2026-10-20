@@ -101,6 +101,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login. Presence paths are excluded from the server burst budget.
 - Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
 - `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard and history routes use it for the fox mascot.
+- Signed-in web `AppShell` mounts a Feedback FAB (`fixed` bottom-right `z-[90]`, under modals/toast). Login and desktop (`VITE_APP_MODE === 'desktop'`) do not show it. Form: `frontend/src/components/feedback/`.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
 
@@ -118,3 +119,4 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `src/components/ui/AGENTS.md` | Shared UI primitives and upload contract |
 | `src/components/lecturer/AGENTS.md` | Lecturer grading dashboard widgets |
 | `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Operation Test tab when OT applies |
+| `src/components/feedback/AGENTS.md` | Viewport Feedback FAB and submit form |

@@ -1,6 +1,12 @@
+import { lazy, Suspense } from 'react';
 import Header from '../Header';
 import Footer from '../Footer';
 import NavBar from '../NavBar';
+
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
+const FeedbackFab = IS_DESKTOP_APP
+  ? () => null
+  : lazy(() => import('../feedback/FeedbackFab'));
 
 export default function AppShell({
   user,
@@ -49,6 +55,11 @@ export default function AppShell({
           <Footer />
         </div>
       </div>
+      {!IS_DESKTOP_APP && user ? (
+        <Suspense fallback={null}>
+          <FeedbackFab user={user} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

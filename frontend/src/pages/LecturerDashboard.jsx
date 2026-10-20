@@ -8,6 +8,7 @@ import DashboardSection from '../components/lecturer/DashboardSection';
 import OverviewPanel from '../components/lecturer/OverviewPanel';
 import OverviewDetailDialog from '../components/lecturer/OverviewDetailDialog';
 import ReportsPage from './Reports';
+import FeedbackInbox from './FeedbackInbox';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
 import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverviewSubmissionHistory';
@@ -838,6 +839,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         activeNav={activeNav}
         onNavigate={handleNavChange}
         onCommand={handleShellCommand}
+        className={activeNav === 'score' ? 'flex min-h-0 flex-col' : ''}
       >
         {isInitialLoading ? (
           <LoadingSpinner />
@@ -1064,9 +1066,11 @@ export default function LecturerDashboard({ user, onLogout }) {
             </DashboardSection>
           </div>
         ) : activeNav === 'score' ? (
-          <div className="max-w-full space-y-6">
+          <div className="flex max-w-full min-h-0 flex-1 flex-col">
             <DashboardSection
               title="Score"
+              className="flex min-h-0 flex-1 flex-col"
+              contentClassName="flex min-h-0 flex-1 flex-col gap-6"
               actions={
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   <div className="relative w-full sm:w-auto">
@@ -1094,9 +1098,10 @@ export default function LecturerDashboard({ user, onLogout }) {
               }
             >
               {gradeOverviewError && (
-                <p className="mb-4 text-sm text-warning-text">{gradeOverviewError}</p>
+                <p className="shrink-0 text-sm text-warning-text">{gradeOverviewError}</p>
               )}
               <GradeOverviewTable
+                className="min-h-0 flex-1"
                 labs={gradeOverview.labs}
                 students={gradeOverview.content}
                 loading={loadingGradeOverview}
@@ -1146,6 +1151,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           </div>
         ) : activeNav === 'reports' ? (
           <ReportsPage />
+        ) : activeNav === 'feedback' ? (
+          <FeedbackInbox />
         ) : null}
       </AppShell>
 

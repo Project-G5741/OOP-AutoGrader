@@ -15,6 +15,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
+| `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
 | `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test when OT applies; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on submit and history views |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
@@ -38,6 +39,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-terms` | LECTURER | Term management (year, current term, enroll students) |
 | `/lecturer-solution` | LECTURER | Solution Management |
 | `/lecturer-report` | LECTURER | Reports |
+| `/lecturer-feedback` | LECTURER | Feedback inbox |
 | `/student-dashboard` | STUDENT | Student main |
 | `/student-history` | STUDENT | Student history |
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
@@ -56,6 +58,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
+| `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved |
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
@@ -112,6 +115,14 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
 | `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
 | `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenge ids sent as `replacedChallengeIds` on structure PUT (server wipes OT + rebuilds those challenges) |
+| `POST /api/feedback/create` | `FeedbackForm.jsx` (AppShell FAB) |
+| `GET /api/lecturer/feedback/list` | `FeedbackInbox.jsx` |
+| `GET /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` |
+| `GET /api/lecturer/feedback/{id}/attachments/{attachmentId}` | `FeedbackInbox.jsx` |
+| `PATCH /api/lecturer/feedback/{id}/status` | `FeedbackInbox.jsx` |
+| `PATCH /api/lecturer/feedback/{id}/response` | `FeedbackInbox.jsx` — short reply on Resolved; student notification |
+| `GET /api/feedback/replies` | `StudentNotificationBell.jsx` |
+| `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved items only; attachments cascade |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 

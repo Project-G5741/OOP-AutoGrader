@@ -209,6 +209,17 @@ A named semantic color role (primary, secondary, success, surface, etc.) whose h
 ### Theme preference
 The user's light or dark mode choice. First visit follows OS `prefers-color-scheme`; an explicit toggle persists in `localStorage` and overrides system preference on later visits. `ThemeContext` applies the `dark` class on `<html>` for the whole app including auth screens.
 
+## Feedback
+
+### Feedback item
+A signed-in author's Bug report or Contribution: required type and message, optional `.png`/`.jpg` (stored as WebP), optional `.java`/`.mmd`, plus IRN and display name taken from the account (not typed). Distinct from lecturer analytics Reports.
+
+### Feedback inbox
+Lecturer nav screen that lists Feedback items from every author (students and lecturers). Not the analytics Reports page.
+
+### Feedback status
+`Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears in the author’s student notification bell. A lecturer may delete a **Resolved** item; attached files are removed with it.
+
 ## Desktop local mode (student practice)
 
 ### Local student desktop mode
