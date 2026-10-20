@@ -25,6 +25,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
+| `PasswordStrengthField.jsx` | First-login password field with four-part strength meter, rule checks, and eye toggle (styles scoped to `.u036`) |
 
 ## Local Contracts
 

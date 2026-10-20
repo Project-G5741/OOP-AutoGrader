@@ -12,11 +12,11 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LoginUI.jsx` | Student/lecturer code + password login, Google OAuth, forgot-password entry, JWT decode |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
-| `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert` |
+| `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert`. Set Password uses `PasswordStrengthField` (strength meter + rule checks); submit still follows `getFirstTimeSetupErrors` (6–100 characters) |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test when OT applies; [page-mascot](https://koboyo.com/page-mascot) fox at the header’s top-right on submit and history views |
+| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit and history views |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
@@ -71,7 +71,7 @@ Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** in the avatar menu (`hideHistory`); student shell may hide **Home** when out of term (`hideHome`). Desktop practice build hides **Change Password** (`hideChangePassword`) — local synthetic session has no password change API.
+Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** in the avatar menu (`hideHistory`); student shell may hide **Home** when out of term (`hideHome`). Desktop practice build hides **Change Password** (`hideChangePassword`) — local synthetic session has no password change API. **Logout** is the last account-menu item, under Change Password. The student header shop button shows the point balance and opens the mascot shop.
 
 ### API endpoints used from pages
 
@@ -90,6 +90,9 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `POST /api/users/{id}/unsuspend` | `UserManagement.jsx`, `TermManagement.jsx` — restores login |
 | `GET /api/labs/list` | `StudentDashboard.jsx` (student JWT; current-term labs only, with embedded challenges + attempt stats; skipped when out of term) |
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
+| `GET /api/students/mascots/list` | `MascotShop.jsx` |
+| `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
+| `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |

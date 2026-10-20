@@ -1,11 +1,16 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { Store } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
+import StudentStreakFlame from '../components/student/StudentStreakFlame';
+import MascotShop from '../components/student/MascotShop';
+import { mascotArt } from '../components/student/studentMascots';
+import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import { useToast } from '../components/ui/Toast';
@@ -189,7 +194,85 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showMascotShop, setShowMascotShop] = useState(false);
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
+  const [streak, setStreak] = useState(null);
+  const [awardPulse, setAwardPulse] = useState(0);
+  const [restoringStreak, setRestoringStreak] = useState(false);
+  const streakSnapshot = useRef(null);
+
+  const applyStreak = useCallback((next) => {
+    const prev = streakSnapshot.current;
+    const awarded = prev && next && next.points > prev.points;
+    const missionJustDone = Boolean(next?.missionCompletedNow) || (prev && next && (
+      (!prev.loggedIn && next.loggedIn)
+      || (prev.submitCount < (prev.submitGoal ?? 3) && next.submitCount >= (next.submitGoal ?? 3))
+      || (prev.petCount < (prev.petGoal ?? 4) && next.petCount >= (next.petGoal ?? 4))
+    ));
+    if (missionJustDone && !awarded) {
+      showToast('Mission complete', 'success');
+    }
+    if (awarded) {
+      const gained = next.points - prev.points;
+      showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
+      setAwardPulse((value) => value + 1);
+    }
+    streakSnapshot.current = next;
+    setStreak(next);
+  }, [showToast]);
+
+  const refreshStreak = useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      applyStreak(await response.json());
+    } catch {
+      /* the dashboard still works when the streak request fails */
+    }
+  }, [applyStreak]);
+
+  useEffect(() => {
+    refreshStreak();
+  }, [refreshStreak]);
+
+  const petFox = useCallback(async () => {
+    const goal = streakSnapshot.current?.petGoal ?? 4;
+    if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/pet`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        return;
+      }
+      applyStreak(await response.json());
+    } catch (error) {
+      showToast(toFriendlyError(error), 'error');
+    }
+  }, [applyStreak, showToast]);
+
+  const restoreStreak = useCallback(async () => {
+    setRestoringStreak(true);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/restore`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        return;
+      }
+      applyStreak(await response.json());
+    } catch (error) {
+      showToast(toFriendlyError(error), 'error');
+    } finally {
+      setRestoringStreak(false);
+    }
+  }, [applyStreak, showToast]);
 
   const [labs, setLabs] = useState([]);
   const [labSummariesById, setLabSummariesById] = useState({});
@@ -736,6 +819,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         : 'Grading completed successfully.',
       type: 'success',
     });
+    void refreshStreak();
 
     const resultMap = uploadResponse?.challengeResult ?? {};
     const submissionId = uploadResponse?.submissionId ?? null;
@@ -843,8 +927,22 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.studentHistory);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
+    } else if (cmd === 'mascotShop') {
+      setShowMascotShop(true);
     }
   };
+
+  const applyShop = useCallback((shop) => {
+    if (!shop) return;
+    const prev = streakSnapshot.current;
+    const next = {
+      ...(prev || {}),
+      points: shop.points,
+      equipped: shop.equipped || 'fox',
+    };
+    streakSnapshot.current = next;
+    setStreak(next);
+  }, []);
 
   if (view === 'dashboard' && !inCurrentTerm) {
     return <Navigate to={ROUTES.studentHistory} replace />;
@@ -864,10 +962,43 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
-        headerAddon={
-          <div className="-my-1 shrink-0">
-            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} />
+        headerBeforeUserMenu={
+          <div className="flex shrink-0 items-center gap-1">
+            <StudentStreakFlame
+              streak={streak?.streak ?? 0}
+              loggedIn={Boolean(streak?.loggedIn)}
+              submitCount={streak?.submitCount ?? 0}
+              submitGoal={streak?.submitGoal ?? 3}
+              petCount={streak?.petCount ?? 0}
+              petGoal={streak?.petGoal ?? 4}
+              completedToday={Boolean(streak?.completedToday)}
+              broken={Boolean(streak?.broken)}
+              savedStreak={streak?.savedStreak ?? 0}
+              canRestore={Boolean(streak?.canRestore)}
+              awardPulse={awardPulse}
+              restoring={restoringStreak}
+              onRestore={restoreStreak}
+            />
+            <button
+              type="button"
+              onClick={() => setShowMascotShop(true)}
+              aria-label={`Open mascot shop. ${formatNumber(streak?.points ?? 0)} points`}
+              className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Store className="h-4 w-4 text-warning-text" aria-hidden="true" />
+              <span className="tabular-nums">{formatNumber(streak?.points ?? 0)}</span>
+            </button>
           </div>
+        }
+        headerAddon={
+          <button
+            type="button"
+            className="-my-1 shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={`Pet the ${mascotArt(streak?.equipped || 'fox').name}. ${Math.min(streak?.petCount ?? 0, streak?.petGoal ?? 4)} of ${streak?.petGoal ?? 4} pets today.`}
+            onClick={petFox}
+          >
+            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} mascotId={streak?.equipped || 'fox'} />
+          </button>
         }
       >
         <div className="w-full">
@@ -919,6 +1050,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           )}
         </div>
       </AppShell>
+
+      <MascotShop
+        open={showMascotShop}
+        onClose={() => setShowMascotShop(false)}
+        onUpdated={applyShop}
+      />
 
       {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal

@@ -24,6 +24,7 @@
   - [3.3 History — Past Submissions](#33-history--past-submissions)
   - [3.4 Notifications](#34-notifications)
   - [3.5 Profile & Password](#35-profile--password)
+  - [3.6 Daily streak](#36-daily-streak)
 - [4. Common Questions](#4-common-questions)
 
 ---
@@ -498,6 +499,21 @@ Click your avatar or name in the **top-right header** and select **Edit Profile*
 2. Enter a **New Password** (minimum 8 characters).
 3. **Confirm New Password** — must match the new password.
 4. Click **Save**.
+
+**Logout** is the last item in that same account menu, under **Change Password**.
+
+---
+
+### 3.6 Daily streak
+
+A flame icon sits beside the mascot in the top-right header (submit dashboard and history). It stays grey until all three missions are done, then it lights in color. There is no background behind the icon.
+
+- Click the flame to see today's three missions: open the page, submit 3 times, and pet the mascot 4 times.
+- Finishing any one mission shows **Mission complete**.
+- Pet the fox by clicking it. Pets after the fourth today are not counted.
+- When all three are done on the same day, the streak increases by 1 and you receive 50 points. Day 5 pays 55, day 10 pays 60, and each later multiple of 5 adds another 5 points.
+- Missing a day pauses the streak. You can restore it once each month from the mission list, or finish that day's missions to start again at day 1.
+- The flame has no separate button. The point total sits on the shop button beside the flame.
 
 ---
 

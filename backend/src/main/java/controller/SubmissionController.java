@@ -46,6 +46,7 @@ import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
+import com.eiu.capstone.backend.service.StudentStreakService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.UploadPersistService;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
@@ -80,6 +81,7 @@ public class SubmissionController {
     private final PlagiarismService plagiarismService;
     private final StudentTermAccessService studentTermAccessService;
     private final UploadPersistService uploadPersistService;
+    private final StudentStreakService studentStreakService;
     private final ExecutorService persistExecutor;
     private final ExecutorService rubricOverlapExecutor;
     private final boolean timingLog;
@@ -100,6 +102,7 @@ public class SubmissionController {
                                  PlagiarismService plagiarismService,
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
+                                 StudentStreakService studentStreakService,
                                  @Qualifier("persistExecutor") ExecutorService persistExecutor,
                                  @Qualifier("rubricOverlapExecutor") ExecutorService rubricOverlapExecutor,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog,
@@ -119,6 +122,7 @@ public class SubmissionController {
         this.plagiarismService = plagiarismService;
         this.studentTermAccessService = studentTermAccessService;
         this.uploadPersistService = uploadPersistService;
+        this.studentStreakService = studentStreakService;
         this.persistExecutor = persistExecutor;
         this.rubricOverlapExecutor = rubricOverlapExecutor;
         this.timingLog = timingLog;
@@ -217,6 +221,11 @@ public class SubmissionController {
             StudentLabProgress progress = persisted.progress();
             int assignedAttempt = submission.getAttemptNumber();
             long persistMs = System.currentTimeMillis() - persistStart;
+            try {
+                studentStreakService.recordSubmission(userAccount.getId());
+            } catch (RuntimeException streakError) {
+                System.out.printf("streak submit record failed user=%s%n", userAccount.getId());
+            }
 
             UUID persistedId = submission.getId();
             Map<UUID, ChallengeCompileErrors> compileErrors =
