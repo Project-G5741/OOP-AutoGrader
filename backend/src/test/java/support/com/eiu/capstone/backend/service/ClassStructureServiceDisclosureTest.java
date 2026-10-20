@@ -11,14 +11,19 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.eiu.capstone.backend.DTO.ClassConstructorDetailDTO;
 import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.ClassFieldDetailDTO;
+import com.eiu.capstone.backend.DTO.ClassMethodDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.MmdRelationDTO;
+import com.eiu.capstone.backend.grading.MmdGradingOutcome;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.ClassStructureService;
@@ -34,7 +39,7 @@ class ClassStructureServiceDisclosureTest {
     @BeforeEach
     void setUp() {
         service = new ClassStructureService(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
     }
 
     @Test
@@ -137,6 +142,92 @@ class ClassStructureServiceDisclosureTest {
         assertEquals(StudentDisplayMessages.PLACEHOLDER, field.scope());
         assertEquals(StudentDisplayMessages.PLACEHOLDER, field.dataType());
         assertFalse(field.ok());
+    }
+
+    @Test
+    void correctMembersWithoutSnapshot_fallBackToRubricLabelsNotMissing() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+        UUID constructorId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+
+        ClassRubric classRubric = new ClassRubric(
+                classId,
+                "Employee",
+                "PUBLIC",
+                "CLASS",
+                false,
+                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String")),
+                List.of(new MethodRubric(
+                        methodId, "getName", "PUBLIC", "String", false, false, false, List.of())),
+                List.of(new ConstructorRubric(constructorId, "PUBLIC", true, List.of())));
+        ChallengeRubric challengeRubric = new ChallengeRubric(
+                UUID.randomUUID(), 0, "Challenge 0", List.of(classRubric), List.of());
+
+        List<ClassDetailDTO> result = service.buildClassDataFromRubric(
+                challengeRubric,
+                new SubmissionCorrectIds(Set.of(fieldId), Set.of(methodId), Set.of(constructorId), Set.of()),
+                ChallengeCompileErrors.none(),
+                new ChallengeSnapshot(),
+                DisclosureMode.STUDENT);
+
+        ClassDetailDTO cls = result.get(0);
+        ClassFieldDetailDTO field = cls.fields().get(0);
+        assertTrue(field.ok());
+        assertEquals("name", field.name());
+        assertEquals("PRIVATE", field.scope());
+        assertEquals("String", field.dataType());
+
+        ClassConstructorDetailDTO constructor = cls.constructors().get(0);
+        assertTrue(constructor.ok());
+        assertEquals("Employee", constructor.name());
+        assertEquals("PUBLIC", constructor.scope());
+        assertEquals("", constructor.params());
+
+        ClassMethodDetailDTO method = cls.methods().get(0);
+        assertTrue(method.ok());
+        assertEquals("getName", method.name());
+        assertEquals("public", method.scope());
+        assertEquals("String", method.returnType());
+    }
+
+    @Test
+    void mmdOutcome_overridesClassCorrectIds_forFailedMember() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+
+        ClassRubric classRubric = new ClassRubric(
+                classId,
+                "Employee",
+                "PUBLIC",
+                "CLASS",
+                false,
+                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String")),
+                List.of(),
+                List.of());
+        ChallengeRubric challengeRubric = new ChallengeRubric(
+                UUID.randomUUID(), 0, "Challenge 0", List.of(classRubric), List.of());
+
+        MmdGradingOutcome mmdOutcome = new MmdGradingOutcome();
+        mmdOutcome.setClassPresent(classId, true);
+        mmdOutcome.setClass(classId, true);
+        mmdOutcome.setField(fieldId, false);
+
+        List<MmdClassDTO> result = service.buildMmdDataFromRubric(
+                challengeRubric,
+                new SubmissionCorrectIds(Set.of(fieldId), Set.of(), Set.of(), Set.of()),
+                mmdOutcome,
+                true,
+                new ChallengeMmdMeta(),
+                UUID.randomUUID(),
+                new ChallengeSnapshot(),
+                DisclosureMode.STUDENT);
+
+        var fieldAttr = result.get(0).attributes().stream()
+                .filter(a -> "field".equals(a.type()))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(fieldAttr.ok());
     }
 
     @Test

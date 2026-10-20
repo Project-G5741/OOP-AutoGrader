@@ -7,6 +7,10 @@ import {
 } from '../../utils/studentNotifications';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
+import {
+  consumeFeedbackRepliesOnLeave,
+  setFeedbackReplyIdsSource,
+} from '../../utils/feedbackReplyConsume';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -35,6 +39,9 @@ export default function StudentNotificationBell({
   const [readIds, setReadIds] = useState(() => new Set(loadReadIds()));
   const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
+  const feedbackRepliesRef = useRef(feedbackReplies);
+  feedbackRepliesRef.current = feedbackReplies;
+
   const labNotifications = buildStudentNotifications(labs, labSummariesById);
   const replyNotifications = buildFeedbackReplyNotifications(feedbackReplies);
   const notifications = [...replyNotifications, ...labNotifications];
@@ -58,6 +65,24 @@ export default function StudentNotificationBell({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return undefined;
+    setFeedbackReplyIdsSource(() =>
+      (feedbackRepliesRef.current || [])
+        .map((reply) => reply?.id)
+        .filter((id) => typeof id === 'string' && id.length > 0),
+    );
+    function onPageHide() {
+      consumeFeedbackRepliesOnLeave();
+    }
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      setFeedbackReplyIdsSource(() => []);
+    };
+  }, []);
+
   const unreadCount = useMemo(
     () => notifications.filter((item) => !readIds.has(item.id)).length,
     [notifications, readIds],
@@ -75,30 +100,18 @@ export default function StudentNotificationBell({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
 
-  function markAllRead() {
-    if (notifications.length === 0) return;
+  function markOneRead(id) {
     setReadIds((prev) => {
-      let changed = false;
+      if (prev.has(id)) return prev;
       const next = new Set(prev);
-      for (const item of notifications) {
-        if (!next.has(item.id)) {
-          next.add(item.id);
-          changed = true;
-        }
-      }
-      if (!changed) return prev;
+      next.add(id);
       persistReadIds(next);
       return next;
     });
   }
 
   function handleBellClick() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    markAllRead();
-    setOpen(true);
+    setOpen((prev) => !prev);
   }
 
   return (
@@ -139,12 +152,25 @@ export default function StudentNotificationBell({
                 const read = readIds.has(item.id);
                 return (
                   <li key={item.id}>
-                    <div
-                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : ''}`}
+                    <button
+                      type="button"
+                      onClick={() => markOneRead(item.id)}
+                      aria-pressed={read}
+                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : 'hover:opacity-90'}`}
                     >
-                      <p className="text-sm font-medium text-foreground">{item.title}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">{item.message}</p>
-                    </div>
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{item.title}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">{item.message}</p>
+                        </div>
+                        {!read && (
+                          <span
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-error"
+                            aria-hidden
+                          />
+                        )}
+                      </div>
+                    </button>
                   </li>
                 );
               })

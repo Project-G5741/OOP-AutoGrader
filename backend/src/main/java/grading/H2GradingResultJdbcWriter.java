@@ -138,8 +138,8 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             return;
         }
         String sql = """
-                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (SubmissionChallengeResult row : challengeRows) {
@@ -148,6 +148,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                 statement.setObject(3, row.getChallenge().getId());
                 statement.setBoolean(4, row.isCorrect());
                 statement.setBigDecimal(5, row.getScore() == null ? BigDecimal.ZERO : row.getScore());
+                statement.setString(6, row.getMmdOutcomes());
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -247,9 +248,9 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
         }
         UUID submissionId = rows.get(0).getSubmission().getId();
         String merge = """
-                MERGE INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score)
+                MERGE INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
                 KEY (submission_id, challenge_id)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """;
         withConnection(dataSource, "Failed to upsert challenge results", connection -> {
             try (PreparedStatement statement = connection.prepareStatement(merge)) {
@@ -259,6 +260,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                     statement.setObject(3, row.getChallenge().getId());
                     statement.setBoolean(4, row.isCorrect());
                     statement.setBigDecimal(5, row.getScore() == null ? BigDecimal.ZERO : row.getScore());
+                    statement.setString(6, row.getMmdOutcomes());
                     statement.addBatch();
                 }
                 statement.executeBatch();

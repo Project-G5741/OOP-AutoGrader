@@ -223,7 +223,7 @@ A signed-in author's Bug report or Contribution: required type and message, opti
 Lecturer nav screen that lists Feedback items from every author (students and lecturers). Not the analytics Reports page.
 
 ### Feedback status
-`Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears in the author’s student notification bell. A lecturer may delete a **Resolved** item; attached files are removed with it.
+`Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears once in the author’s student notification bell (unread red dots until clicked). A lecturer may delete a **Resolved** item from the inbox: if a reply exists, the row is soft-archived (hidden from the inbox; the author still sees the reply this visit); if there is no reply, the row and attachments are hard-deleted. When the author reloads the page or logs out, shown reply notifications are consumed and those feedback rows are hard-deleted.
 
 ## Desktop local mode (student practice)
 

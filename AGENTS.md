@@ -99,6 +99,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-19-drop-user-account-date-of-birth.sql` | Operator-run: drop `user_account.date_of_birth` (PII removal) |
 | `docs/sql/2026-10-20-feedback-inbox.sql` | Operator-run: `feedback_item` + `feedback_attachment` (Bug/Contribution inbox) |
 | `docs/sql/2026-10-20-feedback-lecturer-response.sql` | Operator-run: `feedback_item.lecturer_response` + `response_at` |
+| `docs/sql/2026-10-20-feedback-soft-archive.sql` | Operator-run: `feedback_item.archived_at` (soft-archive Resolved items that have a reply) |
+| `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
 | `docs/sql/2026-10-20-student-daily-streak.sql` | Operator-run: `student_daily_streak` (daily missions, streak, reward points). Startup migrator applies the same `CREATE TABLE IF NOT EXISTS` on PostgreSQL |
 | `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
 

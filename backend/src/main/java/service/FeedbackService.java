@@ -121,9 +121,9 @@ public class FeedbackService {
                 : statusFilter.trim().toUpperCase(Locale.ROOT);
         List<FeedbackItem> items;
         if (FILTER_ALL.equals(filter)) {
-            items = itemRepository.findAllByOrderByCreatedAtDesc();
+            items = itemRepository.findByArchivedAtIsNullOrderByCreatedAtDesc();
         } else if (ALLOWED_STATUSES.contains(filter)) {
-            items = itemRepository.findByStatusOrderByCreatedAtDesc(filter);
+            items = itemRepository.findByStatusAndArchivedAtIsNullOrderByCreatedAtDesc(filter);
         } else {
             throw unprocessable("Status filter must be OPEN, RESOLVED, or ALL.");
         }
@@ -184,6 +184,7 @@ public class FeedbackService {
 
     @Transactional(readOnly = true)
     public FeedbackAttachment getAttachment(UUID itemId, UUID attachmentId) {
+        requireItem(itemId);
         return attachmentRepository.findByIdAndItem_Id(attachmentId, itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found"));
     }
@@ -232,12 +233,42 @@ public class FeedbackService {
         if (!STATUS_RESOLVED.equals(item.getStatus())) {
             throw unprocessable("Only resolved feedback can be deleted.");
         }
+        String reply = item.getLecturerResponse();
+        if (reply != null && !reply.trim().isEmpty()) {
+            item.setArchivedAt(OffsetDateTime.now(ZoneOffset.UTC));
+            itemRepository.save(item);
+            return;
+        }
         itemRepository.delete(item);
     }
 
+    /**
+     * Author leave path: hard-delete own feedback rows that carry a lecturer reply
+     * (including soft-archived). Only the given ids are considered.
+     */
+    @Transactional
+    public void consumeRepliesForAuthor(UserAccount user, List<UUID> ids) {
+        if (user.getId() == null || ids == null || ids.isEmpty()) {
+            return;
+        }
+        List<UUID> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (distinct.isEmpty()) {
+            return;
+        }
+        List<FeedbackItem> owned = itemRepository.findByIdInAndUser_IdAndLecturerResponseIsNotNull(
+                distinct, user.getId());
+        if (!owned.isEmpty()) {
+            itemRepository.deleteAll(owned);
+        }
+    }
+
     private FeedbackItem requireItem(UUID id) {
-        return itemRepository.findById(id)
+        FeedbackItem item = itemRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found"));
+        if (item.getArchivedAt() != null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback item not found");
+        }
+        return item;
     }
 
     private ConvertedAttachment convertFile(MultipartFile file) {

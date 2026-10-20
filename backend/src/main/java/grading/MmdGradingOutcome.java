@@ -1,8 +1,11 @@
 package com.eiu.capstone.backend.grading;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class MmdGradingOutcome {
@@ -26,6 +29,29 @@ public class MmdGradingOutcome {
     public boolean isMethodCorrect(UUID methodId) { return methodCorrect.getOrDefault(methodId, false); }
     public boolean isConstructorCorrect(UUID constructorId) { return constructorCorrect.getOrDefault(constructorId, false); }
     public boolean isRelationCorrect(UUID relationId) { return relationCorrect.getOrDefault(relationId, false); }
+
+    /** Class ids that were graded (present and/or type checks). */
+    public Set<UUID> classIds() {
+        Set<UUID> ids = new HashSet<>(classPresent.keySet());
+        ids.addAll(classCorrect.keySet());
+        return Collections.unmodifiableSet(ids);
+    }
+
+    public Set<UUID> fieldIds() {
+        return Collections.unmodifiableSet(fieldCorrect.keySet());
+    }
+
+    public Set<UUID> methodIds() {
+        return Collections.unmodifiableSet(methodCorrect.keySet());
+    }
+
+    public Set<UUID> constructorIds() {
+        return Collections.unmodifiableSet(constructorCorrect.keySet());
+    }
+
+    public Set<UUID> relationIds() {
+        return Collections.unmodifiableSet(relationCorrect.keySet());
+    }
 
     public static MmdGradingOutcome allIncorrect(ChallengeRubricElements elements) {
         MmdGradingOutcome outcome = new MmdGradingOutcome();

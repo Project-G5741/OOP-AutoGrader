@@ -58,7 +58,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
-| `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved |
+| `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved (soft-archive if reply) |
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
@@ -125,7 +125,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `PATCH /api/lecturer/feedback/{id}/status` | `FeedbackInbox.jsx` |
 | `PATCH /api/lecturer/feedback/{id}/response` | `FeedbackInbox.jsx` — short reply on Resolved; student notification |
 | `GET /api/feedback/replies` | `StudentNotificationBell.jsx` |
-| `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved items only; attachments cascade |
+| `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved only; soft-archives when a reply exists, else hard-deletes |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.
 
