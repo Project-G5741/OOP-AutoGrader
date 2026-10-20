@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
-import { buildStudentNotifications, notificationSeverityClasses } from '../../utils/studentNotifications';
+import {
+  buildFeedbackReplyNotifications,
+  buildStudentNotifications,
+  notificationSeverityClasses,
+} from '../../utils/studentNotifications';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
 const READ_STORAGE_KEY = 'oop-student-notif-read';
 
@@ -24,8 +33,31 @@ export default function StudentNotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState(() => new Set(loadReadIds()));
+  const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
-  const notifications = buildStudentNotifications(labs, labSummariesById);
+  const labNotifications = buildStudentNotifications(labs, labSummariesById);
+  const replyNotifications = buildFeedbackReplyNotifications(feedbackReplies);
+  const notifications = [...replyNotifications, ...labNotifications];
+
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiFetch(`${API_BASE}/api/feedback/replies`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled && Array.isArray(data)) {
+          setFeedbackReplies(data);
+        }
+      } catch {
+        if (!cancelled) setFeedbackReplies([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const unreadCount = useMemo(
     () => notifications.filter((item) => !readIds.has(item.id)).length,
     [notifications, readIds],

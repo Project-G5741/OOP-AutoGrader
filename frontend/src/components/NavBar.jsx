@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2 } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -9,6 +9,7 @@ const navItems = [
   { id: 'terms', label: 'Quarters', icon: CalendarDays },
   { id: 'projects', label: 'Solution', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
 ];
 
 function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '' }) {

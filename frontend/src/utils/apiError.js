@@ -143,6 +143,8 @@ export async function readFriendlyApiError(response, context = 'read') {
       return FRIENDLY.SOMETHING_WRONG;
     case 'solution-import':
       return SOLUTION_IMPORT_ERROR_MESSAGES.default;
+    case 'feedback':
+      return backendMessage || FRIENDLY.SAVE_FAILED;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;

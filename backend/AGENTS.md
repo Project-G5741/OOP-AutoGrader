@@ -73,6 +73,8 @@ Config files: `src/main/resources/application.yml` (imports `.env`; multipart `m
 | `UserController` | `/api/users` | `getAllUser` returns `UserResponse` list/page with `currentQuarter` (active + enrolled in system current term; blank otherwise; no DoB); `getUser/{id}`, `addUser`, `bulk`, `updateUser/{id}`, `deleteUser/{id}`; `POST /{id}/suspend` and `POST /{id}/unsuspend` for student-only accounts; **lecturer JWT required** on all except self-service `POST /change-password` |
 | `SubmissionController` | `/api/submissions` | Upload + grade + student history reads (JWT required) |
 | `PresenceController` | `/api/presence` | `GET /count` — public active-user count; a valid JWT records a heartbeat. `DELETE /leave` — signed-in leave (JWT required) |
+| `FeedbackController` | `/api/feedback` | (`!desktop`) `POST /create` multipart (`type`, `message`, optional `files`) — signed-in student or lecturer Bug/Contribution; stamps IRN+name from `UserAccount`; PNG/JPG → WebP in `bytea`; at most 5 files and 25 MB total per upload. `GET /replies` — author’s lecturer replies for the notification bell |
+| `LecturerFeedbackController` | `/api/lecturer/feedback` | (`!desktop`) `GET /list`, `GET /{id}`, `GET /{id}/attachments/{attachmentId}`, `PATCH /{id}/status`, `PATCH /{id}/response` (Resolved, ≤500 chars, shown in student notifications), `DELETE /{id}` (Resolved only; attachments cascade) |
 
 Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated locally when `SPRINGDOC_ENABLED` is true; omit or set `false` in production)
 
@@ -82,7 +84,7 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html` (unauthenticated local
 - Global API burst guard (`BurstLimitFilter`, `@Profile("!desktop")`, after JWT): separate rolling windows in `app.burst.window-seconds` — mutating methods over `app.burst.max-requests` (default 5), GET/HEAD over `app.burst.max-reads` (default 30), `/api/auth/**` over `app.burst.max-auth-requests` (default 30) → HTTP 429 + `Retry-After` (`app.burst.retry-after-seconds`). Reads, writes, and auth do not share counters: dashboard GET fan-out does not spend uploads, and a classroom login burst on one NAT/Wi‑Fi IP does not spend the write budget. Authenticated key = JWT email; anonymous and all `/api/auth/**` = client IP. Same non-auth budgets for all roles. Not counted: `GET /api/presence/count`, `DELETE /api/presence/leave`, `OPTIONS /**`, `GET /`, swagger/OpenAPI when springdoc is on; intentional bulk POSTs listed in `BurstLimitExemptions` (lecturer `.../bulk-grade`, `.../solution-import`, `.../testcases/dry-run`, `POST /api/lecturer/labs/clone`, `POST /api/lecturer/terms/{id}/students/import`, `POST /api/users/bulk`) — still JWT-gated, only the burst counter is skipped. In-process per instance (no Redis). Desktop profile has no filter bean. Proxy: `server.forward-headers-strategy=framework` so anonymous IP keying sees the real client behind Render
 - No role hierarchy. `TEACHER` in a token maps to `LECTURER`. Dual-role accounts need both `STUDENT` and `LECTURER` authorities
 - **Lecturer JWT (`hasRole(LECTURER)`):** `/api/users/**` except `POST /api/users/change-password`, `/api/lecturer/**`, `/api/analytics/**`, `/api/master-data/**`, `/api/terms/**`, lecturer lab statistics/submissions/export/attempts and challenge student roster under `/api/labs`
-- **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats
+- **Student or lecturer (`hasAnyRole`):** `POST /api/users/change-password`, `/api/labs/**` after the lecturer-specific lab rows, challenge reads, lab list/stats, `/api/feedback/**`
 - **Student (`hasRole(STUDENT)`):** `/api/submissions/**`, `/api/students/**`
 - **Public:** `OPTIONS /**`, `GET /`, `GET /api/presence/count`, `/api/auth/**`, swagger/OpenAPI when springdoc is enabled
 - `JwtAuthHelper` is identity only (`requireActiveUser`, `resolveStudentScope`, `resolveDisclosureMode`, `isStudentOnly`) — not authorization
@@ -153,7 +155,7 @@ Grading tuning properties (`application.properties`):
 
 **Detail persist gate:** In-process `CompletableFuture` per submission. A Class-tab GET that hits a different instance than the upload may not wait; details should already be in Postgres if the UPSERT finished.
 
-**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`). OT rebuild: apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a copy first, then restart the API so `TestcaseSchemaMigrator` + `LabRubricCache.invalidateAll()` drop stale rubric graphs.
+**Schema scripts:** Operator-run SQL in `docs/sql/` (e.g. `docs/sql/2026-08-07-analytics-indexes.sql`). OT rebuild: apply `docs/sql/2026-09-23-operational-testcase-unit-composition.sql` on a copy first, then restart the API so `TestcaseSchemaMigrator` + `LabRubricCache.invalidateAll()` drop stale rubric graphs. Feedback inbox: apply `docs/sql/2026-10-20-feedback-inbox.sql` (tables `feedback_item`, `feedback_attachment`) on Neon and local Postgres before create/list. Lecturer reply columns: `docs/sql/2026-10-20-feedback-lecturer-response.sql` if the tables already exist.
 
 ### Read-path performance
 
