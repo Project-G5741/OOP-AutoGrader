@@ -59,7 +59,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ### Lab list layout (`StudentUI.jsx`)
 
-- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, countdown badge). The badge shows on the deadline calendar day and the two Vietnam days before it, counting the deadline day through 23:59:59: deadline 22/10 is **3 days** on 20/10, **2 days** on 21/10, **1 day** on 22/10. Chip color steps amber (3) → solid amber (2) → red (1) via `Badge` variants `deadline-3` / `deadline-2` / `deadline-1`. The same count is on the main header (`due {date} · N day(s) left`) and in the notification bell (`N days until deadline`, or due today on the deadline date). Expired labs show the **Expired** badge only.
 - Right: `SidebarInset` — selected-lab header (includes **Enrolled Quarter:** `{quarterName}` when the parent passes a current-quarter label), notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 - Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
