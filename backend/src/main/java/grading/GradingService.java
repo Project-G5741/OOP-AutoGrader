@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,6 @@ import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
-import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator;
 import com.eiu.capstone.backend.grading.scoring.PillarScoreAggregator.WeightedPercentage;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -142,7 +140,6 @@ public class GradingService {
                                       DisclosureMode disclosureMode) {
 
         long totalStart = System.currentTimeMillis();
-        requireJavaWhenOtApplies(rubric, challengeFolderResults);
 
         long loadStart = System.currentTimeMillis();
         GradingService.ExistingResults existing = emptyExistingResults();
@@ -665,36 +662,13 @@ public class GradingService {
             }
             int challengeNumber = Integer.parseInt(matcher.group(1));
             ChallengeRubric challengeRubric = rubric.challenge(challengeNumber).orElse(null);
-            if (challengeRubric != null && !challengeRubric.testcases().isEmpty()) {
+            if (challengeRubric != null
+                    && !challengeRubric.testcases().isEmpty()
+                    && folderResult.classFileCount > 0) {
                 return true;
             }
         }
         return false;
-    }
-
-    private void requireJavaWhenOtApplies(
-            LabRubricSnapshot rubric,
-            List<SubmissionStorageService.ChallengeResult> challengeFolderResults) {
-        Map<Integer, SubmissionStorageService.ChallengeResult> byNumber = new HashMap<>();
-        if (challengeFolderResults != null) {
-            for (SubmissionStorageService.ChallengeResult folder : challengeFolderResults) {
-                Matcher matcher = CHALLENGE_NUMBER_PATTERN.matcher(folder.challengeName);
-                if (matcher.matches()) {
-                    byNumber.put(Integer.parseInt(matcher.group(1)), folder);
-                }
-            }
-        }
-        for (ChallengeRubric challenge : rubric.byChallengeNumber().values()) {
-            if (challenge.testcases() == null || challenge.testcases().isEmpty()) {
-                continue;
-            }
-            SubmissionStorageService.ChallengeResult folder = byNumber.get(challenge.challengeNumber());
-            if (folder == null || folder.classFileCount <= 0) {
-                throw new SubmissionProcessingException(
-                        "Challenge " + challenge.challengeNumber()
-                                + " requires .java files for operational testcases.");
-            }
-        }
     }
 
     private void acquireWorkerSlot() {

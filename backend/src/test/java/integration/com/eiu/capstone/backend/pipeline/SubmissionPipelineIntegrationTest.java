@@ -36,6 +36,7 @@ import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
+import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.service.JavaCompilerService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
@@ -203,6 +204,45 @@ class SubmissionPipelineIntegrationTest {
             assertTrue(graded.testcaseApplicable());
             assertEquals(1, invokeCount.get());
         }
+    }
+
+    @Test
+    void mmdOnlyChallengeFailsOperationalTestsWithoutRunningThem() throws IOException {
+        Path challenge = tempDir.resolve("mmd-only/challenge_1");
+        Files.createDirectories(challenge.resolve("classes"));
+        SubmissionStorageService.ChallengeResult folder =
+                new SubmissionStorageService.ChallengeResult("challenge_1", challenge, 0);
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "unit-row",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                null,
+                List.of(),
+                List.of());
+        ChallengeRubric challengeRubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Animals",
+                List.of(),
+                List.of(),
+                List.of(testcase),
+                true);
+        GradingPipeline.ChallengePipelineResult graded = pipeline().gradeChallenge(
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challengeRubric)),
+                folder,
+                List.of());
+        assertNotNull(graded);
+        assertTrue(graded.testcaseApplicable());
+        assertEquals(0, graded.testcaseResult().pillarPercentage().compareTo(java.math.BigDecimal.ZERO));
+        assertEquals(1, graded.testcaseResult().results().size());
+        assertEquals(TestcaseResultStatus.FAILED, graded.testcaseResult().results().get(0).status());
+        assertEquals(
+                TestcaseGrader.NO_COMPILED_CLASSES_FEEDBACK,
+                graded.testcaseResult().results().get(0).feedback());
     }
 
     @Test

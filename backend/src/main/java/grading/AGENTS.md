@@ -79,12 +79,12 @@ SubmissionController
 ### Scoring
 
 - **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
-- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Declaration applies when `has_class`; MMD when `has_mmd`; OT when rubric rows exist. Skip `ClassReflectionGrader.grade` / use `notApplicable()` when `has_class` is false. OT still requires `.java` even if Declaration is off; MMD-only upload is allowed when Declaration and OT both do not apply.
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Declaration applies when `has_class`; MMD when `has_mmd`; OT when rubric rows exist. Skip `ClassReflectionGrader.grade` / use `notApplicable()` when `has_class` is false. A challenge with OT rows and no compiled `.class` files records each testcase as `FAILED` (`No .java files were submitted, so this testcase was not run.`) and does not open the worker. Declaration may be off; MMD-only upload still grades the MMD pillar.
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary per testcase; there is no per-testcase weight)
-- Student upload / bulk grade run lab-wide OT (`gradeLab`) and acquire `workerJvmSlot` when any challenge has OT rows; lecturer dry-run uses `gradeSingle` with the same slot + shared warm cache
-- Compile errors short-circuit testcase grading only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
+- Student upload / bulk grade run lab-wide OT (`gradeLab`) and acquire `workerJvmSlot` when any OT challenge has `classFileCount > 0`; lecturer dry-run uses `gradeSingle` with the same slot + shared warm cache
+- No compiled classes short-circuit every testcase on that challenge to `FAILED` before invoke. Compile errors short-circuit only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
 ### Operational testcase grading
 

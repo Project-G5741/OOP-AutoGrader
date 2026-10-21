@@ -1,6 +1,9 @@
 package com.eiu.capstone.backend.grading.pipeline;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +38,9 @@ import com.eiu.capstone.backend.utility.TimingLog;
 
 @Component
 public class TestcaseGrader {
+
+    public static final String NO_COMPILED_CLASSES_FEEDBACK =
+            "No .java files were submitted, so this testcase was not run.";
 
     private final InvocationRunner invocationRunner;
     private final AssertionEvaluator assertionEvaluator;
@@ -199,11 +205,44 @@ public class TestcaseGrader {
                     failedType, CompileErrorMessage.see(failedType)));
             return compileErrorEvaluation(testcase, message);
         }
+        if (!hasCompiledClasses(context)) {
+            return missingJavaEvaluation(testcase);
+        }
         List<InvocationRubric> steps = prepareSteps(testcase);
         if (steps.isEmpty()) {
             return infrastructureError(testcase, "Missing invocation rubric", null);
         }
         return null;
+    }
+
+    /**
+     * A null classes directory is not a missing-submission signal (unit tests invoke without a
+     * disk folder). An existing directory with no {@code .class} files means nothing was compiled.
+     */
+    private static boolean hasCompiledClasses(ChallengeGradingContext context) {
+        Path classesDir = context == null ? null : context.classesDir();
+        if (classesDir == null) {
+            return true;
+        }
+        if (!Files.isDirectory(classesDir)) {
+            return false;
+        }
+        try (var stream = Files.walk(classesDir)) {
+            return stream.anyMatch(path -> path.getFileName().toString().endsWith(".class"));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private Evaluation missingJavaEvaluation(TestcaseRubric testcase) {
+        return new Evaluation(0, new PendingTestcaseResult(
+                testcase.id(),
+                TestcaseResultStatus.FAILED,
+                NO_COMPILED_CLASSES_FEEDBACK,
+                null,
+                null,
+                NO_COMPILED_CLASSES_FEEDBACK,
+                List.of()));
     }
 
     private InvocationRunner.BatchItem toBatchItem(TestcaseRubric testcase) {

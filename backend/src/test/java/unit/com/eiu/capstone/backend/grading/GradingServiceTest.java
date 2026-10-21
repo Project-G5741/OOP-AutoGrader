@@ -4,7 +4,6 @@ import com.eiu.capstone.backend.grading.*;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,7 +23,6 @@ import java.util.concurrent.Semaphore;
 
 import org.junit.jupiter.api.Test;
 
-import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
@@ -132,7 +130,7 @@ class GradingServiceTest {
     }
 
     @Test
-    void gradeSubmission_withOperationalTestRows_rejectsMissingJavaFolders() throws Exception {
+    void gradeSubmission_withOperationalTestRows_missingJavaSkipsWorker() throws Exception {
         LabResultAssembler assembler = mock(LabResultAssembler.class);
         when(assembler.assemble(any(), any(), any(), any(), any())).thenReturn(Map.of());
 
@@ -162,14 +160,14 @@ class GradingServiceTest {
 
             LabSubmission submission = new LabSubmission();
             submission.setId(UUID.randomUUID());
+            SubmissionStorageService.ChallengeResult folderResult =
+                    new SubmissionStorageService.ChallengeResult(
+                            "challenge_1",
+                            Path.of("submissions", "irn", "req", "challenge_1"),
+                            0);
 
-            SubmissionProcessingException ex = assertThrows(
-                    SubmissionProcessingException.class,
-                    () -> service.gradeSubmission(
-                            submission, rubricWithUnitAndComposition(), List.of(), Map.of()));
-            assertEquals(
-                    "Challenge 1 requires .java files for operational testcases.",
-                    ex.getMessage());
+            assertDoesNotThrow(() -> service.gradeSubmission(
+                    submission, rubricWithUnitAndComposition(), List.of(folderResult), Map.of()));
             verify(workerSessionFactory, never()).open(any(Path.class), anyInt());
             verify(slot, never()).acquire();
         } finally {
