@@ -335,19 +335,17 @@ public class LecturerAnalyticsService {
         UUID termId = currentTerm.get().getId();
 
         List<GradeOverviewLabColumnDTO> labs = new ArrayList<>();
-        List<UUID> labIds = new ArrayList<>();
         for (Object[] row : lecturerAnalyticsRepository.findLabsForTermOrdered(termId)) {
             UUID labId = AnalyticsMapper.toUuid(row[0]);
             String labName = AnalyticsMapper.toString(row[1]);
+            String prefix = AnalyticsMapper.toString(row[2]);
             if (labId != null) {
-                labIds.add(labId);
-                labs.add(new GradeOverviewLabColumnDTO(labId, labName));
+                labs.add(new GradeOverviewLabColumnDTO(labId, labName, prefix));
             }
         }
 
         long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudentsForTerm(termId, search);
         List<GradeOverviewStudentRowDTO> rows = new ArrayList<>();
-        int labCount = labIds.size();
         if (totalStudents > 0) {
             int offset = safePage * safeSize;
             List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudentsForTerm(
@@ -379,15 +377,12 @@ public class LecturerAnalyticsService {
                 }
                 Map<UUID, BigDecimal> studentScores = scoresByStudent.getOrDefault(studentId, Map.of());
                 List<BigDecimal> labScores = new ArrayList<>();
-                BigDecimal sum = BigDecimal.ZERO;
-                for (UUID labId : labIds) {
-                    BigDecimal score = studentScores.get(labId);
-                    labScores.add(score);
-                    sum = sum.add(score != null ? score : BigDecimal.ZERO);
+                List<String> prefixes = new ArrayList<>();
+                for (GradeOverviewLabColumnDTO lab : labs) {
+                    labScores.add(studentScores.get(lab.labId()));
+                    prefixes.add(lab.prefix());
                 }
-                BigDecimal totalScore = labCount > 0
-                        ? sum.divide(BigDecimal.valueOf(labCount), 2, RoundingMode.DOWN)
-                        : null;
+                BigDecimal totalScore = GradeOverviewOfficialTotal.average(prefixes, labScores);
                 rows.add(new GradeOverviewStudentRowDTO(
                         studentId,
                         AnalyticsMapper.toString(row[1]),

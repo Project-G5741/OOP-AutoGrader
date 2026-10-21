@@ -11,6 +11,7 @@ import DatePicker from '../components/ui/DatePicker';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar';
 import { Separator } from '../components/ui/separator';
 import { Badge } from '../components/ui/badge';
+import LabPrefixBadge, { normalizeLabPrefix } from '../components/ui/LabPrefixBadge';
 import { formatLabDeadlineMeta } from '../theme/statusClasses';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
@@ -28,6 +29,7 @@ const emptyDraft = (lab) => ({
   deadlineDate: lab.deadlineDate ?? null,
   studentVisible: lab.studentVisible !== false,
   releaseDate: lab.releaseDate ?? null,
+  prefix: normalizeLabPrefix(lab.prefix),
   challenges: [],
 });
 
@@ -96,6 +98,7 @@ export default function SolutionManagement() {
   const [deadlineInput, setDeadlineInput] = useState('');
   const [deadlineSaving, setDeadlineSaving] = useState(false);
   const [studentVisibleInput, setStudentVisibleInput] = useState(true);
+  const [prefixSaving, setPrefixSaving] = useState(false);
   const [studentAccessSaving, setStudentAccessSaving] = useState(false);
   /** Challenge ids replaced by solution import — sent as replacedChallengeIds on Save Lab Structure. */
   const [importReplacedChallengeIds, setImportReplacedChallengeIds] = useState([]);
@@ -640,6 +643,51 @@ export default function SolutionManagement() {
     }
   };
 
+  const applyPrefixToSelectedLab = (labId, prefix) => {
+    const patch = { prefix: normalizeLabPrefix(prefix) };
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    setSavedSnapshot((prev) => (prev ? { ...prev, ...patch } : prev));
+    setLabs((prev) => prev.map((lab) => (
+      lab.id === labId ? { ...lab, ...patch } : lab
+    )));
+    const cached = structureCacheRef.current[labId];
+    if (cached) {
+      cached.draft = { ...cached.draft, ...patch };
+      cached.snapshot = { ...cached.snapshot, ...patch };
+    }
+  };
+
+  const handlePrefixChange = async (nextRaw) => {
+    if (!selectedLabId || prefixSaving) return;
+    const nextPrefix = normalizeLabPrefix(nextRaw);
+    const previousPrefix = normalizeLabPrefix(savedSnapshot?.prefix);
+    if (nextPrefix === previousPrefix) return;
+    setPrefixSaving(true);
+    applyPrefixToSelectedLab(selectedLabId, nextPrefix);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/prefix`, {
+        method: 'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ prefix: nextPrefix }),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const updated = await res.json();
+      const savedPrefix = normalizeLabPrefix(updated.prefix);
+      applyPrefixToSelectedLab(selectedLabId, savedPrefix);
+      showToast({
+        message: savedPrefix === 'Practice'
+          ? `${draft?.name || 'Lab'} is Practice. It stays on Score but is left out of Total.`
+          : `${draft?.name || 'Lab'} is Official and counts in Score Total.`,
+        type: 'success',
+      });
+    } catch (e) {
+      applyPrefixToSelectedLab(selectedLabId, previousPrefix);
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    } finally {
+      setPrefixSaving(false);
+    }
+  };
+
   const handleDeadlineChange = async (deadlineDate) => {
     if (!selectedLabId || deadlineSaving) return;
     const nextDeadline = toDateInputValue(deadlineDate) || null;
@@ -791,13 +839,20 @@ export default function SolutionManagement() {
         onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
       />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
+        <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {selectedLab?.name ?? 'Select a lab'}
-            </p>
+            <div className="min-w-0">
+              {selectedLab ? (
+                <div className="flex justify-end">
+                  <LabPrefixBadge prefix={savedSnapshot?.prefix} />
+                </div>
+              ) : null}
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedLab?.name ?? 'Select a lab'}
+              </p>
+            </div>
             {selectedLab && (
               <p className="truncate text-xs text-foreground-muted">
                 {formatLabDeadlineMeta(selectedLab, { withUrgencyHint: false })}
@@ -816,6 +871,16 @@ export default function SolutionManagement() {
                 Practice pack
               </button>
               <Badge variant={accessBadge.variant}>{accessBadge.label}</Badge>
+              <select
+                aria-label="Score prefix"
+                value={normalizeLabPrefix(savedSnapshot?.prefix)}
+                disabled={prefixSaving}
+                onChange={(event) => handlePrefixChange(event.target.value)}
+                className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground"
+              >
+                <option value="Official">Official</option>
+                <option value="Practice">Practice</option>
+              </select>
               {savedSnapshot?.deadlineDate && (
                 <Badge variant="outline">Deadline set</Badge>
               )}

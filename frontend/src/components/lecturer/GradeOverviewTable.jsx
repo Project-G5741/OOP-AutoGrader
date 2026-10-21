@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { formatNumber, formatText } from '../../utils/formatters';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import LabPrefixBadge from '../ui/LabPrefixBadge';
 import PlagiarismDangerMark, {
   labHasPlagiarism,
   studentLabHasPlagiarism,
@@ -9,7 +10,8 @@ import PlagiarismDangerMark, {
 } from './PlagiarismDangerMark';
 
 const HEADER_CLASS =
-  'sticky top-0 z-[1] bg-surface px-3 py-0 h-10 text-left text-sm font-medium text-foreground-secondary';
+  'sticky top-0 z-[1] bg-surface px-3 py-1 text-left text-sm font-medium text-foreground-secondary align-bottom';
+const HEADER_SPACER = <span className="mb-0.5 block h-4" aria-hidden="true" />;
 const CELL_CLASS = 'px-3 py-0 h-10 text-sm text-foreground align-middle';
 const PANEL_CLASS =
   'flex h-full min-h-[240px] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-colors';
@@ -101,6 +103,7 @@ export default function GradeOverviewTable({
                 <tr className="border-b border-border">
                   <SortableTableHeader
                     label="Student"
+                    before={HEADER_SPACER}
                     field="studentName"
                     activeField={sortState?.field}
                     direction={sortState?.direction}
@@ -110,6 +113,7 @@ export default function GradeOverviewTable({
                   />
                   <SortableTableHeader
                     label="IRN"
+                    before={HEADER_SPACER}
                     field="irn"
                     activeField={sortState?.field}
                     direction={sortState?.direction}
@@ -119,6 +123,7 @@ export default function GradeOverviewTable({
                   />
                   <SortableTableHeader
                     label="Total Score"
+                    before={HEADER_SPACER}
                     field="score"
                     activeField={sortState?.field}
                     direction={sortState?.direction}
@@ -170,6 +175,11 @@ export default function GradeOverviewTable({
                     <SortableTableHeader
                       key={lab.labId}
                       label={formatText(lab.labName)}
+                      before={(
+                        <span className="mb-0.5 flex h-4 justify-center">
+                          <LabPrefixBadge prefix={lab.prefix} />
+                        </span>
+                      )}
                       field={`labScore:${lab.labId}`}
                       activeField={sortState?.field}
                       direction={sortState?.direction}

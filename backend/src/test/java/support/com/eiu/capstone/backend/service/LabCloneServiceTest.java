@@ -187,6 +187,7 @@ class LabCloneServiceTest {
                 LocalDate.of(2025, 6, 1),
                 false,
                 LocalDate.of(2025, 1, 1),
+                "Practice",
                 List.of(new ChallengeStructureDTO(
                         challengeId,
                         "Challenge 1",
@@ -231,7 +232,7 @@ class LabCloneServiceTest {
 
         LabStructureResponse createdShell = new LabStructureResponse(
                 newLabId, "Lab Copy Me", targetTermId, LocalDate.of(2026, 9, 30),
-                true, null, List.of());
+                true, null, "Official", List.of());
 
         when(labStructureService.loadForEditor(sourceLabId)).thenReturn(source);
         when(testcaseRubricService.loadDtosGroupedByChallengeIds(List.of(challengeId)))
@@ -253,6 +254,7 @@ class LabCloneServiceTest {
         verify(labStructureService).saveLabStructureInsertOnly(eq(newLabId), structureCaptor.capture());
         LabStructureResponse saved = structureCaptor.getValue();
         assertEquals(newLabId, saved.id());
+        assertEquals("Official", saved.prefix());
         assertEquals(1, saved.challenges().size());
         ChallengeStructureDTO savedChallenge = saved.challenges().get(0);
         assertNotEquals(challengeId, savedChallenge.id());
@@ -388,9 +390,9 @@ class LabCloneServiceTest {
         lab.setTerm(allowedTerm);
 
         LabStructureResponse emptySource = new LabStructureResponse(
-                sourceLabId, "Source", allowedTermId, null, true, null, List.of());
+                sourceLabId, "Source", allowedTermId, null, true, null, "Official", List.of());
         LabStructureResponse createdShell = new LabStructureResponse(
-                newLabId, "Source", targetTermId, null, true, null, List.of());
+                newLabId, "Source", targetTermId, null, true, null, "Official", List.of());
 
         when(termRepository.existsById(targetTermId)).thenReturn(true);
         when(labRepository.findAllByIdWithTerm(List.of(sourceLabId))).thenReturn(List.of(lab));

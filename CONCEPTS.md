@@ -212,7 +212,21 @@ The user's light or dark mode choice. First visit follows OS `prefers-color-sche
 ## Daily streak
 
 ### Daily streak
-A student header flame that tracks one Vietnam calendar day. The day counts when the student has opened the page, submitted 3 times, and petted the fox 4 times. That completion adds 1 to the streak and `50 + 5 * (streak / 5)` reward points, so the bonus from each block of 5 days stays on later days (day 101 pays 150, not 50). A missed day pauses the streak. Restore continues the saved streak once per calendar month. Points are the currency for the mascot shop: Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. Fox is included. A purchase deducts the price in one transaction and equips that mascot.
+A student header flame that tracks one Vietnam calendar day. The day counts when the student has opened the page, submitted 3 times, and petted the fox 4 times. That completion adds 1 to the streak and `50 + 5 * (streak / 5)` reward points, so the bonus from each block of 5 days stays on later days (day 101 pays 150, not 50). A missed day pauses the streak. Restore continues the saved streak once per calendar month. Points are the currency for the mascot shop: Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. Fox is included. A purchase deducts the price in one transaction and equips that mascot. Weekly ranking gifts credit the same point balance.
+
+## Weekly ranking
+
+### Lab prefix
+Each lab is **Practice** or **Official**. Official is the starting value for labs that already exist and for labs a lecturer creates. The lecturer changes it in Solution. A pill shows that word above the lab name on the student lab header, the Solution lab header, and the Score column. Score Total averages on-time highest scores of Official labs only: a missing Official lab counts as 0, and a Practice lab is omitted from the average while its column stays. When the quarter has no Official labs, Score Total shows the same dash used for a missing number. A cloned lab starts Official. The dashboard average, the at-risk list, the grade a student sees, and weekly ranking do not read the prefix.
+
+### Weekly ranking
+A public live contest of active students enrolled in the current quarter. The ranking total is the **sum** of on-time highest scores on student-visible current-quarter labs (unsubmitted labs count as 0), including both Practice and Official labs. That total runs for the whole quarter; it does not reset on Monday. The prize window is one Vietnam week: Monday 00:00:00 through Sunday 23:59:59. Students and lecturers each have a Ranking screen listing rank, name, IRN, total, and this week’s gift. Desktop practice has no ranking.
+
+### Ranking total
+The number weekly ranking sorts on: sum of each included lab’s on-time highest score (same cutoff as lecturer Score). Distinct from Score’s **average of Official labs** and from the student dashboard’s latest-attempt grade.
+
+### Weekly ranking gift
+Shop points paid once per student per week from the frozen Sunday 23:59:59 Vietnam-time order: rank 1 = 100, 2 = 80, 3 = 60, 4–10 = 40, 11–20 = 20, 21+ = 0. Equal totals take unique ranks by who reached the current total first (earlier last on-time submission that increased the ranking total). Missed payout still uses that Sunday instant, not recovery-time standing.
 
 ## Feedback
 

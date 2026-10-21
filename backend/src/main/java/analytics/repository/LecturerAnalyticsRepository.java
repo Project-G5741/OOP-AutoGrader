@@ -769,7 +769,7 @@ public class LecturerAnalyticsRepository {
     }
 
     public List<Object[]> findLabsForTermOrdered(UUID termId) {
-        String sql = "SELECT l.id, l.name FROM lab l WHERE l.term_id = :termId ORDER BY l.name";
+        String sql = "SELECT l.id, l.name, l.prefix FROM lab l WHERE l.term_id = :termId ORDER BY l.name";
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("termId", termId);
         return query.getResultList();
@@ -885,7 +885,9 @@ public class LecturerAnalyticsRepository {
                 """ + searchClause + """
                 ),
                 lab_total AS (
-                    SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab WHERE term_id = :termId
+                    SELECT CAST(COUNT(*) AS numeric) AS lab_count
+                    FROM lab
+                    WHERE term_id = :termId AND prefix = 'Official'
                 ),
                 qualifying_scores AS (
                     SELECT s.user_id, s.lab_id, MAX(s.score) AS score
@@ -905,7 +907,7 @@ public class LecturerAnalyticsRepository {
                                 FROM lab l
                                 LEFT JOIN qualifying_scores qs
                                     ON qs.user_id = gs.id AND qs.lab_id = l.id
-                                WHERE l.term_id = :termId)
+                                WHERE l.term_id = :termId AND l.prefix = 'Official')
                            END AS total_score
                     FROM grade_students gs
                     CROSS JOIN lab_total lt

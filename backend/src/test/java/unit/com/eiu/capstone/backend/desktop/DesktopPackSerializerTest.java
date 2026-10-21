@@ -3,6 +3,9 @@ package com.eiu.capstone.backend.desktop;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Instant;
@@ -45,7 +48,7 @@ class DesktopPackSerializerTest {
         LabRubricSnapshot rubric = new LabRubricSnapshot(
                 labId,
                 Map.of(1, new ChallengeRubric(challengeId, 1, "Main", List.of(), List.of())));
-        DesktopPackLabMeta meta = new DesktopPackLabMeta(labId, "Lab 1", true, null, null);
+        DesktopPackLabMeta meta = new DesktopPackLabMeta(labId, "Lab 1", true, null, null, "Practice");
         DesktopPackInnerPayload payload = new DesktopPackInnerPayload(
                 "pack-v1",
                 termId,
@@ -55,6 +58,7 @@ class DesktopPackSerializerTest {
         DesktopPackInnerPayload parsed = serializer.fromJson(json);
         assertEquals(1, parsed.labs().size());
         assertEquals(labId, parsed.labs().get(0).lab().id());
+        assertEquals("Practice", parsed.labs().get(0).lab().prefix());
         assertEquals(challengeId, parsed.labs().get(0).rubric().byChallengeNumber().get(1).challengeId());
 
         DesktopPackManifest manifest = new DesktopPackManifest(
@@ -70,5 +74,16 @@ class DesktopPackSerializerTest {
         DesktopPackInnerPayload fromPack = serializer.fromJson(opened);
         assertEquals(challengeId, fromPack.labs().get(0).rubric().byChallengeNumber().get(1).challengeId());
         assertArrayEquals(json, serializer.toJson(fromPack));
+    }
+
+    @Test
+    void omittedPrefix_readsAsOfficial() throws Exception {
+        UUID labId = UUID.randomUUID();
+        ObjectMapper mapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        String json = "{\"id\":\"" + labId + "\",\"name\":\"Lab 1\",\"studentVisible\":true}";
+        DesktopPackLabMeta meta = mapper.readValue(json, DesktopPackLabMeta.class);
+        assertEquals("Official", meta.prefix());
     }
 }

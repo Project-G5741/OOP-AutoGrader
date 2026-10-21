@@ -59,6 +59,7 @@ public class DesktopPackStructureMapper {
                 meta.deadlineDate(),
                 meta.studentVisible(),
                 meta.releaseDate(),
+                meta.prefix(),
                 challenges);
     }
 

@@ -155,7 +155,8 @@ public class DesktopPackExportService {
                 validatedName,
                 lab.isStudentVisible(),
                 lab.getReleaseDate(),
-                lab.getDeadlineDate());
+                lab.getDeadlineDate(),
+                lab.getPrefix());
         return new DesktopPackLabEntry(meta, rubric);
     }
 }

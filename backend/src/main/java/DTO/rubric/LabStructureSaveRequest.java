@@ -19,7 +19,7 @@ public record LabStructureSaveRequest(
         List<UUID> replacedChallengeIds) {
 
     public LabStructureResponse toStructure() {
-        return new LabStructureResponse(id, name, termId, deadlineDate, studentVisible, releaseDate, challenges);
+        return new LabStructureResponse(id, name, termId, deadlineDate, studentVisible, releaseDate, null, challenges);
     }
 
     public List<UUID> replacedChallengeIdsOrEmpty() {

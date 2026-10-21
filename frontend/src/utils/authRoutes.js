@@ -8,8 +8,10 @@ export const ROUTES = {
   lecturerReport: '/lecturer-report',
   lecturerFeedback: '/lecturer-feedback',
   lecturerTerms: '/lecturer-terms',
+  lecturerRanking: '/lecturer-ranking',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
+  studentRanking: '/student-ranking',
   noAccess: '/no-access',
   rateLimited: '/rate-limited',
 };
@@ -151,6 +153,7 @@ export function patchStoredUser(partial) {
 export const LECTURER_NAV_TO_ROUTE = {
   dashboard: ROUTES.lecturerDashboard,
   score: ROUTES.lecturerGrading,
+  ranking: ROUTES.lecturerRanking,
   grading: ROUTES.lecturerBulkGrading,
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,

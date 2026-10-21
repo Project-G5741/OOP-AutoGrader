@@ -20,6 +20,7 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackLabEntry;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.LabPrefix;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
@@ -180,6 +181,7 @@ public class DesktopPackImportService {
         lab.setStudentVisible(meta.studentVisible());
         lab.setReleaseDate(meta.releaseDate());
         lab.setDeadlineDate(meta.deadlineDate());
+        lab.setPrefix(storedPrefix(meta.prefix()));
         labRepository.save(lab);
 
         LabStructureResponse structure = structureMapper.toStructure(meta, entry.rubric(), termId);
@@ -204,6 +206,13 @@ public class DesktopPackImportService {
             return termLabel.substring(0, dash).trim();
         }
         return termLabel.trim();
+    }
+
+    private static String storedPrefix(String prefix) {
+        if (LabPrefix.OFFICIAL.equals(prefix) || LabPrefix.PRACTICE.equals(prefix)) {
+            return prefix;
+        }
+        return LabPrefix.OFFICIAL;
     }
 
     private static int parseTermNumber(String termLabel) {
