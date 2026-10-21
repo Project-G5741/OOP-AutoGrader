@@ -96,7 +96,7 @@ export default function FeedbackForm({ user, onClose }) {
         <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Send feedback</h2>
-            <p className="mt-1 text-sm text-foreground-secondary">Bug report or contribution. Your IRN and name are saved from your account.</p>
+            <p className="mt-1 text-sm text-foreground-secondary">OOP AutoGrader is in beta testing phase. Your feedback is very valuable to us.</p>
           </div>
           <button
             type="button"
@@ -171,7 +171,7 @@ export default function FeedbackForm({ user, onClose }) {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
-              placeholder="Describe the bug or the idea"
+              placeholder="Mô tả lỗi hoặc ý tưởng của cậu ở đây. Mọi ý kiến kể cả nói xấu cũng được, miễn là có đề xuất hướng giải quyết. Chúng tớ rất cần ý kiến người dùng."
             />
           </label>
 
