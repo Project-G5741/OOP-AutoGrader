@@ -173,6 +173,14 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route
+            path={ROUTES.lecturerRanking}
+            element={
+              <RequireRole anyOf={["LECTURER"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
 
           <Route
             path={ROUTES.studentDashboard}
@@ -187,6 +195,14 @@ export default function App() {
             element={
               <RequireRole anyOf={["STUDENT"]}>
                 <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.studentRanking}
+            element={
+              <RequireRole anyOf={["STUDENT"]}>
+                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
               </RequireRole>
             }
           />

@@ -360,6 +360,7 @@ public class LabCloneService {
                 created.deadlineDate(),
                 created.studentVisible(),
                 created.releaseDate(),
+                created.prefix(),
                 remappedChallenges);
         labStructureService.saveLabStructureInsertOnly(created.id(), remappedStructure);
 

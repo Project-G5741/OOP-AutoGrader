@@ -93,7 +93,7 @@ class DesktopSubmissionPipelineIntegrationTest {
                 TERM_ID,
                 "2026 — Quarter 1",
                 List.of(new DesktopPackLabEntry(
-                        new DesktopPackLabMeta(LAB_ID, "Pipeline Lab", true, null, null),
+                        new DesktopPackLabMeta(LAB_ID, "Pipeline Lab", true, null, null, null),
                         rubric)));
         byte[] innerJson = serializer.toJson(inner);
         DesktopPackManifest manifest = new DesktopPackManifest(

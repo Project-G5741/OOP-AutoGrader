@@ -142,7 +142,8 @@ public class LabController {
                 lab.getReleaseDate(),
                 challenges,
                 stats == null ? null : stats.totalSubmissions(),
-                stats == null ? null : stats.latestSubmission());
+                stats == null ? null : stats.latestSubmission(),
+                lab.getPrefix());
     }
 
     public record LabSummary(
@@ -154,7 +155,8 @@ public class LabController {
             LocalDate releaseDate,
             List<ChallengeDTO> challenges,
             Integer totalSubmissions,
-            String latestSubmission) {}
+            String latestSubmission,
+            String prefix) {}
 
     /** Lab-scoped stats for parallel dashboard load (same data as challenge stats route). */
     @GetMapping("/{labId}/stats")

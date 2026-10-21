@@ -15,12 +15,17 @@ export default function AppShell({
   activeNav,
   onNavigate,
   onPrefetch,
+  navItems,
+  navAlign = 'end',
+  navCollapse = true,
   showNav = false,
   className = '',
   onCommand,
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  hideRanking = true,
+  hideSectionLinks = false,
   hideChangePassword = false,
   headerAddon = null,
   headerBeforeUserMenu = null,
@@ -38,6 +43,8 @@ export default function AppShell({
             hideUserMenu={hideUserMenu}
             hideHome={hideHome}
             hideHistory={hideHistory}
+            hideRanking={hideRanking}
+            hideSectionLinks={hideSectionLinks}
             hideChangePassword={hideChangePassword}
             headerAddon={headerAddon}
             headerBeforeUserMenu={headerBeforeUserMenu}
@@ -48,11 +55,18 @@ export default function AppShell({
         <div className="flex w-full max-w-full min-w-0 flex-1 flex-col overflow-x-hidden">
           {showNav && (
             <div className="relative mt-4 w-full min-w-0 overflow-visible">
-              <NavBar active={activeNav} onNavigate={onNavigate} onPrefetch={onPrefetch} />
+              <NavBar
+                active={activeNav}
+                onNavigate={onNavigate}
+                onPrefetch={onPrefetch}
+                items={navItems}
+                align={navAlign}
+                collapse={navCollapse}
+              />
             </div>
           )}
 
-          <main className={`relative z-0 mt-6 flex-1 min-w-0 ${className}`}>{children}</main>
+          <main className={`relative z-0 mt-6 flex min-h-0 flex-1 flex-col min-w-0 ${className}`}>{children}</main>
 
           <Footer />
         </div>

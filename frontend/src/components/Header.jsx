@@ -1,5 +1,5 @@
 import { useTheme } from '../context/ThemeContext';
-import { Moon, Sun, LogOut, User, Home, Clock, Lock } from 'lucide-react';
+import { Moon, Sun, LogOut, User, Home, Clock, Lock, Trophy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
@@ -14,6 +14,8 @@ export default function Header({
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  hideRanking = false,
+  hideSectionLinks = false,
   hideChangePassword = false,
   headerAddon = null,
   headerBeforeUserMenu = null,
@@ -119,14 +121,19 @@ export default function Header({
                     </div>
                   </div>
                   <div className="space-y-2 p-3">
-                    {!hideHome && (
+                    {!hideSectionLinks && !hideHome && (
                     <button onClick={() => handleMenu('home')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Home className="h-4 w-4" /> Home
                     </button>
                     )}
-                    {!hideHistory && (
+                    {!hideSectionLinks && !hideHistory && (
                     <button onClick={() => handleMenu('history')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Clock className="h-4 w-4" /> History
+                    </button>
+                    )}
+                    {!hideSectionLinks && !hideRanking && (
+                    <button onClick={() => handleMenu('ranking')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <Trophy className="h-4 w-4" /> Ranking
                     </button>
                     )}
                     {showChangePassword && (

@@ -62,7 +62,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
 | `structure/SolutionImportPanel.jsx` | Solution tab: drag/drop or folder picker for nested `.java` / `.mmd` sources; `onImport(selection)` posts via parent; clears selection on success |
-| `structure/LabSchedulingPanel.jsx` | Lab scheduling card: student access, submission deadline, solution import (`onSolutionImport` → `SolutionImportPanel`) |
+| `structure/LabSchedulingPanel.jsx` | Lab scheduling card: student access, submission deadline, solution import (`onSolutionImport` → `SolutionImportPanel`). Score prefix is chosen on the Solution page header, not in this card |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
 
@@ -86,7 +86,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - `SubmissionTable` on the lab overview lists submitters only; **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; when `plagiarismFlagged` is true the Plagiarism column shows one role icon from `plagiarismRole` (`ORIGINAL` or `PLAGIARIZER`) plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY still shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
 - Lecturer-only `PlagiarismDangerMark`: victim (earlier first submit in lab) = yellow warning; plagiarizer (later first submit) = red warning; lab presence = yellow. Roles are mutually exclusive and use earliest lab submission time (a victim's later re-upload does not flip them to plagiarizer). On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab` / `rolesByStudentAndLab`) sit to the right on one line when flagged. Roster / challenge tables use the same marks in the Plagiarism column. Display-only (no click-to-details). Students are not notified.
-- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer. On the **Score** nav page the matrix grows to fill remaining viewport height (`flex-1` chain from `AppShell` through `DashboardSection`).
+- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer. On the **Score** nav page the matrix grows to fill remaining viewport height (`flex-1` chain from `AppShell` through `DashboardSection`). Each lab column header places an Official (`default`) or Practice (`outline`) badge above the lab-name sort button, so clicking the badge does not sort. Student, IRN, and Total Score use the same header height. Total is the server Official-only average (`formatNumber` shows `--` when that total is null).
 
 - Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)
 
@@ -127,6 +127,10 @@ LecturerDashboard
        → DashboardSection (grading overview — lab stats, roster, challenge tabs)
 
        → ExportMenu (overview export)
+
+  → DashboardSection (activeNav === 'ranking')
+
+       → RankingBoard (`src/components/ranking/RankingBoard.jsx`)
 
   → DashboardSection (activeNav === 'score')
 

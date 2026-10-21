@@ -86,6 +86,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
+| Weekly ranking | Live API (`GET /api/students/ranking/current`, lecturer `GET /api/lecturer/bootstrap/ranking`) |
 | Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
@@ -100,7 +101,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - API error bodies: adjust copy in `src/config/apiErrorMessages.js`; mapping in `src/utils/apiError.js` (`readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`). Never surface raw backend `message`/`error`/`detail` except for contexts in `BACKEND_MESSAGE_CONTEXTS` (and download 403/404/503). **429** → rate-limit jail, not toast-only busy. Context `import` (desktop pack): backend message for 400/409/413/422; network → `DESKTOP_IMPORT_NETWORK`. Context `solution-import` (lecturer folder): backend message for 400/404/409/413/422; network → `FRIENDLY.SERVER_BUSY`.
 - Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login. Presence paths are excluded from the server burst budget.
 - Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
-- Student header, right to left: equipped mascot (`headerAddon`), account menu, mascot shop, streak flame (`headerBeforeUserMenu`). Logout is the last item in the account menu, under Change Password.
+- Student header, right to left: equipped mascot (`headerAddon`), account menu, mascot shop, streak flame (`headerBeforeUserMenu`). Logout is the last item in the account menu, under Change Password. Home, History, and Ranking use the lecturer nav bar on the next row, aligned to the start, with no hamburger. The avatar menu keeps Change Password and Logout. Out-of-term students see History only. Desktop omits Ranking.
 - Signed-in web `AppShell` mounts a Feedback FAB (`fixed` bottom-right `z-[90]`, under modals/toast). Login and desktop (`VITE_APP_MODE === 'desktop'`) do not show it. Form: `frontend/src/components/feedback/`.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
@@ -120,3 +121,4 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `src/components/lecturer/AGENTS.md` | Lecturer grading dashboard widgets |
 | `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Operation Test tab when OT applies |
 | `src/components/feedback/AGENTS.md` | Viewport Feedback FAB and submit form |
+| `src/components/ranking/AGENTS.md` | Shared weekly ranking table (`RankingBoard`) |

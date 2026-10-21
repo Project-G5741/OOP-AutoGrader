@@ -219,7 +219,7 @@ class LabStructureReplaceSaveIntegrationTest {
                         List.of())),
                 List.of());
         LabStructureResponse payload = new LabStructureResponse(
-                labId, "Replace IT Lab", termId, null, true, null, List.of(challengeDto));
+                labId, "Replace IT Lab", termId, null, true, null, "Official", List.of(challengeDto));
 
         LabStructureResponse saved = transactionTemplate.execute(status ->
                 labStructureService.saveLabStructure(labId, payload, List.of(challengeId)));
@@ -277,7 +277,7 @@ class LabStructureReplaceSaveIntegrationTest {
                         List.of())),
                 List.of());
         LabStructureResponse payload = new LabStructureResponse(
-                labId, "Replace IT Lab", termId, null, true, null, List.of(challengeDto));
+                labId, "Replace IT Lab", termId, null, true, null, "Official", List.of(challengeDto));
 
         transactionTemplate.executeWithoutResult(status ->
                 labStructureService.saveLabStructure(labId, payload, List.of(challengeId)));

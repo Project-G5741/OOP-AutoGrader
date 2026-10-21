@@ -70,6 +70,11 @@ class LecturerTabBootstrapAuthTest {
         when(bootstrapService.dashboard()).thenReturn(
                 new LecturerOverviewResponse(0L, 0L, null, 0L, List.of(), 0L, List.of(), List.of(), List.of()));
         when(bootstrapService.gradingLabs()).thenReturn(List.of());
+        when(bootstrapService.ranking()).thenReturn(
+                new com.eiu.capstone.backend.analytics.dto.WeeklyRankingBoardResponse(
+                        java.time.Instant.parse("2026-10-18T17:00:00Z"),
+                        java.time.Instant.parse("2026-10-25T16:59:59Z"),
+                        List.of()));
     }
 
     @Test
@@ -100,5 +105,21 @@ class LecturerTabBootstrapAuthTest {
                 "l@eiu.edu.vn", "Lecturer", "eiu.edu.vn", List.of(JwtRoleNames.LECTURER), "T1");
         mockMvc.perform(get("/api/lecturer/bootstrap/grading").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void lecturerRankingBootstrapIsOk() throws Exception {
+        String token = jwtService.createToken(
+                "l@eiu.edu.vn", "Lecturer", "eiu.edu.vn", List.of(JwtRoleNames.LECTURER), "T1");
+        mockMvc.perform(get("/api/lecturer/bootstrap/ranking").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void studentRankingBootstrapIsForbidden() throws Exception {
+        String token = jwtService.createToken(
+                "s@eiu.edu.vn", "Student", "eiu.edu.vn", List.of(JwtRoleNames.STUDENT), "S1");
+        mockMvc.perform(get("/api/lecturer/bootstrap/ranking").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 }

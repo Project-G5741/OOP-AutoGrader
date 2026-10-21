@@ -1,9 +1,10 @@
 // StudentDashboard.jsx
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Store } from 'lucide-react';
+import { Clock, Home, Store, Trophy } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
+import StudentRankingPage from './StudentRankingPage';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
@@ -191,6 +192,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const showToast = useToast();
   const navigate = useNavigate();
   const showHistory = view === 'history';
+  const showRanking = view === 'ranking';
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -297,7 +299,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [nextAttemptNumber, setNextAttemptNumber] = useState(1);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(
-    () => view !== 'history' && isInCurrentTerm(user?.inCurrentTerm),
+    () => view !== 'history' && view !== 'ranking' && isInCurrentTerm(user?.inCurrentTerm),
   );
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
@@ -553,7 +555,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     async function fetchLabs() {
-      if (showHistory || !inCurrentTerm) {
+      if (showHistory || showRanking || !inCurrentTerm) {
         setLabs([]);
         setIsLoadingLabs(false);
         return;
@@ -581,10 +583,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-    if (!showHistory && inCurrentTerm) {
+    if (!showHistory && !showRanking && inCurrentTerm) {
       fetchLabSummaries();
     }
-  }, [fetchLabSummaries, inCurrentTerm, showHistory]);
+  }, [fetchLabSummaries, inCurrentTerm, showHistory, showRanking]);
 
   useEffect(() => {
     let cancelled = false;
@@ -920,11 +922,37 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   };
 
+  const studentNavItems = useMemo(() => {
+    const items = [];
+    if (inCurrentTerm) {
+      items.push({ id: 'home', label: 'Home', icon: Home });
+    }
+    items.push({ id: 'history', label: 'History', icon: Clock });
+    if (!IS_DESKTOP_APP && inCurrentTerm) {
+      items.push({ id: 'ranking', label: 'Ranking', icon: Trophy });
+    }
+    return items;
+  }, [inCurrentTerm]);
+
+  const activeNav = showRanking ? 'ranking' : showHistory ? 'history' : 'home';
+
+  const handleNavChange = useCallback((navId) => {
+    if (navId === 'home' && inCurrentTerm) {
+      navigate(ROUTES.studentDashboard);
+    } else if (navId === 'history') {
+      navigate(ROUTES.studentHistory);
+    } else if (navId === 'ranking' && !IS_DESKTOP_APP && inCurrentTerm) {
+      navigate(ROUTES.studentRanking);
+    }
+  }, [inCurrentTerm, navigate]);
+
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
       navigate(inCurrentTerm ? ROUTES.studentDashboard : ROUTES.studentHistory);
     } else if (cmd === 'history') {
       navigate(ROUTES.studentHistory);
+    } else if (cmd === 'ranking' && !IS_DESKTOP_APP) {
+      navigate(ROUTES.studentRanking);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
     } else if (cmd === 'mascotShop') {
@@ -956,10 +984,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         user={user}
         onLogout={onLogout}
         onCommand={handleCommand}
+        showNav
+        navItems={studentNavItems}
+        navAlign="start"
+        navCollapse={false}
+        activeNav={activeNav}
+        onNavigate={handleNavChange}
+        hideSectionLinks
         hideHome={!inCurrentTerm}
         hideChangePassword={IS_DESKTOP_APP}
-        className="!mt-0"
-        headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
+        className={showRanking ? 'flex min-h-0 flex-1 flex-col' : ''}
+        headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
         headerBeforeUserMenu={
@@ -1001,8 +1036,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           </button>
         }
       >
-        <div className="w-full">
-          {!showHistory && inCurrentTerm && !IS_DESKTOP_APP && (
+        <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
+          {!showHistory && !showRanking && inCurrentTerm && !IS_DESKTOP_APP && (
             <StudentOfflinePracticeDownload onToast={showToast} />
           )}
           {labsError && (
@@ -1018,6 +1053,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               onNavigate={() => navigate(ROUTES.studentDashboard)}
               inCurrentTerm={inCurrentTerm}
             />
+          ) : showRanking ? (
+            <StudentRankingPage user={user} inCurrentTerm={inCurrentTerm} />
           ) : (
             <StudentUI
               user={user}

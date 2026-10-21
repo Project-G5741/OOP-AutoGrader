@@ -9,7 +9,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
-| `StudentUI.jsx` | Student lab upload + result tabs; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
+| `StudentUI.jsx` | Student lab upload + result tabs; selected-lab header shows an Official or Practice badge; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; unread items show a red dot on the row and on the bell; click a list item to mark that notification read (sessionStorage `oop-student-notif-read`); opening the bell alone does not mark read. Loads `GET /api/feedback/replies` (skipped in desktop) as `Re: Bug Report` / `Re: Contribution`. On `pagehide` (and logout via `App.jsx`) calls `DELETE /api/feedback/replies` for shown reply ids so those feedback rows are hard-deleted |
 | `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) header mascot. Sprite sheets in `frontend/public/mascots/`. `mascotId` selects fox (starter) or a purchased bear, panda, penguin, bunny, or cat. `coverEyes` shows the **bashful** reaction with a short squash animation. The header button pets it (daily mission, 4 pets) |
@@ -59,7 +59,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ### Lab list layout (`StudentUI.jsx`)
 
-- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, countdown badge). The badge shows on the deadline calendar day and the two Vietnam days before it, counting the deadline day through 23:59:59: deadline 22/10 is **3 days** on 20/10, **2 days** on 21/10, **1 day** on 22/10. Chip color steps amber (3) → solid amber (2) → red (1) via `Badge` variants `deadline-3` / `deadline-2` / `deadline-1`. The same count is on the main header (`due {date} · N day(s) left`) and in the notification bell (`N days until deadline`, or due today on the deadline date). Expired labs show the **Expired** badge only.
 - Right: `SidebarInset` — selected-lab header (includes **Enrolled Quarter:** `{quarterName}` when the parent passes a current-quarter label), notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 - Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
@@ -92,7 +92,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ## Verification
 
-- Manual: log in as student, toggle history view, open profile modal
+- Manual: log in as student, use the Home / History / Ranking bar (same control as the lecturer nav), open the account menu for Change Password and Logout
 - Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
 - Offline practice: web — **Download practice folder** (browser-native download of prebuilt runtime-only zip; lecturers distribute packs); desktop — **Import rubric pack** then **Okay** (app closes and relaunches); see `docs/DESKTOP_STUDENT_DIST.md`

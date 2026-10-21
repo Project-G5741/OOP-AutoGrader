@@ -21,6 +21,7 @@ import com.eiu.capstone.backend.analytics.dto.GradeOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.SolutionBootstrapResponse;
 import com.eiu.capstone.backend.analytics.dto.UsersBootstrapResponse;
+import com.eiu.capstone.backend.analytics.dto.WeeklyRankingBoardResponse;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -46,6 +47,7 @@ public class LecturerTabBootstrapService {
     private final MasterDataRepository masterDataRepository;
     private final LabStructureService labStructureService;
     private final ChallengeService challengeService;
+    private final WeeklyRankingService weeklyRankingService;
     private final ExecutorService lecturerBootstrapExecutor;
 
     public LecturerTabBootstrapService(
@@ -58,6 +60,7 @@ public class LecturerTabBootstrapService {
             MasterDataRepository masterDataRepository,
             LabStructureService labStructureService,
             ChallengeService challengeService,
+            WeeklyRankingService weeklyRankingService,
             @Qualifier("lecturerBootstrapExecutor") ExecutorService lecturerBootstrapExecutor) {
         this.lecturerAnalyticsService = lecturerAnalyticsService;
         this.analyticsService = analyticsService;
@@ -68,6 +71,7 @@ public class LecturerTabBootstrapService {
         this.masterDataRepository = masterDataRepository;
         this.labStructureService = labStructureService;
         this.challengeService = challengeService;
+        this.weeklyRankingService = weeklyRankingService;
         this.lecturerBootstrapExecutor = lecturerBootstrapExecutor;
     }
 
@@ -77,6 +81,10 @@ public class LecturerTabBootstrapService {
 
     public GradeOverviewResponse score() {
         return lecturerAnalyticsService.getGradeOverview(0, SCORE_PAGE_SIZE, "studentName,asc", null);
+    }
+
+    public WeeklyRankingBoardResponse ranking() {
+        return weeklyRankingService.currentLiveBoard();
     }
 
     public List<SolutionBootstrapResponse.LabItem> gradingLabs() {

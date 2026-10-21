@@ -16,7 +16,8 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: lab sidebar, upload, stats; toggles history; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit and history views |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking), lab sidebar, upload, stats; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit, history, and ranking views |
+| `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
@@ -40,8 +41,10 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-solution` | LECTURER | Solution Management |
 | `/lecturer-report` | LECTURER | Reports |
 | `/lecturer-feedback` | LECTURER | Feedback inbox |
+| `/lecturer-ranking` | LECTURER | Weekly ranking board |
 | `/student-dashboard` | STUDENT | Student main |
 | `/student-history` | STUDENT | Student history |
+| `/student-ranking` | STUDENT | Weekly ranking board (web only; empty rows when out of term) |
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 | `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
 
@@ -53,6 +56,7 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 |---|---|---|
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` from the overview payload | First paint: `GET /api/lecturer/bootstrap/dashboard` (fresh overview). Secondary: labs list, `/api/labs/{id}/statistics`, submissions, plagiarism flags |
 | `score` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | First paint: `GET /api/lecturer/bootstrap/score`. Sort/search/page: `GET /api/lecturer/grade-overview` |
+| `ranking` | Live weekly `RankingBoard` | First paint: `GET /api/lecturer/bootstrap/ranking` |
 | `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list) |
 | `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` (full account list — client search/stats; not paged like Score) |
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
@@ -62,16 +66,27 @@ Dual-role users land on `/lecturer-dashboard` after login; student routes remain
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
+### Student navigation (`NavBar`)
+
+Same bar and buttons as the lecturer shell, on its own row under the header. Student items align to the start (`navAlign="start"`) and stay visible without a hamburger (`navCollapse={false}`). `StudentDashboard` passes `navItems`. The avatar menu does not repeat these links (`hideSectionLinks`).
+
+| Item | Route | Shown when |
+|---|---|---|
+| Home | `/student-dashboard` | Enrolled in the current quarter |
+| History | `/student-history` | Always |
+| Ranking | `/student-ranking` | Web, and enrolled in the current quarter |
+
 ### Student in-dashboard sections
 
 | State | Renders | API |
 |---|---|---|
 | `showHistory === false` | Main dashboard (left lab list + right upload/stats/results). Header shows **Enrolled Quarter:** from `GET /api/students/term-access` `quarterName` | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` + `my-labs` (all quarters, `termLabel` on each lab/submission) |
+| `view === 'ranking'` | `StudentRankingPage` | `GET /api/students/ranking/current` (web). Top 20, 10 per page; **Your ranking** under the table. Out-of-term: empty rows |
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** in the avatar menu (`hideHistory`); student shell may hide **Home** when out of term (`hideHome`). Desktop practice build hides **Change Password** (`hideChangePassword`) — local synthetic session has no password change API. **Logout** is the last account-menu item, under Change Password. The student header shop button shows the point balance and opens the mascot shop.
+Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build hides **Change Password** and omits Ranking from the nav. **Logout** is the last account-menu item, under Change Password. The student header shop button shows the point balance and opens the mascot shop.
 
 ### API endpoints used from pages
 
@@ -90,6 +105,8 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `POST /api/users/{id}/unsuspend` | `UserManagement.jsx`, `TermManagement.jsx` — restores login |
 | `GET /api/labs/list` | `StudentDashboard.jsx` (student JWT; current-term labs only, with embedded challenges + attempt stats; skipped when out of term) |
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
+| `GET /api/students/ranking/current` | `StudentRankingPage.jsx` |
+| `GET /api/lecturer/bootstrap/ranking` | `LecturerDashboard.jsx` (`activeNav === 'ranking'`) |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
@@ -117,6 +134,7 @@ Shared: `home`, `history`, `changePassword` (opens `ChangePasswordModal`). Lectu
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
 | `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
+| `PATCH /api/lecturer/labs/{labId}/prefix` | `SolutionManagement.jsx` — header control beside Live/Hidden; changing it PATCHes immediately. Official counts in Score Total; Practice stays a Score column and is left out of Total |
 | `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenge ids sent as `replacedChallengeIds` on structure PUT (server wipes OT + rebuilds those challenges) |
 | `POST /api/feedback/create` | `FeedbackForm.jsx` (AppShell FAB) |
 | `GET /api/lecturer/feedback/list` | `FeedbackInbox.jsx` |

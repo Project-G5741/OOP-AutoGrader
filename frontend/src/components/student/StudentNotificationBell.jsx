@@ -33,6 +33,7 @@ function persistReadIds(ids) {
 export default function StudentNotificationBell({
   labs = [],
   labSummariesById = {},
+  now = new Date(),
   className = '',
 }) {
   const [open, setOpen] = useState(false);
@@ -42,7 +43,7 @@ export default function StudentNotificationBell({
   const feedbackRepliesRef = useRef(feedbackReplies);
   feedbackRepliesRef.current = feedbackReplies;
 
-  const labNotifications = buildStudentNotifications(labs, labSummariesById);
+  const labNotifications = buildStudentNotifications(labs, labSummariesById, now);
   const replyNotifications = buildFeedbackReplyNotifications(feedbackReplies);
   const notifications = [...replyNotifications, ...labNotifications];
 

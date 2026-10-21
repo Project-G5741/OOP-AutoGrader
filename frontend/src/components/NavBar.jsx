@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'score', label: 'Score', icon: Table2 },
+  { id: 'ranking', label: 'Ranking', icon: Trophy },
   { id: 'grading', label: 'Grading', icon: ClipboardList },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'terms', label: 'Quarters', icon: CalendarDays },
@@ -40,9 +41,16 @@ function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWid
   );
 }
 
-export default function NavBar({ active, onNavigate, onPrefetch }) {
+export default function NavBar({
+  active,
+  onNavigate,
+  onPrefetch,
+  items = navItems,
+  align = 'end',
+  collapse = true,
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const activeItem = navItems.find((item) => item.id === active) ?? navItems[0];
+  const activeItem = items.find((item) => item.id === active) ?? items[0];
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -58,9 +66,11 @@ export default function NavBar({ active, onNavigate, onPrefetch }) {
     onNavigate?.(id);
   };
 
+  const rowAlign = align === 'start' ? 'justify-start' : 'justify-end';
+
   return (
     <div className="relative w-full min-w-0 rounded-2xl border border-border bg-surface px-3 py-3 sm:px-6">
-      {/* Mobile / tablet: hamburger menu */}
+      {collapse && (
       <div className="flex items-center justify-between gap-3 lg:hidden">
         <button
           type="button"
@@ -78,8 +88,9 @@ export default function NavBar({ active, onNavigate, onPrefetch }) {
           <span className="truncate text-sm font-semibold text-foreground">{activeItem.label}</span>
         </div>
       </div>
+      )}
 
-      {menuOpen && (
+      {collapse && menuOpen && (
         <>
           <button
             type="button"
@@ -92,7 +103,7 @@ export default function NavBar({ active, onNavigate, onPrefetch }) {
             className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-2xl border border-border bg-surface p-2 shadow-lg lg:hidden"
           >
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-              {navItems.map(({ id, label, icon }) => (
+              {items.map(({ id, label, icon }) => (
                 <NavButton
                   key={id}
                   id={id}
@@ -109,9 +120,8 @@ export default function NavBar({ active, onNavigate, onPrefetch }) {
         </>
       )}
 
-      {/* Desktop: inline navigation */}
-      <nav className="hidden w-full flex-wrap items-center justify-end gap-2 lg:flex">
-        {navItems.map(({ id, label, icon }) => (
+      <nav className={`w-full flex-wrap items-center gap-2 ${rowAlign} ${collapse ? 'hidden lg:flex' : 'flex'}`}>
+        {items.map(({ id, label, icon }) => (
           <NavButton
             key={id}
             id={id}
