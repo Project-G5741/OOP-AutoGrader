@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +52,52 @@ class TestcaseGraderTest {
 
         assertEquals(0, result.pillarPercentage().compareTo(BigDecimal.ZERO));
         assertTrue(result.results().isEmpty());
+    }
+
+    @Test
+    void missingJava_failsWithoutInvoking() throws Exception {
+        Path classesDir = Files.createTempDirectory("no-java-classes");
+        UUID invocationId = UUID.randomUUID();
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "new student",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                new InvocationRubric(
+                        invocationId,
+                        InvocationKind.CONSTRUCTOR,
+                        UUID.randomUUID(),
+                        null,
+                        "Student",
+                        null,
+                        List.of(),
+                        "[]",
+                        null,
+                        null,
+                        List.of(),
+                        null),
+                List.of(),
+                List.of());
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Challenge 1",
+                List.of(),
+                List.of(),
+                List.of(testcase));
+        ChallengeGradingContext context = ChallengeGradingContext.of(rubric, classesDir, null, List.of());
+
+        TestcaseGrader.TestcasePillarResult result = new TestcaseGrader(null, null, null, null).grade(context);
+        Files.deleteIfExists(classesDir);
+
+        assertEquals(0, result.pillarPercentage().compareTo(BigDecimal.ZERO));
+        assertEquals(1, result.results().size());
+        assertEquals(TestcaseResultStatus.FAILED, result.results().get(0).status());
+        assertEquals(TestcaseGrader.NO_COMPILED_CLASSES_FEEDBACK, result.results().get(0).feedback());
+        assertEquals(TestcaseGrader.NO_COMPILED_CLASSES_FEEDBACK, result.results().get(0).actualDisplay());
     }
 
     @Test

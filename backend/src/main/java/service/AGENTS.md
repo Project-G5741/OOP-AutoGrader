@@ -131,7 +131,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
 - Invalid upload structure / I/O setup failures may still use `SubmissionProcessingException` (`GlobalExceptionHandler` HTTP 422). Mixed javac keeps survivors and records `ChallengeCompileErrors`; lecturer dry-run mixed compile returns preview ERROR DTOs — do not throw HTTP 422 for javac diagnostics
-- MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0` so grading records 0% for that challenge
+- MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0`. Class reflection scores 0% for that challenge. Operational testcases on it are recorded as failed and are not invoked.
 - `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle
 - Auth service changes affect both `AuthController` and `SubmissionController` JWT parsing

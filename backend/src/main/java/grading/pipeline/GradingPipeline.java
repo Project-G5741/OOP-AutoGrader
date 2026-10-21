@@ -43,7 +43,7 @@ public class GradingPipeline {
         this.timingLog = timingLog;
     }
 
-    /** Grades one challenge without a shared worker session (operational testcases deferred). */
+    /** Grades one challenge. With no worker session, operational testcases still record a result when they can fail without invoke. */
     public ChallengePipelineResult gradeChallenge(
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
@@ -61,8 +61,11 @@ public class GradingPipeline {
         if (phase == null) {
             return null;
         }
-        if (!phase.testcaseApplicable() || workerSession == null) {
+        if (!phase.testcaseApplicable()) {
             return toPipelineResult(phase, TestcaseGrader.TestcasePillarResult.empty(), phase.context());
+        }
+        if (workerSession == null) {
+            return toPipelineResult(phase, testcaseGrader.grade(phase.context()), phase.context());
         }
         return completeOperationalTestcases(phase, workerSession);
     }
