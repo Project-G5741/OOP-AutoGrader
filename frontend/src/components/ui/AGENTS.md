@@ -22,6 +22,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
 | `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`, `deadline-3`, `deadline-2`, `deadline-1`) |
+| `LabPrefixBadge.jsx` | Official (`default`) or Practice (`outline`) lab badge. Unknown or missing prefix displays as Official |
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |

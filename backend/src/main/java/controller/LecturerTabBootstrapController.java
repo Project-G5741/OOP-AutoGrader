@@ -13,6 +13,7 @@ import com.eiu.capstone.backend.analytics.dto.GradeOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.SolutionBootstrapResponse;
 import com.eiu.capstone.backend.analytics.dto.UsersBootstrapResponse;
+import com.eiu.capstone.backend.analytics.dto.WeeklyRankingBoardResponse;
 import com.eiu.capstone.backend.analytics.service.LecturerTabBootstrapService;
 
 /**
@@ -36,6 +37,11 @@ public class LecturerTabBootstrapController {
     @GetMapping("/score")
     public ResponseEntity<GradeOverviewResponse> score() {
         return ResponseEntity.ok(bootstrapService.score());
+    }
+
+    @GetMapping("/ranking")
+    public ResponseEntity<WeeklyRankingBoardResponse> ranking() {
+        return ResponseEntity.ok(bootstrapService.ranking());
     }
 
     @GetMapping("/grading")

@@ -8,4 +8,12 @@ public record DesktopPackLabMeta(
         String name,
         boolean studentVisible,
         LocalDate releaseDate,
-        LocalDate deadlineDate) {}
+        LocalDate deadlineDate,
+        String prefix) {
+
+    public DesktopPackLabMeta {
+        if (prefix == null || prefix.isBlank()) {
+            prefix = "Official";
+        }
+    }
+}

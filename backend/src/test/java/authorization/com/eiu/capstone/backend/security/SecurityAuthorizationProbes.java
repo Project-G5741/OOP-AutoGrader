@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +34,11 @@ final class SecurityAuthorizationProbes {
             return "ok";
         }
 
+        @GetMapping("/ranking/current")
+        String ranking() {
+            return "ok";
+        }
+
         @PostMapping("/labs/{labId}/bulk-grade")
         String bulkGrade(@PathVariable UUID labId) {
             return "ok";
@@ -40,6 +46,11 @@ final class SecurityAuthorizationProbes {
 
         @PostMapping("/labs/{labId}/solution-import")
         String solutionImport(@PathVariable UUID labId) {
+            return "ok";
+        }
+
+        @PatchMapping("/labs/{labId}/prefix")
+        String prefix(@PathVariable UUID labId) {
             return "ok";
         }
     }
@@ -86,6 +97,11 @@ final class SecurityAuthorizationProbes {
     static class StudentProbeController {
         @GetMapping("/desktop-practice-bundle")
         String desktopPracticeBundle() {
+            return "ok";
+        }
+
+        @GetMapping("/ranking/current")
+        String ranking() {
             return "ok";
         }
     }

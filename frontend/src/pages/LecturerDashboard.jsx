@@ -11,6 +11,7 @@ import ReportsPage from './Reports';
 import FeedbackInbox from './FeedbackInbox';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
+import RankingBoard from '../components/ranking/RankingBoard';
 import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverviewSubmissionHistory';
 import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
@@ -179,6 +180,9 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [challengesLabId, setChallengesLabId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [overviewDetail, setOverviewDetail] = useState(null);
+  const [rankingBoard, setRankingBoard] = useState({ weekStart: null, weekEnd: null, rows: [] });
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [rankingError, setRankingError] = useState(null);
 
   const clearLabDetailState = useCallback(() => {
     setSelectedLabId(null);
@@ -516,6 +520,33 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
 
+  const fetchRanking = useCallback(async ({ fresh = false } = {}) => {
+    setLoadingRanking(true);
+    setRankingError(null);
+    try {
+      if (fresh) {
+        invalidateLecturerBootstrap('ranking');
+      }
+      const data = await getOrFetchLecturerBootstrap('ranking', bootstrapJson, { fresh: true });
+      setRankingBoard({
+        weekStart: data.weekStart ?? null,
+        weekEnd: data.weekEnd ?? null,
+        rows: Array.isArray(data.rows) ? data.rows : [],
+      });
+    } catch (err) {
+      setRankingBoard({ weekStart: null, weekEnd: null, rows: [] });
+      setRankingError(toFriendlyError(err, 'read'));
+    } finally {
+      setLoadingRanking(false);
+    }
+  }, [bootstrapJson]);
+
+  useEffect(() => {
+    if (activeNav === 'ranking') {
+      fetchRanking();
+    }
+  }, [activeNav, fetchRanking]);
+
   useEffect(() => {
     if (selectedLabId) {
       setActiveTab('overview');
@@ -839,7 +870,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         activeNav={activeNav}
         onNavigate={handleNavChange}
         onCommand={handleShellCommand}
-        className={activeNav === 'score' ? 'flex min-h-0 flex-col' : ''}
+        className={activeNav === 'score' || activeNav === 'ranking' ? 'flex min-h-0 flex-col' : ''}
       >
         {isInitialLoading ? (
           <LoadingSpinner />
@@ -1063,6 +1094,32 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
                 </div>
               </div>
+            </DashboardSection>
+          </div>
+        ) : activeNav === 'ranking' ? (
+          <div className="flex max-w-full min-h-0 flex-1 flex-col">
+            <DashboardSection
+              title="Ranking"
+              className="flex min-h-0 flex-1 flex-col"
+              contentClassName="flex min-h-0 flex-1 flex-col gap-4"
+              actions={
+                <button
+                  onClick={() => fetchRanking({ fresh: true })}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
+                  title="Refresh"
+                  type="button"
+                >
+                  <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingRanking ? 'animate-spin' : ''}`} />
+                </button>
+              }
+            >
+              <RankingBoard
+                weekStart={rankingBoard.weekStart}
+                weekEnd={rankingBoard.weekEnd}
+                rows={rankingBoard.rows}
+                loading={loadingRanking}
+                error={rankingError}
+              />
             </DashboardSection>
           </div>
         ) : activeNav === 'score' ? (

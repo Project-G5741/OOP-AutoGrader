@@ -11,4 +11,5 @@ public record LabStructureResponse(
         LocalDate deadlineDate,
         boolean studentVisible,
         LocalDate releaseDate,
+        String prefix,
         List<ChallengeStructureDTO> challenges) {}

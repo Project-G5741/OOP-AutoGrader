@@ -103,6 +103,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
 | `docs/sql/2026-10-20-student-daily-streak.sql` | Operator-run: `student_daily_streak` (daily missions, streak, reward points). Startup migrator applies the same `CREATE TABLE IF NOT EXISTS` on PostgreSQL |
 | `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
+| `docs/sql/2026-10-21-weekly-ranking-payout.sql` | Operator-run: `weekly_ranking_week` + `weekly_ranking_entry` (Sunday freeze ledger). Startup migrator applies the same statements on PostgreSQL |
+| `docs/sql/2026-10-21-lab-prefix.sql` | Operator-run: `lab.prefix` (`Official` or `Practice`, default `Official`). Startup migrator applies the same `ADD COLUMN IF NOT EXISTS` on PostgreSQL |
 
 ### Project facts
 

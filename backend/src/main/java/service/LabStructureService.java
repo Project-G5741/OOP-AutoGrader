@@ -29,6 +29,7 @@ import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabPrefixRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
@@ -45,6 +46,7 @@ import com.eiu.capstone.backend.model.ConstructorDeclaration;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.FieldDeclaration;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.LabPrefix;
 import com.eiu.capstone.backend.model.MasterData;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
@@ -156,10 +158,7 @@ public class LabStructureService {
         UUID labId = lab.getId();
         List<Challenge> challenges = challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId);
         if (challenges.isEmpty()) {
-            return new LabStructureResponse(
-                    lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
-                    lab.isStudentVisible(), lab.getReleaseDate(),
-                    List.of());
+            return labResponse(lab, List.of());
         }
 
         List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
@@ -209,10 +208,7 @@ public class LabStructureService {
                         relationsByChallenge.getOrDefault(challenge.getId(), List.of())))
                 .toList();
 
-        return new LabStructureResponse(
-                lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
-                lab.isStudentVisible(), lab.getReleaseDate(),
-                challengeDtos);
+        return labResponse(lab, challengeDtos);
     }
 
     private LabStructureGraphLoader.MemberWave loadMemberWaveSerial(List<ClassEntity> classes) {
@@ -379,7 +375,6 @@ public class LabStructureService {
         labStatisticsCache.invalidate(labId);
 
         rubricCacheInvalidationSupport.invalidateLab(labId);
-        String labName = lab.getName();
         List<ChallengeStructureDTO> savedChallenges = challengePayloads.stream()
                 .map(dto -> {
                     Challenge saved = dto.id() != null ? ctx.challengesById.get(dto.id()) : null;
@@ -404,10 +399,7 @@ public class LabStructureService {
                 "load", loadMs,
                 "sync", syncMs,
                 "total", System.currentTimeMillis() - startedAt);
-        return new LabStructureResponse(
-                labId, labName, lab.getTerm().getId(), lab.getDeadlineDate(),
-                lab.isStudentVisible(), lab.getReleaseDate(),
-                savedChallenges);
+        return labResponse(lab, savedChallenges);
     }
 
     @Transactional
@@ -429,6 +421,22 @@ public class LabStructureService {
         }
         labRepository.save(lab);
         return buildLabStructureResponse(lab);
+    }
+
+    @Transactional
+    public LabStructureResponse updateLabPrefix(UUID labId, UpdateLabPrefixRequest request) {
+        Lab lab = labRepository.findById(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        lab.setPrefix(LabPrefix.require(request == null ? null : request.prefix()));
+        labRepository.save(lab);
+        return buildLabStructureResponse(lab);
+    }
+
+    private static LabStructureResponse labResponse(Lab lab, List<ChallengeStructureDTO> challenges) {
+        return new LabStructureResponse(
+                lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
+                lab.isStudentVisible(), lab.getReleaseDate(), lab.getPrefix(),
+                challenges);
     }
 
     private SaveContext loadSaveContext(UUID labId) {
@@ -683,10 +691,7 @@ public class LabStructureService {
         LocalDate deadline = request.deadlineDate() != null ? request.deadlineDate() : term.getEndDate();
         lab.setDeadlineDate(deadline);
         lab = labRepository.save(lab);
-        return new LabStructureResponse(
-                lab.getId(), lab.getName(), term.getId(), lab.getDeadlineDate(),
-                lab.isStudentVisible(), lab.getReleaseDate(),
-                List.of());
+        return labResponse(lab, List.of());
     }
 
     @Transactional

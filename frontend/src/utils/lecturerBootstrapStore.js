@@ -7,6 +7,7 @@
 const TAB_PATHS = {
   dashboard: '/api/lecturer/bootstrap/dashboard',
   score: '/api/lecturer/bootstrap/score',
+  ranking: '/api/lecturer/bootstrap/ranking',
   grading: '/api/lecturer/bootstrap/grading',
   users: '/api/lecturer/bootstrap/users',
   terms: '/api/lecturer/bootstrap/quarters',

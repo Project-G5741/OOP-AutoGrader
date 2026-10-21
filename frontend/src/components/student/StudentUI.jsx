@@ -15,6 +15,7 @@ import DropZone from '../ui/DropZone';
 import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
+import LabPrefixBadge from '../ui/LabPrefixBadge';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 import { formatMmdRelationType, firstCompileErrorLine, formatStudentTestcaseMessage } from '../../utils/formatters';
 import {
@@ -354,9 +355,16 @@ export default function StudentUI({
                 Enrolled Quarter: <span className="font-medium text-foreground">{quarterName}</span>
               </p>
             ) : null}
-            <p className="truncate text-sm font-semibold text-foreground">
-              {selectedLab?.name ?? 'Select a lab'}
-            </p>
+            <div className="min-w-0">
+              {selectedLab ? (
+                <div className="flex justify-end">
+                  <LabPrefixBadge prefix={selectedLab.prefix} />
+                </div>
+              ) : null}
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedLab?.name ?? 'Select a lab'}
+              </p>
+            </div>
             {selectedLab?.deadlineDate && (
               <p className="truncate text-xs text-foreground-muted">
                 {formatLabDeadlineMeta(selectedLab, { now })}

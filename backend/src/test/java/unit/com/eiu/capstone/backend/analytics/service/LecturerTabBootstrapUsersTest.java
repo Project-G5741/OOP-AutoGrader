@@ -45,6 +45,7 @@ class LecturerTabBootstrapUsersTest {
                 null,
                 null,
                 null,
+                null,
                 Executors.newSingleThreadExecutor());
 
         UsersBootstrapResponse response = service.users();

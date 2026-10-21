@@ -29,6 +29,10 @@ public class Lab {
     @Column(name = "release_date")
     private LocalDate releaseDate;
 
+    /** Official or Practice. New and cloned labs stay Official unless a lecturer changes it. */
+    @Column(name = "prefix", nullable = false, length = 16, columnDefinition = "varchar(16) not null default 'Official'")
+    private String prefix = LabPrefix.OFFICIAL;
+
     public Lab() {}
 
     public UUID getId() { return id; }
@@ -48,4 +52,7 @@ public class Lab {
 
     public LocalDate getReleaseDate() { return releaseDate; }
     public void setReleaseDate(LocalDate releaseDate) { this.releaseDate = releaseDate; }
+
+    public String getPrefix() { return prefix; }
+    public void setPrefix(String prefix) { this.prefix = prefix; }
 }

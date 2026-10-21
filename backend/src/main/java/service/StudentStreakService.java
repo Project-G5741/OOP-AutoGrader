@@ -87,6 +87,16 @@ public class StudentStreakService {
         return repository.save(row);
     }
 
+    @Transactional
+    public void addPoints(UUID userId, int amount) {
+        if (userId == null || amount <= 0) {
+            return;
+        }
+        StudentStreak row = locked(userId);
+        row.setPoints(row.getPoints() + amount);
+        repository.save(row);
+    }
+
     private StudentStreak locked(UUID userId) {
         entityManager.createNativeQuery("""
                 INSERT INTO student_daily_streak (
