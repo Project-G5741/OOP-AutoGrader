@@ -23,6 +23,7 @@ export default function AppShell({
   hideHistory = false,
   hideChangePassword = false,
   headerAddon = null,
+  headerBeforeUserMenu = null,
   headerUserSlot = null,
 }) {
   return (
@@ -39,6 +40,7 @@ export default function AppShell({
             hideHistory={hideHistory}
             hideChangePassword={hideChangePassword}
             headerAddon={headerAddon}
+            headerBeforeUserMenu={headerBeforeUserMenu}
             headerUserSlot={headerUserSlot}
           />
         </div>

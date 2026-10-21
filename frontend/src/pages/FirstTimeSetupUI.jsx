@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
+import PasswordStrengthField from '../components/ui/PasswordStrengthField';
 import Footer from '../components/Footer';
 import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
@@ -14,7 +15,6 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,27 +143,15 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                 ) : null}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Set Password <span className="text-primary">*</span></label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-disabled" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setFormError('');
-                    }}
-                    onBlur={() => handleFieldBlur('password')}
-                    placeholder="Create a password"
-                    className={`w-full pl-10 pr-10 py-2.5 bg-surface-secondary border rounded-lg text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.password)}`}
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-disabled">
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {fieldErrors.password && <p className="mt-1 text-xs text-error">{fieldErrors.password}</p>}
-              </div>
+              <PasswordStrengthField
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFormError('');
+                }}
+                onBlur={() => handleFieldBlur('password')}
+                error={fieldErrors.password}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Confirm Password <span className="text-primary">*</span></label>

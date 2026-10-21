@@ -209,6 +209,11 @@ A named semantic color role (primary, secondary, success, surface, etc.) whose h
 ### Theme preference
 The user's light or dark mode choice. First visit follows OS `prefers-color-scheme`; an explicit toggle persists in `localStorage` and overrides system preference on later visits. `ThemeContext` applies the `dark` class on `<html>` for the whole app including auth screens.
 
+## Daily streak
+
+### Daily streak
+A student header flame that tracks one Vietnam calendar day. The day counts when the student has opened the page, submitted 3 times, and petted the fox 4 times. That completion adds 1 to the streak and `50 + 5 * (streak / 5)` reward points, so the bonus from each block of 5 days stays on later days (day 101 pays 150, not 50). A missed day pauses the streak. Restore continues the saved streak once per calendar month. Points are the currency for the mascot shop: Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. Fox is included. A purchase deducts the price in one transaction and equips that mascot.
+
 ## Feedback
 
 ### Feedback item

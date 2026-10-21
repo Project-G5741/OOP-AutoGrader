@@ -16,6 +16,7 @@ export default function Header({
   hideHistory = false,
   hideChangePassword = false,
   headerAddon = null,
+  headerBeforeUserMenu = null,
   headerUserSlot = null,
 }) {
   const { isDark, toggleTheme } = useTheme();
@@ -67,14 +68,6 @@ export default function Header({
             </span>
           ))}
           <button
-            onClick={onLogout}
-            className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:flex"
-            type="button"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
-          <button
             onClick={toggleTheme}
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:h-auto sm:w-auto sm:min-h-11 sm:min-w-[120px] sm:justify-between sm:px-3 sm:py-2"
@@ -86,6 +79,7 @@ export default function Header({
             </span>
           </button>
 
+          {headerBeforeUserMenu}
           {!hideUserMenu && (
             <div ref={menuRef} className="relative">
               <button
@@ -140,6 +134,16 @@ export default function Header({
                       <Lock className="h-4 w-4" /> Change Password
                     </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(false);
+                        onLogout?.();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary"
+                    >
+                      <LogOut className="h-4 w-4" /> Logout
+                    </button>
                   </div>
                 </div>
               )}
