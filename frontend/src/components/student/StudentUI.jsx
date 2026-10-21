@@ -208,6 +208,7 @@ export default function StudentUI({
   const [expandedTC, setExpandedTC] = useState(null);
   const [expandedClassName, setExpandedClassName] = useState(null);
   const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
+  const [now, setNow] = useState(() => new Date());
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
@@ -215,6 +216,11 @@ export default function StudentUI({
     setExpandedClassName(null);
     setHiddenTestcasesPage(0);
   }, [selectedChallengeId]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
   const effectiveClassNormalizationNotice =
@@ -336,6 +342,7 @@ export default function StudentUI({
         labs={labs}
         selectedLabId={selectedLabId}
         onSelectLab={onLabChange}
+        now={now}
       />
       <SidebarInset>
         <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
@@ -352,13 +359,14 @@ export default function StudentUI({
             </p>
             {selectedLab?.deadlineDate && (
               <p className="truncate text-xs text-foreground-muted">
-                {formatLabDeadlineMeta(selectedLab)}
+                {formatLabDeadlineMeta(selectedLab, { now })}
               </p>
             )}
           </div>
           <StudentNotificationBell
             labs={labs}
             labSummariesById={labSummariesById}
+            now={now}
           />
         </header>
 
