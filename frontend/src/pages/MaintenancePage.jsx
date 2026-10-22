@@ -1,58 +1,73 @@
-import { useEffect, useRef } from 'react';
-import { Construction } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import AppLogo from '../components/ui/AppLogo';
-import LoginBackground from '../components/ui/LoginBackground';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
-import './LoginUI.css';
+import Login from './Login';
+import './MaintenancePage.css';
 
-export default function MaintenancePage() {
+export default function MaintenancePage({
+  onLoginSuccess,
+  loginMessage,
+  onDismissLoginMessage,
+}) {
   const headingRef = useRef(null);
+  const [showLecturerLogin, setShowLecturerLogin] = useState(false);
 
   useEffect(() => {
     headingRef.current?.focus();
-  }, []);
+  }, [showLecturerLogin]);
+
+  if (showLecturerLogin && onLoginSuccess) {
+    return (
+      <Login
+        onLoginSuccess={onLoginSuccess}
+        loginMessage={loginMessage}
+        onDismissLoginMessage={onDismissLoginMessage}
+        onBack={() => setShowLecturerLogin(false)}
+      />
+    );
+  }
 
   return (
-    <div className="login-root">
-      <div className="login-bg">
-        <LoginBackground />
-        <ThemeToggle className="theme-toggle" />
+    <div className="mnt">
+      <ThemeToggle className="mnt-toggle" />
 
-        <div className="login-card-wrapper">
-          <div className="logo-title">
-            <AppLogo variant="login" />
-            <h1 className="main-title">{brand.loginTitle}</h1>
+      <main className="mnt-shell">
+        <div className="mnt-copy">
+          <div className="mnt-brand">
+            <AppLogo variant="header" />
+            <p className="mnt-brand-name">{brand.appName}</p>
           </div>
 
-          <div className="card" role="status">
-            <div className="setup-card" style={{ marginBottom: '1rem' }}>
-              <span className="setup-icon">
-                <Construction className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="setup-title">Under maintenance</p>
-                <p className="setup-copy">
-                  The site is locked until this window ends. Sign-in and grading are paused.
-                </p>
-              </div>
-            </div>
-
-            <h2
-              ref={headingRef}
-              tabIndex={-1}
-              className="main-title"
-              style={{ fontSize: '1.35rem', textAlign: 'center', outline: 'none' }}
+          <p className="mnt-kicker">Site under maintenance</p>
+          <h1 ref={headingRef} tabIndex={-1} className="mnt-title">
+            We&apos;ll be back soon
+          </h1>
+          <p className="mnt-body" role="status">
+            Student access is paused while we finish scheduled work. Lecturers can
+            still sign in to manage the course.
+          </p>
+          {onLoginSuccess && (
+            <button
+              type="button"
+              className="mnt-lecturer-btn"
+              onClick={() => setShowLecturerLogin(true)}
             >
-              We&apos;ll be back soon
-            </h2>
-            <p className="info-text" style={{ marginTop: '0.75rem' }}>
-              OOP AutoGrader is temporarily unavailable while we finish maintenance.
-              Please try again later. You do not need to sign in during this time.
-            </p>
-          </div>
+              Lecturer sign in
+            </button>
+          )}
         </div>
-      </div>
+
+        <div className="mnt-art" aria-hidden="true">
+          <span className="mnt-art-glow" />
+          <img
+            src="/maintenance/maintenance-hero.jpg"
+            alt=""
+            width={1024}
+            height={1024}
+          />
+        </div>
+      </main>
     </div>
   );
 }

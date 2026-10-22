@@ -7,6 +7,7 @@ function envIsOn(value) {
 /**
  * Build-time lock for the web SPA. Desktop practice (`VITE_APP_MODE=desktop`)
  * never enters this gate. Vite inlines `VITE_*` and `NEXT_PUBLIC_*` at build.
+ * Lecturers (including dual-role) bypass the lock after sign-in.
  */
 export function isWebMaintenanceMode() {
   if (import.meta.env.VITE_APP_MODE === 'desktop') {
