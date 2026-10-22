@@ -14,6 +14,7 @@ export const ROUTES = {
   studentRanking: '/student-ranking',
   noAccess: '/no-access',
   rateLimited: '/rate-limited',
+  staffLogin: '/staff',
 };
 
 const ACCESS_TOKEN_KEY = 'accessToken';

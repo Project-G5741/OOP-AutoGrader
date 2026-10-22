@@ -51,7 +51,7 @@ You can also run them separately:
 
 - `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID
 - `VITE_API_URL` — backend URL (default `http://localhost:8002`)
-- `VITE_MAINTENANCE_MODE` — web lock (`true` shows `MaintenancePage` for guests and students and clears student-only sessions; lecturers can sign in and use the app). Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at build; Vercel needs a Redeploy after a change. Desktop builds ignore it.
+- `VITE_MAINTENANCE_MODE` — web lock (`true` shows `MaintenancePage` for guests and students and clears student-only sessions; lecturers sign in at `/staff`, not from a button on the maintenance page). Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at build; Vercel needs a Redeploy after a change. Desktop builds ignore it.
 
 **Backend** (`backend/.env`, loaded by `application.yml`):
 

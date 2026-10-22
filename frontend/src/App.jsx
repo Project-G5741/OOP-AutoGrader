@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -47,6 +47,7 @@ function AuthenticatedLanding({ user }) {
 export default function App() {
   const initialResetToken = useMemo(() => readResetTokenFromUrl(), []);
   const navigate = useNavigate();
+  const location = useLocation();
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [loginMessage, setLoginMessage] = useState(null);
   const sessionUser = readStoredUser();
@@ -106,15 +107,19 @@ export default function App() {
   }
 
   if (isWebMaintenanceMode() && !lecturerCanEnter) {
-    return (
-      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-        <MaintenancePage
-          onLoginSuccess={handleLoginSuccess}
-          loginMessage={loginMessage}
-          onDismissLoginMessage={() => setLoginMessage(null)}
-        />
-      </GoogleOAuthProvider>
-    );
+    if (location.pathname === ROUTES.staffLogin) {
+      return (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <Login
+            onLoginSuccess={handleLoginSuccess}
+            loginMessage={loginMessage}
+            onDismissLoginMessage={() => setLoginMessage(null)}
+            onBack={() => navigate(ROUTES.login)}
+          />
+        </GoogleOAuthProvider>
+      );
+    }
+    return <MaintenancePage />;
   }
 
   if (resetToken && !sessionUser) {
@@ -266,6 +271,16 @@ export default function App() {
           />
 
           <Route path={ROUTES.rateLimited} element={<RateLimitedPage />} />
+          <Route
+            path={ROUTES.staffLogin}
+            element={
+              sessionUser ? (
+                <AuthenticatedLanding user={sessionUser} />
+              ) : (
+                <Navigate to={ROUTES.login} replace />
+              )
+            }
+          />
 
           <Route
             path="*"

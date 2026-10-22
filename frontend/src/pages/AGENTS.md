@@ -21,7 +21,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
-| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; Dribbble-style split layout with 3D graduation-cap hero (`/maintenance/maintenance-hero.jpg`); **Lecturer sign in** opens `LoginUI`; student-only sessions stay locked |
+| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; Dribbble-style split layout with 3D graduation-cap hero (`/maintenance/maintenance-hero.jpg`); no sign-in button. Lecturers open `/staff` (not linked on the page) |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
@@ -48,8 +48,9 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/student-ranking` | STUDENT | Weekly ranking board (web only; empty rows when out of term) |
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 | `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
+| `/staff` | — | Hidden lecturer login during maintenance; otherwise redirects to `/` or the signed-in dashboard |
 
-When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage`. A stored **LECTURER** session (or a successful lecturer sign-in from that page) mounts the normal app. Student-only sessions are **kicked**: `clearAuthSession`, presence leave, no token kept. Student-only logins are rejected and do not persist. Dual-role lecturers who open student URLs are sent to `/lecturer-dashboard`. Desktop practice is excluded.
+When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage` (no login control on that screen). Lecturers open **`/staff`** for the normal login form; student-only attempts there are rejected and do not persist. A stored **LECTURER** session mounts the app. Student-only sessions are **kicked**: `clearAuthSession`, presence leave. Dual-role lecturers who open student URLs are sent to `/lecturer-dashboard`. Desktop practice is excluded. When the flag is off, `/staff` redirects to `/` (or the signed-in dashboard).
 
 Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
 
