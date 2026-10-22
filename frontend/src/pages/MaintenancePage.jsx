@@ -1,32 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import AppLogo from '../components/ui/AppLogo';
 import { brand } from '../theme/brand';
 import ThemeToggle from '../components/ThemeToggle';
-import Login from './Login';
 import './MaintenancePage.css';
 
-export default function MaintenancePage({
-  onLoginSuccess,
-  loginMessage,
-  onDismissLoginMessage,
-}) {
+export default function MaintenancePage() {
   const headingRef = useRef(null);
-  const [showLecturerLogin, setShowLecturerLogin] = useState(false);
 
   useEffect(() => {
     headingRef.current?.focus();
-  }, [showLecturerLogin]);
-
-  if (showLecturerLogin && onLoginSuccess) {
-    return (
-      <Login
-        onLoginSuccess={onLoginSuccess}
-        loginMessage={loginMessage}
-        onDismissLoginMessage={onDismissLoginMessage}
-        onBack={() => setShowLecturerLogin(false)}
-      />
-    );
-  }
+  }, []);
 
   return (
     <div className="mnt">
@@ -44,18 +27,9 @@ export default function MaintenancePage({
             We&apos;ll be back soon
           </h1>
           <p className="mnt-body" role="status">
-            Student access is paused while we finish scheduled work. Lecturers can
-            still sign in to manage the course.
+            OOP AutoGrader is paused while we finish scheduled work. Please try
+            again later. You do not need to stay on this page.
           </p>
-          {onLoginSuccess && (
-            <button
-              type="button"
-              className="mnt-lecturer-btn"
-              onClick={() => setShowLecturerLogin(true)}
-            >
-              Lecturer sign in
-            </button>
-          )}
         </div>
 
         <div className="mnt-art" aria-hidden="true">

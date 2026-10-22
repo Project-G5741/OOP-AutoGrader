@@ -90,26 +90,6 @@
   color: var(--text-muted);
 }
 
-.mnt-lecturer-btn {
-  margin-top: 1.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0.7rem 1.25rem;
-  border: 0;
-  border-radius: 0.8rem;
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.mnt-lecturer-btn:hover {
-  background: var(--primary-hover);
-}
-
 .mnt-art {
   position: relative;
   display: flex;

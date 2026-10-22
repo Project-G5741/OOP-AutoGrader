@@ -24,7 +24,7 @@ Vite cannot read a live server flag. Flip the env, then rebuild.
 1. Vercel → project → **Settings → Environment Variables**.
 2. Set `VITE_MAINTENANCE_MODE` to `true` (students and guests see maintenance; lecturers can still sign in) or `false` (normal app). `1` / `yes` / `on` also lock. You may use `NEXT_PUBLIC_MAINTENANCE_MODE` instead; either flag being true locks the site for non-lecturers.
 3. **Deployments → … on the latest Production deploy → Redeploy** (or push an empty commit). Leave **Use existing Build Cache** off if the new env is not picked up.
-4. Hard-refresh the site. Students are signed out and stay on the maintenance page. Lecturers use **Lecturer sign in** (or an existing lecturer session) to open the dashboard.
+4. Hard-refresh the site. Students are signed out and stay on the maintenance page (no login button). Lecturers sign in at **`https://oop-autograder.vercel.app/staff`** (or an existing lecturer session). Student logins on `/staff` are rejected.
 5. To open the site again for everyone: set the flag back to `false` and **Redeploy**.
 
 Desktop offline practice builds ignore this flag.
