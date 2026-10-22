@@ -18,6 +18,7 @@ import RequireRole from "./components/auth/RequireRole";
 import {
   clearAuthSession,
   defaultDashboardPath,
+  hasRole,
   normalizeRoleList,
   persistAuthSession,
   readStoredUser,
@@ -49,25 +50,14 @@ export default function App() {
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [loginMessage, setLoginMessage] = useState(null);
   const sessionUser = readStoredUser();
-
-  if (isWebMaintenanceMode()) {
-    return <MaintenancePage />;
-  }
-
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-8 text-center text-foreground">
-        <p>
-          Missing <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code>. Copy{' '}
-          <code className="font-mono">frontend/.env.example</code> to{' '}
-          <code className="font-mono">frontend/.env</code> and set the Google client ID.
-        </p>
-      </div>
-    );
-  }
+  const lecturerCanEnter = hasRole(sessionUser?.roles, "LECTURER");
 
   const handleLoginSuccess = useCallback((data) => {
     const roles = normalizeRoleList(data.roles);
+    if (isWebMaintenanceMode() && !hasRole(roles, "LECTURER")) {
+      setLoginMessage("The site is under maintenance. Only lecturers can sign in right now.");
+      return;
+    }
     const userPayload = { ...data, roles };
     persistAuthSession(data.accessToken, userPayload);
     navigate(defaultDashboardPath(roles, data.inCurrentTerm));
@@ -81,12 +71,36 @@ export default function App() {
     navigate(ROUTES.login);
   }, [navigate]);
 
-  const handleResetComplete = () => {
+  const handleResetComplete = useCallback(() => {
     clearResetTokenFromUrl();
     setResetToken(null);
     setLoginMessage("Password updated. Sign in with your new password.");
     navigate(ROUTES.login);
-  };
+  }, [navigate]);
+
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8 text-center text-foreground">
+        <p>
+          Missing <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code>. Copy{' '}
+          <code className="font-mono">frontend/.env.example</code> to{' '}
+          <code className="font-mono">frontend/.env</code> and set the Google client ID.
+        </p>
+      </div>
+    );
+  }
+
+  if (isWebMaintenanceMode() && !lecturerCanEnter) {
+    return (
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+        <MaintenancePage
+          onLoginSuccess={handleLoginSuccess}
+          loginMessage={loginMessage}
+          onDismissLoginMessage={() => setLoginMessage(null)}
+        />
+      </GoogleOAuthProvider>
+    );
+  }
 
   if (resetToken && !sessionUser) {
     return (

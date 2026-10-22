@@ -22,10 +22,10 @@ Password reset: backend emails link to `https://oop-autograder.vercel.app?resetT
 Vite cannot read a live server flag. Flip the env, then rebuild.
 
 1. Vercel → project → **Settings → Environment Variables**.
-2. Set `VITE_MAINTENANCE_MODE` to `true` (lock everyone onto the maintenance page) or `false` (normal app). `1` / `yes` / `on` also lock. You may use `NEXT_PUBLIC_MAINTENANCE_MODE` instead; either flag being true locks the site.
+2. Set `VITE_MAINTENANCE_MODE` to `true` (students and guests see maintenance; lecturers can still sign in) or `false` (normal app). `1` / `yes` / `on` also lock. You may use `NEXT_PUBLIC_MAINTENANCE_MODE` instead; either flag being true locks the site for non-lecturers.
 3. **Deployments → … on the latest Production deploy → Redeploy** (or push an empty commit). Leave **Use existing Build Cache** off if the new env is not picked up.
-4. Hard-refresh the site. Every URL should show the maintenance card when locked, including `/` and `/student-dashboard`.
-5. To open the site again: set the flag back to `false` and **Redeploy**.
+4. Hard-refresh the site. Students stay on the maintenance page. Lecturers use **Lecturer sign in** (or an existing lecturer session) to open the dashboard.
+5. To open the site again for everyone: set the flag back to `false` and **Redeploy**.
 
 Desktop offline practice builds ignore this flag.
 

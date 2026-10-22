@@ -21,7 +21,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
 | `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
-| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; same login galaxy layout, no API calls |
+| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; Dribbble-style split layout with 3D graduation-cap hero (`/maintenance/maintenance-hero.jpg`); **Lecturer sign in** opens `LoginUI`; student-only sessions stay locked |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
@@ -49,7 +49,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 | `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
 
-When `isWebMaintenanceMode()` is true (`App.jsx`), **every** web URL shows `MaintenancePage` and no other routes mount. Toggle is build-time env, not a route. Desktop practice is excluded.
+When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage`. A stored **LECTURER** session (or a successful lecturer sign-in from that page) mounts the normal app. Student-only logins are rejected and do not persist a session. Desktop practice is excluded.
 
 Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
 
