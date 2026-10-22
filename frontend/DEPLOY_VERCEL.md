@@ -2,13 +2,42 @@ Vercel deployment notes
 
 Production app: https://oop-autograder.vercel.app/
 
-1. On Vercel dashboard, open the project and go to Settings → Environment Variables.
-2. Add the following variables (for Production):
+This is a **Vite** SPA, not Next.js. Client env vars must start with `VITE_` (or `NEXT_PUBLIC_` — both prefixes are enabled). They are **inlined at build time**. Changing a value in the Vercel dashboard does nothing until you **Redeploy**.
+
+## First-time deploy
+
+1. Import the GitHub repo into Vercel. Set **Root Directory** to `frontend` if the project root is the monorepo.
+2. On Vercel dashboard, open the project and go to **Settings → Environment Variables**.
+3. Add the following variables (for Production):
    - `VITE_API_URL` = https://<your-render-service>.onrender.com
    - `VITE_GOOGLE_CLIENT_ID` = <google client id>
-3. Redeploy the project so the `VITE_` variables are baked into the client build.
+   - `VITE_MAINTENANCE_MODE` = `false` (or `true` to lock the site)
+4. Deploy. Framework: Vite. Build command: `npm run build`. Output: `dist`.
+5. Confirm `vercel.json` SPA rewrite is present (`/(.*) → /`).
 
 Password reset: backend emails link to `https://oop-autograder.vercel.app?resetToken=...`. The SPA reads that query param on load and shows the reset-password screen (no extra Vercel rewrites needed).
+
+## Toggle maintenance (lock / unlock)
+
+Vite cannot read a live server flag. Flip the env, then rebuild.
+
+1. Vercel → project → **Settings → Environment Variables**.
+2. Set `VITE_MAINTENANCE_MODE` to `true` (lock everyone onto the maintenance page) or `false` (normal app). `1` / `yes` / `on` also lock. You may use `NEXT_PUBLIC_MAINTENANCE_MODE` instead; either flag being true locks the site.
+3. **Deployments → … on the latest Production deploy → Redeploy** (or push an empty commit). Leave **Use existing Build Cache** off if the new env is not picked up.
+4. Hard-refresh the site. Every URL should show the maintenance card when locked, including `/` and `/student-dashboard`.
+5. To open the site again: set the flag back to `false` and **Redeploy**.
+
+Desktop offline practice builds ignore this flag.
+
+## Local preview of the lock
+
+In `frontend/.env`:
+
+```
+VITE_MAINTENANCE_MODE=true
+```
+
+Restart `npm run dev`. Set it back to `false` (or remove it) and restart to resume login.
 
 Local dev:
  - Copy `.env.example` to `.env` in `frontend/` and edit values.

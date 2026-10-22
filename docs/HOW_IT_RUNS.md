@@ -51,6 +51,7 @@ You can also run them separately:
 
 - `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID
 - `VITE_API_URL` — backend URL (default `http://localhost:8002`)
+- `VITE_MAINTENANCE_MODE` — web lock (`true` shows `MaintenancePage` for every visitor). Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at build; Vercel needs a Redeploy after a change. Desktop builds ignore it.
 
 **Backend** (`backend/.env`, loaded by `application.yml`):
 
@@ -404,7 +405,7 @@ Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Gradin
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend |
+| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend; `VITE_MAINTENANCE_MODE` locks the SPA until the next rebuild |
 | Backend | **Render** (Docker) | Multi-stage `Dockerfile`; API `JAVA_OPTS` default `-Xmx256m`; needs JDK; practice zip packaging in `backend/DEPLOY_RENDER.md` |
 | Database | **Neon PostgreSQL** | Use pooler hostname (`-pooler`) for JVM |
 
