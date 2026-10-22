@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
@@ -51,6 +51,21 @@ export default function App() {
   const [loginMessage, setLoginMessage] = useState(null);
   const sessionUser = readStoredUser();
   const lecturerCanEnter = hasRole(sessionUser?.roles, "LECTURER");
+
+  useEffect(() => {
+    if (!isWebMaintenanceMode()) {
+      return undefined;
+    }
+    const user = readStoredUser();
+    if (!user || hasRole(user.roles, "LECTURER")) {
+      return undefined;
+    }
+    consumeFeedbackRepliesOnLeave();
+    leavePresence();
+    clearAuthSession();
+    clearLecturerBootstrapStore();
+    return undefined;
+  }, []);
 
   const handleLoginSuccess = useCallback((data) => {
     const roles = normalizeRoleList(data.roles);
@@ -205,25 +220,37 @@ export default function App() {
           <Route
             path={ROUTES.studentDashboard}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
+                </RequireRole>
+              )
             }
           />
           <Route
             path={ROUTES.studentHistory}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
+                </RequireRole>
+              )
             }
           />
           <Route
             path={ROUTES.studentRanking}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
+                </RequireRole>
+              )
             }
           />
 

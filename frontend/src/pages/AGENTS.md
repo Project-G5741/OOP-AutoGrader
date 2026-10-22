@@ -49,7 +49,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 | `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
 
-When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage`. A stored **LECTURER** session (or a successful lecturer sign-in from that page) mounts the normal app. Student-only logins are rejected and do not persist a session. Desktop practice is excluded.
+When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage`. A stored **LECTURER** session (or a successful lecturer sign-in from that page) mounts the normal app. Student-only sessions are **kicked**: `clearAuthSession`, presence leave, no token kept. Student-only logins are rejected and do not persist. Dual-role lecturers who open student URLs are sent to `/lecturer-dashboard`. Desktop practice is excluded.
 
 Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
 
