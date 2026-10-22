@@ -13,6 +13,7 @@ import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import NoAccessPage from "./pages/NoAccessPage";
 import RateLimitedPage from "./pages/RateLimitedPage";
+import MaintenancePage from "./pages/MaintenancePage";
 import RequireRole from "./components/auth/RequireRole";
 import {
   clearAuthSession,
@@ -25,6 +26,7 @@ import {
 import { leavePresence } from "./utils/presence";
 import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
 import { consumeFeedbackRepliesOnLeave } from "./utils/feedbackReplyConsume";
+import { isWebMaintenanceMode } from "./utils/maintenanceMode";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -47,6 +49,10 @@ export default function App() {
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [loginMessage, setLoginMessage] = useState(null);
   const sessionUser = readStoredUser();
+
+  if (isWebMaintenanceMode()) {
+    return <MaintenancePage />;
+  }
 
   if (!GOOGLE_CLIENT_ID) {
     return (
