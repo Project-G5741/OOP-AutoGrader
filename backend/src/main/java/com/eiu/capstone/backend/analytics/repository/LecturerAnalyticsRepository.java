@@ -482,12 +482,20 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of("labId", labId));
     }
 
-    /** Lifetime upload count for this lab: sum of per-student {@code attempts_count} (not {@code lab_submission} row count). */
+    /**
+     * Lifetime uploads for this lab: sum of each student's highest {@code attempt_number}.
+     * Retention deletes older rows and may leave {@code attempts_count} equal to the retained
+     * row count, so this does not sum {@code student_lab_progress.attempts_count}.
+     */
     public long sumAttemptsCountForLab(UUID labId) {
         String sql = """
-                SELECT COALESCE(SUM(p.attempts_count), 0)
-                FROM student_lab_progress p
-                WHERE p.lab_id = :labId
+                SELECT COALESCE(SUM(student_attempts.max_attempt), 0)
+                FROM (
+                    SELECT MAX(s.attempt_number) AS max_attempt
+                    FROM lab_submission s
+                    WHERE s.lab_id = :labId
+                    GROUP BY s.user_id
+                ) student_attempts
                 """;
         return singleLong(sql, Map.of("labId", labId));
     }
