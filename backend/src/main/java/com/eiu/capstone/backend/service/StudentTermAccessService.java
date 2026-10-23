@@ -14,8 +14,10 @@ import com.eiu.capstone.backend.DTO.TermAccessDTO;
 import com.eiu.capstone.backend.analytics.cache.InProcessTtlCache;
 import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
 @Service
@@ -54,6 +56,9 @@ public class StudentTermAccessService {
         }
         if (user == null || !user.getIsActive()) {
             return false;
+        }
+        if (hasAdminRole(user) && termService.findCurrentTerm().isPresent()) {
+            return true;
         }
         return termService.isInCurrentTerm(user.getId());
     }
@@ -123,7 +128,7 @@ public class StudentTermAccessService {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "This lab is not in the current quarter");
         }
-        if (enrollmentCount < 1) {
+        if (enrollmentCount < 1 && !hasAdminRole(user)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "You are not enrolled in the current quarter");
         }
@@ -179,7 +184,7 @@ public class StudentTermAccessService {
         Term current = termService.findCurrentTerm()
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "No current quarter is set"));
-        if (!termService.isEnrolled(user.getId(), current.getId())) {
+        if (!hasAdminRole(user) && !termService.isEnrolled(user.getId(), current.getId())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "You are not enrolled in the current quarter");
         }
@@ -188,6 +193,33 @@ public class StudentTermAccessService {
                     HttpStatus.FORBIDDEN, "This lab is not in the current quarter");
         }
         requireLabOpenForStudent(lab);
+    }
+
+    private boolean hasAdminRole(UserAccount user) {
+        if (user == null) {
+            return false;
+        }
+        try {
+            if (roleSetHasAdmin(user.getRoles())) {
+                return true;
+            }
+        } catch (RuntimeException ignored) {
+            // Upload access loads the user without roles.
+        }
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return false;
+        }
+        return userAccountRepository.findByEmail(user.getEmail())
+                .map(loaded -> roleSetHasAdmin(loaded.getRoles()))
+                .orElse(false);
+    }
+
+    private static boolean roleSetHasAdmin(java.util.Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return false;
+        }
+        return roles.stream().anyMatch(role -> role.getName() != null
+                && JwtRoleNames.ADMIN.equalsIgnoreCase(role.getName().trim()));
     }
 
     public void requireLabOpenForStudent(Lab lab) {

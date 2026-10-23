@@ -71,9 +71,12 @@ public class LabController {
     }
 
     @GetMapping("/list")
-    public List<LabSummary> listLabs(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public List<LabSummary> listLabs(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestParam(required = false) String scope) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
-        List<Lab> labs = labsVisibleToCaller(principal, user).stream()
+        boolean studentView = "student".equalsIgnoreCase(scope);
+        List<Lab> labs = labsVisibleToCaller(principal, user, studentView).stream()
                 .sorted(Comparator.comparing(Lab::getName, labDeadlineHelper.naturalLabNameComparator()))
                 .toList();
         if (labs.isEmpty()) {
@@ -81,10 +84,13 @@ public class LabController {
         }
         Map<UUID, List<ChallengeDTO>> challengesByLab = Map.of();
         Map<UUID, StatsDTO> statsByLab = Map.of();
-        if (principal.hasRole(JwtRoleNames.STUDENT)) {
+        boolean adminStudentView = studentView && principal.hasRole(JwtRoleNames.ADMIN);
+        if (principal.hasRole(JwtRoleNames.STUDENT) || adminStudentView) {
             List<UUID> labIds = labs.stream().map(Lab::getId).toList();
             challengesByLab = challengeService.listSidebarChallengesByLabIds(labIds);
-            statsByLab = statsService.getStatsForLabs(user.getId(), labIds);
+            if (!adminStudentView) {
+                statsByLab = statsService.getStatsForLabs(user.getId(), labIds);
+            }
         }
         Map<UUID, List<ChallengeDTO>> challenges = challengesByLab;
         Map<UUID, StatsDTO> stats = statsByLab;
@@ -96,7 +102,7 @@ public class LabController {
                 .toList();
     }
 
-    private List<Lab> labsVisibleToCaller(JwtUserPrincipal principal, UserAccount user) {
+    private List<Lab> labsVisibleToCaller(JwtUserPrincipal principal, UserAccount user, boolean studentView) {
         Term current = termService.findCurrentTerm().orElse(null);
         if (current == null) {
             return List.of();
@@ -111,10 +117,11 @@ public class LabController {
             }
             return labs;
         }
-        if (!principal.isStudentOnly()) {
+        boolean adminStudentView = studentView && principal.hasRole(JwtRoleNames.ADMIN);
+        if (!principal.isStudentOnly() && !adminStudentView) {
             return labRepository.findByTerm_Id(current.getId());
         }
-        if (!termService.isEnrolled(user.getId(), current.getId())) {
+        if (!adminStudentView && !termService.isEnrolled(user.getId(), current.getId())) {
             return List.of();
         }
         Instant now = Instant.now();

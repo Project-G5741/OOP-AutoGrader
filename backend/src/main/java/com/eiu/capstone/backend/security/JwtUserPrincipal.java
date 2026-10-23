@@ -13,7 +13,9 @@ public record JwtUserPrincipal(String email, String irn, List<String> roles) {
     }
 
     public boolean isStudentOnly() {
-        return hasRole(JwtRoleNames.STUDENT) && !hasRole(JwtRoleNames.LECTURER);
+        return hasRole(JwtRoleNames.STUDENT)
+                && !hasRole(JwtRoleNames.LECTURER)
+                && !hasRole(JwtRoleNames.ADMIN);
     }
 
     private static List<String> normalizeRoles(List<String> roles) {

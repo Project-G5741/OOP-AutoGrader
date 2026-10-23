@@ -26,7 +26,7 @@ import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
-import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
+import { hasRole, LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -844,6 +844,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleShellCommand = useCallback((cmd) => {
     if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
+    else if (cmd === 'studentArea') navigate(ROUTES.studentDashboard);
     else if (cmd === 'changePassword' || cmd === 'editProfile') setShowProfile(true);
   }, [navigate]);
 
@@ -867,6 +868,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         onLogout={onLogout}
         showNav
         hideHistory
+        showStudentArea={hasRole(user?.roles, 'ADMIN')}
         activeNav={activeNav}
         onNavigate={handleNavChange}
         onCommand={handleShellCommand}

@@ -39,13 +39,14 @@ public class JwtAuthHelper {
         UserAccount user = requireActiveUser(principal);
         boolean lecturer = principal.hasRole(JwtRoleNames.LECTURER);
         boolean student = principal.hasRole(JwtRoleNames.STUDENT);
+        boolean admin = principal.hasRole(JwtRoleNames.ADMIN);
 
-        if (!lecturer && !student) {
+        if (!lecturer && !student && !admin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Insufficient permissions");
         }
 
         if (requestedStudentId == null) {
-            if (student && !lecturer) {
+            if ((student || admin) && !lecturer) {
                 return user.getId();
             }
             if (lecturer) {
@@ -54,7 +55,7 @@ public class JwtAuthHelper {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "studentId is required");
         }
 
-        if (!requestedStudentId.equals(user.getId()) && !lecturer) {
+        if (!requestedStudentId.equals(user.getId()) && !lecturer && !admin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access another student's data");
         }
         return requestedStudentId;
@@ -65,7 +66,14 @@ public class JwtAuthHelper {
      * Upload {@code lab_result} assembly always uses {@link DisclosureMode#STUDENT}.
      */
     public DisclosureMode resolveDisclosureMode(JwtUserPrincipal principal, UUID requestedStudentId) {
-        if (principal != null && principal.hasRole(JwtRoleNames.LECTURER) && requestedStudentId != null) {
+        if (principal == null || requestedStudentId == null) {
+            return DisclosureMode.STUDENT;
+        }
+        if (principal.hasRole(JwtRoleNames.LECTURER)) {
+            return DisclosureMode.LECTURER;
+        }
+        if (principal.hasRole(JwtRoleNames.ADMIN)
+                && !requestedStudentId.equals(requireActiveUser(principal).getId())) {
             return DisclosureMode.LECTURER;
         }
         return DisclosureMode.STUDENT;

@@ -43,6 +43,7 @@ import com.eiu.capstone.backend.model.StudentLabProgress;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
+import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
@@ -214,6 +215,11 @@ public class SubmissionController {
                     submission, rubric, uploadResult.challenges, uploadResult.mmdByChallenge);
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
+            if (principal.hasRole(JwtRoleNames.ADMIN)) {
+                return ResponseEntity.ok(discardedUploadResponse(
+                        submission, irn, requestId, attemptNumber, gradingOutcome));
+            }
+
             long persistStart = System.currentTimeMillis();
             UploadPersistService.PersistResult persisted = uploadPersistService.persist(
                     submission, gradingOutcome);
@@ -286,6 +292,36 @@ public class SubmissionController {
                 CompletableFuture.runAsync(() -> submissionStorageService.deleteFolder(folder), persistExecutor);
             }
         }
+    }
+
+    private SubmissionUploadResponse discardedUploadResponse(
+            LabSubmission submission,
+            String irn,
+            String requestId,
+            Integer attemptNumber,
+            GradingOutcome gradingOutcome) {
+        Map<UUID, Integer> challengeResult = new LinkedHashMap<>();
+        if (gradingOutcome.gradedChallenges() != null) {
+            for (var graded : gradingOutcome.gradedChallenges()) {
+                challengeResult.put(graded.challengeId(), graded.scorePercent());
+            }
+        }
+        BigDecimal score = gradingOutcome.overallScore() != null
+                ? gradingOutcome.overallScore()
+                : BigDecimal.ZERO;
+        String latest = submission.getSubmittedAt() == null
+                ? null
+                : TimeUtil.formatLatestSubmission(submission.getSubmittedAt());
+        return new SubmissionUploadResponse(
+                submission.getId(),
+                irn,
+                requestId,
+                challengeResult,
+                score,
+                attemptNumber,
+                attemptNumber,
+                latest,
+                gradingOutcome.labResult());
     }
 
     private void schedulePlagiarismInspect(LabSubmission submission, List<MultipartFile> files) {
