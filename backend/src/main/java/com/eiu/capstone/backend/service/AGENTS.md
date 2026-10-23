@@ -17,6 +17,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
+| `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender` |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
 | `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope |
@@ -164,6 +165,7 @@ Per upload request (unique `requestId` prevents collisions):
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
+- Current-term lecturer mail: `support` `CurrentTermMailServiceTest`; `authorization` `LecturerTermMailAuthorizationTest`
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
 - Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases

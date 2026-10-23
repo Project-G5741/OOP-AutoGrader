@@ -88,7 +88,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
 | Weekly ranking | Live API (`GET /api/students/ranking/current`, lecturer `GET /api/lecturer/bootstrap/ranking`) |
-| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`; **Email quarter** via `POST /mail` to the current quarter) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
