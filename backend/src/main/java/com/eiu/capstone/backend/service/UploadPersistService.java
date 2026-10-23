@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.service;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.grading.GradingOutcome;
@@ -22,13 +23,17 @@ public class UploadPersistService {
     private final GradingResultJdbcWriter jdbcWriter;
     private final GradingResultStore gradingResultStore;
     private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
+    private final StudentDailySubmissionQuotaService dailySubmissionQuotaService;
 
     public UploadPersistService(GradingResultJdbcWriter jdbcWriter,
                                 GradingResultStore gradingResultStore,
-                                ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore) {
+                                ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
+                                @Autowired(required = false)
+                                StudentDailySubmissionQuotaService dailySubmissionQuotaService) {
         this.jdbcWriter = jdbcWriter;
         this.gradingResultStore = gradingResultStore;
         this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
+        this.dailySubmissionQuotaService = dailySubmissionQuotaService;
     }
 
     public PersistResult persist(LabSubmission submission, GradingOutcome outcome) {
@@ -41,6 +46,9 @@ public class UploadPersistService {
         }
         if (outcome == null || outcome.computed() == null) {
             throw new IllegalArgumentException("grading outcome is required");
+        }
+        if (dailySubmissionQuotaService != null) {
+            dailySubmissionQuotaService.requireCanSubmit(submission.getUser().getId());
         }
         BigDecimal score = outcome.overallScore() != null ? outcome.overallScore() : BigDecimal.ZERO;
         submission.setScore(score);

@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.repository;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -101,6 +102,9 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             Pageable pageable);
 
     long countByUser_Id(UUID userId);
+
+    long countByUser_IdAndSubmittedAtBetween(
+            UUID userId, OffsetDateTime startInclusive, OffsetDateTime endExclusive);
 
     @Query("""
             SELECT AVG(s.score) FROM LabSubmission s

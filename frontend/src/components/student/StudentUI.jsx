@@ -204,12 +204,20 @@ export default function StudentUI({
   sessionChallengeBundles = {},
   sessionOverallScore = null,
   error = null,
+  dailySubmissionQuota = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
   const [expandedClassName, setExpandedClassName] = useState(null);
   const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
   const [now, setNow] = useState(() => new Date());
+
+  const dailyLimit = dailySubmissionQuota?.dailyLimit ?? 30;
+  const usedToday = dailySubmissionQuota?.usedToday ?? 0;
+  const canSubmitToday = dailySubmissionQuota?.canSubmit !== false;
+  const uploadBlockedReason = canSubmitToday
+    ? null
+    : `You have reached today's submission limit (${usedToday}/${dailyLimit}). You can submit again after midnight (Vietnam time).`;
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
@@ -381,6 +389,19 @@ export default function StudentUI({
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
         {/* Upload box */}
         <div>
+          {dailySubmissionQuota != null && (
+            <div
+              className={`mb-3 rounded-lg border px-4 py-3 text-sm ${
+                canSubmitToday
+                  ? 'border-border bg-surface-secondary text-foreground-secondary'
+                  : 'border-warning/40 bg-warning-bg text-warning-text'
+              }`}
+            >
+              {canSubmitToday
+                ? `Submissions today: ${usedToday} / ${dailyLimit} (all labs, resets at midnight Vietnam time).`
+                : uploadBlockedReason}
+            </div>
+          )}
           <DropZone
             title="Drop your project files here"
             buttonText="Select Project"
@@ -388,6 +409,8 @@ export default function StudentUI({
             attemptNumber={nextAttemptNumber}
             authToken={getAccessToken()}
             onUploadComplete={onUploadComplete}
+            uploadDisabled={!canSubmitToday}
+            uploadDisabledReason={uploadBlockedReason}
           />
         </div>
 
