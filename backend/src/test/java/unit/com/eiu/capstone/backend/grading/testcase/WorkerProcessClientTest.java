@@ -186,7 +186,10 @@ class ProcessTreeKillerTest {
     void killsSpawnedSleepProcess() throws Exception {
         Process sleep = new ProcessBuilder("sleep", "60").start();
         assertTrue(sleep.isAlive());
-        ProcessTreeKiller.kill(sleep);
+        ProcessTreeKiller.kill(sleep, Duration.ofSeconds(5));
+        assertTrue(
+                sleep.waitFor(10, TimeUnit.SECONDS),
+                "sleep process did not exit after ProcessTreeKiller.kill");
         assertFalse(sleep.isAlive());
     }
 }

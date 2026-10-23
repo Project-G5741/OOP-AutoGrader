@@ -21,7 +21,7 @@ public final class ProcessTreeKiller {
             return;
         }
         ProcessHandle root = process.toHandle();
-        if (!root.isAlive()) {
+        if (!process.isAlive()) {
             try {
                 process.waitFor(1, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
@@ -29,21 +29,21 @@ public final class ProcessTreeKiller {
             }
             return;
         }
-        destroySnapshot(root);
-        waitUntilDead(process, root, grace);
-        if (root.isAlive()) {
-            destroySnapshot(root);
-            waitUntilDead(process, root, grace);
+        destroySnapshot(root, process);
+        waitUntilDead(process, grace);
+        if (process.isAlive()) {
+            destroySnapshot(root, process);
+            waitUntilDead(process, grace);
         }
     }
 
-    private static void waitUntilDead(Process process, ProcessHandle root, Duration grace) {
-        if (!root.isAlive()) {
+    private static void waitUntilDead(Process process, Duration grace) {
+        if (!process.isAlive()) {
             return;
         }
         long remaining = Math.max(1L, grace.toMillis());
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(remaining);
-        while (root.isAlive() && System.nanoTime() < deadline) {
+        while (process.isAlive() && System.nanoTime() < deadline) {
             long slice = Math.min(50L, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
             if (slice <= 0) {
                 break;
@@ -59,11 +59,14 @@ public final class ProcessTreeKiller {
         }
     }
 
-    private static void destroySnapshot(ProcessHandle root) {
+    private static void destroySnapshot(ProcessHandle root, Process process) {
         List<ProcessHandle> descendants = new ArrayList<>(root.descendants().toList());
         for (int i = descendants.size() - 1; i >= 0; i--) {
             descendants.get(i).destroyForcibly();
         }
         root.destroyForcibly();
+        if (process.isAlive()) {
+            process.destroyForcibly();
+        }
     }
 }
