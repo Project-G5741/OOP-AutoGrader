@@ -36,6 +36,14 @@ public interface SubmissionChallengeResultRepository extends JpaRepository<Submi
             """, nativeQuery = true)
     void deleteBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE submission_challenge_result
+            SET mmd_outcomes = NULL
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void clearMmdOutcomesBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
+
     @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id = :submissionId")
     List<SubmissionChallengeResult> findBySubmission_IdWithChallenge(@Param("submissionId") UUID submissionId);
 

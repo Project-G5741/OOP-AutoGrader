@@ -28,9 +28,9 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `StudentMascotService` / `MascotCatalog` / `MascotPurchaseRules` | Mascot shop. Fox is free. Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. `purchase` charges points and inserts `student_mascot_purchase` in one transaction, then equips that mascot |
 | `StudentDesktopPracticeBundleService` | (`!desktop`) Current-quarter gate then stream fixed prebuilt zip (`target/OOP-AutoGrader-Practice.zip` or cwd `OOP-AutoGrader-Practice.zip`); no pack export, no env, no request-time zip |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
-| `SubmissionDeletionService` | Full delete of submission graph by submission id list or all rows for a user (shared with user hard-delete and retention) |
+| `SubmissionDeletionService` | Full delete of submission graph by submission id list or all rows for a user; `stripDetailRows` drops Class/OT ticks and MMD JSON but keeps score rows |
 | `SubmissionRetentionService` | Enforce per-student newest-N plus per-lab highest (`app.submission.retention.*`); reconcile `student_lab_progress` after prune |
-| `SubmissionRetentionKeepers` | Select prune ids: 10 newest globally ∪ highest score per lab |
+| `SubmissionRetentionKeepers` | Prune ids: 10 newest globally ∪ highest score per lab. Strip-detail ids: remaining except latest ∪ highest per lab |
 | `SubmissionRetentionScheduler` | Nightly backfill (`!desktop`, 05:00 Vietnam) |
 | `SubmissionSidecarCleanup` | Remove `_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot` files for pruned submission ids |
 | `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |

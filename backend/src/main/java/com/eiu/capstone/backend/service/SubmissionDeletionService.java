@@ -90,4 +90,20 @@ public class SubmissionDeletionService {
         submissionChallengeResultRepository.deleteBySubmissionIds(ids);
         labSubmissionRepository.deleteAllByIdIn(ids);
     }
+
+    /** Drops Class/MMD/OT ticks; keeps {@code lab_submission} and challenge scores. */
+    @Transactional
+    public void stripDetailRows(Collection<UUID> submissionIds) {
+        if (submissionIds == null || submissionIds.isEmpty()) {
+            return;
+        }
+        List<UUID> ids = new ArrayList<>(submissionIds);
+        submissionTestcaseResultRepository.deleteAssertionResultsBySubmissionIds(ids);
+        submissionTestcaseResultRepository.deleteBySubmissionIds(ids);
+        submissionFieldResultRepository.deleteBySubmissionIds(ids);
+        submissionMethodResultRepository.deleteBySubmissionIds(ids);
+        submissionConstructorResultRepository.deleteBySubmissionIds(ids);
+        submissionRelationResultRepository.deleteBySubmissionIds(ids);
+        submissionChallengeResultRepository.clearMmdOutcomesBySubmissionIds(ids);
+    }
 }

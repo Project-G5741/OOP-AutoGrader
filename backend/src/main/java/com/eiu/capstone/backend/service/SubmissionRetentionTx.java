@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -50,15 +51,31 @@ public class SubmissionRetentionTx {
         List<LabSubmission> submissions =
                 labSubmissionRepository.findByUser_IdWithLabOrderBySubmittedAtDesc(userId);
         List<UUID> toDelete = SubmissionRetentionKeepers.idsToPrune(submissions, maxPerStudent);
-        if (toDelete.isEmpty()) {
+        if (!toDelete.isEmpty()) {
+            submissionDeletionService.deleteSubmissionsFully(toDelete);
+            for (UUID submissionId : toDelete) {
+                submissionSidecarCleanup.deleteForSubmission(submissionId);
+            }
+        }
+        Set<UUID> deleted = Set.copyOf(toDelete);
+        List<LabSubmission> remaining = new ArrayList<>();
+        for (LabSubmission submission : submissions) {
+            if (submission.getId() != null && !deleted.contains(submission.getId())) {
+                remaining.add(submission);
+            }
+        }
+        List<UUID> toStrip = SubmissionRetentionKeepers.idsToStripDetails(remaining);
+        if (!toStrip.isEmpty()) {
+            submissionDeletionService.stripDetailRows(toStrip);
+            for (UUID submissionId : toStrip) {
+                submissionSidecarCleanup.deleteForSubmission(submissionId);
+            }
+        }
+        if (toDelete.isEmpty() && toStrip.isEmpty()) {
             return 0;
         }
-        submissionDeletionService.deleteSubmissionsFully(toDelete);
-        for (UUID submissionId : toDelete) {
-            submissionSidecarCleanup.deleteForSubmission(submissionId);
-        }
         reconcileAllProgressForStudent(userId);
-        return toDelete.size();
+        return toDelete.size() + toStrip.size();
     }
 
     private void reconcileAllProgressForStudent(UUID userId) {

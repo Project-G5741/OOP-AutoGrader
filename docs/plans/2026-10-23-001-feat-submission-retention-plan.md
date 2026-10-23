@@ -106,7 +106,7 @@ Defer **FK `ON DELETE CASCADE`** operator SQL to a follow-up unless deletes prov
 
 - Archiving pruned payloads to object storage
 - Lecturer-configurable retention per lab
-- Summary-only retention (strip detail rows but keep score row)
+- ~~Summary-only retention (strip detail rows but keep score row)~~ — added 2026-10-23: ticks only for latest + highest per lab; other kept attempts stay score-only
 - Changing pagination page size or UI copy (optional doc note in `docs/USER_GUIDE.md` only if user requests later)
 - `ce-work` execution until user approves this plan
 

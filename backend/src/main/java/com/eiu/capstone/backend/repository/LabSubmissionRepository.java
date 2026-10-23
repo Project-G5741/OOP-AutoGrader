@@ -161,16 +161,21 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             @Param("userIds") java.util.Collection<UUID> userIds);
 
     /**
-     * Students who still have a row that is neither among the {@code maxKeep} newest
-     * attempts nor that lab's highest-scoring attempt.
+     * Students with a row to delete, or with Class/OT ticks on an attempt that is not
+     * that lab's latest or highest.
      */
     @Query(value = """
             SELECT DISTINCT user_id FROM (
                 SELECT ls.user_id,
+                       ls.id,
                        ROW_NUMBER() OVER (
                            PARTITION BY ls.user_id
                            ORDER BY ls.submitted_at DESC, ls.attempt_number DESC
                        ) AS recency_rn,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY ls.user_id, ls.lab_id
+                           ORDER BY ls.submitted_at DESC, ls.attempt_number DESC
+                       ) AS latest_lab_rn,
                        ROW_NUMBER() OVER (
                            PARTITION BY ls.user_id, ls.lab_id
                            ORDER BY ls.score DESC NULLS LAST,
@@ -179,7 +184,16 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
                        ) AS best_rn
                 FROM lab_submission ls
             ) ranked
-            WHERE recency_rn > :maxKeep AND best_rn > 1
+            WHERE (recency_rn > :maxKeep AND best_rn > 1)
+               OR (
+                    latest_lab_rn > 1
+                    AND best_rn > 1
+                    AND (
+                        EXISTS (SELECT 1 FROM submission_method_result m WHERE m.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_field_result f WHERE f.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_testcase_result t WHERE t.submission_id = ranked.id)
+                    )
+               )
             LIMIT :batchLimit
             """, nativeQuery = true)
     List<UUID> findStudentsOverRetentionCap(
