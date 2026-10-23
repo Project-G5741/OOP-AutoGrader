@@ -76,6 +76,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 
 - `LecturerDashboard.jsx` fetches overview, lab statistics, submitter roster (`GET /api/labs/{labId}/submissions`), per-challenge roster (`GET /api/labs/{labId}/challenges/{challengeId}/students`), and grade overview (`GET /api/lecturer/grade-overview`)
+- Lab Overview **Total Attempts** uses `totalAttempts` (sum of each student's highest `attempt_number` on the lab — lifetime uploads). It does not show remaining `lab_submission` row count or `student_lab_progress.attempts_count` after retention.
 - Overview card click uses `students`, `labs`, and `scoreRows` already on `GET /api/lecturer/overview` (no second request). At-risk rows are `atRisk` (total under 70, missing labs as 0).
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
