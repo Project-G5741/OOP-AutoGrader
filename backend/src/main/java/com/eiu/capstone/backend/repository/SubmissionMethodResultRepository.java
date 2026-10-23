@@ -1,0 +1,43 @@
+package com.eiu.capstone.backend.repository;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import com.eiu.capstone.backend.model.LabSubmission;
+import com.eiu.capstone.backend.model.Method;
+import com.eiu.capstone.backend.model.SubmissionMethodResult;
+
+public interface SubmissionMethodResultRepository extends JpaRepository<SubmissionMethodResult, UUID> {
+
+    List<SubmissionMethodResult> findBySubmission(LabSubmission submission);
+
+    Optional<SubmissionMethodResult> findBySubmissionAndMethod(LabSubmission submission, Method method);
+
+    void deleteBySubmission(LabSubmission submission);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_method_result
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteByUserId(@Param("userId") UUID userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_method_result
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void deleteBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
+
+    List<SubmissionMethodResult> findBySubmission_Id(UUID submissionId);
+
+    @Query("SELECT r FROM SubmissionMethodResult r JOIN FETCH r.method WHERE r.submission.id = :submissionId")
+    List<SubmissionMethodResult> findBySubmission_IdWithMethod(@Param("submissionId") UUID submissionId);
+}

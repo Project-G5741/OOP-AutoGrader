@@ -51,6 +51,7 @@ You can also run them separately:
 
 - `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID
 - `VITE_API_URL` — backend URL (default `http://localhost:8002`)
+- `VITE_MAINTENANCE_MODE` — web lock (`true` shows `MaintenancePage` for guests and students and clears student-only sessions; lecturers sign in at `/staff`, not from a button on the maintenance page). Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at build; Vercel needs a Redeploy after a change. Desktop builds ignore it.
 
 **Backend** (`backend/.env`, loaded by `application.yml`):
 
@@ -381,6 +382,7 @@ erDiagram
 
 - Unique key: `(user_id, lab_id, attempt_number)` on `lab_submission`
 - Each upload **inserts a new attempt** (`MAX(attempt_number)+1`). The URL `{attemptNumber}` is not used to overwrite a prior row
+- Cloud deploys **retain the 10 newest attempts per student (all labs)** plus **each lab’s highest-scoring attempt** (`SubmissionRetentionService` after upload + startup backfill + nightly scheduler). Class/MMD/OT tick tables stay only for **latest + highest per lab**; other kept attempts keep `lab_submission` + challenge scores. `student_lab_progress` is reconciled per lab from remaining score rows. Desktop practice disables retention (`app.submission.retention.enabled=false`)
 - `attemptsCount` / upload `totalSubmissions` is the assigned attempt number (equal to `COUNT` after a successful `MAX+1` insert)
 - Element results UPSERT by (submission, rubric element) natural keys for that new submission
 
@@ -404,7 +406,7 @@ Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Gradin
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend |
+| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend; `VITE_MAINTENANCE_MODE` locks the SPA until the next rebuild |
 | Backend | **Render** (Docker) | Multi-stage `Dockerfile`; API `JAVA_OPTS` default `-Xmx256m`; needs JDK; practice zip packaging in `backend/DEPLOY_RENDER.md` |
 | Database | **Neon PostgreSQL** | Use pooler hostname (`-pooler`) for JVM |
 

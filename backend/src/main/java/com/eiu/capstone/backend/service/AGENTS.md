@@ -19,12 +19,20 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
+| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope |
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
-| `StudentTermAccessService` | Current-term enrollment check; upload uses `requireUploadAccess` (one query, 30s success cache); other submit paths still use `requireCanSubmit` |
-| `StudentDesktopPracticeBundleService` | (`!desktop`) Current-quarter gate then stream fixed prebuilt zip (`target/…` or cwd `OOP-AutoGrader-Practice.zip`); no pack export, no runtime env, no request-time zip |
+| `StudentTermAccessService` | Current-term enrollment check and enrolled quarter label (`enrolledQuarterName`); an Admin with a current quarter counts as in-term without an enrollment row; upload uses `requireUploadAccess` (one query, bounded TTL success cache + scheduled sweep); other submit paths still use `requireCanSubmit` |
+| `StudentStreakService` / `DailyStreakRules` | Student daily streak: login + 3 submits + 4 fox pets on one Vietnam day adds 1 streak day and `50 + 5 * (day / 5)` points (the bonus stays after each block of 5; day 101 pays 150). Missed day breaks the streak; one restore per calendar month. Upload calls `recordSubmission` after persist. `lock` is the row lock the mascot purchase uses |
+| `StudentMascotService` / `MascotCatalog` / `MascotPurchaseRules` | Mascot shop. Fox is free. Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. `purchase` charges points and inserts `student_mascot_purchase` in one transaction, then equips that mascot |
+| `StudentDesktopPracticeBundleService` | (`!desktop`) Current-quarter gate then stream fixed prebuilt zip (`target/OOP-AutoGrader-Practice.zip` or cwd `OOP-AutoGrader-Practice.zip`); no pack export, no env, no request-time zip |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
+| `SubmissionDeletionService` | Full delete of submission graph by submission id list or all rows for a user; `stripDetailRows` drops Class/OT ticks and MMD JSON but keeps score rows |
+| `SubmissionRetentionService` | Enforce per-student newest-N plus per-lab highest (`app.submission.retention.*`); reconcile `student_lab_progress` after prune |
+| `SubmissionRetentionKeepers` | Prune ids: 10 newest globally ∪ highest score per lab. Strip-detail ids: remaining except latest ∪ highest per lab |
+| `SubmissionRetentionScheduler` | Nightly backfill (`!desktop`, 05:00 Vietnam) |
+| `SubmissionSidecarCleanup` | Remove `_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot` files for pruned submission ids |
 | `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
@@ -34,7 +42,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan; `requireChallengeAccessible` for dry-run |
 | `TestcaseDryRunService` | Reference Java compile + `gradeSingle` preview; reuses local worker (`SharedLocalWorkerCache`) and compiled classes (`DryRunCompileCache`, 60s TTL) |
 | `DryRunCompileCache` | Fingerprint-keyed classes dir reuse for unchanged dry-run reference sources |
-| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved (attachments cascade). Author `GET /replies` for the student notification bell. Attachments in Postgres `bytea` |
+| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved — soft-archive (`archived_at`) when a reply exists, else hard-delete. Author `GET /replies` includes archived replies; `DELETE /replies` consume hard-deletes those rows after the student reload/logout. Attachments in Postgres `bytea` |
 | `FeedbackImageConverter` | ImageIO PNG/JPG → WebP (quality ~80, longest side 1920). Fail 422 instead of storing original raster |
 
 ## Local Contracts
@@ -55,7 +63,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
-- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect.
+- `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect. Upload rubric overlap uses `rubricOverlapExecutor`, not this pool.
 
 ### Java compilation
 
@@ -72,13 +80,13 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GoogleTokenVerifier`: calls `https://oauth2.googleapis.com/tokeninfo`, checks audience, expiry, `email_verified`, domain `eiu.edu.vn`
 - `JwtService`: HS256 signing key derived once at construction from `jwt.secret` / `JWT_SECRET` (≥32 bytes); missing or too-short secrets fail startup
-- `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` strings; inactive accounts are rejected
+- `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` / `ADMIN` strings; inactive accounts are rejected. Admin lab uploads are graded and returned, then discarded (no progress, streak credit, plagiarism, or overview cache invalidation)
 - `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body; inactive users rejected at complete as well as request); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
 
 ### User management
 
 - Bulk create inserts rows with 1-second delay between each
-- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then bulk-deletes plagiarism rows, grading result rows, and `lab_submission` for that user, then the `user_account` row; clears session-version cache for that email so live JWTs fail the filter
+- Hard delete (`deleteUser`) removes progress, enrollments, ledger, and tokens, then `SubmissionDeletionService.deleteAllSubmissionGraphForUser`, then the `user_account` row; clears session-version cache for that email so live JWTs fail the filter
 - Soft suspend bumps `session_version` so the live JWT is rejected (SPA presence poll then hard-cuts to login)
 - Google upsert creates a new student account on first-time setup; sets `user_account.create_at` (Vietnam `timestamptz`) on create, lecturer `createUser`, and on first successful `POST /api/auth/google` when the column is still null
 - Inactive users cannot log in (IRN or Google)
@@ -105,7 +113,9 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GET /api/lecturer/labs/clone-sources` — labs from the previous-current quarter (ordinal: yearLabel desc, termNumber desc; entry after current). Empty when none.
 - `POST /api/lecturer/labs/clone` — bulk deep-clone into `targetTermId`; source labs must belong to previous-current (403 otherwise). Returns created + per-lab errors.
-- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied.
+- `GET /api/lecturer/terms/{termId}/sync-labs` — labs from every other quarter whose name is not already in the target quarter (for Terms page sync UI).
+- `POST /api/lecturer/terms/{termId}/sync-labs` — deep-clone selected source labs into that quarter; sources may span multiple quarters (not the target); rejected when the target quarter already has a lab with the same name (case-insensitive).
+- Clone path: load source rubric/OT in a short read TX, then `createLab` → remap UUIDs → `saveLabStructureInsertOnly` → `persistClonedTestcasesBatch` (batched membership + insert-only) in `REQUIRES_NEW`. Multi-lab clone overlaps up to 4 write transactions. Submissions are never copied. Postgres needs Hikari `stringtype=unspecified` (with `reWriteBatchedInserts`) so VARCHAR-mapped OT enums cast into native enum columns on flush.
 
 ### Operational testcase save
 
@@ -117,14 +127,17 @@ Per upload request (unique `requestId` prevents collisions):
 - GET returns `testcaseType` plus ordered `invocations`. No `oopPrincipleTag`, COMPARISON instances, or per-testcase weight
 - `LabStructureService.deleteClassCascade` blocks when a class is still referenced as a leftover `dispatch_class_id` target (`RubricMemberKind.CLASS`)
 - `LabStructureService.deleteLabsCascadeBulk` / `deleteLabCascade` wipe labs with ~20 set-based SQL statements (runtime → OT → members → classes → challenges → lab) — do not use per-entity cascades for term delete on Neon
-- `LabStructureService.saveLabStructureInsertOnly` (clone path) uses an empty save context (master data only) and defers intermediate flushes to one commit flush; editor saves keep load + per-batch flush
+- `LabStructureService.saveLabStructure` (editor) and `saveLabStructureInsertOnly` (clone) both defer intermediate flushes to one commit flush (Neon RTT). Editor still loads `SaveContext` and upserts; clone uses an empty save context (master data only)
+- `LabStructureService.updateLabPrefix` stores `Official` or `Practice` only. Structure save does not copy prefix from the editor payload, and clone does not copy the source lab's prefix (the new lab stays the entity default `Official`)
+- Editor `PUT .../structure` accepts `LabStructureSaveRequest` with optional `replacedChallengeIds`: one set-based `deleteAllForChallenges`, cascade-delete class trees with `skipTestcaseGuards` (challenge rows kept for stable ids), flush, then upsert challenge fields + insert-style child sync (solution-import replaces). Deleting a field, method, constructor, or relation also deletes its `submission_field_result` / `submission_method_result` / `submission_constructor_result` / `submission_relation_result` rows so a graded lab can be rebuilt. `lab_submission` and `submission_challenge_result` stay. No N× `PUT .../testcases` wipe from the SPA
+- Zero-pillar gate (`ChallengePillarApplicability`): structure PUT and OT PUT reject when `!hasClass && !hasMmd && OT count == 0` after the write (`400` with a clear lecturer-facing message). Solution import leaves `hasClass=true` (does not auto-off from missing Java).
 - Clone OT write batches membership loads for all challenges and sets FKs via `EntityManager.getReference` (no per-member SELECT)
 
 ## Work Guidance
 
 - Submission pipeline changes must keep folder naming compatible with `GradingService` challenge regex
 - Invalid upload structure / I/O setup failures may still use `SubmissionProcessingException` (`GlobalExceptionHandler` HTTP 422). Mixed javac keeps survivors and records `ChallengeCompileErrors`; lecturer dry-run mixed compile returns preview ERROR DTOs — do not throw HTTP 422 for javac diagnostics
-- MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0` so grading records 0% for that challenge
+- MMD-only challenge folders (no `.java`) still produce a `ChallengeResult` with `classFileCount=0`. Class reflection scores 0% for that challenge. Operational testcases on it are recorded as failed and are not invoked.
 - `processUpload` deletes the submission folder when any parallel challenge task fails
 - Do not persist submission temp files beyond the upload request lifecycle
 - Auth service changes affect both `AuthController` and `SubmissionController` JWT parsing
@@ -150,10 +163,12 @@ Per upload request (unique `requestId` prevents collisions):
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
-- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class)
+- Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
+- Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases
 - Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
+- Submission retention: `support` `SubmissionRetentionServiceTest`, `SubmissionRetentionKeepersTest`, `SubmissionDeletionServiceTest`
 
 ## Child DOX Index
 

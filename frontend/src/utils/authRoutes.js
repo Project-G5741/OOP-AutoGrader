@@ -14,6 +14,7 @@ export const ROUTES = {
   studentRanking: '/student-ranking',
   noAccess: '/no-access',
   rateLimited: '/rate-limited',
+  staffLogin: '/staff',
 };
 
 const ACCESS_TOKEN_KEY = 'accessToken';
@@ -111,7 +112,7 @@ export function isInCurrentTerm(value) {
 }
 
 export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
-  if (hasRole(roles, 'LECTURER')) return ROUTES.lecturerDashboard;
+  if (hasRole(roles, 'ADMIN') || hasRole(roles, 'LECTURER')) return ROUTES.lecturerDashboard;
   if (hasRole(roles, 'STUDENT')) {
     return isInCurrentTerm(inCurrentTerm) ? ROUTES.studentDashboard : ROUTES.studentHistory;
   }

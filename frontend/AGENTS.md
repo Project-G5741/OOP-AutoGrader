@@ -28,6 +28,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 |---|---|
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
+| `VITE_MAINTENANCE_MODE` | Web-only lock. `true` / `1` / `yes` / `on` shows `MaintenancePage` for guests and students, and **clears student-only sessions** (token + presence). No login button on that page. Lecturers sign in at **`/staff`**. Student URLs redirect to the lecturer dashboard. Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at **build** time — change on Vercel then **Redeploy**. Desktop (`VITE_APP_MODE=desktop`) ignores this flag. |
 
 **Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses `quitPracticeApp` (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`). Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
 
@@ -45,7 +46,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Expired JWT (`exp` in the past) clears storage and counts as logged out; revoked sessions still hard-cut on presence/API **401**
 - Web entry (`main.jsx`) must not statically import `App.desktop.jsx` — that module’s top-level session seed would overwrite a real JWT with `desktop-local` on every reload
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
-- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
+- Role gate in `App.jsx`: `RequireRole` + URL routes; Admin and lecturer land on the lecturer dashboard. Admin and dual-role users reach student routes (Admin uses the account-menu Student area). Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration

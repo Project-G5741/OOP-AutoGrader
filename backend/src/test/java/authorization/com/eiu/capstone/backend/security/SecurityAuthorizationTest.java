@@ -155,6 +155,16 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void adminOnly_canOpenStudentAndLecturerPaths() throws Exception {
+        mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.ADMIN))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/lecturer/overview")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.ADMIN))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void lecturerUpload_is403() throws Exception {
         mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
                         .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))

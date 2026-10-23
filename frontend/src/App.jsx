@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -13,10 +13,12 @@ import LecturerDashboard from "./pages/LecturerDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import NoAccessPage from "./pages/NoAccessPage";
 import RateLimitedPage from "./pages/RateLimitedPage";
+import MaintenancePage from "./pages/MaintenancePage";
 import RequireRole from "./components/auth/RequireRole";
 import {
   clearAuthSession,
   defaultDashboardPath,
+  hasRole,
   normalizeRoleList,
   persistAuthSession,
   readStoredUser,
@@ -25,6 +27,7 @@ import {
 import { leavePresence } from "./utils/presence";
 import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
 import { consumeFeedbackRepliesOnLeave } from "./utils/feedbackReplyConsume";
+import { isWebMaintenanceMode } from "./utils/maintenanceMode";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -44,24 +47,33 @@ function AuthenticatedLanding({ user }) {
 export default function App() {
   const initialResetToken = useMemo(() => readResetTokenFromUrl(), []);
   const navigate = useNavigate();
+  const location = useLocation();
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [loginMessage, setLoginMessage] = useState(null);
   const sessionUser = readStoredUser();
+  const lecturerCanEnter = hasRole(sessionUser?.roles, "LECTURER");
 
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-8 text-center text-foreground">
-        <p>
-          Missing <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code>. Copy{' '}
-          <code className="font-mono">frontend/.env.example</code> to{' '}
-          <code className="font-mono">frontend/.env</code> and set the Google client ID.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!isWebMaintenanceMode()) {
+      return undefined;
+    }
+    const user = readStoredUser();
+    if (!user || hasRole(user.roles, "LECTURER")) {
+      return undefined;
+    }
+    consumeFeedbackRepliesOnLeave();
+    leavePresence();
+    clearAuthSession();
+    clearLecturerBootstrapStore();
+    return undefined;
+  }, []);
 
   const handleLoginSuccess = useCallback((data) => {
     const roles = normalizeRoleList(data.roles);
+    if (isWebMaintenanceMode() && !hasRole(roles, "LECTURER")) {
+      setLoginMessage("The site is under maintenance. Only lecturers can sign in right now.");
+      return;
+    }
     const userPayload = { ...data, roles };
     persistAuthSession(data.accessToken, userPayload);
     navigate(defaultDashboardPath(roles, data.inCurrentTerm));
@@ -75,12 +87,40 @@ export default function App() {
     navigate(ROUTES.login);
   }, [navigate]);
 
-  const handleResetComplete = () => {
+  const handleResetComplete = useCallback(() => {
     clearResetTokenFromUrl();
     setResetToken(null);
     setLoginMessage("Password updated. Sign in with your new password.");
     navigate(ROUTES.login);
-  };
+  }, [navigate]);
+
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8 text-center text-foreground">
+        <p>
+          Missing <code className="font-mono">VITE_GOOGLE_CLIENT_ID</code>. Copy{' '}
+          <code className="font-mono">frontend/.env.example</code> to{' '}
+          <code className="font-mono">frontend/.env</code> and set the Google client ID.
+        </p>
+      </div>
+    );
+  }
+
+  if (isWebMaintenanceMode() && !lecturerCanEnter) {
+    if (location.pathname === ROUTES.staffLogin) {
+      return (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <Login
+            onLoginSuccess={handleLoginSuccess}
+            loginMessage={loginMessage}
+            onDismissLoginMessage={() => setLoginMessage(null)}
+            onBack={() => navigate(ROUTES.login)}
+          />
+        </GoogleOAuthProvider>
+      );
+    }
+    return <MaintenancePage />;
+  }
 
   if (resetToken && !sessionUser) {
     return (
@@ -111,7 +151,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerDashboard}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -119,7 +159,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerGrading}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -127,7 +167,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerBulkGrading}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -135,7 +175,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerUsers}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -143,7 +183,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerSolution}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -151,7 +191,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerReport}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -159,7 +199,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerFeedback}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -168,7 +208,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerTerms}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -176,7 +216,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerRanking}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -185,25 +225,37 @@ export default function App() {
           <Route
             path={ROUTES.studentDashboard}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
+                </RequireRole>
+              )
             }
           />
           <Route
             path={ROUTES.studentHistory}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
+                </RequireRole>
+              )
             }
           />
           <Route
             path={ROUTES.studentRanking}
             element={
-              <RequireRole anyOf={["STUDENT"]}>
-                <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
-              </RequireRole>
+              isWebMaintenanceMode() ? (
+                <Navigate to={ROUTES.lecturerDashboard} replace />
+              ) : (
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
+                  <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
+                </RequireRole>
+              )
             }
           />
 
@@ -219,6 +271,16 @@ export default function App() {
           />
 
           <Route path={ROUTES.rateLimited} element={<RateLimitedPage />} />
+          <Route
+            path={ROUTES.staffLogin}
+            element={
+              sessionUser ? (
+                <AuthenticatedLanding user={sessionUser} />
+              ) : (
+                <Navigate to={ROUTES.login} replace />
+              )
+            }
+          />
 
           <Route
             path="*"

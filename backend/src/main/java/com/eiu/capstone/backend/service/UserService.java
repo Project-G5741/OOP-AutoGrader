@@ -1,0 +1,547 @@
+package com.eiu.capstone.backend.service;
+
+import java.time.OffsetDateTime;
+
+import com.eiu.capstone.backend.utility.TimeUtil;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.eiu.capstone.backend.DTO.BulkCreateResult;
+import com.eiu.capstone.backend.DTO.UserDTO;
+import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
+import com.eiu.capstone.backend.model.Role;
+import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
+import com.eiu.capstone.backend.repository.PasswordResetTokenRepository;
+import com.eiu.capstone.backend.repository.RoleRepository;
+import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
+import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.eiu.capstone.backend.security.JwtRoleNames;
+import com.eiu.capstone.backend.security.JwtUserPrincipal;
+
+import jakarta.transaction.Transactional;
+
+@Service
+public class UserService {
+
+    private final UserAccountRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final SubmissionDeletionService submissionDeletionService;
+    private final StudentLabProgressRepository studentLabProgressRepository;
+    private final TermEnrollmentRepository termEnrollmentRepository;
+    private final LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final SessionValidityService sessionValidityService;
+    private final TermService termService;
+
+    public UserService(UserAccountRepository userRepository,
+            RoleRepository roleRepository,
+            PasswordEncoder passwordEncoder,
+            SubmissionDeletionService submissionDeletionService,
+            StudentLabProgressRepository studentLabProgressRepository,
+            TermEnrollmentRepository termEnrollmentRepository,
+            LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
+            SessionValidityService sessionValidityService,
+            TermService termService) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.submissionDeletionService = submissionDeletionService;
+        this.studentLabProgressRepository = studentLabProgressRepository;
+        this.termEnrollmentRepository = termEnrollmentRepository;
+        this.labDeadlineEmailSentRepository = labDeadlineEmailSentRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.sessionValidityService = sessionValidityService;
+        this.termService = termService;
+    }
+
+    @Transactional
+    public List<UserDTO.UserResponse> getAllUser() {
+        return toListResponses(userRepository.findAllWithRoles());
+    }
+
+    @Transactional
+    public Page<UserDTO.UserResponse> getAllUser(Pageable pageable) {
+        Page<UserAccount> page = userRepository.findAllWithRoles(pageable);
+        List<UserDTO.UserResponse> mapped = toListResponses(page.getContent());
+        return new org.springframework.data.domain.PageImpl<>(mapped, pageable, page.getTotalElements());
+    }
+
+    @Transactional
+    public UserAccount getUser(UUID id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("User not found: " + id));
+    }
+
+    @Transactional
+    public UserAccount createUser(CreateUserRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("User request is required");
+        }
+        if (request.password() == null || request.password().isBlank()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+        if (request.email() == null || request.email().isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        if (userRepository.findByEmail(request.email()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use: " + request.email());
+        }
+
+        UserAccount user = new UserAccount();
+        user.setFullName(request.fullName());
+        user.setEmail(request.email());
+        user.setStudentCode(blankToNull(request.studentCode()));
+        user.setTeacherCode(blankToNull(request.teacherCode()));
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setIsActive(true);
+        user.setCreateAt(nowInVietnam());
+
+        Set<String> roleNames = enforceAdminAssignment(
+                normalizeIncomingRoleNames(request.roleNames(), null), Set.of());
+        validateRoleNames(roleNames, false);
+        validateCodesForRoles(roleNames, request.studentCode(), request.teacherCode(), null);
+        applyCodesForRoles(user, roleNames, request.studentCode(), request.teacherCode());
+        user.setRoles(resolveRoles(roleNames));
+
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public List<BulkCreateResult> createUser(List<CreateUserRequest> requests) {
+        List<BulkCreateResult> results = new ArrayList<>();
+        if (requests == null) {
+            return results;
+        }
+
+        for (CreateUserRequest request : requests) {
+            if (request == null) {
+                results.add(BulkCreateResult.failure(null, "Empty user request"));
+                continue;
+            }
+            try {
+                results.add(BulkCreateResult.success(createUser(request)));
+            } catch (Exception ex) {
+                results.add(BulkCreateResult.failure(request.email(), ex.getMessage()));
+            }
+        }
+        return results;
+    }
+
+    // UserService.java - Change password   
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is required");
+        }
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password is required");
+        }
+        if (newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
+        }
+        if (newPassword.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be less than 100 characters");
+        }
+
+        UserAccount user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be different from current password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public UserAccount createOrUpdateGoogleUser(String email, String fullName, String irn,
+            String password, String roleName) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        if (irn == null || irn.isBlank()) {
+            throw new IllegalArgumentException("IRN is required");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+
+        Optional<UserAccount> existingByEmail = userRepository.findByEmail(email);
+        Optional<UserAccount> existingByIrn = userRepository.findByStudentCodeOrTeacherCode(irn, irn);
+
+        if (existingByEmail.isPresent() && existingByIrn.isPresent()
+                && !existingByEmail.get().getId().equals(existingByIrn.get().getId())) {
+            throw new IllegalArgumentException("IRN is already linked to another account");
+        }
+
+        UserAccount user = existingByEmail.orElseGet(() -> existingByIrn.orElseGet(UserAccount::new));
+        boolean isNewUser = user.getId() == null;
+        if (!isNewUser) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Account already registered. Sign in with Google or IRN/password.");
+        }
+
+        user.setEmail(email);
+        user.setFullName(fullName);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setStudentCode(irn);
+        user.setTeacherCode(null);
+        user.setRoles(resolveRoles(Set.of("STUDENT")));
+        user.setIsActive(true);
+        user.setCreateAt(nowInVietnam());
+        return userRepository.save(user);
+    }
+
+    /** Sets {@code create_at} on first Google email login when still unset (legacy / pre-import rows). */
+    @Transactional
+    public UserAccount stampCreateAtIfAbsent(UserAccount user) {
+        if (user == null || user.getCreateAt() != null) {
+            return user;
+        }
+        user.setCreateAt(nowInVietnam());
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public UserAccount authenticateByIrn(String irn, String password) {
+        if (irn == null || irn.isBlank()) {
+            throw new IllegalArgumentException("IRN is required");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+
+        UserAccount user = userRepository.findByStudentCodeOrTeacherCode(irn, irn)
+                .orElseThrow(() -> new BadCredentialsException("Invalid IRN or password"));
+
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new BadCredentialsException("Invalid IRN or password");
+        }
+        if (!user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        }
+
+        return user;
+    }
+
+    @Transactional
+    public UserDTO.UserResponse deleteUser(UUID id) {
+        UserAccount user = userRepository.findAllWithRolesByIdIn(List.of(id)).stream()
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (hasRole(user, JwtRoleNames.ADMIN) && !actorIsAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only an Admin can delete an Admin account");
+        }
+        UserDTO.UserResponse response = UserDTO.UserResponse.fromEntity(user);
+        String email = user.getEmail();
+        purgeUserData(id);
+        userRepository.delete(user);
+        sessionValidityService.invalidateCachedEmail(email);
+        return response;
+    }
+
+    private void purgeUserData(UUID userId) {
+        studentLabProgressRepository.deleteByUser_Id(userId);
+        termEnrollmentRepository.deleteByUser_Id(userId);
+        labDeadlineEmailSentRepository.deleteByUser_Id(userId);
+        passwordResetTokenRepository.deleteByUser_Id(userId);
+
+        submissionDeletionService.deleteAllSubmissionGraphForUser(userId);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse suspendStudent(UUID id) {
+        return setStudentActive(id, false);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse restoreStudent(UUID id) {
+        return setStudentActive(id, true);
+    }
+
+    private UserDTO.UserResponse setStudentActive(UUID id, boolean active) {
+        UserAccount user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (!hasRole(user, "STUDENT")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only students can be suspended");
+        }
+        if (hasRole(user, JwtRoleNames.ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend an admin account");
+        }
+        if (hasRole(user, "LECTURER")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend a lecturer account");
+        }
+        user.setIsActive(active);
+        if (!active) {
+            sessionValidityService.bumpSessionVersion(user);
+        } else {
+            userRepository.save(user);
+        }
+        return UserDTO.UserResponse.fromEntity(user);
+    }
+
+    private Set<String> enforceAdminAssignment(Set<String> requested, Set<String> existing) {
+        Set<String> next = new LinkedHashSet<>(requested);
+        boolean hadAdmin = existing.contains(JwtRoleNames.ADMIN);
+        if (!actorIsAdmin()) {
+            if (next.contains(JwtRoleNames.ADMIN) && !hadAdmin) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only an Admin can grant Admin");
+            }
+            if (hadAdmin) {
+                next.add(JwtRoleNames.ADMIN);
+            }
+        }
+        return next;
+    }
+
+    private boolean actorIsAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof JwtUserPrincipal jwt) {
+            return jwt.hasRole(JwtRoleNames.ADMIN);
+        }
+        return false;
+    }
+
+    private Set<String> roleNamesOf(UserAccount user) {
+        if (user.getRoles() == null) {
+            return Set.of();
+        }
+        return user.getRoles().stream()
+                .map(role -> normalizeRoleName(role.getName()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean roleMembershipChanged(Set<String> before, Set<String> after) {
+        for (String name : List.of(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)) {
+            if (before.contains(name) != after.contains(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasRole(UserAccount user, String roleName) {
+        if (user.getRoles() == null) {
+            return false;
+        }
+        String required = normalizeRoleName(roleName);
+        return user.getRoles().stream()
+                .map(role -> normalizeRoleName(role.getName()))
+                .anyMatch(required::equals);
+    }
+
+    @Transactional
+    public UserDTO.UserResponse updateUser(UUID userId, UserDTO.UpdateUserRequest request) {
+        UserAccount user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "User not found: " + userId));
+
+        userRepository.findByEmail(request.getEmail())
+                .filter(existing -> !existing.getId().equals(userId))
+                .ifPresent(existing -> {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT, "Email already in use: " + request.getEmail());
+                });
+
+        Set<String> previousRoles = roleNamesOf(user);
+        Set<String> roleNames = enforceAdminAssignment(
+                normalizeIncomingRoleNames(request.getRoleNames(), request.getRole()), previousRoles);
+        String legacyIrn = blankToNull(request.getIrn());
+        String studentCode = blankToNull(request.getStudentCode());
+        String teacherCode = blankToNull(request.getTeacherCode());
+
+        if (studentCode == null && legacyIrn != null && roleNames.contains("STUDENT") && !roleNames.contains("LECTURER")) {
+            studentCode = legacyIrn;
+        }
+        if (teacherCode == null && legacyIrn != null && roleNames.contains("LECTURER") && !roleNames.contains("STUDENT")) {
+            teacherCode = legacyIrn;
+        }
+        if (studentCode == null && legacyIrn != null && roleNames.contains("STUDENT") && roleNames.contains("LECTURER")
+                && teacherCode == null) {
+            studentCode = legacyIrn;
+        }
+
+        validateRoleNames(roleNames, actorIsAdmin());
+        validateCodesForRoles(roleNames, studentCode, teacherCode, user);
+
+        user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail());
+        applyCodesForRoles(user, roleNames, studentCode, teacherCode);
+        applyOptionalPassword(user, request.getPassword());
+        user.setRoles(resolveRoles(roleNames));
+
+        if (roleMembershipChanged(previousRoles, roleNames)) {
+            sessionValidityService.bumpSessionVersion(user);
+            return UserDTO.UserResponse.fromEntity(user);
+        }
+        UserAccount saved = userRepository.save(user);
+        return UserDTO.UserResponse.fromEntity(saved);
+    }
+
+    private Set<String> normalizeIncomingRoleNames(Set<String> roleNames, String legacyRole) {
+        if (roleNames != null) {
+            return roleNames.stream()
+                    .map(this::normalizeRoleName)
+                    .filter(name -> "STUDENT".equals(name) || "LECTURER".equals(name) || "ADMIN".equals(name))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        if (legacyRole != null && !legacyRole.isBlank()) {
+            return Set.of(normalizeRoleName(legacyRole));
+        }
+        return Set.of("STUDENT");
+    }
+
+    private void validateRoleNames(Set<String> roleNames, boolean allowEmpty) {
+        if (roleNames == null || roleNames.isEmpty()) {
+            if (allowEmpty) {
+                return;
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one role is required");
+        }
+        for (String roleName : roleNames) {
+            if (!"STUDENT".equals(roleName) && !"LECTURER".equals(roleName) && !"ADMIN".equals(roleName)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported role: " + roleName);
+            }
+        }
+    }
+
+    private void validateCodesForRoles(
+            Set<String> roleNames, String studentCode, String teacherCode, UserAccount existing) {
+        boolean studentIrnRequired = roleNames.contains("STUDENT") && !roleNames.contains("ADMIN");
+        if (studentIrnRequired && (studentCode == null || studentCode.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Student IRN is required for STUDENT role");
+        }
+        boolean teacherIrnRequired = roleNames.contains("LECTURER") || roleNames.contains("ADMIN");
+        boolean teacherIrnMissing = teacherCode == null || teacherCode.isBlank();
+        boolean existingTeacherIrn = existing != null && existing.getTeacherCode() != null
+                && !existing.getTeacherCode().isBlank();
+        if (teacherIrnRequired && teacherIrnMissing && !existingTeacherIrn) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lecturer IRN is required");
+        }
+    }
+
+    private void applyCodesForRoles(UserAccount user, Set<String> roleNames, String studentCode, String teacherCode) {
+        if (roleNames.isEmpty()) {
+            return;
+        }
+        if (roleNames.contains("STUDENT") && studentCode != null && !studentCode.isBlank()) {
+            user.setStudentCode(studentCode);
+        } else if (!roleNames.contains("STUDENT")) {
+            user.setStudentCode(null);
+        } else if (!roleNames.contains("ADMIN")) {
+            user.setStudentCode(studentCode);
+        } else {
+            user.setStudentCode(null);
+        }
+        if (roleNames.contains("LECTURER") || roleNames.contains("ADMIN")) {
+            if (teacherCode != null && !teacherCode.isBlank()) {
+                user.setTeacherCode(teacherCode);
+            }
+        } else {
+            user.setTeacherCode(null);
+        }
+    }
+
+    private void applyOptionalPassword(UserAccount user, String password) {
+        if (password == null || password.isBlank()) {
+            return;
+        }
+        if (password.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
+        }
+        if (password.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be less than 100 characters");
+        }
+        user.setPasswordHash(passwordEncoder.encode(password));
+    }
+
+    private Set<Role> resolveRoles(Set<String> roleNames) {
+        if (roleNames == null || roleNames.isEmpty()) {
+            return new HashSet<>();
+        }
+
+        Set<Role> roles = new HashSet<>();
+        for (String roleName : roleNames) {
+            String normalized = normalizeRoleName(roleName);
+            Role role = roleRepository.findByName(normalized)
+                    .orElseGet(() -> roleRepository.save(new Role(normalized)));
+            roles.add(role);
+        }
+        return roles;
+    }
+
+    private String normalizeRoleName(String roleName) {
+        if (roleName == null || roleName.isBlank()) {
+            return "STUDENT";
+        }
+        String normalized = roleName.trim().toUpperCase();
+        if ("TEACHER".equals(normalized) || "LECTURER".equals(normalized)) {
+            return "LECTURER";
+        }
+        return normalized;
+    }
+
+    private boolean isLecturerRole(String roleName) {
+        return "LECTURER".equalsIgnoreCase(normalizeRoleName(roleName));
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * Map users for list/bootstrap: Current Quarter label when active and enrolled in the
+     * system current term (same rule as student Enrolled Quarter); otherwise null.
+     */
+    private List<UserDTO.UserResponse> toListResponses(List<UserAccount> users) {
+        if (users == null || users.isEmpty()) {
+            return List.of();
+        }
+        Optional<String> labelOpt = termService.currentTermLabel();
+        if (labelOpt.isEmpty()) {
+            return users.stream().map(UserDTO.UserResponse::fromEntity).toList();
+        }
+        String label = labelOpt.get();
+        Set<UUID> enrolledIds = new HashSet<>(termEnrollmentRepository.findUserIdsEnrolledInCurrentTerm());
+        List<UserDTO.UserResponse> mapped = new ArrayList<>(users.size());
+        for (UserAccount user : users) {
+            String quarter = (user.getIsActive() && enrolledIds.contains(user.getId())) ? label : null;
+            mapped.add(UserDTO.UserResponse.fromEntity(user, quarter));
+        }
+        return mapped;
+    }
+
+    private static OffsetDateTime nowInVietnam() {
+        return TimeUtil.nowInVietnam();
+    }
+}
