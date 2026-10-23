@@ -4,3 +4,5 @@ dist/
 frontend/dist-desktop/
 .cursor/vendor/
 /Submission/
+.env
+/tmp-*.json
