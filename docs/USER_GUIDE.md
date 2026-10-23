@@ -240,7 +240,7 @@ After selecting a term, the right panel shows two lists:
 
 #### Emailing the current quarter
 
-When the **current** quarter is selected, **Email current quarter** appears above the roster. Compose a subject and message, then **Email class**. Confirm to send one email to each **active enrolled student** using the address on their AutoGrader account (Brevo in production, SMTP locally). Students without an email are skipped. Other quarters cannot be mailed from this screen.
+On the **Quarters** page, click **Email quarter** (top right, next to **Add quarter**, and on the current quarter’s toolbar). Compose a subject and message, then **Send**. One email goes to each **active student enrolled in the current quarter**, using their AutoGrader account address (Brevo in production, SMTP locally). Students without an email are skipped.
 
 #### Suspending / Restoring from Roster
 

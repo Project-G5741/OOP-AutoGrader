@@ -117,7 +117,7 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
-| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — current quarter only; body `{ subject, body }`; one email per active enrolled student account email |
+| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — **Email quarter** on the Quarters page; body `{ subject, body }`; one email per active student enrolled in the current quarter |
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
@@ -169,7 +169,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; on the current quarter, **Email class** sends subject+body to enrolled account emails
+- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; **Email quarter** (page header and current-quarter toolbar) sends subject+body to current-quarter account emails
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in. Delete User keeps the confirm dialog open with a spinner until the server finishes
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 
