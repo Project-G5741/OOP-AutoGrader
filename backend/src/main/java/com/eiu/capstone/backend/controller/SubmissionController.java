@@ -35,6 +35,7 @@ import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingService;
+import com.eiu.capstone.backend.grading.SubmissionDetailPersistGate;
 import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.model.Lab;
@@ -49,6 +50,7 @@ import com.eiu.capstone.backend.service.MmdPersistenceHook;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentStreakService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
+import com.eiu.capstone.backend.service.SubmissionRetentionService;
 import com.eiu.capstone.backend.service.UploadPersistService;
 import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
@@ -83,6 +85,8 @@ public class SubmissionController {
     private final StudentTermAccessService studentTermAccessService;
     private final UploadPersistService uploadPersistService;
     private final StudentStreakService studentStreakService;
+    private final SubmissionRetentionService submissionRetentionService;
+    private final SubmissionDetailPersistGate submissionDetailPersistGate;
     private final ExecutorService persistExecutor;
     private final ExecutorService rubricOverlapExecutor;
     private final boolean timingLog;
@@ -104,6 +108,8 @@ public class SubmissionController {
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
                                  StudentStreakService studentStreakService,
+                                 SubmissionRetentionService submissionRetentionService,
+                                 SubmissionDetailPersistGate submissionDetailPersistGate,
                                  @Qualifier("persistExecutor") ExecutorService persistExecutor,
                                  @Qualifier("rubricOverlapExecutor") ExecutorService rubricOverlapExecutor,
                                  @Value("${app.grading.timing-log:false}") boolean timingLog,
@@ -124,6 +130,8 @@ public class SubmissionController {
         this.studentTermAccessService = studentTermAccessService;
         this.uploadPersistService = uploadPersistService;
         this.studentStreakService = studentStreakService;
+        this.submissionRetentionService = submissionRetentionService;
+        this.submissionDetailPersistGate = submissionDetailPersistGate;
         this.persistExecutor = persistExecutor;
         this.rubricOverlapExecutor = rubricOverlapExecutor;
         this.timingLog = timingLog;
@@ -251,6 +259,7 @@ public class SubmissionController {
 
             long plagiarismStart = System.currentTimeMillis();
             schedulePlagiarismInspect(submission, files);
+            scheduleSubmissionRetention(submission);
             long plagiarismMs = System.currentTimeMillis() - plagiarismStart;
 
             mmdPersistenceHook.onUploadComplete(irn, requestId, uploadResult.mmdByChallenge);
@@ -322,6 +331,33 @@ public class SubmissionController {
                 attemptNumber,
                 latest,
                 gradingOutcome.labResult());
+    }
+
+    private void scheduleSubmissionRetention(LabSubmission submission) {
+        if (!submissionRetentionService.isEnabled()
+                || submission == null
+                || submission.getId() == null
+                || submission.getUser() == null
+                || submission.getUser().getId() == null
+                || submission.getLab() == null
+                || submission.getLab().getId() == null) {
+            return;
+        }
+        UUID submissionId = submission.getId();
+        UUID userId = submission.getUser().getId();
+        UUID labId = submission.getLab().getId();
+        CompletableFuture.runAsync(() -> {
+            try {
+                submissionDetailPersistGate.await(submissionId);
+                int deleted = submissionRetentionService.enforceForStudent(userId);
+                if (deleted > 0) {
+                    labStatisticsCache.invalidate(labId);
+                    lecturerOverviewCache.invalidate();
+                }
+            } catch (RuntimeException e) {
+                System.out.printf("submission retention failed user=%s: %s%n", userId, e.toString());
+            }
+        }, persistExecutor);
     }
 
     private void schedulePlagiarismInspect(LabSubmission submission, List<MultipartFile> files) {

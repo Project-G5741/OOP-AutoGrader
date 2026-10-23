@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,13 @@ public interface SubmissionFieldResultRepository extends JpaRepository<Submissio
             WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
             """, nativeQuery = true)
     void deleteByUserId(@Param("userId") UUID userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_field_result
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void deleteBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
 
     List<SubmissionFieldResult> findBySubmission_Id(UUID submissionId);
 

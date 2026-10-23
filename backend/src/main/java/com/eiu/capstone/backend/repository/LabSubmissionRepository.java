@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,7 +64,13 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     @Query("SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId ORDER BY s.submittedAt DESC")
     List<LabSubmission> findByUser_IdWithLabOrderBySubmittedAtDesc(@Param("userId") UUID userId);
 
-    @Query("SELECT s FROM LabSubmission s JOIN FETCH s.lab WHERE s.user.id = :userId AND s.lab.id = :labId ORDER BY s.attemptNumber DESC")
+    @Query("""
+            SELECT s FROM LabSubmission s
+            JOIN FETCH s.lab
+            JOIN FETCH s.user
+            WHERE s.user.id = :userId AND s.lab.id = :labId
+            ORDER BY s.attemptNumber DESC
+            """)
     List<LabSubmission> findByUser_IdAndLab_IdWithLabOrderByAttemptNumberDesc(
             @Param("userId") UUID userId,
             @Param("labId") UUID labId);
@@ -152,4 +159,34 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
     List<Object[]> findEarliestSubmittedAtByLabAndUserIds(
             @Param("labId") UUID labId,
             @Param("userIds") java.util.Collection<UUID> userIds);
+
+    /**
+     * Students who still have a row that is neither among the {@code maxKeep} newest
+     * attempts nor that lab's highest-scoring attempt.
+     */
+    @Query(value = """
+            SELECT DISTINCT user_id FROM (
+                SELECT ls.user_id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY ls.user_id
+                           ORDER BY ls.submitted_at DESC, ls.attempt_number DESC
+                       ) AS recency_rn,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY ls.user_id, ls.lab_id
+                           ORDER BY ls.score DESC NULLS LAST,
+                                    ls.submitted_at DESC,
+                                    ls.attempt_number DESC
+                       ) AS best_rn
+                FROM lab_submission ls
+            ) ranked
+            WHERE recency_rn > :maxKeep AND best_rn > 1
+            LIMIT :batchLimit
+            """, nativeQuery = true)
+    List<UUID> findStudentsOverRetentionCap(
+            @Param("maxKeep") int maxKeep,
+            @Param("batchLimit") int batchLimit);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM LabSubmission s WHERE s.id IN :submissionIds")
+    void deleteAllByIdIn(@Param("submissionIds") Collection<UUID> submissionIds);
 }

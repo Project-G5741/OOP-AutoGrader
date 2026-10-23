@@ -30,18 +30,9 @@ import com.eiu.capstone.backend.DTO.UserDTO.CreateUserRequest;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
-import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.PasswordResetTokenRepository;
 import com.eiu.capstone.backend.repository.RoleRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
-import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionPlagiarismFingerprintRepository;
-import com.eiu.capstone.backend.repository.SubmissionPlagiarismMatchRepository;
-import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.security.JwtRoleNames;
@@ -55,15 +46,7 @@ public class UserService {
     private final UserAccountRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LabSubmissionRepository labSubmissionRepository;
-    private final SubmissionPlagiarismMatchRepository plagiarismMatchRepository;
-    private final SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository;
-    private final SubmissionFieldResultRepository submissionFieldResultRepository;
-    private final SubmissionMethodResultRepository submissionMethodResultRepository;
-    private final SubmissionConstructorResultRepository submissionConstructorResultRepository;
-    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
-    private final SubmissionRelationResultRepository submissionRelationResultRepository;
-    private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+    private final SubmissionDeletionService submissionDeletionService;
     private final StudentLabProgressRepository studentLabProgressRepository;
     private final TermEnrollmentRepository termEnrollmentRepository;
     private final LabDeadlineEmailSentRepository labDeadlineEmailSentRepository;
@@ -74,15 +57,7 @@ public class UserService {
     public UserService(UserAccountRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            LabSubmissionRepository labSubmissionRepository,
-            SubmissionPlagiarismMatchRepository plagiarismMatchRepository,
-            SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository,
-            SubmissionFieldResultRepository submissionFieldResultRepository,
-            SubmissionMethodResultRepository submissionMethodResultRepository,
-            SubmissionConstructorResultRepository submissionConstructorResultRepository,
-            SubmissionChallengeResultRepository submissionChallengeResultRepository,
-            SubmissionRelationResultRepository submissionRelationResultRepository,
-            SubmissionTestcaseResultRepository submissionTestcaseResultRepository,
+            SubmissionDeletionService submissionDeletionService,
             StudentLabProgressRepository studentLabProgressRepository,
             TermEnrollmentRepository termEnrollmentRepository,
             LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
@@ -92,15 +67,7 @@ public class UserService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
-        this.labSubmissionRepository = labSubmissionRepository;
-        this.plagiarismMatchRepository = plagiarismMatchRepository;
-        this.plagiarismFingerprintRepository = plagiarismFingerprintRepository;
-        this.submissionFieldResultRepository = submissionFieldResultRepository;
-        this.submissionMethodResultRepository = submissionMethodResultRepository;
-        this.submissionConstructorResultRepository = submissionConstructorResultRepository;
-        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
-        this.submissionRelationResultRepository = submissionRelationResultRepository;
-        this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
+        this.submissionDeletionService = submissionDeletionService;
         this.studentLabProgressRepository = studentLabProgressRepository;
         this.termEnrollmentRepository = termEnrollmentRepository;
         this.labDeadlineEmailSentRepository = labDeadlineEmailSentRepository;
@@ -305,16 +272,7 @@ public class UserService {
         labDeadlineEmailSentRepository.deleteByUser_Id(userId);
         passwordResetTokenRepository.deleteByUser_Id(userId);
 
-        plagiarismMatchRepository.deleteInvolvingUser(userId);
-        plagiarismFingerprintRepository.deleteAllByUserId(userId);
-        submissionTestcaseResultRepository.deleteAssertionResultsByUserId(userId);
-        submissionTestcaseResultRepository.deleteByUserId(userId);
-        submissionFieldResultRepository.deleteByUserId(userId);
-        submissionMethodResultRepository.deleteByUserId(userId);
-        submissionConstructorResultRepository.deleteByUserId(userId);
-        submissionChallengeResultRepository.deleteByUserId(userId);
-        submissionRelationResultRepository.deleteByUserId(userId);
-        labSubmissionRepository.deleteByUser_Id(userId);
+        submissionDeletionService.deleteAllSubmissionGraphForUser(userId);
     }
 
     @Transactional
