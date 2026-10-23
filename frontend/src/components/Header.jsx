@@ -1,5 +1,5 @@
 import { useTheme } from '../context/ThemeContext';
-import { Moon, Sun, LogOut, User, Home, Clock, Lock, Trophy } from 'lucide-react';
+import { Moon, Sun, LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
@@ -17,6 +17,8 @@ export default function Header({
   hideRanking = false,
   hideSectionLinks = false,
   hideChangePassword = false,
+  showStudentArea = false,
+  showLecturerArea = false,
   headerAddon = null,
   headerBeforeUserMenu = null,
   headerUserSlot = null,
@@ -134,6 +136,16 @@ export default function Header({
                     {!hideSectionLinks && !hideRanking && (
                     <button onClick={() => handleMenu('ranking')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Trophy className="h-4 w-4" /> Ranking
+                    </button>
+                    )}
+                    {showStudentArea && (
+                    <button onClick={() => handleMenu('studentArea')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <GraduationCap className="h-4 w-4" /> Student area
+                    </button>
+                    )}
+                    {showLecturerArea && (
+                    <button onClick={() => handleMenu('lecturerArea')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <Presentation className="h-4 w-4" /> Lecturer area
                     </button>
                     )}
                     {showChangePassword && (

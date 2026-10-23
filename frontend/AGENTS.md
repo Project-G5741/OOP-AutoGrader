@@ -46,7 +46,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Expired JWT (`exp` in the past) clears storage and counts as logged out; revoked sessions still hard-cut on presence/API **401**
 - Web entry (`main.jsx`) must not statically import `App.desktop.jsx` — that module’s top-level session seed would overwrite a real JWT with `desktop-local` on every reload
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
-- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
+- Role gate in `App.jsx`: `RequireRole` + URL routes; Admin and lecturer land on the lecturer dashboard. Admin and dual-role users reach student routes (Admin uses the account-menu Student area). Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration

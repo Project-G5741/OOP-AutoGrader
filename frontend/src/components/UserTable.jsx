@@ -16,7 +16,7 @@ const USER_COLUMNS = [
 
 function isStudentOnly(user) {
   const roles = user?.roleNames || [];
-  return roles.includes('STUDENT') && !roles.includes('LECTURER');
+  return roles.includes('STUDENT') && !roles.includes('LECTURER') && !roles.includes('ADMIN');
 }
 
 export default function UserTable({
@@ -36,6 +36,7 @@ export default function UserTable({
   onDelete,
   onSuspend,
   roleColors,
+  actorIsAdmin = false,
 }) {
   const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
 
@@ -137,9 +138,11 @@ export default function UserTable({
                         {u.isActive === false ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                       </button>
                     )}
+                    {(actorIsAdmin || !(u.roleNames || []).includes('ADMIN')) && (
                     <button onClick={() => onDelete(u)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground-muted transition-colors hover:bg-error-bg hover:text-error">
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    )}
                   </div>
                 </td>
               </tr>

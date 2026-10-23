@@ -168,6 +168,9 @@ The rule that only lab submissions with a timestamp on or before the lab's activ
 ### Dual-role user
 A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.
 
+### Admin
+An account role with both student and lecturer capabilities. Sign-in lands on the lecturer home, and student pages stay available without a term enrollment. The account uses a lecturer IRN and does not need a student IRN. Lab attempts are graded and shown once, then discarded: they do not change history, progress, roster, class totals, ranking, streak credit, or plagiarism records, even when the account also has Student. Daily login and shop activity can still be recorded. Only an Admin can grant, remove, or delete Admin. Lecturers can still grant Student and Lecturer. Granting or removing Student, Lecturer, or Admin ends that person's current sign-in. The first Admin is created outside the user screen, and the last Admin may be removed.
+
 Wrong-role *page* navigation still sends the user to that default dashboard (session kept). Wrong-role *API* calls keep the session and show **no-access** instead of logging the user out. Lecturer and student are independent roles: holding one does not grant the other.
 
 ### Default-deny
@@ -180,7 +183,7 @@ The SPA screen for a signed-in user whose API call was forbidden. The session st
 In-process last-seen map keyed by JWT email. A signed-in footer poll (every 10s) records a heartbeat; unique emails seen within 30 seconds are the public **Active Users** count. Logout and tab close send `DELETE /api/presence` so the user drops immediately. Identities are not exposed. Multi-instance deploys count independently. The same poll is the hard-cut heartbeat for **session revoke**: a 401 on presence clears the SPA session and returns to login.
 
 ### Session revoke
-Invalidating a signed-in JWT before natural expiry by bumping `user_account.session_version` (claim `sv`) or deleting the account. Hard delete, suspend, and remove-from-current-term bump or remove the row so the filter rejects the old token immediately; the SPA presence poll forces logout within seconds.
+Invalidating a signed-in JWT before natural expiry by bumping `user_account.session_version` (claim `sv`) or deleting the account. Hard delete, suspend, remove-from-current-term, and a save that grants or removes Student, Lecturer, or Admin bump or remove the row so the filter rejects the old token immediately; the SPA presence poll forces logout within seconds.
 
 ## Lecturer UI load
 

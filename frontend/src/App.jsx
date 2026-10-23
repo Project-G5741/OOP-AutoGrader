@@ -151,7 +151,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerDashboard}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -159,7 +159,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerGrading}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -167,7 +167,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerBulkGrading}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -175,7 +175,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerUsers}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -183,7 +183,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerSolution}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -191,7 +191,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerReport}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -199,7 +199,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerFeedback}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -208,7 +208,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerTerms}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -216,7 +216,7 @@ export default function App() {
           <Route
             path={ROUTES.lecturerRanking}
             element={
-              <RequireRole anyOf={["LECTURER"]}>
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
@@ -228,7 +228,7 @@ export default function App() {
               isWebMaintenanceMode() ? (
                 <Navigate to={ROUTES.lecturerDashboard} replace />
               ) : (
-                <RequireRole anyOf={["STUDENT"]}>
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
                   <StudentDashboard user={sessionUser} onLogout={handleLogout} view="dashboard" />
                 </RequireRole>
               )
@@ -240,7 +240,7 @@ export default function App() {
               isWebMaintenanceMode() ? (
                 <Navigate to={ROUTES.lecturerDashboard} replace />
               ) : (
-                <RequireRole anyOf={["STUDENT"]}>
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
                   <StudentDashboard user={sessionUser} onLogout={handleLogout} view="history" />
                 </RequireRole>
               )
@@ -252,7 +252,7 @@ export default function App() {
               isWebMaintenanceMode() ? (
                 <Navigate to={ROUTES.lecturerDashboard} replace />
               ) : (
-                <RequireRole anyOf={["STUDENT"]}>
+                <RequireRole anyOf={["STUDENT", "ADMIN"]}>
                   <StudentDashboard user={sessionUser} onLogout={handleLogout} view="ranking" />
                 </RequireRole>
               )

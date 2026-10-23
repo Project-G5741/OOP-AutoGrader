@@ -14,6 +14,7 @@ import {
 } from '../utils/validation';
 import { sortRows, toggleSortState } from '../utils/sort';
 import { getOrFetchLecturerBootstrap, invalidateLecturerBootstrap } from '../utils/lecturerBootstrapStore';
+import { hasRole } from '../utils/authRoutes';
 
 const EMPTY_FORM = {
   studentIrn: '',
@@ -27,6 +28,7 @@ const EMPTY_FORM = {
 const ROLE_COLORS = {
   STUDENT: 'bg-primary-light text-primary-text',
   LECTURER: 'bg-success-bg text-success-text',
+  ADMIN: 'bg-warning-bg text-warning-text',
 };
 
 const normalizeUser = (user) => {
@@ -109,9 +111,10 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     return filteredUsers.slice(start, start + PAGE_SIZE);
   }, [filteredUsers, page]);
 
+  const actorIsAdmin = hasRole(user?.roles, 'ADMIN');
   const rawFieldErrors = useMemo(
-    () => getUserFormErrors(form, modal),
-    [form, modal]
+    () => getUserFormErrors(form, modal, { allowEmptyRoles: actorIsAdmin && modal === 'edit' }),
+    [form, modal, actorIsAdmin]
   );
   const currentFieldErrors = useMemo(() => {
     const visible = {};
@@ -154,13 +157,14 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
     });
 
     const hasLecturer = normalizedRoles.includes('LECTURER');
-    const needsStudentIrn = normalizedRoles.includes('STUDENT') && !hasLecturer;
+    const hasAdmin = normalizedRoles.includes('ADMIN');
+    const needsStudentIrn = normalizedRoles.includes('STUDENT') && !hasLecturer && !hasAdmin;
 
     setForm({
       studentIrn: needsStudentIrn
         ? (item.studentCode || (normalizedRoles.length === 1 ? item.irn : '') || '')
         : '',
-      lecturerIrn: hasLecturer
+      lecturerIrn: hasLecturer || hasAdmin
         ? (item.teacherCode || item.irn || '')
         : '',
       fullname: item.fullname || item.fullName || '',
@@ -191,11 +195,14 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       const next = current.includes(roleName)
         ? current.filter((role) => role !== roleName)
         : [...current, roleName];
-      const nextRoles = next.length ? next : current;
+      if (roleName === 'ADMIN' && !actorIsAdmin) {
+        return prev;
+      }
+      const nextRoles = actorIsAdmin ? next : (next.length ? next : current);
       const nextForm = {
         ...prev,
         roles: nextRoles,
-        studentIrn: nextRoles.includes('LECTURER') ? '' : prev.studentIrn,
+        studentIrn: nextRoles.includes('LECTURER') || nextRoles.includes('ADMIN') ? '' : prev.studentIrn,
       };
       return nextForm;
     });
@@ -214,14 +221,15 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const buildPayload = () => {
     const roleNames = [...(form.roles || [])];
     const hasLecturer = roleNames.includes('LECTURER');
-    const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer;
+    const hasAdmin = roleNames.includes('ADMIN');
+    const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer && !hasAdmin;
     const studentCode = needsStudentIrn
       ? (form.studentIrn || selected?.studentCode || selected?.irn || '').trim()
       : null;
-    const teacherCode = hasLecturer
+    const teacherCode = hasLecturer || hasAdmin
       ? (form.lecturerIrn || selected?.teacherCode || '').trim()
       : null;
-    const legacyRole = hasLecturer ? 'LECTURER' : 'STUDENT';
+    const legacyRole = hasAdmin ? 'ADMIN' : hasLecturer ? 'LECTURER' : 'STUDENT';
     const legacyIrn = hasLecturer ? teacherCode : studentCode;
 
     const payload = {
@@ -292,7 +300,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
       password: true,
     }));
 
-    const nextErrors = getUserFormErrors(form, modal);
+    const nextErrors = getUserFormErrors(form, modal, { allowEmptyRoles: actorIsAdmin && modal === 'edit' });
     if (!isFormValid(nextErrors)) {
       return;
     }
@@ -421,6 +429,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         onDelete={openDelete}
         onSuspend={openSuspend}
         roleColors={ROLE_COLORS}
+        actorIsAdmin={actorIsAdmin}
       />
     </main>
   );
@@ -455,6 +464,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         onFieldChange={handleFieldChange}
         onFieldBlur={handleFieldBlur}
         onRoleToggle={handleRoleToggle}
+        canAssignAdmin={actorIsAdmin}
       />
     </div>
   );

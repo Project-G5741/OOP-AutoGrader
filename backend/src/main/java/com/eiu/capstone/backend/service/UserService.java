@@ -18,6 +18,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,6 +44,8 @@ import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.eiu.capstone.backend.security.JwtRoleNames;
+import com.eiu.capstone.backend.security.JwtUserPrincipal;
 
 import jakarta.transaction.Transactional;
 
@@ -147,9 +151,10 @@ public class UserService {
         user.setIsActive(true);
         user.setCreateAt(nowInVietnam());
 
-        Set<String> roleNames = normalizeIncomingRoleNames(request.roleNames(), null);
-        validateRoleNames(roleNames);
-        validateCodesForRoles(roleNames, request.studentCode(), request.teacherCode());
+        Set<String> roleNames = enforceAdminAssignment(
+                normalizeIncomingRoleNames(request.roleNames(), null), Set.of());
+        validateRoleNames(roleNames, false);
+        validateCodesForRoles(roleNames, request.studentCode(), request.teacherCode(), null);
         applyCodesForRoles(user, roleNames, request.studentCode(), request.teacherCode());
         user.setRoles(resolveRoles(roleNames));
 
@@ -283,6 +288,9 @@ public class UserService {
         UserAccount user = userRepository.findAllWithRolesByIdIn(List.of(id)).stream()
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (hasRole(user, JwtRoleNames.ADMIN) && !actorIsAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only an Admin can delete an Admin account");
+        }
         UserDTO.UserResponse response = UserDTO.UserResponse.fromEntity(user);
         String email = user.getEmail();
         purgeUserData(id);
@@ -325,6 +333,9 @@ public class UserService {
         if (!hasRole(user, "STUDENT")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only students can be suspended");
         }
+        if (hasRole(user, JwtRoleNames.ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend an admin account");
+        }
         if (hasRole(user, "LECTURER")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot suspend a lecturer account");
         }
@@ -335,6 +346,50 @@ public class UserService {
             userRepository.save(user);
         }
         return UserDTO.UserResponse.fromEntity(user);
+    }
+
+    private Set<String> enforceAdminAssignment(Set<String> requested, Set<String> existing) {
+        Set<String> next = new LinkedHashSet<>(requested);
+        boolean hadAdmin = existing.contains(JwtRoleNames.ADMIN);
+        if (!actorIsAdmin()) {
+            if (next.contains(JwtRoleNames.ADMIN) && !hadAdmin) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only an Admin can grant Admin");
+            }
+            if (hadAdmin) {
+                next.add(JwtRoleNames.ADMIN);
+            }
+        }
+        return next;
+    }
+
+    private boolean actorIsAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof JwtUserPrincipal jwt) {
+            return jwt.hasRole(JwtRoleNames.ADMIN);
+        }
+        return false;
+    }
+
+    private Set<String> roleNamesOf(UserAccount user) {
+        if (user.getRoles() == null) {
+            return Set.of();
+        }
+        return user.getRoles().stream()
+                .map(role -> normalizeRoleName(role.getName()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean roleMembershipChanged(Set<String> before, Set<String> after) {
+        for (String name : List.of(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)) {
+            if (before.contains(name) != after.contains(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasRole(UserAccount user, String roleName) {
@@ -360,7 +415,9 @@ public class UserService {
                             HttpStatus.CONFLICT, "Email already in use: " + request.getEmail());
                 });
 
-        Set<String> roleNames = normalizeIncomingRoleNames(request.getRoleNames(), request.getRole());
+        Set<String> previousRoles = roleNamesOf(user);
+        Set<String> roleNames = enforceAdminAssignment(
+                normalizeIncomingRoleNames(request.getRoleNames(), request.getRole()), previousRoles);
         String legacyIrn = blankToNull(request.getIrn());
         String studentCode = blankToNull(request.getStudentCode());
         String teacherCode = blankToNull(request.getTeacherCode());
@@ -376,8 +433,8 @@ public class UserService {
             studentCode = legacyIrn;
         }
 
-        validateRoleNames(roleNames);
-        validateCodesForRoles(roleNames, studentCode, teacherCode);
+        validateRoleNames(roleNames, actorIsAdmin());
+        validateCodesForRoles(roleNames, studentCode, teacherCode, user);
 
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
@@ -385,15 +442,19 @@ public class UserService {
         applyOptionalPassword(user, request.getPassword());
         user.setRoles(resolveRoles(roleNames));
 
+        if (roleMembershipChanged(previousRoles, roleNames)) {
+            sessionValidityService.bumpSessionVersion(user);
+            return UserDTO.UserResponse.fromEntity(user);
+        }
         UserAccount saved = userRepository.save(user);
         return UserDTO.UserResponse.fromEntity(saved);
     }
 
     private Set<String> normalizeIncomingRoleNames(Set<String> roleNames, String legacyRole) {
-        if (roleNames != null && !roleNames.isEmpty()) {
+        if (roleNames != null) {
             return roleNames.stream()
                     .map(this::normalizeRoleName)
-                    .filter(name -> "STUDENT".equals(name) || "LECTURER".equals(name))
+                    .filter(name -> "STUDENT".equals(name) || "LECTURER".equals(name) || "ADMIN".equals(name))
                     .collect(Collectors.toCollection(LinkedHashSet::new));
         }
         if (legacyRole != null && !legacyRole.isBlank()) {
@@ -402,34 +463,52 @@ public class UserService {
         return Set.of("STUDENT");
     }
 
-    private void validateRoleNames(Set<String> roleNames) {
+    private void validateRoleNames(Set<String> roleNames, boolean allowEmpty) {
         if (roleNames == null || roleNames.isEmpty()) {
+            if (allowEmpty) {
+                return;
+            }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one role is required");
         }
         for (String roleName : roleNames) {
-            if (!"STUDENT".equals(roleName) && !"LECTURER".equals(roleName)) {
+            if (!"STUDENT".equals(roleName) && !"LECTURER".equals(roleName) && !"ADMIN".equals(roleName)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported role: " + roleName);
             }
         }
     }
 
-    private void validateCodesForRoles(Set<String> roleNames, String studentCode, String teacherCode) {
-        if (roleNames.contains("STUDENT") && (studentCode == null || studentCode.isBlank())) {
+    private void validateCodesForRoles(
+            Set<String> roleNames, String studentCode, String teacherCode, UserAccount existing) {
+        boolean studentIrnRequired = roleNames.contains("STUDENT") && !roleNames.contains("ADMIN");
+        if (studentIrnRequired && (studentCode == null || studentCode.isBlank())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Student IRN is required for STUDENT role");
         }
-        if (roleNames.contains("LECTURER") && (teacherCode == null || teacherCode.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lecturer IRN is required for LECTURER role");
+        boolean teacherIrnRequired = roleNames.contains("LECTURER") || roleNames.contains("ADMIN");
+        boolean teacherIrnMissing = teacherCode == null || teacherCode.isBlank();
+        boolean existingTeacherIrn = existing != null && existing.getTeacherCode() != null
+                && !existing.getTeacherCode().isBlank();
+        if (teacherIrnRequired && teacherIrnMissing && !existingTeacherIrn) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lecturer IRN is required");
         }
     }
 
     private void applyCodesForRoles(UserAccount user, Set<String> roleNames, String studentCode, String teacherCode) {
-        if (roleNames.contains("STUDENT")) {
+        if (roleNames.isEmpty()) {
+            return;
+        }
+        if (roleNames.contains("STUDENT") && studentCode != null && !studentCode.isBlank()) {
+            user.setStudentCode(studentCode);
+        } else if (!roleNames.contains("STUDENT")) {
+            user.setStudentCode(null);
+        } else if (!roleNames.contains("ADMIN")) {
             user.setStudentCode(studentCode);
         } else {
             user.setStudentCode(null);
         }
-        if (roleNames.contains("LECTURER")) {
-            user.setTeacherCode(teacherCode);
+        if (roleNames.contains("LECTURER") || roleNames.contains("ADMIN")) {
+            if (teacherCode != null && !teacherCode.isBlank()) {
+                user.setTeacherCode(teacherCode);
+            }
         } else {
             user.setTeacherCode(null);
         }
@@ -450,7 +529,7 @@ public class UserService {
 
     private Set<Role> resolveRoles(Set<String> roleNames) {
         if (roleNames == null || roleNames.isEmpty()) {
-            return resolveRoles(Set.of("STUDENT"));
+            return new HashSet<>();
         }
 
         Set<Role> roles = new HashSet<>();

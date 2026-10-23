@@ -35,24 +35,24 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | Path | Role required | Screen |
 |---|---|---|
 | `/` | — | Login (redirects if already signed in) |
-| `/lecturer-dashboard` | LECTURER | Lecturer grading overview |
-| `/lecturer-grading` | LECTURER | Grade overview matrix |
-| `/lecturer-users` | LECTURER | User Management |
-| `/lecturer-terms` | LECTURER | Term management (year, current term, enroll students) |
-| `/lecturer-solution` | LECTURER | Solution Management |
-| `/lecturer-report` | LECTURER | Reports |
-| `/lecturer-feedback` | LECTURER | Feedback inbox |
-| `/lecturer-ranking` | LECTURER | Weekly ranking board |
-| `/student-dashboard` | STUDENT | Student main |
-| `/student-history` | STUDENT | Student history |
-| `/student-ranking` | STUDENT | Weekly ranking board (web only; empty rows when out of term) |
+| `/lecturer-dashboard` | LECTURER or ADMIN | Lecturer grading overview |
+| `/lecturer-grading` | LECTURER or ADMIN | Grade overview matrix |
+| `/lecturer-users` | LECTURER or ADMIN | User Management |
+| `/lecturer-terms` | LECTURER or ADMIN | Term management (year, current term, enroll students) |
+| `/lecturer-solution` | LECTURER or ADMIN | Solution Management |
+| `/lecturer-report` | LECTURER or ADMIN | Reports |
+| `/lecturer-feedback` | LECTURER or ADMIN | Feedback inbox |
+| `/lecturer-ranking` | LECTURER or ADMIN | Weekly ranking board |
+| `/student-dashboard` | STUDENT or ADMIN | Student main. Admin requests `GET /api/labs/list?scope=student` (student-visible labs, no saved stats, no enrollment row) |
+| `/student-history` | STUDENT or ADMIN | Student history |
+| `/student-ranking` | STUDENT or ADMIN | Weekly ranking board (web only; empty rows when out of term) |
 | `/no-access` | any signed-in user | API 403 landing (not a role-gate substitute for URLs) |
 | `/rate-limited` | any (incl. anonymous auth hammer) | API 429 jail; auto-return after cool-down (session kept) |
 | `/staff` | — | Hidden lecturer login during maintenance; otherwise redirects to `/` or the signed-in dashboard |
 
 When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage` (no login control on that screen). Lecturers open **`/staff`** for the normal login form; student-only attempts there are rejected and do not persist. A stored **LECTURER** session mounts the app. Student-only sessions are **kicked**: `clearAuthSession`, presence leave. Dual-role lecturers who open student URLs are sent to `/lecturer-dashboard`. Desktop practice is excluded. When the flag is off, `/staff` redirects to `/` (or the signed-in dashboard).
 
-Dual-role users land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard.
+Dual-role users and Admin land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Admin opens the student area from the account menu. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard. An Admin is treated as in the current quarter without an enrollment row.
 
 ### Lecturer in-dashboard sections (`activeNav`)
 
@@ -157,7 +157,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - `LoginUI.jsx` shows field validation after a Sign In attempt or after a field loses focus (`touchedFields`); auth API failures use `readFriendlyAuthError` from `frontend/src/utils/apiError.js` (never raw backend `detail` text). Google 403 opens first-time setup; Google 423 is inactive and stays on the login form.
 - `ForgotPasswordUI.jsx`, `ResetPasswordUI.jsx`, and `FirstTimeSetupUI.jsx` use touched-field gating (inline errors after blur) like `LoginUI.jsx`; login and forgot/reset also set errors on submit attempt
 - Persist actions (users, terms, lab structure, testcases, deadline, student access, change password, first-time setup, forgot/reset password) show a shared **Toast** via `useToast()`: success (`Saved successfully.` or a specific save line) or fail (friendly `toFriendlyError`). Do not use `window.alert` / `window.confirm` for these — destructive deletes use an in-app confirm dialog (`ModalOverlay`, same pattern as Users delete). Solution Management lab switch with unsaved structure uses that in-app confirm; **OK** drops the draft (including an unsaved lab name in the sidebar) and the next open of that lab shows the last saved structure.
-- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt; Lecturer or dual-role users collect Lecturer ID only (no Student IRN field). Delete confirmation stays open while `DELETE /api/users/deleteUser/{id}` runs: spinner on the trash icon and Delete button, Cancel/backdrop locked, then close on success (error keeps the dialog so the lecturer can retry)
+- `UserManagement.jsx` normalizes backend field names (`fullName`/`fullname`, `studentCode`/`irn`); Add/Edit modal shows field errors only after blur or save attempt. Lecturer or Admin collects a lecturer IRN. Student IRN is hidden when Admin is selected. Only an Admin can check or clear Admin; a lecturer sees Admin locked on. An Admin edit may clear every role. A lecturer cannot delete an account that has Admin. Delete confirmation stays open while `DELETE /api/users/deleteUser/{id}` runs: spinner on the trash icon and Delete button, Cancel/backdrop locked, then close on success (error keeps the dialog so the lecturer can retry)
 - When replacing mock data, update the relevant page and its child component docs
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
 - Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD, Email, and optional Fullname columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util; import results that skip unknown students keep a **Details** list on the Terms page

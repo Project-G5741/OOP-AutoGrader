@@ -4,6 +4,7 @@ public final class JwtRoleNames {
 
     public static final String STUDENT = "STUDENT";
     public static final String LECTURER = "LECTURER";
+    public static final String ADMIN = "ADMIN";
 
     private JwtRoleNames() {}
 

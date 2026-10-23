@@ -15,7 +15,7 @@ import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import { useToast } from '../components/ui/Toast';
-import { getAccessToken, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
+import { getAccessToken, hasRole, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -565,7 +565,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         if (IS_DESKTOP_APP) {
           await waitForDesktopBootstrap();
         }
-        const res = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
+        const res = await apiFetch(`${API_BASE}/api/labs/list?scope=student`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
@@ -953,6 +953,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.studentHistory);
     } else if (cmd === 'ranking' && !IS_DESKTOP_APP) {
       navigate(ROUTES.studentRanking);
+    } else if (cmd === 'lecturerArea') {
+      navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
     } else if (cmd === 'mascotShop') {
@@ -993,6 +995,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         hideSectionLinks
         hideHome={!inCurrentTerm}
         hideChangePassword={IS_DESKTOP_APP}
+        showLecturerArea={!IS_DESKTOP_APP && hasRole(user?.roles, 'ADMIN')}
         className={showRanking ? 'flex min-h-0 flex-1 flex-col' : ''}
         headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
           <DesktopRubricPackImport onToast={showToast} />

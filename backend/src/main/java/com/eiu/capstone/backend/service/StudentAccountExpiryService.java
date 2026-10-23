@@ -106,6 +106,7 @@ public class StudentAccountExpiryService {
         }
         boolean student = false;
         boolean lecturer = false;
+        boolean admin = false;
         for (var role : user.getRoles()) {
             String name = role.getName() == null ? "" : role.getName().trim().toUpperCase(Locale.ROOT);
             if ("STUDENT".equals(name)) {
@@ -114,7 +115,10 @@ public class StudentAccountExpiryService {
             if ("LECTURER".equals(name) || "TEACHER".equals(name)) {
                 lecturer = true;
             }
+            if ("ADMIN".equals(name)) {
+                admin = true;
+            }
         }
-        return student && !lecturer;
+        return student && !lecturer && !admin;
     }
 }
