@@ -482,6 +482,16 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of("labId", labId));
     }
 
+    /** Lifetime upload count for this lab: sum of per-student {@code attempts_count} (not {@code lab_submission} row count). */
+    public long sumAttemptsCountForLab(UUID labId) {
+        String sql = """
+                SELECT COALESCE(SUM(p.attempts_count), 0)
+                FROM student_lab_progress p
+                WHERE p.lab_id = :labId
+                """;
+        return singleLong(sql, Map.of("labId", labId));
+    }
+
     public Object[] findLabStatisticsSummary(UUID labId) {
         String sql = """
                 WITH qualifying AS (
@@ -602,28 +612,48 @@ public class LecturerAnalyticsRepository {
                            OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
                     GROUP BY s.user_id
                 ),
-                latest_sub AS (
+                latest_any AS (
                     SELECT DISTINCT ON (s.user_id)
                            s.user_id,
                            s.id,
-                           s.score,
                            s.attempt_number,
                            s.submitted_at
                     FROM lab_submission s
                     WHERE s.lab_id = :labId
                     ORDER BY s.user_id, s.attempt_number DESC
+                ),
+                latest_qualifying AS (
+                    SELECT DISTINCT ON (s.user_id)
+                           s.user_id,
+                           s.id,
+                           s.attempt_number,
+                           s.submitted_at
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE s.lab_id = :labId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    ORDER BY s.user_id, s.attempt_number DESC
+                ),
+                roster_sub AS (
+                    SELECT la.user_id,
+                           COALESCE(lq.id, la.id) AS id,
+                           COALESCE(lq.attempt_number, la.attempt_number) AS attempt_number,
+                           COALESCE(lq.submitted_at, la.submitted_at) AS submitted_at
+                    FROM latest_any la
+                    LEFT JOIN latest_qualifying lq ON lq.user_id = la.user_id
                 )
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
                        qb.score,
-                       COALESCE(latest_sub.attempt_number, 0),
-                       latest_sub.submitted_at,
-                       (p.best_submission_id IS NOT NULL AND p.best_submission_id = latest_sub.id) AS best_submission,
-                       latest_sub.id AS submission_id
+                       COALESCE(roster_sub.attempt_number, 0),
+                       roster_sub.submitted_at,
+                       (p.best_submission_id IS NOT NULL AND p.best_submission_id = roster_sub.id) AS best_submission,
+                       roster_sub.id AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
-                INNER JOIN latest_sub ON latest_sub.user_id = u.id
+                INNER JOIN roster_sub ON roster_sub.user_id = u.id
                 LEFT JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
                 """ + searchClause + keysetClause + """
