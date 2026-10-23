@@ -217,6 +217,7 @@ public class LecturerAnalyticsService {
         BigDecimal highestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[3]) : null;
         BigDecimal lowestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[4]) : null;
         long submissionCount = summary != null ? AnalyticsMapper.toLong(summary[5]) : 0L;
+        long totalAttempts = lecturerAnalyticsRepository.sumAttemptsCountForLab(labId);
 
         return new LabStatisticsResponse(
                 labId,
@@ -225,6 +226,7 @@ public class LecturerAnalyticsService {
                 highestScore,
                 lowestScore,
                 submissionCount,
+                totalAttempts,
                 activeEnrolledCount,
                 studentsSubmitted,
                 completionRate,
@@ -430,6 +432,7 @@ public class LecturerAnalyticsService {
                 0L,
                 0L,
                 0L,
+                0L,
                 null,
                 null,
                 List.of()
@@ -580,10 +583,10 @@ public class LecturerAnalyticsService {
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
             case "score" -> "qb.score";
-            case "attempt" -> "latest_sub.attempt_number";
+            case "attempt" -> "roster_sub.attempt_number";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
-            case "submittedat", "submitted_at" -> "latest_sub.submitted_at";
+            case "submittedat", "submitted_at" -> "roster_sub.submitted_at";
             default -> "u.full_name";
         };
         return new SortSpec(column, direction);

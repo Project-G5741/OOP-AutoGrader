@@ -111,7 +111,16 @@ public class SubmissionRetentionTx {
             created.setLab(remaining.get(0).getLab());
             return created;
         });
-        progress.setAttemptsCount(remaining.size());
+        int maxAttemptOnFile = remaining.stream()
+                .map(LabSubmission::getAttemptNumber)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(0);
+        Integer previousAttempts = progress.getAttemptsCount();
+        int lifetimeAttempts = previousAttempts == null
+                ? maxAttemptOnFile
+                : Math.max(previousAttempts, maxAttemptOnFile);
+        progress.setAttemptsCount(lifetimeAttempts);
         progress.setFirstSubmittedAt(remaining.stream()
                 .map(LabSubmission::getSubmittedAt)
                 .filter(Objects::nonNull)
