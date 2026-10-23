@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,21 @@ public interface SubmissionChallengeResultRepository extends JpaRepository<Submi
             WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
             """, nativeQuery = true)
     void deleteByUserId(@Param("userId") UUID userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_challenge_result
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void deleteBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE submission_challenge_result
+            SET mmd_outcomes = NULL
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void clearMmdOutcomesBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
 
     @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id = :submissionId")
     List<SubmissionChallengeResult> findBySubmission_IdWithChallenge(@Param("submissionId") UUID submissionId);

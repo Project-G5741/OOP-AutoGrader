@@ -50,6 +50,18 @@ public class SubmissionPackageNormalizationStore {
         return readAll(submissionId).get(challengeId);
     }
 
+    public void deleteIfExists(UUID submissionId) {
+        if (submissionId == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(storeDir.resolve(submissionId + ".json"));
+        } catch (IOException e) {
+            System.out.printf("package_normalization_store delete failed submission=%s: %s%n",
+                    submissionId, e.toString());
+        }
+    }
+
     public Map<UUID, String> readAll(UUID submissionId) {
         if (submissionId == null) {
             return Map.of();

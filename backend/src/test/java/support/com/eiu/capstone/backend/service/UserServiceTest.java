@@ -35,18 +35,9 @@ import com.eiu.capstone.backend.DTO.UserDTO;
 import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.LabDeadlineEmailSentRepository;
-import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.PasswordResetTokenRepository;
 import com.eiu.capstone.backend.repository.RoleRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
-import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionConstructorResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionMethodResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionPlagiarismFingerprintRepository;
-import com.eiu.capstone.backend.repository.SubmissionPlagiarismMatchRepository;
-import com.eiu.capstone.backend.repository.SubmissionRelationResultRepository;
-import com.eiu.capstone.backend.repository.SubmissionTestcaseResultRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
@@ -65,31 +56,7 @@ class UserServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private LabSubmissionRepository labSubmissionRepository;
-
-    @Mock
-    private SubmissionPlagiarismMatchRepository plagiarismMatchRepository;
-
-    @Mock
-    private SubmissionPlagiarismFingerprintRepository plagiarismFingerprintRepository;
-
-    @Mock
-    private SubmissionFieldResultRepository submissionFieldResultRepository;
-
-    @Mock
-    private SubmissionMethodResultRepository submissionMethodResultRepository;
-
-    @Mock
-    private SubmissionConstructorResultRepository submissionConstructorResultRepository;
-
-    @Mock
-    private SubmissionChallengeResultRepository submissionChallengeResultRepository;
-
-    @Mock
-    private SubmissionRelationResultRepository submissionRelationResultRepository;
-
-    @Mock
-    private SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+    private SubmissionDeletionService submissionDeletionService;
 
     @Mock
     private StudentLabProgressRepository studentLabProgressRepository;
@@ -122,15 +89,7 @@ class UserServiceTest {
                 userRepository,
                 roleRepository,
                 passwordEncoder,
-                labSubmissionRepository,
-                plagiarismMatchRepository,
-                plagiarismFingerprintRepository,
-                submissionFieldResultRepository,
-                submissionMethodResultRepository,
-                submissionConstructorResultRepository,
-                submissionChallengeResultRepository,
-                submissionRelationResultRepository,
-                submissionTestcaseResultRepository,
+                submissionDeletionService,
                 studentLabProgressRepository,
                 termEnrollmentRepository,
                 labDeadlineEmailSentRepository,
@@ -266,23 +225,7 @@ class UserServiceTest {
         verify(termEnrollmentRepository).deleteByUser_Id(userId);
         verify(labDeadlineEmailSentRepository).deleteByUser_Id(userId);
         verify(passwordResetTokenRepository).deleteByUser_Id(userId);
-        verify(plagiarismMatchRepository).deleteInvolvingUser(userId);
-        verify(plagiarismFingerprintRepository).deleteAllByUserId(userId);
-        verify(submissionTestcaseResultRepository).deleteAssertionResultsByUserId(userId);
-        verify(submissionTestcaseResultRepository).deleteByUserId(userId);
-        verify(submissionFieldResultRepository).deleteByUserId(userId);
-        verify(submissionMethodResultRepository).deleteByUserId(userId);
-        verify(submissionConstructorResultRepository).deleteByUserId(userId);
-        verify(submissionChallengeResultRepository).deleteByUserId(userId);
-        verify(submissionRelationResultRepository).deleteByUserId(userId);
-        verify(labSubmissionRepository).deleteByUser_Id(userId);
-        verify(labSubmissionRepository, never()).findByUser_Id(any());
-        verify(submissionFieldResultRepository, never()).deleteBySubmission(any());
-        verify(submissionMethodResultRepository, never()).deleteBySubmission(any());
-        verify(submissionConstructorResultRepository, never()).deleteBySubmission(any());
-        verify(submissionChallengeResultRepository, never()).deleteBySubmission(any());
-        verify(submissionRelationResultRepository, never()).deleteBySubmission(any());
-        verify(submissionTestcaseResultRepository, never()).deleteBySubmission_Id(any());
+        verify(submissionDeletionService).deleteAllSubmissionGraphForUser(userId);
         verify(userRepository).delete(student);
         verify(sessionValidityService).invalidateCachedEmail("student@eiu.edu.vn");
     }

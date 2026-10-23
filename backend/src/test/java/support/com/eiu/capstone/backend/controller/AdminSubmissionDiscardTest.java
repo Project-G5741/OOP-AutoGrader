@@ -46,6 +46,7 @@ import com.eiu.capstone.backend.service.StudentTermAccessService;
 import com.eiu.capstone.backend.service.SubmissionCompileErrorStore;
 import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
+import com.eiu.capstone.backend.service.SubmissionRetentionService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.service.UploadPersistService;
 
@@ -68,6 +69,8 @@ class AdminSubmissionDiscardTest {
     @Mock private StudentTermAccessService studentTermAccessService;
     @Mock private UploadPersistService uploadPersistService;
     @Mock private StudentStreakService studentStreakService;
+    @Mock private SubmissionRetentionService submissionRetentionService;
+    @Mock private com.eiu.capstone.backend.grading.SubmissionDetailPersistGate submissionDetailPersistGate;
 
     private SubmissionController controller;
     private ExecutorService inline;
@@ -96,6 +99,8 @@ class AdminSubmissionDiscardTest {
                 studentTermAccessService,
                 uploadPersistService,
                 studentStreakService,
+                submissionRetentionService,
+                submissionDetailPersistGate,
                 inline,
                 inline,
                 false,

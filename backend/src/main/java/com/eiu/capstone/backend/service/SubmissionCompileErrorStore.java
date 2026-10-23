@@ -66,6 +66,18 @@ public class SubmissionCompileErrorStore {
         return stored == null ? ChallengeCompileErrors.none() : stored;
     }
 
+    public void deleteIfExists(UUID submissionId) {
+        if (submissionId == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(storeDir.resolve(submissionId + ".json"));
+        } catch (IOException e) {
+            System.out.printf("compile_error_store delete failed submission=%s: %s%n",
+                    submissionId, e.toString());
+        }
+    }
+
     public Map<UUID, ChallengeCompileErrors> readAll(UUID submissionId) {
         if (submissionId == null) {
             return Map.of();

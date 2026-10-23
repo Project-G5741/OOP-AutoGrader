@@ -53,6 +53,18 @@ public class SubmissionMmdMetaStore {
         return readAll(submissionId).getOrDefault(challengeId, ChallengeMmdMeta.empty());
     }
 
+    public void deleteIfExists(UUID submissionId) {
+        if (submissionId == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(storeDir.resolve(submissionId + ".json"));
+        } catch (IOException e) {
+            System.out.printf("mmd_meta_store delete failed submission=%s: %s%n",
+                    submissionId, e.toString());
+        }
+    }
+
     public Map<UUID, ChallengeMmdMeta> readAll(UUID submissionId) {
         if (submissionId == null) {
             return Map.of();
