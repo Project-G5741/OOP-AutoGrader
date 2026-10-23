@@ -47,6 +47,7 @@ import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MmdPersistenceHook;
+import com.eiu.capstone.backend.service.StudentDailySubmissionQuotaService;
 import com.eiu.capstone.backend.service.StudentHistoryService;
 import com.eiu.capstone.backend.service.StudentStreakService;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
@@ -85,6 +86,7 @@ public class SubmissionController {
     private final StudentTermAccessService studentTermAccessService;
     private final UploadPersistService uploadPersistService;
     private final StudentStreakService studentStreakService;
+    private final StudentDailySubmissionQuotaService dailySubmissionQuotaService;
     private final SubmissionRetentionService submissionRetentionService;
     private final SubmissionDetailPersistGate submissionDetailPersistGate;
     private final ExecutorService persistExecutor;
@@ -108,6 +110,8 @@ public class SubmissionController {
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
                                  StudentStreakService studentStreakService,
+                                 @Autowired(required = false)
+                                 StudentDailySubmissionQuotaService dailySubmissionQuotaService,
                                  SubmissionRetentionService submissionRetentionService,
                                  SubmissionDetailPersistGate submissionDetailPersistGate,
                                  @Qualifier("persistExecutor") ExecutorService persistExecutor,
@@ -130,6 +134,7 @@ public class SubmissionController {
         this.studentTermAccessService = studentTermAccessService;
         this.uploadPersistService = uploadPersistService;
         this.studentStreakService = studentStreakService;
+        this.dailySubmissionQuotaService = dailySubmissionQuotaService;
         this.submissionRetentionService = submissionRetentionService;
         this.submissionDetailPersistGate = submissionDetailPersistGate;
         this.persistExecutor = persistExecutor;
@@ -178,6 +183,9 @@ public class SubmissionController {
                 studentTermAccessService.requireUploadAccess(principal.email(), labId);
         UserAccount userAccount = access.user();
         Lab lab = access.lab();
+        if (dailySubmissionQuotaService != null && !principal.hasRole(JwtRoleNames.ADMIN)) {
+            dailySubmissionQuotaService.requireCanSubmit(userAccount.getId());
+        }
         if (desktopRuntimeState != null && !desktopRuntimeState.isReady()) {
             String detail = desktopRuntimeState.bootstrapError();
             if (detail == null || detail.isBlank()) {

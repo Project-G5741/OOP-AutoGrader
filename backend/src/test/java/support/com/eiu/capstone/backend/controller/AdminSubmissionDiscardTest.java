@@ -99,6 +99,7 @@ class AdminSubmissionDiscardTest {
                 studentTermAccessService,
                 uploadPersistService,
                 studentStreakService,
+                null,
                 submissionRetentionService,
                 submissionDetailPersistGate,
                 inline,

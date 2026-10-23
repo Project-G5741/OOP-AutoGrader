@@ -16,6 +16,8 @@ export default function DropZone({
   labId,
   attemptNumber,
   authToken,
+  uploadDisabled = false,
+  uploadDisabledReason = null,
 }) {
   const showToast = useToast();
   const inputRef = useRef(null);
@@ -107,6 +109,12 @@ export default function DropZone({
   };
 
   const handleFiles = (entries) => {
+    if (uploadDisabled) {
+      const message = uploadDisabledReason || 'Upload is not available right now.';
+      setUploadError(message);
+      showToast({ message, type: 'error' });
+      return;
+    }
     const relevant = entries.filter(({ relativePath }) => {
       const lower = relativePath.toLowerCase();
       const segments = relativePath.split('/').filter(Boolean);
@@ -222,12 +230,14 @@ export default function DropZone({
         transition-all
         duration-200
         ${
-          isDragging
+          isDragging && !uploadDisabled
             ? "bg-primary-light dark:border-primary-text"
             : ""
         }
+        ${uploadDisabled ? 'opacity-60' : ''}
       `}
       onDragOver={(e) => {
+        if (uploadDisabled) return;
         e.preventDefault();
         setIsDragging(true);
       }}
@@ -238,6 +248,7 @@ export default function DropZone({
       onDrop={(e) => {
         e.preventDefault();
         setIsDragging(false);
+        if (uploadDisabled) return;
 
         if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
           handleDropItems(e.dataTransfer.items);
@@ -265,8 +276,16 @@ export default function DropZone({
 
         <Button
           className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white"
-          onClick={() => inputRef.current?.click()}
-          disabled={isUploading}
+          onClick={() => {
+            if (uploadDisabled) {
+              const message = uploadDisabledReason || 'Upload is not available right now.';
+              setUploadError(message);
+              showToast({ message, type: 'error' });
+              return;
+            }
+            inputRef.current?.click();
+          }}
+          disabled={isUploading || uploadDisabled}
         >
           {isUploading && (
             <span

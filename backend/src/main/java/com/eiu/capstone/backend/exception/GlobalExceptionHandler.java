@@ -12,6 +12,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.eiu.capstone.backend.model.ErrorResponse;
 
+import static com.eiu.capstone.backend.exception.DailySubmissionQuotaExceededException.RESPONSE_HEADER;
+import static com.eiu.capstone.backend.exception.DailySubmissionQuotaExceededException.RESPONSE_HEADER_VALUE;
+
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +50,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSubmissionProcessingException(SubmissionProcessingException exception) {
         var error = new ErrorResponse(exception.getMessage(), "Submission processing failed.");
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
+    }
+
+    @ExceptionHandler(DailySubmissionQuotaExceededException.class)
+    public ResponseEntity<ErrorResponse> handleDailySubmissionQuotaExceeded(
+            DailySubmissionQuotaExceededException exception) {
+        var message = exception.getMessage() != null ? exception.getMessage() : "Daily submission limit reached.";
+        var error = new ErrorResponse(message, "Daily submission limit reached.");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(RESPONSE_HEADER, RESPONSE_HEADER_VALUE)
+                .body(error);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
