@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Copy, Download, FileSpreadsheet, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
+import { CalendarDays, Copy, Download, FileSpreadsheet, Mail, Plus, Search, Star, Trash2, UserPlus, Ban, UserCheck } from 'lucide-react';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
@@ -88,6 +88,9 @@ export default function TermManagement() {
   const [importResult, setImportResult] = useState(null);
   const [importDialog, setImportDialog] = useState(null);
   const [confirmDeleteTerm, setConfirmDeleteTerm] = useState(null);
+  const [mailSubject, setMailSubject] = useState('');
+  const [mailBody, setMailBody] = useState('');
+  const [confirmMail, setConfirmMail] = useState(false);
   const [copySourceLabs, setCopySourceLabs] = useState([]);
   const [copySourcesLoading, setCopySourcesLoading] = useState(false);
   const [syncSourceLabs, setSyncSourceLabs] = useState([]);
@@ -130,6 +133,11 @@ export default function TermManagement() {
     list.sort((a, b) => compareTerms(a, b, termSortOrder));
     return list;
   }, [terms, termFilter, termSearch, termSortOrder]);
+
+  const mailableStudents = useMemo(
+    () => students.filter((student) => student.isActive !== false && String(student.email || '').trim()),
+    [students],
+  );
 
   const loadTerms = useCallback(async ({ fresh = false } = {}) => {
     if (fresh) {
@@ -399,6 +407,48 @@ export default function TermManagement() {
       showToast({ message: 'Deleted successfully.', type: 'success' });
     } catch (err) {
       const message = toFriendlyError(err, 'delete');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendCurrentTermMail = async () => {
+    const subject = mailSubject.trim();
+    const body = mailBody.trim();
+    if (!subject || !body || mailableStudents.length === 0) {
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const response = await apiFetch(`${API_BASE}/api/lecturer/terms/mail`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ subject, body }),
+      });
+      if (!response.ok) {
+        throw new Error(await readFriendlyApiError(response, 'save'));
+      }
+      const result = await response.json();
+      setConfirmMail(false);
+      const sent = result.sentCount ?? 0;
+      const failed = result.failedCount ?? 0;
+      const skipped = result.skippedNoEmail ?? 0;
+      const parts = [`Sent to ${sent} student${sent === 1 ? '' : 's'}`];
+      if (failed) {
+        parts.push(`${failed} failed`);
+      }
+      if (skipped) {
+        parts.push(`${skipped} had no email`);
+      }
+      showToast({
+        message: `${parts.join('. ')}.`,
+        type: failed ? 'error' : 'success',
+      });
+    } catch (err) {
+      const message = toFriendlyError(err, 'save');
       setError(message);
       showToast({ message, type: 'error' });
     } finally {
@@ -872,6 +922,45 @@ export default function TermManagement() {
                 </div>
               </div>
 
+              {selectedTerm.current && (
+                <section className="mb-5 rounded-xl border border-border p-3">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
+                    Email current quarter
+                  </p>
+                  <p className="mb-3 text-sm text-foreground-muted">
+                    Sends to each active enrolled student’s account email ({mailableStudents.length} recipient
+                    {mailableStudents.length === 1 ? '' : 's'}).
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      maxLength={200}
+                      placeholder="Subject"
+                      value={mailSubject}
+                      onChange={(e) => setMailSubject(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <textarea
+                      maxLength={8000}
+                      rows={5}
+                      placeholder="Message"
+                      value={mailBody}
+                      onChange={(e) => setMailBody(e.target.value)}
+                      className="w-full resize-y rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      disabled={saving || !mailSubject.trim() || !mailBody.trim() || mailableStudents.length === 0}
+                      onClick={() => setConfirmMail(true)}
+                      className="inline-flex items-center gap-2 self-start rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+                    >
+                      <Mail className="h-4 w-4" aria-hidden="true" />
+                      Email class
+                    </button>
+                  </div>
+                </section>
+              )}
+
               {(syncSourcesLoading || syncSourceLabs.length > 0) && (
                 <section className="mb-5 border-t border-border pt-5">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1116,6 +1205,46 @@ export default function TermManagement() {
           )}
         </div>
       </div>
+      {confirmMail && (
+        <ModalOverlay onBackdropClick={() => !saving && setConfirmMail(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="email-class-title"
+            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-light">
+              <Mail className="h-6 w-6 text-primary" aria-hidden="true" />
+            </div>
+            <h3 id="email-class-title" className="mb-1 text-center font-semibold text-foreground">
+              Email class
+            </h3>
+            <p className="mb-6 text-center text-sm text-foreground-muted">
+              Send this message to <strong className="text-foreground-secondary">{mailableStudents.length}</strong>
+              {' '}active student{mailableStudents.length === 1 ? '' : 's'} in the current quarter?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirmMail(false)}
+                className="flex-1 rounded-lg border border-border py-2.5 text-sm text-foreground-secondary transition-colors hover:bg-surface-secondary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSendCurrentTermMail}
+                className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                {saving ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
       {confirmDeleteTerm && (
         <ModalOverlay onBackdropClick={() => !saving && setConfirmDeleteTerm(null)}>
           <div

@@ -238,6 +238,10 @@ After selecting a term, the right panel shows two lists:
 
 > Accepted file types: `.xlsx`, `.xls`, `.csv`. Only existing active student accounts can be enrolled; import does not create new users.
 
+#### Emailing the current quarter
+
+When the **current** quarter is selected, **Email current quarter** appears above the roster. Compose a subject and message, then **Email class**. Confirm to send one email to each **active enrolled student** using the address on their AutoGrader account (Brevo in production, SMTP locally). Students without an email are skipped. Other quarters cannot be mailed from this screen.
+
 #### Suspending / Restoring from Roster
 
 The enrolled students list includes **Suspend** and **Restore** actions identical to User Management (student accounts only).
