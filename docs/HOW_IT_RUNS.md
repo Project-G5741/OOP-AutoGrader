@@ -382,7 +382,7 @@ erDiagram
 
 - Unique key: `(user_id, lab_id, attempt_number)` on `lab_submission`
 - Each upload **inserts a new attempt** (`MAX(attempt_number)+1`). The URL `{attemptNumber}` is not used to overwrite a prior row
-- Cloud deploys keep only **on-time** rows: the **latest attempt before the deadline** and **that lab’s highest on-time attempt** (`SubmissionRetentionService` after upload + startup backfill + nightly scheduler). One row when they match. Late attempts are deleted with ticks and disk sidecars. `student_lab_progress.highest_score` / `best_submission_id` stay the on-time best. Desktop practice disables retention (`app.submission.retention.enabled=false`)
+- Cloud deploys keep every **on-time** score row. Full ticks stay on the **latest attempt before the deadline** and **that lab’s highest on-time attempt** (`SubmissionRetentionService` after upload + startup backfill + nightly scheduler). Older on-time attempts stay score-only (details and disk sidecars removed). Late attempts are deleted. `student_lab_progress.highest_score` / `best_submission_id` stay the on-time best. Desktop practice disables retention (`app.submission.retention.enabled=false`)
 - `attemptsCount` / upload `totalSubmissions` is the assigned attempt number (equal to `COUNT` after a successful `MAX+1` insert)
 - Element results UPSERT by (submission, rubric element) natural keys for that new submission
 

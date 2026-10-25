@@ -19,9 +19,8 @@ import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 
 /**
- * One student prune per transaction — keep the latest on-time attempt per lab
- * and that lab's highest on-time attempt (one row when they are the same).
- * Late submissions are always deleted.
+ * One student retention pass per transaction — keep every on-time score row,
+ * full ticks only on latest-on-time ∪ highest-on-time, delete late rows.
  */
 @Service
 public class SubmissionRetentionTx {
@@ -47,15 +46,24 @@ public class SubmissionRetentionTx {
         List<LabSubmission> submissions =
                 labSubmissionRepository.findByUser_IdWithLabOrderBySubmittedAtDesc(userId);
         List<UUID> toDelete = SubmissionRetentionKeepers.idsToPrune(submissions);
-        if (toDelete.isEmpty()) {
+        List<UUID> toStrip = SubmissionRetentionKeepers.idsToStrip(submissions);
+        if (toDelete.isEmpty() && toStrip.isEmpty()) {
             return 0;
         }
-        submissionDeletionService.deleteSubmissionsFully(toDelete);
-        for (UUID submissionId : toDelete) {
-            submissionSidecarCleanup.deleteForSubmission(submissionId);
+        if (!toDelete.isEmpty()) {
+            submissionDeletionService.deleteSubmissionsFully(toDelete);
+            for (UUID submissionId : toDelete) {
+                submissionSidecarCleanup.deleteForSubmission(submissionId);
+            }
+        }
+        if (!toStrip.isEmpty()) {
+            submissionDeletionService.stripDetailRows(toStrip);
+            for (UUID submissionId : toStrip) {
+                submissionSidecarCleanup.deleteForSubmission(submissionId);
+            }
         }
         reconcileAllProgressForStudent(userId);
-        return toDelete.size();
+        return toDelete.size() + toStrip.size();
     }
 
     private void reconcileAllProgressForStudent(UUID userId) {

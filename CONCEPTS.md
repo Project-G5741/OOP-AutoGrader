@@ -32,7 +32,7 @@ The student-visible wait from `POST .../upload` until scores return. Serial stag
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
 
 ### Submission retention
-Cloud-only post-persist policy that keeps, per student per lab, only **on-time** rows: the **latest attempt before the deadline** and the **highest on-time score**. One row when they match. Every late attempt is deleted. Runs after each upload, on startup backfill, and on a nightly batch job. Desktop profile disables it.
+Cloud-only post-persist policy that keeps every **on-time** `lab_submission` score row. Full Class/MMD/OT ticks stay only on the **latest on-time** attempt and the **highest on-time** attempt (one full row when they match). Older on-time attempts stay as score-only. Every late attempt is deleted. Runs after each upload, on startup backfill, and on a nightly batch job. Desktop profile disables it.
 
 ### Submission result
 A persisted per-element grading outcome (field, method, constructor, or challenge) tied to one lab submission. Natural key is submission plus rubric element id; re-grades update the same row.
