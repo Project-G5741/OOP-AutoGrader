@@ -32,7 +32,7 @@ The student-visible wait from `POST .../upload` until scores return. Serial stag
 A student's single graded attempt for a lab, keyed by user, lab, and attempt number. One row in `lab_submission`. Each upload inserts a new attempt (`MAX(attempt_number)+1`); the URL attempt segment is not used to overwrite a prior row.
 
 ### Submission retention
-Cloud-only post-persist policy that keeps the **10 newest** attempts **per student (all labs combined)** plus the **highest-scoring attempt for each lab**. Full Class/MMD/OT tick rows stay only for each lab’s **latest** and **highest** attempts; other kept attempts keep the score row only. Runs after each upload, on startup backfill, and on a nightly batch job. Desktop profile disables it.
+Cloud-only post-persist policy that keeps, per student per lab, only **on-time** rows: the **latest attempt before the deadline** and the **highest on-time score**. One row when they match. Every late attempt is deleted. Runs after each upload, on startup backfill, and on a nightly batch job. Desktop profile disables it.
 
 ### Submission result
 A persisted per-element grading outcome (field, method, constructor, or challenge) tied to one lab submission. Natural key is submission plus rubric element id; re-grades update the same row.
@@ -126,7 +126,7 @@ Display-only switch on Class/MMD result-tab assembly. `STUDENT` never emits rubr
 - Grading compares compiled student classes against a **rubric snapshot**, then writes **submission results**.
 
 ### Student lab progress
-A per-(student, lab) tracking row holding highest score, attempt count, and best/latest submission metadata. Updated on upload; lecturer **grade overview** matrix and lab roster **Score** columns read `highest_score` (when the student has submitted); student dashboard uses latest attempt by design.
+A per-(student, lab) tracking row. `highest_score` and `best_submission_id` store the student’s **best on-time** lab score (submissions on or before the lab deadline) and must not be overwritten by a late attempt or cleared when extra attempts are pruned. Attempt count and last-submitted timestamps still follow every upload, including late ones. Lecturer **Score** matrix, lab roster **Score**, and related aggregates read that stored on-time highest (with a fallback MAX of remaining on-time `lab_submission` rows). Student dashboard uses latest attempt by design.
 
 ### Grade overview
 Cross-lab paginated matrix of enrolled students versus labs, showing per-lab highest scores and a total average. Lecturer sorts and exports use server-side ordering; per-lab column sort ranks students by that lab's highest score among rows with a submission (`last_submitted_at` set), matching the displayed cell values. In the lecturer nav this surface is labeled **Score** (formerly **Grading**).
@@ -166,7 +166,7 @@ Three independent comparisons of one lab submission against other students in th
 Grade percentages persist at two decimal places and display as integers by always rounding **down** (never half-up). A repeating third such as 66.666… is stored as `66.66` and shown as `66`. Plagiarism overlap and completion rates are not scores and do not use this rule.
 
 ### Lecturer score cutoff
-The rule that only lab submissions with a timestamp on or before the lab's active deadline end count toward lecturer-facing scores and aggregates (roster, grade overview, analytics, exports, challenge tabs). Submissions after cutoff still grade and persist for the student; extending the deadline widens the cutoff so lecturer views recalculate from full submission history.
+The rule that only lab submissions with a timestamp on or before the lab's active deadline end count toward lecturer-facing scores and aggregates (roster, grade overview, analytics, exports, challenge tabs). After cutoff the lecturer roster stays frozen on the on-time highest (it does not list a later attempt as the current row). Submissions after cutoff still grade and persist for the student; extending the deadline widens the cutoff so lecturer views recalculate from full submission history.
 
 ### Dual-role user
 A `user_account` row with both `STUDENT` and `LECTURER` in `user_role`, optionally holding different `student_code` and `teacher_code` values. Login accepts either code; post-login routing defaults to the lecturer dashboard; student routes remain reachable by URL when the JWT includes both roles.

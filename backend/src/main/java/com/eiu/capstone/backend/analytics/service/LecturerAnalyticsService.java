@@ -583,10 +583,10 @@ public class LecturerAnalyticsService {
         String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
         String column = switch (field) {
             case "score" -> "qb.score";
-            case "attempt" -> "roster_sub.attempt_number";
+            case "attempt" -> "ob.attempt_number";
             case "studentname", "student_name" -> "u.full_name";
             case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
-            case "submittedat", "submitted_at" -> "roster_sub.submitted_at";
+            case "submittedat", "submitted_at" -> "ob.submitted_at";
             default -> "u.full_name";
         };
         return new SortSpec(column, direction);

@@ -1,7 +1,6 @@
 package com.eiu.capstone.backend.service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -10,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,25 +19,23 @@ import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.StudentLabProgressRepository;
 
 /**
- * One student prune per transaction — keeps the {@code maxPerStudent} newest submissions
- * globally plus the highest-scoring attempt for each lab.
+ * One student prune per transaction — keep the latest on-time attempt per lab
+ * and that lab's highest on-time attempt (one row when they are the same).
+ * Late submissions are always deleted.
  */
 @Service
 public class SubmissionRetentionTx {
 
-    private final int maxPerStudent;
     private final LabSubmissionRepository labSubmissionRepository;
     private final StudentLabProgressRepository studentLabProgressRepository;
     private final SubmissionDeletionService submissionDeletionService;
     private final SubmissionSidecarCleanup submissionSidecarCleanup;
 
     SubmissionRetentionTx(
-            @Value("${app.submission.retention.max-per-student:${app.submission.retention.max-per-lab:10}}") int maxPerStudent,
             LabSubmissionRepository labSubmissionRepository,
             StudentLabProgressRepository studentLabProgressRepository,
             SubmissionDeletionService submissionDeletionService,
             SubmissionSidecarCleanup submissionSidecarCleanup) {
-        this.maxPerStudent = Math.max(1, maxPerStudent);
         this.labSubmissionRepository = labSubmissionRepository;
         this.studentLabProgressRepository = studentLabProgressRepository;
         this.submissionDeletionService = submissionDeletionService;
@@ -50,32 +46,16 @@ public class SubmissionRetentionTx {
     public int enforceForStudent(UUID userId) {
         List<LabSubmission> submissions =
                 labSubmissionRepository.findByUser_IdWithLabOrderBySubmittedAtDesc(userId);
-        List<UUID> toDelete = SubmissionRetentionKeepers.idsToPrune(submissions, maxPerStudent);
-        if (!toDelete.isEmpty()) {
-            submissionDeletionService.deleteSubmissionsFully(toDelete);
-            for (UUID submissionId : toDelete) {
-                submissionSidecarCleanup.deleteForSubmission(submissionId);
-            }
-        }
-        Set<UUID> deleted = Set.copyOf(toDelete);
-        List<LabSubmission> remaining = new ArrayList<>();
-        for (LabSubmission submission : submissions) {
-            if (submission.getId() != null && !deleted.contains(submission.getId())) {
-                remaining.add(submission);
-            }
-        }
-        List<UUID> toStrip = SubmissionRetentionKeepers.idsToStripDetails(remaining);
-        if (!toStrip.isEmpty()) {
-            submissionDeletionService.stripDetailRows(toStrip);
-            for (UUID submissionId : toStrip) {
-                submissionSidecarCleanup.deleteForSubmission(submissionId);
-            }
-        }
-        if (toDelete.isEmpty() && toStrip.isEmpty()) {
+        List<UUID> toDelete = SubmissionRetentionKeepers.idsToPrune(submissions);
+        if (toDelete.isEmpty()) {
             return 0;
         }
+        submissionDeletionService.deleteSubmissionsFully(toDelete);
+        for (UUID submissionId : toDelete) {
+            submissionSidecarCleanup.deleteForSubmission(submissionId);
+        }
         reconcileAllProgressForStudent(userId);
-        return toDelete.size() + toStrip.size();
+        return toDelete.size();
     }
 
     private void reconcileAllProgressForStudent(UUID userId) {
@@ -102,7 +82,7 @@ public class SubmissionRetentionTx {
         Optional<StudentLabProgress> progressOpt =
                 studentLabProgressRepository.findByUser_IdAndLab_Id(userId, labId);
         if (remaining.isEmpty()) {
-            progressOpt.ifPresent(studentLabProgressRepository::delete);
+            // Keep the stored on-time highest even when every attempt row is gone.
             return;
         }
         StudentLabProgress progress = progressOpt.orElseGet(() -> {
@@ -125,24 +105,29 @@ public class SubmissionRetentionTx {
                 .map(LabSubmission::getSubmittedAt)
                 .filter(Objects::nonNull)
                 .min(Comparator.naturalOrder())
-                .orElse(null));
+                .orElse(progress.getFirstSubmittedAt()));
         progress.setLastSubmittedAt(remaining.stream()
                 .map(LabSubmission::getSubmittedAt)
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
-                .orElse(null));
-        LabSubmission best = remaining.stream()
-                .max(Comparator
-                        .comparing(LabSubmission::getScore, Comparator.nullsFirst(Comparator.naturalOrder()))
-                        .thenComparing(LabSubmission::getSubmittedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
-                .orElse(remaining.get(0));
-        BigDecimal highest = remaining.stream()
-                .map(LabSubmission::getScore)
-                .filter(Objects::nonNull)
-                .max(Comparator.naturalOrder())
-                .orElse(BigDecimal.ZERO);
-        progress.setHighestScore(highest);
-        progress.setBestSubmissionId(best.getId());
+                .orElse(progress.getLastSubmittedAt()));
+        List<LabSubmission> onTime = remaining.stream()
+                .filter(SubmissionRetentionKeepers::countsForLecturer)
+                .toList();
+        if (!onTime.isEmpty()) {
+            LabSubmission best = onTime.stream()
+                    .max(Comparator
+                            .comparing(LabSubmission::getScore, Comparator.nullsFirst(Comparator.naturalOrder()))
+                            .thenComparing(LabSubmission::getSubmittedAt, Comparator.nullsFirst(Comparator.naturalOrder())))
+                    .orElse(onTime.get(0));
+            BigDecimal highest = onTime.stream()
+                    .map(LabSubmission::getScore)
+                    .filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(BigDecimal.ZERO);
+            progress.setHighestScore(highest);
+            progress.setBestSubmissionId(best.getId());
+        }
         studentLabProgressRepository.save(progress);
     }
 }
