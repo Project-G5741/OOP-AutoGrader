@@ -47,7 +47,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                     (SELECT COALESCE(MAX(attempt_number), 0) + 1
                      FROM lab_submission WHERE user_id = ? AND lab_id = ?),
                     ?, ?, ?)
-                RETURNING id, attempt_number, score, submitted_at
+                RETURNING id, attempt_number, score, submitted_at, lab_id
             ),
             scores AS (
                 INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
@@ -61,16 +61,31 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 INSERT INTO student_lab_progress (
                     id, user_id, lab_id, highest_score, attempts_count, best_submission_id,
                     first_submitted_at, last_submitted_at)
-                SELECT gen_random_uuid(), ?, ?, ins.score, ins.attempt_number, ins.id,
+                SELECT gen_random_uuid(), ?, ?,
+                       CASE WHEN q.on_time THEN ins.score ELSE 0 END,
+                       ins.attempt_number,
+                       CASE WHEN q.on_time THEN ins.id ELSE NULL END,
                        ins.submitted_at, ins.submitted_at
                 FROM ins
+                CROSS JOIN LATERAL (
+                    SELECT (l.deadline_date IS NULL
+                            OR ins.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59')
+                                AT TIME ZONE 'Asia/Ho_Chi_Minh')) AS on_time
+                    FROM lab l
+                    WHERE l.id = ins.lab_id
+                ) q
                 ON CONFLICT ON CONSTRAINT student_lab_progress_user_lab_key
                 DO UPDATE SET
                     last_submitted_at = EXCLUDED.last_submitted_at,
                     attempts_count = EXCLUDED.attempts_count,
-                    highest_score = GREATEST(student_lab_progress.highest_score, EXCLUDED.highest_score),
+                    highest_score = CASE
+                        WHEN EXCLUDED.best_submission_id IS NOT NULL
+                        THEN GREATEST(student_lab_progress.highest_score, EXCLUDED.highest_score)
+                        ELSE student_lab_progress.highest_score
+                    END,
                     best_submission_id = CASE
-                        WHEN EXCLUDED.highest_score > student_lab_progress.highest_score
+                        WHEN EXCLUDED.best_submission_id IS NOT NULL
+                             AND EXCLUDED.highest_score > student_lab_progress.highest_score
                         THEN EXCLUDED.best_submission_id
                         ELSE student_lab_progress.best_submission_id
                     END,

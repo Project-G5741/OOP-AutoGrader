@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import com.eiu.capstone.backend.grading.GradingDetailPersistPayload.AssertionRow
 import com.eiu.capstone.backend.grading.GradingDetailPersistPayload.MemberFlag;
 import com.eiu.capstone.backend.grading.GradingDetailPersistPayload.TestcaseRow;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
+import com.eiu.capstone.backend.service.LabDeadlineHelper;
 
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.isUniqueViolation;
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.statusName;
@@ -29,6 +31,8 @@ import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.wi
 @Component
 @Profile("desktop")
 public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
+
+    private static final LabDeadlineHelper DEADLINE = new LabDeadlineHelper();
 
     private final DataSource dataSource;
 
@@ -163,6 +167,9 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                                                  int attemptNumber,
                                                  OffsetDateTime submittedAt) throws SQLException {
         ProgressSnapshot existing = loadProgress(connection, userId, labId);
+        boolean onTime = countsForLecturer(connection, labId, submittedAt);
+        BigDecimal storedHighest = onTime ? score : BigDecimal.ZERO;
+        UUID storedBestId = onTime ? submissionId : null;
         if (existing == null) {
             String insert = """
                     INSERT INTO student_lab_progress (
@@ -174,9 +181,9 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                 statement.setObject(1, UUID.randomUUID());
                 statement.setObject(2, userId);
                 statement.setObject(3, labId);
-                statement.setBigDecimal(4, score);
+                statement.setBigDecimal(4, storedHighest);
                 statement.setInt(5, attemptNumber);
-                statement.setObject(6, submissionId);
+                statement.setObject(6, storedBestId);
                 statement.setObject(7, submittedAt);
                 statement.setObject(8, submittedAt);
                 statement.executeUpdate();
@@ -184,10 +191,14 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             return submittedAt;
         }
 
-        BigDecimal newHighest = existing.highestScore().max(score);
-        UUID bestSubmissionId = score.compareTo(existing.highestScore()) > 0
-                ? submissionId
-                : existing.bestSubmissionId();
+        BigDecimal newHighest = existing.highestScore();
+        UUID bestSubmissionId = existing.bestSubmissionId();
+        if (onTime) {
+            newHighest = existing.highestScore().max(score);
+            bestSubmissionId = score.compareTo(existing.highestScore()) > 0
+                    ? submissionId
+                    : existing.bestSubmissionId();
+        }
         OffsetDateTime firstSubmitted = existing.firstSubmittedAt() == null ? submittedAt : existing.firstSubmittedAt();
 
         String update = """
@@ -216,6 +227,21 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             BigDecimal highestScore,
             UUID bestSubmissionId,
             OffsetDateTime firstSubmittedAt) {}
+
+    private static boolean countsForLecturer(Connection connection, UUID labId, OffsetDateTime submittedAt)
+            throws SQLException {
+        LocalDate deadline = null;
+        String sql = "SELECT deadline_date FROM lab WHERE id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setObject(1, labId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    deadline = rs.getObject(1, LocalDate.class);
+                }
+            }
+        }
+        return DEADLINE.submissionCountsForLecturer(deadline, submittedAt);
+    }
 
     private static ProgressSnapshot loadProgress(Connection connection, UUID userId, UUID labId) throws SQLException {
         String sql = """
