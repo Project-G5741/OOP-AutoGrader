@@ -11,7 +11,7 @@ public record LabStatisticsResponse(
         BigDecimal highestScore,
         BigDecimal lowestScore,
         long submissionCount,
-        /** Sum of {@code student_lab_progress.attempts_count} for this lab (lifetime uploads per student). */
+        /** Sum of each student's highest {@code lab_submission.attempt_number} for this lab. */
         long totalAttempts,
         long studentCount,
         long studentsSubmitted,
