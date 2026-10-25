@@ -25,20 +25,20 @@ class SubmissionRetentionKeepersTest {
     private final LocalDate deadline = LocalDate.of(2026, 10, 20);
 
     @Test
-    void latestOnTimeIsHighest_keepsOnlyThatRow() {
+    void latestOnTimeIsHighest_keepsAllOnTimeRows_stripsOlderDetails() {
         LabSubmission latestBest = row(labA, 3, "2026-10-20T10:00:00Z", "90");
         List<LabSubmission> rows = List.of(
                 latestBest,
                 row(labA, 2, "2026-10-19T00:00:00Z", "40"),
                 row(labA, 1, "2026-10-18T00:00:00Z", "10"));
 
-        Set<UUID> deleted = Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows));
-
-        assertEquals(Set.of(rows.get(1).getId(), rows.get(2).getId()), deleted);
+        assertTrue(SubmissionRetentionKeepers.idsToPrune(rows).isEmpty());
+        assertEquals(Set.of(rows.get(1).getId(), rows.get(2).getId()),
+                Set.copyOf(SubmissionRetentionKeepers.idsToStrip(rows)));
     }
 
     @Test
-    void olderOnTimeHighest_keptWithLatestOnTime() {
+    void olderOnTimeHighest_keepsFullDetailsWithLatest_stripsMiddle() {
         LabSubmission latest = row(labA, 3, "2026-10-20T10:00:00Z", "10");
         LabSubmission highest = row(labA, 1, "2026-10-18T00:00:00Z", "90");
         List<LabSubmission> rows = List.of(
@@ -46,11 +46,11 @@ class SubmissionRetentionKeepersTest {
                 row(labA, 2, "2026-10-19T00:00:00Z", "40"),
                 highest);
 
-        Set<UUID> deleted = Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows));
-
-        assertEquals(Set.of(rows.get(1).getId()), deleted);
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(latest.getId())));
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(highest.getId())));
+        assertTrue(SubmissionRetentionKeepers.idsToPrune(rows).isEmpty());
+        Set<UUID> stripped = Set.copyOf(SubmissionRetentionKeepers.idsToStrip(rows));
+        assertEquals(Set.of(rows.get(1).getId()), stripped);
+        assertTrue(stripped.stream().noneMatch(id -> id.equals(latest.getId())));
+        assertTrue(stripped.stream().noneMatch(id -> id.equals(highest.getId())));
     }
 
     @Test
@@ -62,11 +62,8 @@ class SubmissionRetentionKeepersTest {
         List<LabSubmission> rows = List.of(lateLatest, lateHighest, onTimeLatest, onTimeHighest);
 
         Set<UUID> deleted = Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows));
-
-        assertTrue(deleted.contains(lateLatest.getId()));
-        assertTrue(deleted.contains(lateHighest.getId()));
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(onTimeHighest.getId())));
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(onTimeLatest.getId())));
+        assertEquals(Set.of(lateLatest.getId(), lateHighest.getId()), deleted);
+        assertTrue(SubmissionRetentionKeepers.idsToStrip(rows).isEmpty());
     }
 
     @Test
@@ -75,12 +72,13 @@ class SubmissionRetentionKeepersTest {
                 row(labA, 2, "2026-10-22T00:00:00Z", "90", deadline),
                 row(labA, 1, "2026-10-21T00:00:00Z", "40", deadline));
 
-        Set<UUID> deleted = Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows));
-        assertEquals(Set.of(rows.get(0).getId(), rows.get(1).getId()), deleted);
+        assertEquals(Set.of(rows.get(0).getId(), rows.get(1).getId()),
+                Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows)));
+        assertTrue(SubmissionRetentionKeepers.idsToStrip(rows).isEmpty());
     }
 
     @Test
-    void eachLabKeepsItsOwnOnTimeHighest() {
+    void eachLabKeepsItsOwnOnTimeHighestDetails() {
         LabSubmission labBHighest = row(labB, 1, "2026-09-01T00:00:00Z", "100");
         List<LabSubmission> rows = new ArrayList<>();
         for (int attempt = 8; attempt >= 1; attempt--) {
@@ -89,18 +87,21 @@ class SubmissionRetentionKeepersTest {
         rows.add(labBHighest);
         rows.add(row(labB, 2, "2026-09-02T00:00:00Z", "20"));
 
-        Set<UUID> deleted = Set.copyOf(SubmissionRetentionKeepers.idsToPrune(rows));
-
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(labBHighest.getId())));
+        assertTrue(SubmissionRetentionKeepers.idsToPrune(rows).isEmpty());
+        Set<UUID> stripped = Set.copyOf(SubmissionRetentionKeepers.idsToStrip(rows));
+        assertTrue(stripped.stream().noneMatch(id -> id.equals(labBHighest.getId())));
         LabSubmission labALatest = rows.get(0);
-        assertTrue(deleted.stream().noneMatch(id -> id.equals(labALatest.getId())));
+        assertTrue(stripped.stream().noneMatch(id -> id.equals(labALatest.getId())));
+        assertEquals(7, stripped.size());
     }
 
     @Test
-    void emptyOrSingleOnTime_noDeletes() {
+    void emptyOrSingleOnTime_noDeletesOrStrips() {
         assertTrue(SubmissionRetentionKeepers.idsToPrune(List.of()).isEmpty());
+        assertTrue(SubmissionRetentionKeepers.idsToStrip(List.of()).isEmpty());
         LabSubmission only = row(labA, 1, "2026-10-01T00:00:00Z", "50");
         assertTrue(SubmissionRetentionKeepers.idsToPrune(List.of(only)).isEmpty());
+        assertTrue(SubmissionRetentionKeepers.idsToStrip(List.of(only)).isEmpty());
     }
 
     private static LabSubmission row(UUID labId, int attempt, String submittedAt, String score) {

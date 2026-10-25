@@ -165,8 +165,8 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             @Param("userIds") java.util.Collection<UUID> userIds);
 
     /**
-     * Students with a row that is neither that lab's latest attempt nor its
-     * overall highest (Java keepers then keep on-time highest instead of late).
+     * Students who still have late rows, or extra on-time rows that still have
+     * Class/OT ticks (score-only extras are left in place).
      */
     @Query(value = """
             SELECT DISTINCT user_id FROM (
@@ -181,11 +181,28 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
                            ORDER BY ls.score DESC NULLS LAST,
                                     ls.submitted_at DESC,
                                     ls.attempt_number DESC
-                       ) AS best_rn
+                       ) AS best_rn,
+                       CASE
+                           WHEN l.deadline_date IS NOT NULL
+                            AND ls.submitted_at > ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59')
+                                AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                           THEN TRUE ELSE FALSE
+                       END AS late
                 FROM lab_submission ls
+                JOIN lab l ON l.id = ls.lab_id
             ) ranked
-            WHERE latest_lab_rn > :maxKeep
-              AND best_rn > 1
+            WHERE late
+               OR (
+                    latest_lab_rn > :maxKeep
+                    AND best_rn > 1
+                    AND (
+                        EXISTS (SELECT 1 FROM submission_field_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_method_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_constructor_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_relation_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_testcase_result d WHERE d.submission_id = ranked.id)
+                    )
+               )
             LIMIT :batchLimit
             """, nativeQuery = true)
     List<UUID> findStudentsOverRetentionCap(

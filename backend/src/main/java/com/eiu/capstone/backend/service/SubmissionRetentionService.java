@@ -69,7 +69,7 @@ public class SubmissionRetentionService {
             }
         }
         if (submissionsDeleted > 0) {
-            log.info("Submission retention batch: {} student(s), {} submission row(s) deleted",
+            log.info("Submission retention batch: {} student(s), {} submission(s) deleted or stripped",
                     studentsProcessed, submissionsDeleted);
         }
         return studentsProcessed;
