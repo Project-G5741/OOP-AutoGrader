@@ -44,7 +44,7 @@ public class ReflectionClassParser {
                 try {
                     Class<?> clazz = Class.forName(binaryName, false, loader);
                     result.add(parseClass(clazz));
-                } catch (ClassNotFoundException | LinkageError e) {
+                } catch (ClassNotFoundException | LinkageError | TypeNotPresentException e) {
                     System.out.println("  [warn] Could not load compiled class '" + binaryName
                             + "' (" + e.getClass().getSimpleName() + ") — treating as missing.");
                 }
@@ -88,7 +88,7 @@ public class ReflectionClassParser {
             ParsedField pf = new ParsedField();
             pf.name = f.getName();
             pf.isEnumConstant = f.isEnumConstant();
-            pf.dataType = simpleGenericName(f.getGenericType());
+            pf.dataType = genericTypeName(f);
             pf.scope = scopeOf(f.getModifiers());
             parsed.fields.add(pf);
         }
@@ -100,14 +100,12 @@ public class ReflectionClassParser {
             }
             ParsedMethod pm = new ParsedMethod();
             pm.name = m.getName();
-            pm.returnType = simpleGenericName(m.getGenericReturnType());
+            pm.returnType = genericReturnTypeName(m);
             pm.scope = scopeOf(m.getModifiers());
             pm.isStatic = Modifier.isStatic(m.getModifiers());
             pm.isAbstract = Modifier.isAbstract(m.getModifiers());
             pm.isFinal = Modifier.isFinal(m.getModifiers());
-            pm.parameterTypes = Arrays.stream(m.getGenericParameterTypes())
-                    .map(this::simpleGenericName)
-                    .collect(Collectors.toList());
+            pm.parameterTypes = genericParameterTypeNames(m);
             parsed.methods.add(pm);
         }
 
@@ -118,9 +116,7 @@ public class ReflectionClassParser {
             }
             ParsedConstructor pc = new ParsedConstructor();
             pc.scope = scopeOf(c.getModifiers());
-            pc.parameterTypes = Arrays.stream(c.getGenericParameterTypes())
-                    .map(this::simpleGenericName)
-                    .collect(Collectors.toList());
+            pc.parameterTypes = genericConstructorParameterTypeNames(c);
             parsed.constructors.add(pc);
         }
 
@@ -173,17 +169,80 @@ public class ReflectionClassParser {
         return names;
     }
 
-    private String simpleGenericName(java.lang.reflect.Type type) {
-        if (type instanceof Class<?> clazz) {
-            return clazz.getSimpleName();
+    private String genericTypeName(Field field) {
+        try {
+            return simpleGenericName(field.getGenericType());
+        } catch (TypeNotPresentException e) {
+            return erasureWithMissingTypeArgument(field.getType(), e);
         }
-        if (type instanceof java.lang.reflect.ParameterizedType pt) {
-            String raw = simpleGenericName(pt.getRawType());
-            String args = Arrays.stream(pt.getActualTypeArguments())
+    }
+
+    private String genericReturnTypeName(Method method) {
+        try {
+            return simpleGenericName(method.getGenericReturnType());
+        } catch (TypeNotPresentException e) {
+            return erasureWithMissingTypeArgument(method.getReturnType(), e);
+        }
+    }
+
+    private List<String> genericParameterTypeNames(Method method) {
+        try {
+            return Arrays.stream(method.getGenericParameterTypes())
                     .map(this::simpleGenericName)
-                    .collect(Collectors.joining(", "));
-            return raw + "<" + args + ">";
+                    .collect(Collectors.toList());
+        } catch (TypeNotPresentException e) {
+            return Arrays.stream(method.getParameterTypes())
+                    .map(Class::getSimpleName)
+                    .collect(Collectors.toList());
         }
-        return type.getTypeName();
+    }
+
+    private List<String> genericConstructorParameterTypeNames(java.lang.reflect.Constructor<?> constructor) {
+        try {
+            return Arrays.stream(constructor.getGenericParameterTypes())
+                    .map(this::simpleGenericName)
+                    .collect(Collectors.toList());
+        } catch (TypeNotPresentException e) {
+            return Arrays.stream(constructor.getParameterTypes())
+                    .map(Class::getSimpleName)
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private static String erasureWithMissingTypeArgument(Class<?> erasure, TypeNotPresentException missing) {
+        String missingSimple = simpleNameFromBinaryName(missing.typeName());
+        if (erasure == null) {
+            return missingSimple;
+        }
+        if (List.class.equals(erasure)) {
+            return "List<" + missingSimple + ">";
+        }
+        return erasure.getSimpleName();
+    }
+
+    private static String simpleNameFromBinaryName(String binaryName) {
+        if (binaryName == null || binaryName.isBlank()) {
+            return "?";
+        }
+        int dot = binaryName.lastIndexOf('.');
+        return dot >= 0 ? binaryName.substring(dot + 1) : binaryName;
+    }
+
+    private String simpleGenericName(java.lang.reflect.Type type) {
+        try {
+            if (type instanceof Class<?> clazz) {
+                return clazz.getSimpleName();
+            }
+            if (type instanceof java.lang.reflect.ParameterizedType pt) {
+                String raw = simpleGenericName(pt.getRawType());
+                String args = Arrays.stream(pt.getActualTypeArguments())
+                        .map(this::simpleGenericName)
+                        .collect(Collectors.joining(", "));
+                return raw + "<" + args + ">";
+            }
+            return type.getTypeName();
+        } catch (TypeNotPresentException e) {
+            return simpleNameFromBinaryName(e.typeName());
+        }
     }
 }
