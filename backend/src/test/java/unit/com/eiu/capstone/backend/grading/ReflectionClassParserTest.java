@@ -2,6 +2,7 @@ package unit.com.eiu.capstone.backend.grading;
 
 import com.eiu.capstone.backend.grading.*;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -155,6 +156,26 @@ class ReflectionClassParserTest {
         assertEquals("Pen", builder.outerSimpleName);
         assertEquals("Animal", builder.superclassSimpleName);
         assertEquals(List.of("Serializable"), builder.interfaceSimpleNames);
+    }
+
+    @Test
+    void toleratesMissingGenericDependencyClassFile(@TempDir Path tempDir) throws Exception {
+        Path classesDir = tempDir.resolve("classes");
+        Files.createDirectories(classesDir);
+        compileSources(classesDir,
+                "ServiceEstimate", "public class ServiceEstimate {}",
+                "PetShop", """
+                        import java.util.ArrayList;
+                        import java.util.List;
+                        public class PetShop {
+                            private List<ServiceEstimate> serviceEstimates = new ArrayList<>();
+                        }
+                        """);
+        Files.delete(classesDir.resolve("ServiceEstimate.class"));
+
+        List<ParsedClass> parsed = assertDoesNotThrow(() -> parser.parseClasses(classesDir));
+        ParsedClass petShop = named(parsed, "PetShop");
+        assertEquals("List<ServiceEstimate>", petShop.fields.get(0).dataType);
     }
 
     private ParsedClass named(List<ParsedClass> parsed, String simpleName) {
