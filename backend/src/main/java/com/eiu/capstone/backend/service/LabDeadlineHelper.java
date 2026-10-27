@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
@@ -70,6 +71,10 @@ public class LabDeadlineHelper {
         }
         Instant cutoff = cutoffInstant(deadlineDate);
         return !submittedAt.isAfter(cutoff);
+    }
+
+    public boolean submissionCountsForLecturer(LocalDate deadlineDate, OffsetDateTime submittedAt) {
+        return submissionCountsForLecturer(deadlineDate, submittedAt == null ? null : submittedAt.toInstant());
     }
 
     public Comparator<String> naturalLabNameComparator() {

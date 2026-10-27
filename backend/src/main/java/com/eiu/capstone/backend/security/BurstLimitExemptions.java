@@ -39,6 +39,9 @@ public final class BurstLimitExemptions {
         if (normalizedPath.endsWith("/solution-import")) {
             return true;
         }
+        if ("/api/lecturer/terms/mail".equals(normalizedPath)) {
+            return true;
+        }
         return TERM_STUDENT_IMPORT.matcher(normalizedPath).matches();
     }
 }

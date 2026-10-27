@@ -297,6 +297,26 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     latestSubmission: null,
   });
   const [nextAttemptNumber, setNextAttemptNumber] = useState(1);
+  const [dailySubmissionQuota, setDailySubmissionQuota] = useState(null);
+
+  const refreshDailySubmissionQuota = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/api/students/daily-submission-quota`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDailySubmissionQuota({
+        usedToday: Number(data.usedToday) || 0,
+        dailyLimit: Number(data.dailyLimit) || 30,
+        remaining: Number(data.remaining) || 0,
+        canSubmit: data.canSubmit !== false,
+      });
+    } catch {
+      /* submit still works; server enforces quota */
+    }
+  }, []);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(
     () => view !== 'history' && view !== 'ranking' && isInCurrentTerm(user?.inCurrentTerm),
@@ -613,6 +633,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, []);
 
   useEffect(() => {
+    if (inCurrentTerm && !showHistory && !showRanking) {
+      refreshDailySubmissionQuota();
+    }
+  }, [inCurrentTerm, showHistory, showRanking, refreshDailySubmissionQuota]);
+
+  useEffect(() => {
     if (!selectedLabId) return;
     if (skipLabReloadRef.current) return;
     const cached = challengesByLabRef.current[selectedLabId];
@@ -782,6 +808,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const handleUploadComplete = async (uploadResponse) => {
     if (!selectedLabId) return;
 
+    refreshDailySubmissionQuota();
     skipLabReloadRef.current = true;
     statsFetchGenRef.current += 1;
     const reportedTotal = uploadResponse?.totalSubmissions;
@@ -1086,6 +1113,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               sessionChallengeBundles={sessionChallengeBundles}
               sessionOverallScore={sessionOverallScore}
               error={labsError || challengesError}
+              dailySubmissionQuota={dailySubmissionQuota}
             />
           )}
         </div>

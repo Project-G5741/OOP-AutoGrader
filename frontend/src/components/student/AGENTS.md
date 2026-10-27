@@ -9,7 +9,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
-| `StudentUI.jsx` | Student lab upload + result tabs; selected-lab header shows an Official or Practice badge; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
+| `StudentUI.jsx` | Student lab upload + result tabs; selected-lab header shows an Official or Practice badge; daily submission quota banner (`GET /api/students/daily-submission-quota`, web only) above DropZone; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; unread items show a red dot on the row and on the bell; click a list item to mark that notification read (sessionStorage `oop-student-notif-read`); opening the bell alone does not mark read. Loads `GET /api/feedback/replies` (skipped in desktop) as `Re: Bug Report` / `Re: Contribution`. On `pagehide` (and logout via `App.jsx`) calls `DELETE /api/feedback/replies` for shown reply ids so those feedback rows are hard-deleted |
 | `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) header mascot. Sprite sheets in `frontend/public/mascots/`. `mascotId` selects fox (starter) or a purchased bear, panda, penguin, bunny, or cat. `coverEyes` shows the **bashful** reaction with a short squash animation. The header button pets it (daily mission, 4 pets) |

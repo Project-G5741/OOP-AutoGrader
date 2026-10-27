@@ -114,18 +114,35 @@ public class LecturerAnalyticsRepository {
 
     private static final String QUALIFYING_SCORES_CTE = """
                 qualifying_scores AS (
-                    SELECT s.user_id, s.lab_id, MAX(s.score) AS score
-                    FROM lab_submission s
-                    JOIN lab l ON l.id = s.lab_id
-                    WHERE l.deadline_date IS NULL
-                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh')
-                    GROUP BY s.user_id, s.lab_id
+                    SELECT user_id, lab_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.lab_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                        UNION ALL
+                        SELECT p.user_id, p.lab_id, p.highest_score
+                        FROM student_lab_progress p
+                        WHERE p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id, lab_id
                 )""";
 
     private static final String LAB_DEADLINE_SUBMISSION_FILTER = """
                     (l.deadline_date IS NULL
                      OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
                     """;
+
 
     /**
      * Count active students whose grade-overview total (average of highest lab scores, missing labs as 0) is below 70.
@@ -237,13 +254,31 @@ public class LecturerAnalyticsRepository {
                               AND LOWER(r.name) = 'student'
                         ),
                         qualifying_scores AS (
-                            SELECT s.user_id, s.lab_id, MAX(s.score) AS score
-                            FROM lab_submission s
-                            JOIN lab l ON l.id = s.lab_id
-                            WHERE l.term_id = :termId
-                              AND (l.deadline_date IS NULL
-                                   OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                            GROUP BY s.user_id, s.lab_id
+                            SELECT user_id, lab_id, MAX(score) AS score
+                            FROM (
+                                SELECT s.user_id, s.lab_id, s.score
+                                FROM lab_submission s
+                                JOIN lab l ON l.id = s.lab_id
+                                WHERE l.term_id = :termId
+                                  AND (l.deadline_date IS NULL
+                                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                                UNION ALL
+                                SELECT p.user_id, p.lab_id, p.highest_score
+                                FROM student_lab_progress p
+                                JOIN lab l ON l.id = p.lab_id
+                                WHERE l.term_id = :termId
+                                  AND p.best_submission_id IS NOT NULL
+                                  AND NOT EXISTS (
+                                      SELECT 1
+                                      FROM lab_submission s_ontime
+                                      JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                                      WHERE s_ontime.user_id = p.user_id
+                                        AND s_ontime.lab_id = p.lab_id
+                                        AND (l_ontime.deadline_date IS NULL
+                                             OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                                  )
+                            ) q
+                            GROUP BY user_id, lab_id
                         ),
                         student_totals AS (
                             SELECT gs.id,
@@ -308,13 +343,31 @@ public class LecturerAnalyticsRepository {
                       AND LOWER(r.name) = 'student'
                 ),
                 qualifying_scores AS (
-                    SELECT s.user_id, s.lab_id, MAX(s.score) AS score
-                    FROM lab_submission s
-                    JOIN lab l ON l.id = s.lab_id
-                    WHERE l.term_id = :termId
-                      AND (l.deadline_date IS NULL
-                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    GROUP BY s.user_id, s.lab_id
+                    SELECT user_id, lab_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.lab_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE l.term_id = :termId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        UNION ALL
+                        SELECT p.user_id, p.lab_id, p.highest_score
+                        FROM student_lab_progress p
+                        JOIN lab l ON l.id = p.lab_id
+                        WHERE l.term_id = :termId
+                          AND p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id, lab_id
                 )
                 SELECT gs.id,
                        gs.full_name,
@@ -370,13 +423,32 @@ public class LecturerAnalyticsRepository {
                        COALESCE(u.student_code, u.teacher_code) AS student_code,
                        l.id,
                        l.name,
-                       MAX(s.score) AS score
-                FROM lab_submission s
-                JOIN user_account u ON u.id = s.user_id
-                JOIN lab l ON l.id = s.lab_id
-                WHERE l.term_id = :termId
-                  AND (l.deadline_date IS NULL
-                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                       MAX(q.score) AS score
+                FROM (
+                    SELECT s.user_id, s.lab_id, s.score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE l.term_id = :termId
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    UNION ALL
+                    SELECT p.user_id, p.lab_id, p.highest_score
+                    FROM student_lab_progress p
+                    JOIN lab l ON l.id = p.lab_id
+                    WHERE l.term_id = :termId
+                      AND p.best_submission_id IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM lab_submission s_ontime
+                          JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                          WHERE s_ontime.user_id = p.user_id
+                            AND s_ontime.lab_id = p.lab_id
+                            AND (l_ontime.deadline_date IS NULL
+                                 OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                      )
+                ) q
+                JOIN user_account u ON u.id = q.user_id
+                JOIN lab l ON l.id = q.lab_id
                 GROUP BY u.id, u.full_name, COALESCE(u.student_code, u.teacher_code), l.id, l.name
                 ORDER BY u.full_name ASC, l.name ASC
                 """;
@@ -448,9 +520,18 @@ public class LecturerAnalyticsRepository {
     public long countSubmittedStudentsForLab(UUID labId, String search) {
         String normalized = normalizeSearch(search);
         String sql = "SELECT COUNT(DISTINCT u.id) " + ROSTER_STUDENT_BASE + """
-                WHERE EXISTS (
-                    SELECT 1 FROM lab_submission s
-                    WHERE s.lab_id = :labId AND s.user_id = u.id
+                WHERE (
+                    EXISTS (
+                        SELECT 1 FROM lab_submission s
+                        JOIN lab l2 ON l2.id = s.lab_id
+                        WHERE s.lab_id = :labId AND s.user_id = u.id
+                          AND (l2.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l2.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM student_lab_progress p
+                        WHERE p.lab_id = :labId AND p.user_id = u.id AND p.best_submission_id IS NOT NULL
+                    )
                 )
                 """;
         if (normalized != null) {
@@ -470,14 +551,42 @@ public class LecturerAnalyticsRepository {
         return singleLong(sql, Map.of("labId", labId));
     }
 
-    /** Enrolled quarter students with at least one lab submission (any attempt; deadline not applied). */
+    /** Enrolled quarter students with an on-time lab score (or a stored on-time highest). */
     public long countActiveStudentsSubmittedForLab(UUID labId) {
         String sql = "SELECT COUNT(DISTINCT u.id) " + ACTIVE_TERM_STUDENTS_FOR_LAB_FROM + """
-                AND EXISTS (
-                    SELECT 1
-                    FROM lab_submission s
-                    WHERE s.user_id = u.id AND s.lab_id = :labId
+                AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM lab_submission s
+                        JOIN lab lab_row ON lab_row.id = s.lab_id
+                        WHERE s.user_id = u.id AND s.lab_id = :labId
+                          AND (lab_row.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(lab_row.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM student_lab_progress p
+                        WHERE p.user_id = u.id AND p.lab_id = :labId AND p.best_submission_id IS NOT NULL
+                    )
                 )
+                """;
+        return singleLong(sql, Map.of("labId", labId));
+    }
+
+    /**
+     * Lifetime uploads for this lab: sum of each student's highest {@code attempt_number}.
+     * Retention deletes older rows and may leave {@code attempts_count} equal to the retained
+     * row count, so this does not sum {@code student_lab_progress.attempts_count}.
+     */
+    public long sumAttemptsCountForLab(UUID labId) {
+        String sql = """
+                SELECT COALESCE(SUM(student_attempts.max_attempt), 0)
+                FROM (
+                    SELECT MAX(s.attempt_number) AS max_attempt
+                    FROM lab_submission s
+                    WHERE s.lab_id = :labId
+                    GROUP BY s.user_id
+                ) student_attempts
                 """;
         return singleLong(sql, Map.of("labId", labId));
     }
@@ -485,13 +594,30 @@ public class LecturerAnalyticsRepository {
     public Object[] findLabStatisticsSummary(UUID labId) {
         String sql = """
                 WITH qualifying AS (
-                    SELECT s.user_id, MAX(s.score) AS score
-                    FROM lab_submission s
-                    JOIN lab l ON l.id = s.lab_id
-                    WHERE s.lab_id = :labId
-                      AND (l.deadline_date IS NULL
-                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    GROUP BY s.user_id
+                    SELECT user_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE s.lab_id = :labId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        UNION ALL
+                        SELECT p.user_id, p.highest_score
+                        FROM student_lab_progress p
+                        WHERE p.lab_id = :labId
+                          AND p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id
                 )
                 SELECT l.id,
                        l.name,
@@ -520,13 +646,30 @@ public class LecturerAnalyticsRepository {
     public List<Object[]> findGradeDistribution(UUID labId) {
         String sql = """
                 WITH qualifying AS (
-                    SELECT s.user_id, MAX(s.score) AS score
-                    FROM lab_submission s
-                    JOIN lab l ON l.id = s.lab_id
-                    WHERE s.lab_id = :labId
-                      AND (l.deadline_date IS NULL
-                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    GROUP BY s.user_id
+                    SELECT user_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE s.lab_id = :labId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        UNION ALL
+                        SELECT p.user_id, p.highest_score
+                        FROM student_lab_progress p
+                        WHERE p.lab_id = :labId
+                          AND p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id
                 )
                 SELECT CASE
                          WHEN q.score < 50 THEN '0-49'
@@ -594,37 +737,56 @@ public class LecturerAnalyticsRepository {
 
         String sql = """
                 WITH qualifying_best AS (
-                    SELECT s.user_id, MAX(s.score) AS score
+                    SELECT user_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE s.lab_id = :labId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        UNION ALL
+                        SELECT p.user_id, p.highest_score
+                        FROM student_lab_progress p
+                        WHERE p.lab_id = :labId
+                          AND p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id
+                ),
+                on_time_best AS (
+                    SELECT DISTINCT ON (s.user_id)
+                           s.user_id,
+                           s.id,
+                           s.attempt_number,
+                           s.submitted_at
                     FROM lab_submission s
                     JOIN lab l ON l.id = s.lab_id
                     WHERE s.lab_id = :labId
                       AND (l.deadline_date IS NULL
                            OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    GROUP BY s.user_id
-                ),
-                latest_sub AS (
-                    SELECT DISTINCT ON (s.user_id)
-                           s.user_id,
-                           s.id,
-                           s.score,
-                           s.attempt_number,
-                           s.submitted_at
-                    FROM lab_submission s
-                    WHERE s.lab_id = :labId
-                    ORDER BY s.user_id, s.attempt_number DESC
+                    ORDER BY s.user_id, s.score DESC NULLS LAST, s.submitted_at DESC, s.attempt_number DESC
                 )
                 SELECT u.id,
                        u.full_name,
                        COALESCE(u.student_code, u.teacher_code),
                        qb.score,
-                       COALESCE(latest_sub.attempt_number, 0),
-                       latest_sub.submitted_at,
-                       (p.best_submission_id IS NOT NULL AND p.best_submission_id = latest_sub.id) AS best_submission,
-                       latest_sub.id AS submission_id
+                       COALESCE(ob.attempt_number, 0),
+                       ob.submitted_at,
+                       (p.best_submission_id IS NOT NULL) AS best_submission,
+                       COALESCE(ob.id, p.best_submission_id) AS submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
-                INNER JOIN latest_sub ON latest_sub.user_id = u.id
-                LEFT JOIN qualifying_best qb ON qb.user_id = u.id
+                LEFT JOIN on_time_best ob ON ob.user_id = u.id
+                INNER JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
                 """ + searchClause + keysetClause + """
                 ORDER BY %s
@@ -890,13 +1052,31 @@ public class LecturerAnalyticsRepository {
                     WHERE term_id = :termId AND prefix = 'Official'
                 ),
                 qualifying_scores AS (
-                    SELECT s.user_id, s.lab_id, MAX(s.score) AS score
-                    FROM lab_submission s
-                    JOIN lab l ON l.id = s.lab_id
-                    WHERE l.term_id = :termId
-                      AND (l.deadline_date IS NULL
-                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    GROUP BY s.user_id, s.lab_id
+                    SELECT user_id, lab_id, MAX(score) AS score
+                    FROM (
+                        SELECT s.user_id, s.lab_id, s.score
+                        FROM lab_submission s
+                        JOIN lab l ON l.id = s.lab_id
+                        WHERE l.term_id = :termId
+                          AND (l.deadline_date IS NULL
+                               OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                        UNION ALL
+                        SELECT p.user_id, p.lab_id, p.highest_score
+                        FROM student_lab_progress p
+                        JOIN lab l ON l.id = p.lab_id
+                        WHERE l.term_id = :termId
+                          AND p.best_submission_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM lab_submission s_ontime
+                              JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                              WHERE s_ontime.user_id = p.user_id
+                                AND s_ontime.lab_id = p.lab_id
+                                AND (l_ontime.deadline_date IS NULL
+                                     OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                          )
+                    ) q
+                    GROUP BY user_id, lab_id
                 ),
                 student_totals AS (
                     SELECT gs.id,
@@ -952,14 +1132,33 @@ public class LecturerAnalyticsRepository {
         }
         String termFilter = termId == null ? "" : " AND l.term_id = :termId ";
         String sql = """
-                SELECT s.user_id, s.lab_id, MAX(s.score) AS score
-                FROM lab_submission s
-                JOIN lab l ON l.id = s.lab_id
-                WHERE s.user_id IN (:studentIds)
-                """ + termFilter + """
-                  AND (l.deadline_date IS NULL
-                       OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                GROUP BY s.user_id, s.lab_id
+                SELECT user_id, lab_id, MAX(score) AS score
+                FROM (
+                    SELECT s.user_id, s.lab_id, s.score
+                    FROM lab_submission s
+                    JOIN lab l ON l.id = s.lab_id
+                    WHERE s.user_id IN (:studentIds)
+                    """ + termFilter + """
+                      AND (l.deadline_date IS NULL
+                           OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                    UNION ALL
+                    SELECT p.user_id, p.lab_id, p.highest_score
+                    FROM student_lab_progress p
+                    JOIN lab l ON l.id = p.lab_id
+                    WHERE p.user_id IN (:studentIds)
+                      AND p.best_submission_id IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM lab_submission s_ontime
+                          JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                          WHERE s_ontime.user_id = p.user_id
+                            AND s_ontime.lab_id = p.lab_id
+                            AND (l_ontime.deadline_date IS NULL
+                                 OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                      )
+                    """ + termFilter + """
+                ) q
+                GROUP BY user_id, lab_id
                 """;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentIds", studentIds);

@@ -77,11 +77,14 @@ class LecturerAnalyticsServiceLabStatisticsTest {
         });
         when(lecturerAnalyticsRepository.countActiveEnrolledStudentsForLab(labId)).thenReturn(20L);
         when(lecturerAnalyticsRepository.countActiveStudentsSubmittedForLab(labId)).thenReturn(10L);
+        when(lecturerAnalyticsRepository.sumAttemptsCountForLab(labId)).thenReturn(400L);
 
         var stats = service.getLabStatistics(labId);
 
         assertEquals(20L, stats.studentCount());
         assertEquals(10L, stats.studentsSubmitted());
         assertEquals(new BigDecimal("50.00"), stats.completionRate());
+        assertEquals(25L, stats.submissionCount());
+        assertEquals(400L, stats.totalAttempts());
     }
 }

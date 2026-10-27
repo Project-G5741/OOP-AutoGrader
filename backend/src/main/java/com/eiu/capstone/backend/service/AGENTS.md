@@ -17,6 +17,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
+| `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender` |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
 | `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope |
@@ -24,15 +25,16 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
 | `StudentTermAccessService` | Current-term enrollment check and enrolled quarter label (`enrolledQuarterName`); an Admin with a current quarter counts as in-term without an enrollment row; upload uses `requireUploadAccess` (one query, bounded TTL success cache + scheduled sweep); other submit paths still use `requireCanSubmit` |
+| `StudentDailySubmissionQuotaService` | (`!desktop`) Vietnam-day cap on persisted uploads (`app.submission.daily-max-per-student`, default 30) across all labs; `GET /api/students/daily-submission-quota`; `SubmissionController` + `UploadPersistService` call `requireCanSubmit` (skipped for Admin and desktop) |
 | `StudentStreakService` / `DailyStreakRules` | Student daily streak: login + 3 submits + 4 fox pets on one Vietnam day adds 1 streak day and `50 + 5 * (day / 5)` points (the bonus stays after each block of 5; day 101 pays 150). Missed day breaks the streak; one restore per calendar month. Upload calls `recordSubmission` after persist. `lock` is the row lock the mascot purchase uses |
 | `StudentMascotService` / `MascotCatalog` / `MascotPurchaseRules` | Mascot shop. Fox is free. Bear 333, Panda 999, Penguin 1111, Bunny 2222, Cat 3333. `purchase` charges points and inserts `student_mascot_purchase` in one transaction, then equips that mascot |
 | `StudentDesktopPracticeBundleService` | (`!desktop`) Current-quarter gate then stream fixed prebuilt zip (`target/OOP-AutoGrader-Practice.zip` or cwd `OOP-AutoGrader-Practice.zip`); no pack export, no env, no request-time zip |
 | `UploadPersistService` | After grade: one JDBC statement inserts `lab_submission` (`MAX+1`), UPSERTs challenge scores and progress; snapshot file then detail persist (row already committed) |
 | `SubmissionDeletionService` | Full delete of submission graph by submission id list or all rows for a user; `stripDetailRows` drops Class/OT ticks and MMD JSON but keeps score rows |
-| `SubmissionRetentionService` | Enforce per-student newest-N plus per-lab highest (`app.submission.retention.*`); reconcile `student_lab_progress` after prune |
-| `SubmissionRetentionKeepers` | Prune ids: 10 newest globally ∪ highest score per lab. Strip-detail ids: remaining except latest ∪ highest per lab |
+| `SubmissionRetentionService` | Delete late rows; strip ticks on extra on-time rows outside latest-on-time **per lab** ∪ that lab’s on-time highest; keep those score rows; never clear stored `highest_score` |
+| `SubmissionRetentionKeepers` | `idsToPrune` = late only. `idsToStrip` = on-time except latest ∪ highest (one full-detail row when they match) |
 | `SubmissionRetentionScheduler` | Nightly backfill (`!desktop`, 05:00 Vietnam) |
-| `SubmissionSidecarCleanup` | Remove `_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot` files for pruned submission ids |
+| `SubmissionSidecarCleanup` | Remove `_compile_errors`, `_package_normalization`, `_mmd_meta`, `_parsed_snapshot` files for pruned or stripped submission ids |
 | `PresenceService` | In-process last-seen map of signed-in emails; `GET /api/presence` heartbeats when a JWT is present; Bearer with failed session validity returns 401 (SPA hard-cut); `DELETE /api/presence` removes that email; unique count within 30s |
 | `StudentHistoryService` | Student `my-history` / `my-labs` read APIs |
 | `SubmissionAttemptNumbers` | Next `lab_submission.attempt_number` (`MAX+1`; not the client path value) |
@@ -163,6 +165,7 @@ Per upload request (unique `requestId` prevents collisions):
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
+- Current-term lecturer mail: `support` `CurrentTermMailServiceTest`; `authorization` `LecturerTermMailAuthorizationTest`
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
 - Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases

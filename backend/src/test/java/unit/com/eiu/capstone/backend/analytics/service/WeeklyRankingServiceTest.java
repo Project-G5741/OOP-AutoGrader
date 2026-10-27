@@ -22,8 +22,8 @@ class WeeklyRankingServiceTest {
                 new WeeklyRankingRepository.RankSource(first, "A", "IRN1", new BigDecimal("90"), null),
                 new WeeklyRankingRepository.RankSource(second, "B", "IRN2", new BigDecimal("90"), null)));
         assertEquals(1, rows.get(0).rank());
-        assertEquals(100, rows.get(0).giftPoints());
+        assertEquals(500, rows.get(0).giftPoints());
         assertEquals(2, rows.get(1).rank());
-        assertEquals(80, rows.get(1).giftPoints());
+        assertEquals(300, rows.get(1).giftPoints());
     }
 }

@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -13,10 +14,13 @@ import java.util.UUID;
 import com.eiu.capstone.backend.model.LabSubmission;
 
 /**
- * Row keepers: {@code maxKeep} newest attempts per student (all labs) plus each lab's
- * highest-scoring attempt. Detail keepers: latest attempt per lab plus that lab's highest.
+ * Per lab, keep every on-time {@code lab_submission} score row. Full ticks stay
+ * only on the latest on-time attempt and the highest on-time attempt. Late
+ * rows are always deleted.
  */
 public final class SubmissionRetentionKeepers {
+
+    private static final LabDeadlineHelper DEADLINE = new LabDeadlineHelper();
 
     private static final Comparator<LabSubmission> RECENCY = Comparator
             .comparing(LabSubmission::getSubmittedAt, Comparator.nullsLast(Comparator.reverseOrder()))
@@ -29,47 +33,46 @@ public final class SubmissionRetentionKeepers {
 
     private SubmissionRetentionKeepers() {}
 
-    public static List<UUID> idsToPrune(List<LabSubmission> submissions, int maxKeep) {
-        if (submissions == null || submissions.isEmpty() || maxKeep < 1) {
+    /** Late attempts — delete the whole graph. */
+    public static List<UUID> idsToPrune(List<LabSubmission> submissions) {
+        if (submissions == null || submissions.isEmpty()) {
             return List.of();
         }
-        Set<UUID> keep = newestIds(submissions, maxKeep);
-        keep.addAll(idsOf(bestByLab(submissions).values()));
-        return missingFrom(submissions, keep);
+        List<UUID> late = new ArrayList<>();
+        for (LabSubmission submission : submissions) {
+            UUID id = submission.getId();
+            if (id != null && !countsForLecturer(submission)) {
+                late.add(id);
+            }
+        }
+        return late;
     }
 
     /**
-     * Among remaining score rows, drop Class/MMD/OT ticks everywhere except latest + highest per lab.
+     * On-time attempts that are neither the lab's latest on-time nor its
+     * highest on-time — drop Class/MMD/OT ticks and sidecars, keep the score row.
      */
-    public static List<UUID> idsToStripDetails(List<LabSubmission> remaining) {
-        if (remaining == null || remaining.isEmpty()) {
+    public static List<UUID> idsToStrip(List<LabSubmission> submissions) {
+        if (submissions == null || submissions.isEmpty()) {
             return List.of();
         }
-        Set<UUID> keepDetail = new HashSet<>();
-        keepDetail.addAll(idsOf(latestByLab(remaining).values()));
-        keepDetail.addAll(idsOf(bestByLab(remaining).values()));
-        return missingFrom(remaining, keepDetail);
-    }
-
-    private static Set<UUID> newestIds(List<LabSubmission> submissions, int maxKeep) {
-        List<LabSubmission> byRecency = new ArrayList<>(submissions);
-        byRecency.sort(RECENCY);
-        Set<UUID> keep = new HashSet<>();
-        int newestCount = Math.min(maxKeep, byRecency.size());
-        for (int i = 0; i < newestCount; i++) {
-            UUID id = byRecency.get(i).getId();
-            if (id != null) {
-                keep.add(id);
+        Set<UUID> keepDetails = idsOf(latestOnTimeByLab(submissions).values());
+        keepDetails.addAll(idsOf(bestOnTimeByLab(submissions).values()));
+        List<UUID> strip = new ArrayList<>();
+        for (LabSubmission submission : submissions) {
+            UUID id = submission.getId();
+            if (id != null && countsForLecturer(submission) && !keepDetails.contains(id)) {
+                strip.add(id);
             }
         }
-        return keep;
+        return strip;
     }
 
-    private static Map<UUID, LabSubmission> latestByLab(List<LabSubmission> submissions) {
+    private static Map<UUID, LabSubmission> latestOnTimeByLab(List<LabSubmission> submissions) {
         Map<UUID, LabSubmission> latest = new HashMap<>();
         for (LabSubmission submission : submissions) {
             UUID labId = labId(submission);
-            if (labId == null) {
+            if (labId == null || !countsForLecturer(submission)) {
                 continue;
             }
             LabSubmission current = latest.get(labId);
@@ -80,11 +83,11 @@ public final class SubmissionRetentionKeepers {
         return latest;
     }
 
-    private static Map<UUID, LabSubmission> bestByLab(List<LabSubmission> submissions) {
+    private static Map<UUID, LabSubmission> bestOnTimeByLab(List<LabSubmission> submissions) {
         Map<UUID, LabSubmission> best = new HashMap<>();
         for (LabSubmission submission : submissions) {
             UUID labId = labId(submission);
-            if (labId == null) {
+            if (labId == null || !countsForLecturer(submission)) {
                 continue;
             }
             LabSubmission current = best.get(labId);
@@ -95,15 +98,12 @@ public final class SubmissionRetentionKeepers {
         return best;
     }
 
-    private static List<UUID> missingFrom(List<LabSubmission> submissions, Set<UUID> keep) {
-        List<UUID> extra = new ArrayList<>();
-        for (LabSubmission submission : submissions) {
-            UUID id = submission.getId();
-            if (id != null && !keep.contains(id)) {
-                extra.add(id);
-            }
+    static boolean countsForLecturer(LabSubmission submission) {
+        if (submission == null) {
+            return false;
         }
-        return extra;
+        LocalDate deadline = submission.getLab() == null ? null : submission.getLab().getDeadlineDate();
+        return DEADLINE.submissionCountsForLecturer(deadline, submission.getSubmittedAt());
     }
 
     private static Set<UUID> idsOf(Iterable<LabSubmission> submissions) {

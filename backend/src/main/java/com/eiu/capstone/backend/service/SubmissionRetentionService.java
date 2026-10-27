@@ -16,19 +16,19 @@ public class SubmissionRetentionService {
     private static final Logger log = LoggerFactory.getLogger(SubmissionRetentionService.class);
 
     private final boolean enabled;
-    private final int maxPerStudent;
+    private final int maxPerLab;
     private final int nightlyBatchStudents;
     private final LabSubmissionRepository labSubmissionRepository;
     private final SubmissionRetentionTx submissionRetentionTx;
 
     public SubmissionRetentionService(
             @Value("${app.submission.retention.enabled:true}") boolean enabled,
-            @Value("${app.submission.retention.max-per-student:${app.submission.retention.max-per-lab:10}}") int maxPerStudent,
+            @Value("${app.submission.retention.max-per-lab:${app.submission.retention.max-per-student:1}}") int maxPerLab,
             @Value("${app.submission.retention.nightly-batch-pairs:200}") int nightlyBatchStudents,
             LabSubmissionRepository labSubmissionRepository,
             SubmissionRetentionTx submissionRetentionTx) {
         this.enabled = enabled;
-        this.maxPerStudent = Math.max(1, maxPerStudent);
+        this.maxPerLab = Math.max(1, maxPerLab);
         this.nightlyBatchStudents = Math.max(1, nightlyBatchStudents);
         this.labSubmissionRepository = labSubmissionRepository;
         this.submissionRetentionTx = submissionRetentionTx;
@@ -56,7 +56,7 @@ public class SubmissionRetentionService {
             return 0;
         }
         List<UUID> students = labSubmissionRepository.findStudentsOverRetentionCap(
-                maxPerStudent, nightlyBatchStudents);
+                maxPerLab, nightlyBatchStudents);
         int studentsProcessed = 0;
         int submissionsDeleted = 0;
         for (UUID userId : students) {
@@ -69,7 +69,7 @@ public class SubmissionRetentionService {
             }
         }
         if (submissionsDeleted > 0) {
-            log.info("Submission retention batch: {} student(s), {} submission row(s) deleted",
+            log.info("Submission retention batch: {} student(s), {} submission(s) deleted or stripped",
                     studentsProcessed, submissionsDeleted);
         }
         return studentsProcessed;

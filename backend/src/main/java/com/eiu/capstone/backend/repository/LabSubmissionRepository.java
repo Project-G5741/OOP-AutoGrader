@@ -1,6 +1,7 @@
 package com.eiu.capstone.backend.repository;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -102,6 +103,9 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
 
     long countByUser_Id(UUID userId);
 
+    long countByUser_IdAndSubmittedAtBetween(
+            UUID userId, OffsetDateTime startInclusive, OffsetDateTime endExclusive);
+
     @Query("""
             SELECT AVG(s.score) FROM LabSubmission s
             WHERE s.user.id = :userId
@@ -161,17 +165,13 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
             @Param("userIds") java.util.Collection<UUID> userIds);
 
     /**
-     * Students with a row to delete, or with Class/OT ticks on an attempt that is not
-     * that lab's latest or highest.
+     * Students who still have late rows, or extra on-time rows that still have
+     * Class/OT ticks (score-only extras are left in place).
      */
     @Query(value = """
             SELECT DISTINCT user_id FROM (
                 SELECT ls.user_id,
                        ls.id,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY ls.user_id
-                           ORDER BY ls.submitted_at DESC, ls.attempt_number DESC
-                       ) AS recency_rn,
                        ROW_NUMBER() OVER (
                            PARTITION BY ls.user_id, ls.lab_id
                            ORDER BY ls.submitted_at DESC, ls.attempt_number DESC
@@ -181,17 +181,26 @@ public interface LabSubmissionRepository extends JpaRepository<LabSubmission, UU
                            ORDER BY ls.score DESC NULLS LAST,
                                     ls.submitted_at DESC,
                                     ls.attempt_number DESC
-                       ) AS best_rn
+                       ) AS best_rn,
+                       CASE
+                           WHEN l.deadline_date IS NOT NULL
+                            AND ls.submitted_at > ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59')
+                                AT TIME ZONE 'Asia/Ho_Chi_Minh')
+                           THEN TRUE ELSE FALSE
+                       END AS late
                 FROM lab_submission ls
+                JOIN lab l ON l.id = ls.lab_id
             ) ranked
-            WHERE (recency_rn > :maxKeep AND best_rn > 1)
+            WHERE late
                OR (
-                    latest_lab_rn > 1
+                    latest_lab_rn > :maxKeep
                     AND best_rn > 1
                     AND (
-                        EXISTS (SELECT 1 FROM submission_method_result m WHERE m.submission_id = ranked.id)
-                        OR EXISTS (SELECT 1 FROM submission_field_result f WHERE f.submission_id = ranked.id)
-                        OR EXISTS (SELECT 1 FROM submission_testcase_result t WHERE t.submission_id = ranked.id)
+                        EXISTS (SELECT 1 FROM submission_field_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_method_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_constructor_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_relation_result d WHERE d.submission_id = ranked.id)
+                        OR EXISTS (SELECT 1 FROM submission_testcase_result d WHERE d.submission_id = ranked.id)
                     )
                )
             LIMIT :batchLimit
