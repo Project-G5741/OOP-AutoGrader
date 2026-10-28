@@ -29,7 +29,8 @@ class HikariNeonReadinessPropertiesTest {
                 properties.getProperty("spring.datasource.hikari.data-source-properties.stringtype"));
         assertEquals("true",
                 properties.getProperty("spring.datasource.hikari.data-source-properties.reWriteBatchedInserts"));
-        assertEquals("10", properties.getProperty("spring.datasource.hikari.maximum-pool-size"));
+        assertEquals("${HIKARI_MAXIMUM_POOL_SIZE:5}",
+                properties.getProperty("spring.datasource.hikari.maximum-pool-size"));
         assertEquals("2", properties.getProperty("spring.datasource.hikari.minimum-idle"));
         assertEquals("30000", properties.getProperty("spring.datasource.hikari.connection-timeout"));
         assertEquals("1800000", properties.getProperty("spring.datasource.hikari.max-lifetime"));
