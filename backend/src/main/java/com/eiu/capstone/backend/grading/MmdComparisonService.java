@@ -60,8 +60,7 @@ public class MmdComparisonService {
                                 && (specified(expectedField.dataType())
                                         ? MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType)
                                         : true)
-                                && mmdModifierMatches(expectedField.isStatic(), pf.isStatic)
-                                && mmdModifierMatches(expectedField.isFinal(), pf.isFinal)));
+                                && mmdModifierMatches(expectedField.isStatic(), pf.isStatic)));
                 outcome.setField(expectedField.id(), correct);
             }
 
@@ -164,8 +163,7 @@ public class MmdComparisonService {
                 && MmdTypeEquivalence.typesMatch(expected.returnType(), actual.returnType)
                 && constructorTypesMatch(expected.parameterTypes(), actual.parameterTypes)
                 && mmdModifierMatches(expected.isStatic(), actual.isStatic)
-                && mmdModifierMatches(expected.isAbstract(), effectiveAbstract)
-                && mmdModifierMatches(expected.isFinal(), actual.isFinal);
+                && mmdModifierMatches(expected.isAbstract(), effectiveAbstract);
     }
 
     private boolean interfaceMethodIsImplicitlyAbstract(ParsedMmdClass parsedClass, ParsedMethod actual) {

@@ -303,4 +303,40 @@ class MmdComparisonServiceTest {
 
         assertTrue(outcome.isClassPresent(employeeId));
     }
+
+    @Test
+    void staticFinalRubricFieldPassesMmdWhenDiagramShowsStaticOnly() {
+        UUID classId = UUID.randomUUID();
+        UUID firstFineId = UUID.randomUUID();
+        UUID additionalFineId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Const",
+                List.of(new ClassRubric(
+                        classId,
+                        "Const",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(
+                                new FieldRubric(firstFineId, "FIRST_HOUR_FINE", "public", "int", true, true),
+                                new FieldRubric(additionalFineId, "ADDITIONAL_HOUR_FINE", "public", "int", true, true)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        String mmd = diagram("""
+                class Const {
+                  + FIRST_HOUR_FINE$ : int
+                  + ADDITIONAL_HOUR_FINE$ : int
+                }
+                """);
+
+        MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+        assertTrue(outcome.isFieldCorrect(firstFineId));
+        assertTrue(outcome.isFieldCorrect(additionalFineId));
+    }
 }
