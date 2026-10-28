@@ -15,4 +15,29 @@ public record InvocationStructureDTO(
         UUID receiverConstructorId,
         String receiverParams,
         String instanceName,
-        UUID dispatchClassId) {}
+        UUID dispatchClassId,
+        Integer repeatCount) {
+
+    public InvocationStructureDTO(
+            UUID id,
+            InvocationKind invocationKind,
+            UUID constructorId,
+            UUID methodId,
+            String params,
+            UUID receiverConstructorId,
+            String receiverParams,
+            String instanceName,
+            UUID dispatchClassId) {
+        this(
+                id,
+                invocationKind,
+                constructorId,
+                methodId,
+                params,
+                receiverConstructorId,
+                receiverParams,
+                instanceName,
+                dispatchClassId,
+                null);
+    }
+}

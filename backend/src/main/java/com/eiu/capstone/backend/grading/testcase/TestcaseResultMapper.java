@@ -74,9 +74,7 @@ public class TestcaseResultMapper {
                     null);
         }
 
-        String input = submissionResult != null && submissionResult.getInputDisplay() != null
-                ? submissionResult.getInputDisplay()
-                : displayFormatter.formatInput(testcase);
+        String input = displayFormatter.formatInput(testcase);
         String expectedOutput;
         if (submissionResult != null) {
             expectedOutput = submissionResult.getExpectedDisplay();

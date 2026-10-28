@@ -438,7 +438,13 @@ public class LabCloneService {
     }
 
     private FieldStructureDTO remapField(FieldStructureDTO source, IdMap idMap) {
-        return new FieldStructureDTO(idMap.map(source.id()), source.name(), source.dataType(), source.scopeId());
+        return new FieldStructureDTO(
+                idMap.map(source.id()),
+                source.name(),
+                source.dataType(),
+                source.scopeId(),
+                source.isStatic(),
+                source.isFinal());
     }
 
     private MethodStructureDTO remapMethod(MethodStructureDTO source, IdMap idMap) {

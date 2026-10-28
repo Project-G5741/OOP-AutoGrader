@@ -238,7 +238,11 @@ public final class WorkerInvokeEngine {
                 if (!Modifier.isStatic(method.getModifiers())) {
                     receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
                 }
-                Object returnValue = method.invoke(receiver, args);
+                int repeats = effectiveRepeatCount(spec);
+                Object returnValue = null;
+                for (int iteration = 0; iteration < repeats; iteration++) {
+                    returnValue = method.invoke(receiver, args);
+                }
                 ObjectFacts facts = describeObject(loader, returnValue, registry);
                 maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
                 return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
@@ -778,6 +782,13 @@ public final class WorkerInvokeEngine {
 
     private static boolean hasInstanceName(WorkerIpc.ScenarioStepSpec spec) {
         return spec.instanceName() != null && !spec.instanceName().isBlank();
+    }
+
+    private static int effectiveRepeatCount(WorkerIpc.ScenarioStepSpec spec) {
+        if (spec == null || spec.repeatCount() < 1) {
+            return 1;
+        }
+        return spec.repeatCount();
     }
 
     private static String messageOrSimpleName(Throwable throwable) {

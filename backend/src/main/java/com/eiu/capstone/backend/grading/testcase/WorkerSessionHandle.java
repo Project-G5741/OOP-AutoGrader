@@ -391,7 +391,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.receiverParameterTypes(),
                 invocation.receiverParamsJson(),
                 invocation.instanceName(),
-                invocation.dispatchClassName());
+                invocation.dispatchClassName(),
+                invocation.effectiveRepeatCount());
     }
 
     /**

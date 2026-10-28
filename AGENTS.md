@@ -105,6 +105,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
 | `docs/sql/2026-10-21-weekly-ranking-payout.sql` | Operator-run: `weekly_ranking_week` + `weekly_ranking_entry` (Sunday freeze ledger). Startup migrator applies the same statements on PostgreSQL |
 | `docs/sql/2026-10-21-lab-prefix.sql` | Operator-run: `lab.prefix` (`Official` or `Practice`, default `Official`). Startup migrator applies the same `ADD COLUMN IF NOT EXISTS` on PostgreSQL |
+| `docs/sql/2026-10-28-field-declaration-modifiers.sql` | Operator-run: `field_declaration.is_static` and `field_declaration.is_final` (default false). Startup migrator applies the same columns on PostgreSQL |
+| `docs/sql/2026-10-28-testcase-invocation-repeat-count.sql` | Operator-run: `testcase_invocation.repeat_count` (default 1). Startup migrator applies the same column on PostgreSQL |
 | `docs/sql/2026-10-22-admin-role.sql` | Operator-run: insert the `ADMIN` role row only (no user, no password). The first Admin account is inserted by an operator |
 
 ### Project facts

@@ -1456,7 +1456,9 @@ public class ClassStructureService {
                 : resolveMasterDataLabel(declaration.getScope(), masterData);
         return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matchesWhenSpecified(scope, entry.scope)
-                        && PartialCreditEvaluator.matchesWhenSpecified(declaration.getDataType(), entry.dataType));
+                        && PartialCreditEvaluator.matchesWhenSpecified(declaration.getDataType(), entry.dataType)
+                        && declaration.isStatic() == entry.isStatic
+                        && declaration.isFinal() == entry.isFinal);
     }
 
     private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry, String declaringType) {
@@ -1465,7 +1467,9 @@ public class ClassStructureService {
         }
         return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matchesWhenSpecified(field.scope(), entry.scope)
-                        && PartialCreditEvaluator.matchesWhenSpecified(field.dataType(), entry.dataType));
+                        && PartialCreditEvaluator.matchesWhenSpecified(field.dataType(), entry.dataType)
+                        && field.isStatic() == entry.isStatic
+                        && field.isFinal() == entry.isFinal);
     }
 
     private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {

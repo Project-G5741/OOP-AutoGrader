@@ -199,7 +199,7 @@ class LabCloneServiceTest {
                                 1,
                                 false,
                                 false,
-                                List.of(new FieldStructureDTO(fieldId, "x", "int", 1)),
+                                List.of(new FieldStructureDTO(fieldId, "x", "int", 1, false, false)),
                                 List.of(new MethodStructureDTO(
                                         methodId, "bar", "void", 1, false, false, List.of())),
                                 List.of(),

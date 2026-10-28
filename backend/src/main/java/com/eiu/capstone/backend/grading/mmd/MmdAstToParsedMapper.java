@@ -263,6 +263,8 @@ public final class MmdAstToParsedMapper {
             field.scope = scope;
             field.name = nameSuffix.value();
             field.dataType = typeSuffix.value();
+            field.isStatic = nameSuffix.isStatic() || typeSuffix.isStatic();
+            field.isFinal = false;
             field.invalidDeclarationFormat = field.name.isEmpty() || field.dataType.isEmpty();
             current.fields.add(field);
             return;

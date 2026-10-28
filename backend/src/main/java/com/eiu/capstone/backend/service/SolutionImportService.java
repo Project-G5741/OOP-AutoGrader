@@ -120,6 +120,11 @@ public class SolutionImportService {
                 raw.add(new SourceEntry(fileName, new String(entry.getValue(), StandardCharsets.UTF_8)));
             }
             NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(raw);
+            List<String> normalizedSources = normalization.sources().stream()
+                    .map(SourceEntry::source)
+                    .toList();
+            Set<String> explicitConstructors =
+                    SolutionImportExplicitConstructors.classesWithExplicitConstructors(normalizedSources);
             List<JavaFileObject> javaSources = new ArrayList<>();
             for (SourceEntry entry : normalization.sources()) {
                 javaSources.add(new MemorySourceJavaFileObject(
@@ -150,7 +155,8 @@ public class SolutionImportService {
                 }
             }
 
-            ChallengeStructureDTO challenge = deriveChallenge(number, parsedClasses, mmdRelations, hasMmd, masterData);
+            ChallengeStructureDTO challenge = deriveChallenge(
+                    number, parsedClasses, mmdRelations, hasMmd, masterData, explicitConstructors);
             return SolutionImportChallengeResult.applied(number, challenge);
         } catch (IOException e) {
             return SolutionImportChallengeResult.skipped(number, "Import I/O error: " + e.getMessage());
@@ -165,7 +171,8 @@ public class SolutionImportService {
                                                   List<ParsedClass> parsedClasses,
                                                   List<ParsedMmdRelation> mmdRelations,
                                                   boolean hasMmd,
-                                                  MasterDataIndex masterData) {
+                                                  MasterDataIndex masterData,
+                                                  Set<String> explicitConstructors) {
         Map<String, UUID> classIdBySimple = new LinkedHashMap<>();
         List<ClassStructureDTO> classes = new ArrayList<>();
 
@@ -195,7 +202,7 @@ public class SolutionImportService {
                     parsed.isStatic,
                     mapFields(parsed, masterData),
                     mapMethods(parsed.methods, masterData),
-                    mapConstructors(parsed, masterData),
+                    mapConstructors(parsed, masterData, explicitConstructors),
                     outerId,
                     1));
         }
@@ -343,7 +350,9 @@ public class SolutionImportService {
                     UUID.randomUUID(),
                     field.name,
                     constant ? null : field.dataType,
-                    constant ? null : masterData.scopeId(field.scope)));
+                    constant ? null : masterData.scopeId(field.scope),
+                    constant ? false : field.isStatic,
+                    constant ? false : field.isFinal));
         }
         return out;
     }
@@ -361,38 +370,85 @@ public class SolutionImportService {
                     masterData.scopeId(method.scope),
                     method.isStatic,
                     method.isAbstract,
-                    mapParameters(method.parameterTypes)));
+                    mapParameters(method.parameterTypes, method.parameterNames)));
         }
         return out;
     }
 
-    private List<ConstructorStructureDTO> mapConstructors(ParsedClass parsed, MasterDataIndex masterData) {
+    private List<ConstructorStructureDTO> mapConstructors(ParsedClass parsed,
+                                                          MasterDataIndex masterData,
+                                                          Set<String> explicitConstructors) {
         if (parsed.constructors == null) {
             return List.of();
         }
         List<ConstructorStructureDTO> out = new ArrayList<>();
         for (ParsedConstructor constructor : parsed.constructors) {
             List<String> params = constructor.parameterTypes == null ? List.of() : constructor.parameterTypes;
-            boolean isDefault = params.isEmpty();
+            if (shouldOmitCompilerConstructor(parsed, params, explicitConstructors)) {
+                continue;
+            }
+            boolean isDefault = isImplicitDefaultConstructorFlag(parsed, params, explicitConstructors);
             out.add(new ConstructorStructureDTO(
                     UUID.randomUUID(),
                     parsed.simpleName,
                     masterData.scopeId(constructor.scope),
                     isDefault,
-                    mapParameters(params)));
+                    mapParameters(params, constructor.parameterNames)));
         }
         return out;
     }
 
-    private List<ParameterStructureDTO> mapParameters(List<String> parameterTypes) {
+    /**
+     * Skip compiler-generated constructors when the source declares none.
+     * Classes: only the implicit public no-arg default. Enums/records: any reflected ctor.
+     */
+    private static boolean shouldOmitCompilerConstructor(ParsedClass parsed,
+                                                         List<String> params,
+                                                         Set<String> explicitConstructors) {
+        if (explicitConstructors != null && explicitConstructors.contains(parsed.simpleName)) {
+            return false;
+        }
+        String kind = declaringKind(parsed);
+        if ("class".equals(kind)) {
+            return params == null || params.isEmpty();
+        }
+        if ("enum".equals(kind) || "record".equals(kind)) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isImplicitDefaultConstructorFlag(ParsedClass parsed,
+                                                            List<String> params,
+                                                            Set<String> explicitConstructors) {
+        if (params != null && !params.isEmpty()) {
+            return false;
+        }
+        if (!"class".equals(declaringKind(parsed))) {
+            return false;
+        }
+        return explicitConstructors == null || !explicitConstructors.contains(parsed.simpleName);
+    }
+
+    private static String declaringKind(ParsedClass parsed) {
+        if (parsed.declaringType == null || parsed.declaringType.isBlank()) {
+            return "class";
+        }
+        return parsed.declaringType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private List<ParameterStructureDTO> mapParameters(List<String> parameterTypes, List<String> parameterNames) {
         if (parameterTypes == null || parameterTypes.isEmpty()) {
             return List.of();
         }
         List<ParameterStructureDTO> out = new ArrayList<>();
         for (int i = 0; i < parameterTypes.size(); i++) {
+            String name = parameterNames != null && i < parameterNames.size() && parameterNames.get(i) != null
+                    ? parameterNames.get(i)
+                    : "arg" + i;
             out.add(new ParameterStructureDTO(
                     UUID.randomUUID(),
-                    "arg" + i,
+                    name,
                     parameterTypes.get(i),
                     i,
                     false));

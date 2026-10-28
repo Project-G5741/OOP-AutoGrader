@@ -2,6 +2,8 @@ package com.eiu.capstone.backend.grading.testcase;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
@@ -18,7 +20,21 @@ public class TestcaseDisplayFormatter {
     }
 
     public String formatInput(TestcaseRubric testcase) {
-        return formatInput(testcase, firstInvocation(testcase));
+        List<InvocationRubric> steps = orderedInvocations(testcase);
+        if (steps.isEmpty()) {
+            return "";
+        }
+        if (steps.size() == 1) {
+            return formatInvocationInput(steps.get(0));
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < steps.size(); i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            builder.append(formatInvocationInput(steps.get(i)));
+        }
+        return builder.toString();
     }
 
     public String formatInput(TestcaseRubric testcase, InvocationRubric invocation) {
@@ -28,14 +44,17 @@ public class TestcaseDisplayFormatter {
         return formatInvocationInput(invocation);
     }
 
-    private static InvocationRubric firstInvocation(TestcaseRubric testcase) {
+    private static List<InvocationRubric> orderedInvocations(TestcaseRubric testcase) {
         if (testcase == null) {
-            return null;
+            return List.of();
         }
         if (testcase.invocations() != null && !testcase.invocations().isEmpty()) {
-            return testcase.invocations().get(0);
+            return testcase.invocations();
         }
-        return testcase.invocation();
+        if (testcase.invocation() != null) {
+            return List.of(testcase.invocation());
+        }
+        return List.of();
     }
 
     public String formatExpected(AssertionRubric assertion) {
@@ -138,19 +157,41 @@ public class TestcaseDisplayFormatter {
         if (invocation.kind() == InvocationKind.CONSTRUCTOR) {
             String constructed = "new " + className + "(" + args + ")";
             if (hasInstanceName(invocation)) {
-                return invocation.instanceName() + " = " + constructed;
+                return className + " " + invocation.instanceName() + " = " + constructed;
             }
             return constructed;
         }
         if (hasInstanceName(invocation)) {
-            return invocation.instanceName() + "." + invocation.methodName() + "(" + args + ")";
+            return formatNamedInstanceMethodCall(invocation, args);
         }
         if (invocation.hasReceiver()) {
             String receiverSetup = "new " + displayClassName(invocation.receiverClassName())
                     + "(" + formatArgs(invocation.receiverParamsJson()) + ")";
-            return receiverSetup + "\n" + className + "." + invocation.methodName() + "(" + args + ")";
+            return receiverSetup + "\n" + className + "." + invocation.methodName() + "(" + args + ")"
+                    + repeatSuffix(invocation);
         }
-        return className + "." + invocation.methodName() + "(" + args + ")";
+        return className + "." + invocation.methodName() + "(" + args + ")" + repeatSuffix(invocation);
+    }
+
+    private String formatNamedInstanceMethodCall(InvocationRubric invocation, String args) {
+        String receiver = invocation.instanceName();
+        if (hasDispatchType(invocation)) {
+            String dispatchType = displayClassName(invocation.dispatchClassName());
+            return "((" + dispatchType + ") " + receiver + ")." + invocation.methodName() + "(" + args + ")"
+                    + repeatSuffix(invocation);
+        }
+        return receiver + "." + invocation.methodName() + "(" + args + ")" + repeatSuffix(invocation);
+    }
+
+    private static String repeatSuffix(InvocationRubric invocation) {
+        if (invocation == null || invocation.effectiveRepeatCount() <= 1) {
+            return "";
+        }
+        return " \u00d7 " + invocation.effectiveRepeatCount();
+    }
+
+    private static boolean hasDispatchType(InvocationRubric invocation) {
+        return invocation.dispatchClassName() != null && !invocation.dispatchClassName().isBlank();
     }
 
     /** Binary nested names ({@code Outer$Inner}) display as dotted {@code Outer.Inner}. */

@@ -111,6 +111,7 @@ public class TestcaseRubricAssembler {
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = dto.constructorId();
             String className = maps.classNameByConstructorId().get(constructorId);
+            int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
             return new InvocationRubric(
                     invocationId,
                     dto.invocationKind(),
@@ -127,11 +128,13 @@ public class TestcaseRubricAssembler {
                     instanceName,
                     dispatchClassId,
                     dispatchClassName,
-                    InvocationRubric.resultTypeNameForConstructor(className));
+                    InvocationRubric.resultTypeNameForConstructor(className),
+                    1);
         }
         UUID methodId = dto.methodId();
         Method method = maps.methodById().get(methodId);
         UUID receiverConstructorId = dto.receiverConstructorId();
+        int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
         return new InvocationRubric(
                 invocationId,
                 dto.invocationKind(),
@@ -151,6 +154,7 @@ public class TestcaseRubricAssembler {
                 instanceName,
                 dispatchClassId,
                 dispatchClassName,
-                InvocationRubric.resultTypeNameForMethod(method));
+                InvocationRubric.resultTypeNameForMethod(method),
+                repeat);
     }
 }

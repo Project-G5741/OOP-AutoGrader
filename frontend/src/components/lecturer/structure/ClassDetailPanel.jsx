@@ -249,7 +249,7 @@ export default function ClassDetailPanel({
           {(classData.fields || []).map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
               <input
-                className={`${enumClass ? 'col-span-11' : 'col-span-6'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
+                className={`${enumClass ? 'col-span-11' : 'col-span-4'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
                 placeholder={enumClass ? 'Constant name' : 'Field name'}
                 value={field.name}
                 onChange={(e) => {
@@ -261,7 +261,7 @@ export default function ClassDetailPanel({
               {!enumClass && (
                 <>
                   <input
-                    className="col-span-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                    className="col-span-2 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                     placeholder="type"
                     value={field.dataType}
                     onChange={(e) => {
@@ -281,6 +281,30 @@ export default function ClassDetailPanel({
                       }}
                     />
                   </div>
+                  <label className="col-span-2 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!field.isStatic}
+                      onChange={(e) => {
+                        const fields = [...classData.fields];
+                        fields[index] = { ...field, isStatic: e.target.checked };
+                        updateFields(fields);
+                      }}
+                    />
+                    static
+                  </label>
+                  <label className="col-span-1 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!field.isFinal}
+                      onChange={(e) => {
+                        const fields = [...classData.fields];
+                        fields[index] = { ...field, isFinal: e.target.checked };
+                        updateFields(fields);
+                      }}
+                    />
+                    final
+                  </label>
                 </>
               )}
               <button
@@ -301,6 +325,8 @@ export default function ClassDetailPanel({
                 name: '',
                 dataType: '',
                 scopeId: enumClass ? null : scopeOptions[0]?.id,
+                isStatic: false,
+                isFinal: false,
               },
             ])}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"

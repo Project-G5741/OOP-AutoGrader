@@ -25,7 +25,12 @@ public record InvocationRubric(
         String instanceName,
         UUID dispatchClassId,
         String dispatchClassName,
-        String resultTypeName) {
+        String resultTypeName,
+        int repeatCount) {
+
+    public int effectiveRepeatCount() {
+        return repeatCount < 1 ? 1 : repeatCount;
+    }
 
     public InvocationRubric(
             UUID id,
@@ -56,7 +61,45 @@ public record InvocationRubric(
                 null,
                 null,
                 null,
-                null);
+                null,
+                1);
+    }
+
+    public InvocationRubric(
+            UUID id,
+            InvocationKind kind,
+            UUID constructorId,
+            UUID methodId,
+            String className,
+            String methodName,
+            List<String> parameterTypes,
+            String paramsJson,
+            UUID receiverConstructorId,
+            String receiverClassName,
+            List<String> receiverParameterTypes,
+            String receiverParamsJson,
+            String instanceName,
+            UUID dispatchClassId,
+            String dispatchClassName,
+            String resultTypeName) {
+        this(
+                id,
+                kind,
+                constructorId,
+                methodId,
+                className,
+                methodName,
+                parameterTypes,
+                paramsJson,
+                receiverConstructorId,
+                receiverClassName,
+                receiverParameterTypes,
+                receiverParamsJson,
+                instanceName,
+                dispatchClassId,
+                dispatchClassName,
+                resultTypeName,
+                1);
     }
 
     /** Rubric type name for object RETURN_VALUE checks (constructor class or method return type). */

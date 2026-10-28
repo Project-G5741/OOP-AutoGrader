@@ -75,9 +75,9 @@ class MmdParserTest {
             "CLASS",
             false,
             java.util.List.of(
-                new FieldRubric(yearModelId, "yearModel", "private", "int"),
-                new FieldRubric(makeId, "make", "private", "String"),
-                new FieldRubric(speedId, "speed", "private", "int")),
+                new FieldRubric(yearModelId, "yearModel", "private", "int", false, false),
+                new FieldRubric(makeId, "make", "private", "String", false, false),
+                new FieldRubric(speedId, "speed", "private", "int", false, false)),
             java.util.List.of(),
             java.util.List.of())),
         java.util.List.of(),
@@ -114,8 +114,8 @@ class MmdParserTest {
             "CLASS",
             false,
             java.util.List.of(
-                new FieldRubric(yearModelId, "yearModel", "private", "int"),
-                new FieldRubric(makeId, "make", "private", "String")),
+                new FieldRubric(yearModelId, "yearModel", "private", "int", false, false),
+                new FieldRubric(makeId, "make", "private", "String", false, false)),
             java.util.List.of(),
             java.util.List.of())),
         java.util.List.of(),
@@ -281,7 +281,7 @@ class MmdParserTest {
             "public",
             "CLASS",
             false,
-            java.util.List.of(new FieldRubric(instanceId, "instance", "private", "Logger")),
+            java.util.List.of(new FieldRubric(instanceId, "instance", "private", "Logger", false, false)),
             java.util.List.of(
                 new com.eiu.capstone.backend.grading.rubric.MethodRubric(
                     getInstanceId, "getInstance", "public", "Logger", true, false, false, java.util.List.of()),

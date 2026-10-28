@@ -75,6 +75,12 @@ class SolutionImportServiceTest {
         assertEquals("applied", c1.status());
         assertNotNull(c1.challenge());
         assertTrue(c1.challenge().classes().stream().anyMatch(c -> "Ok".equals(c.name())));
+        var ok = c1.challenge().classes().stream()
+                .filter(c -> "Ok".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(ok.constructors() == null || ok.constructors().isEmpty(),
+                "Implicit default constructor must not be imported");
         assertFalse(c1.challenge().hasMmd());
 
         assertEquals(2, c2.challengeNumber());
@@ -164,6 +170,83 @@ class SolutionImportServiceTest {
                 .orElseThrow();
         assertEquals(pen.id(), builder.outerClassId());
         assertTrue(builder.isStatic());
+        assertTrue(builder.constructors() == null || builder.constructors().isEmpty(),
+                "Nested class without a written constructor must not get an implicit default");
+    }
+
+    @Test
+    void explicitNoArgConstructor_importsWithDefaultFlagOff() {
+        List<MultipartFile> files = List.of(
+                javaFile("challenge_1/Explicit.java", "public class Explicit { public Explicit() {} }"));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var clazz = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Explicit".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1, clazz.constructors().size());
+        assertFalse(clazz.constructors().get(0).isDefault());
+    }
+
+    @Test
+    void explicitParameterizedConstructor_importsFromReflection() {
+        List<MultipartFile> files = List.of(
+                javaFile("challenge_1/Param.java", "public class Param { public Param(int x) {} }"));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var clazz = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Param".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1, clazz.constructors().size());
+        assertEquals(1, clazz.constructors().get(0).parameters().size());
+        assertFalse(clazz.constructors().get(0).isDefault());
+    }
+
+    @Test
+    void simpleEnum_omitsCompilerConstructors() {
+        List<MultipartFile> files = List.of(
+                javaFile("challenge_1/Color.java", "public enum Color { RED, GREEN }"));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var color = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Color".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(color.constructors() == null || color.constructors().isEmpty());
+    }
+
+    @Test
+    void enumWithExplicitConstructor_importsFromReflection() {
+        List<MultipartFile> files = List.of(javaFile("challenge_1/Planet.java", """
+                public enum Planet {
+                    EARTH(1.0);
+                    private final double m;
+                    Planet(double m) { this.m = m; }
+                }
+                """));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var planet = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Planet".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(planet.constructors().isEmpty());
+    }
+
+    @Test
+    void recordHeader_importsCanonicalConstructor() {
+        List<MultipartFile> files = List.of(
+                javaFile("challenge_1/Point.java", "public record Point(int x, int y) {}"));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var point = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Point".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1, point.constructors().size());
+        assertEquals(2, point.constructors().get(0).parameters().size());
+        assertFalse(point.constructors().get(0).isDefault());
     }
 
     private void stubMasterData() {
@@ -176,7 +259,8 @@ class SolutionImportServiceTest {
                 .thenReturn(List.of(
                         md(10, "class", "DECLARING_TYPE"),
                         md(11, "interface", "DECLARING_TYPE"),
-                        md(12, "enum", "DECLARING_TYPE")));
+                        md(12, "enum", "DECLARING_TYPE"),
+                        md(13, "record", "DECLARING_TYPE")));
         when(masterDataRepository.findByCategoryOrderByNameAsc(eq("RELATION_TYPE")))
                 .thenReturn(List.of(
                         md(20, "Inheritance", "RELATION_TYPE"),

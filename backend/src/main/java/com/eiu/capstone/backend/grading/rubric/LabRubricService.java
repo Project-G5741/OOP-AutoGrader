@@ -241,7 +241,13 @@ public class LabRubricService {
                 .map(f -> {
                     FieldDeclaration fd = f.getFieldDeclaration();
                     String scope = fd.getScope() == null ? null : fd.getScope().getName();
-                    return new FieldRubric(f.getId(), f.getName(), scope, fd.getDataType());
+                    return new FieldRubric(
+                            f.getId(),
+                            f.getName(),
+                            scope,
+                            fd.getDataType(),
+                            fd.isStatic(),
+                            fd.isFinal());
                 })
                 .toList();
 
@@ -379,7 +385,8 @@ public class LabRubricService {
                     instanceName,
                     dispatchClassId,
                     dispatchClassName,
-                    InvocationRubric.resultTypeNameForConstructor(className));
+                    InvocationRubric.resultTypeNameForConstructor(className),
+                    invocation.getRepeatCount());
         }
         return methodInvocationRubric(invocation, context, instanceName, dispatchClassId, dispatchClassName);
     }
@@ -416,7 +423,8 @@ public class LabRubricService {
                 instanceName,
                 dispatchClassId,
                 dispatchClassName,
-                InvocationRubric.resultTypeNameForMethod(method));
+                InvocationRubric.resultTypeNameForMethod(method),
+                invocation.getRepeatCount());
     }
 
     private record TestcaseRubricContext(

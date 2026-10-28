@@ -9,6 +9,7 @@ import {
   namedInstanceMatchesParamType,
   parseParamsArray,
   parseScalarInput,
+  parameterFieldLabel,
   serializeParamsArray,
 } from './testcaseAuthoring';
 
@@ -35,7 +36,7 @@ export default function TestcaseParamFields({
   return (
     <div className="space-y-2">
       {parameters.map((param, index) => {
-        const label = param.name ? `${param.name}: ${param.dataType || '?'}` : (param.dataType || `arg ${index + 1}`);
+        const label = parameterFieldLabel(param, index);
         const value = values[index];
         const objectArray = isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);
         const objectArg = !isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);

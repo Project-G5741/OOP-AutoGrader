@@ -67,7 +67,8 @@ public class TestcaseRubricService {
         METHOD, CONSTRUCTOR, FIELD, CLASS
     }
 
-    static final int MAX_STEPS = 20;
+    static final int MAX_STEPS = 44;
+    static final int MAX_REPEAT_COUNT = Integer.MAX_VALUE;
     static final int MAX_NAMED_INSTANCES = 10;
     private static final int ORDER_INDEX_PARK = MAX_STEPS;
     private static final String INSTANCE_REF_KEY = "$instance";
@@ -527,7 +528,15 @@ public class TestcaseRubricService {
                         ? invocation.getReceiverConstructor().getId() : null,
                 invocation.getReceiverParams(),
                 invocation.getInstanceName(),
-                invocation.getDispatchClass() != null ? invocation.getDispatchClass().getId() : null);
+                invocation.getDispatchClass() != null ? invocation.getDispatchClass().getId() : null,
+                normalizedRepeatCount(invocation.getRepeatCount()));
+    }
+
+    public static int normalizedRepeatCount(Integer repeatCount) {
+        if (repeatCount == null || repeatCount < 1) {
+            return 1;
+        }
+        return Math.min(repeatCount, MAX_REPEAT_COUNT);
     }
 
     private void validateTestcaseDto(TestcaseStructureDTO dto, ChallengeMemberIds memberIds) {
@@ -563,6 +572,7 @@ public class TestcaseRubricService {
         }
         InvocationStructureDTO step = steps.get(0);
         validateInvocation(step, memberIds, true);
+        validateRepeatCount(step);
         if (blankToNull(step.instanceName()) != null) {
             throw unprocessable("UNIT cannot name instances");
         }
@@ -593,6 +603,7 @@ public class TestcaseRubricService {
         int namedCount = 0;
         for (InvocationStructureDTO step : steps) {
             validateInvocation(step, memberIds, false);
+            validateRepeatCount(step);
             if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
                 String name = blankToNull(step.instanceName());
                 if (name == null) {
@@ -646,6 +657,16 @@ public class TestcaseRubricService {
             }
         }
         return named;
+    }
+
+    private void validateRepeatCount(InvocationStructureDTO step) {
+        int repeat = normalizedRepeatCount(step.repeatCount());
+        if (step.invocationKind() == InvocationKind.CONSTRUCTOR && repeat != 1) {
+            throw unprocessable("Constructor steps cannot repeat");
+        }
+        if (step.invocationKind() == InvocationKind.METHOD && repeat < 1) {
+            throw unprocessable("Method repeat count must be at least 1");
+        }
     }
 
     private void validateAssertions(TestcaseStructureDTO dto,
@@ -1078,6 +1099,10 @@ public class TestcaseRubricService {
         invocation.setReceiverParams(normalizeJsonArray(dto.receiverParams()));
         invocation.setOrderIndex(orderIndex);
         invocation.setInstanceName(blankToNull(dto.instanceName()));
+        invocation.setRepeatCount(
+                dto.invocationKind() == InvocationKind.CONSTRUCTOR
+                        ? 1
+                        : normalizedRepeatCount(dto.repeatCount()));
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
             invocation.setConstructor(requireConstructor(dto.constructorId(), memberIds));
             invocation.setMethod(null);

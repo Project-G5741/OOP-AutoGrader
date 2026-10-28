@@ -1,12 +1,14 @@
 import React from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
+import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
 import {
   allowedAssertionKinds,
   callAsOptionsForReceiver,
   compositionNameRole,
   defaultExpectedValue,
   emptyAssertion,
+  displayStepParameters,
   emptyInvocation,
   FIELD_CLASS,
   invocationForKindChange,
@@ -15,7 +17,6 @@ import {
   namedInstancesBefore,
   parseParamsArray,
   serializeParamsArray,
-  stepParameters,
 } from './testcaseAuthoring';
 
 function CompositionStepEditor({
@@ -28,9 +29,10 @@ function CompositionStepEditor({
   onRemove,
   onAssertionsChange,
   canRemove,
+  referenceSources = [],
 }) {
   const namedBefore = namedInstancesBefore(steps, catalog, index);
-  const parameters = stepParameters(step, catalog);
+  const parameters = displayStepParameters(step, catalog, referenceSources);
   const nameRole = compositionNameRole(step, catalog);
   const method = catalog.methodsById.get(step.methodId);
   const receiverOptions = method && !method.isStatic
@@ -116,6 +118,20 @@ function CompositionStepEditor({
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
             </select>
+          </label>
+        )}
+
+        {step.invocationKind === 'METHOD' && step.methodId && (
+          <label className="block text-xs text-foreground-muted">
+            Repeat
+            <TestcaseRepeatCountInput
+              key={step.id}
+              repeatCount={step.repeatCount}
+              onChange={(repeatCount) => patchStep({ repeatCount })}
+            />
+            <span className="mt-0.5 block text-[10px] text-foreground-muted">
+              Invoke this method this many times in a row (min 1; very large values may time out at grade).
+            </span>
           </label>
         )}
 
@@ -235,7 +251,7 @@ function CompositionStepEditor({
   );
 }
 
-export default function CompositionTestcaseScript({ tc, catalog, onUpdate }) {
+export default function CompositionTestcaseScript({ tc, catalog, onUpdate, referenceSources = [] }) {
   const steps = tc.invocations || [];
   const assertions = tc.assertions || [];
 
@@ -284,6 +300,7 @@ export default function CompositionTestcaseScript({ tc, catalog, onUpdate }) {
             }}
             onAssertionsChange={(nextForStep) => replaceStepAssertions(step.id, nextForStep)}
             canRemove={steps.length > 1}
+            referenceSources={referenceSources}
           />
         ))}
         <button

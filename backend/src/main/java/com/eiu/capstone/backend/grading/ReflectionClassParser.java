@@ -90,6 +90,8 @@ public class ReflectionClassParser {
             pf.isEnumConstant = f.isEnumConstant();
             pf.dataType = genericTypeName(f);
             pf.scope = scopeOf(f.getModifiers());
+            pf.isStatic = Modifier.isStatic(f.getModifiers());
+            pf.isFinal = Modifier.isFinal(f.getModifiers());
             parsed.fields.add(pf);
         }
 
@@ -106,6 +108,7 @@ public class ReflectionClassParser {
             pm.isAbstract = Modifier.isAbstract(m.getModifiers());
             pm.isFinal = Modifier.isFinal(m.getModifiers());
             pm.parameterTypes = genericParameterTypeNames(m);
+            pm.parameterNames = parameterNames(m.getParameters());
             parsed.methods.add(pm);
         }
 
@@ -117,10 +120,27 @@ public class ReflectionClassParser {
             ParsedConstructor pc = new ParsedConstructor();
             pc.scope = scopeOf(c.getModifiers());
             pc.parameterTypes = genericConstructorParameterTypeNames(c);
+            pc.parameterNames = parameterNames(c.getParameters());
             parsed.constructors.add(pc);
         }
 
         return parsed;
+    }
+
+    private static List<String> parameterNames(java.lang.reflect.Parameter[] parameters) {
+        if (parameters == null || parameters.length == 0) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>(parameters.length);
+        for (int i = 0; i < parameters.length; i++) {
+            java.lang.reflect.Parameter parameter = parameters[i];
+            if (parameter.isNamePresent() && parameter.getName() != null && !parameter.getName().isBlank()) {
+                names.add(parameter.getName());
+            } else {
+                names.add("arg" + i);
+            }
+        }
+        return names;
     }
 
     private String scopeOf(int modifiers) {

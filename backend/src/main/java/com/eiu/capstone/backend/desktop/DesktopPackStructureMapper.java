@@ -138,7 +138,9 @@ public class DesktopPackStructureMapper {
                 field.id(),
                 field.name(),
                 field.dataType(),
-                field.scope() == null ? null : masterData.scopeId(field.scope()));
+                field.scope() == null ? null : masterData.scopeId(field.scope()),
+                field.isStatic(),
+                field.isFinal());
     }
 
     private MethodStructureDTO toMethod(MethodRubric method) {
@@ -226,7 +228,8 @@ public class DesktopPackStructureMapper {
                 invocation.receiverConstructorId(),
                 invocation.receiverParamsJson(),
                 invocation.instanceName(),
-                invocation.dispatchClassId());
+                invocation.dispatchClassId(),
+                invocation.repeatCount() < 1 ? 1 : invocation.repeatCount());
     }
 
     private AssertionStructureDTO toAssertion(AssertionRubric assertion) {

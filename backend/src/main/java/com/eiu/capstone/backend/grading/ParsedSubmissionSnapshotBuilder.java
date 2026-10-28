@@ -78,6 +78,8 @@ public class ParsedSubmissionSnapshotBuilder {
                 entry.name = pf.name;
                 entry.scope = pf.scope;
                 entry.dataType = pf.dataType;
+                entry.isStatic = pf.isStatic;
+                entry.isFinal = pf.isFinal;
                 classSnapshot.fields.put(expectedField.id().toString(), entry);
             }
 

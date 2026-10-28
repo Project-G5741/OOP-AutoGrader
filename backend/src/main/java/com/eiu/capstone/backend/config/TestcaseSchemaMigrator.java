@@ -212,6 +212,15 @@ public class TestcaseSchemaMigrator {
                         UNIQUE (testcase_id, order_index)
                     """);
         }
+        if (!columnExists("testcase_invocation", "repeat_count")) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE testcase_invocation
+                        ADD COLUMN repeat_count INTEGER NOT NULL DEFAULT 1
+                    """);
+            jdbcTemplate.execute("""
+                    ALTER TABLE testcase_invocation ALTER COLUMN repeat_count DROP DEFAULT
+                    """);
+        }
     }
 
     private String assertionKindColumnPgType() {
