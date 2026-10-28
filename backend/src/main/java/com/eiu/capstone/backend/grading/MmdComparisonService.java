@@ -59,7 +59,9 @@ public class MmdComparisonService {
                                 && PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
                                 && (specified(expectedField.dataType())
                                         ? MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType)
-                                        : true)));
+                                        : true)
+                                && mmdModifierMatches(expectedField.isStatic(), pf.isStatic)
+                                && mmdModifierMatches(expectedField.isFinal(), pf.isFinal)));
                 outcome.setField(expectedField.id(), correct);
             }
 

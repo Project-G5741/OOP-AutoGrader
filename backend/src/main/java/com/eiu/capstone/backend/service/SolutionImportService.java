@@ -343,7 +343,9 @@ public class SolutionImportService {
                     UUID.randomUUID(),
                     field.name,
                     constant ? null : field.dataType,
-                    constant ? null : masterData.scopeId(field.scope)));
+                    constant ? null : masterData.scopeId(field.scope),
+                    constant ? false : field.isStatic,
+                    constant ? false : field.isFinal));
         }
         return out;
     }

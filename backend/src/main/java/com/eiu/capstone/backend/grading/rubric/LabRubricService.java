@@ -241,7 +241,13 @@ public class LabRubricService {
                 .map(f -> {
                     FieldDeclaration fd = f.getFieldDeclaration();
                     String scope = fd.getScope() == null ? null : fd.getScope().getName();
-                    return new FieldRubric(f.getId(), f.getName(), scope, fd.getDataType());
+                    return new FieldRubric(
+                            f.getId(),
+                            f.getName(),
+                            scope,
+                            fd.getDataType(),
+                            fd.isStatic(),
+                            fd.isFinal());
                 })
                 .toList();
 

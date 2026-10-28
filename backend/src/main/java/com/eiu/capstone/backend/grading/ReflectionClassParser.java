@@ -90,6 +90,8 @@ public class ReflectionClassParser {
             pf.isEnumConstant = f.isEnumConstant();
             pf.dataType = genericTypeName(f);
             pf.scope = scopeOf(f.getModifiers());
+            pf.isStatic = Modifier.isStatic(f.getModifiers());
+            pf.isFinal = Modifier.isFinal(f.getModifiers());
             parsed.fields.add(pf);
         }
 

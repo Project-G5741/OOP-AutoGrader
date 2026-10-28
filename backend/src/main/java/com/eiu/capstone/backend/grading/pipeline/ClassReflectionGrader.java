@@ -80,7 +80,9 @@ public class ClassReflectionGrader {
                 } else {
                     boolean allMatch = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
                             || (PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
-                                    && PartialCreditEvaluator.matchesWhenSpecified(expectedField.dataType(), pf.dataType));
+                                    && PartialCreditEvaluator.matchesWhenSpecified(expectedField.dataType(), pf.dataType)
+                                    && expectedField.isStatic() == pf.isStatic
+                                    && expectedField.isFinal() == pf.isFinal);
                     accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));

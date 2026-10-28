@@ -22,6 +22,12 @@ public class FieldDeclaration {
             foreignKey = @ForeignKey(name = "field_declaration_scope_fkey"))
     private MasterData scope;
 
+    @Column(name = "is_static", nullable = false)
+    private boolean isStatic = false;
+
+    @Column(name = "is_final", nullable = false)
+    private boolean isFinal = false;
+
     public FieldDeclaration() {}
 
     public UUID getId() {
@@ -50,5 +56,21 @@ public class FieldDeclaration {
 
     public void setScope(MasterData scope) {
         this.scope = scope;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
+    public void setStatic(boolean aStatic) {
+        isStatic = aStatic;
+    }
+
+    public boolean isFinal() {
+        return isFinal;
+    }
+
+    public void setFinal(boolean aFinal) {
+        isFinal = aFinal;
     }
 }

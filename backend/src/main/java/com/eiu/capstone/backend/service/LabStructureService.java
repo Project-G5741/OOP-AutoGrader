@@ -1305,6 +1305,13 @@ public class LabStructureService {
                 } else {
                     declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "field scope"));
                 }
+                if (enumClass) {
+                    declaration.setStatic(false);
+                    declaration.setFinal(false);
+                } else {
+                    declaration.setStatic(dto.isStatic());
+                    declaration.setFinal(dto.isFinal());
+                }
                 declarationsToSave.add(declaration);
                 fieldsToSave.add(field);
                 isNewFlags.add(isNew);
@@ -1903,7 +1910,9 @@ public class LabStructureService {
                         f.getFieldDeclaration().getDataType(),
                         f.getFieldDeclaration().getScope() == null
                                 ? null
-                                : f.getFieldDeclaration().getScope().getId()))
+                                : f.getFieldDeclaration().getScope().getId(),
+                        f.getFieldDeclaration().isStatic(),
+                        f.getFieldDeclaration().isFinal()))
                 .toList();
         List<MethodStructureDTO> methodDtos = methods.stream()
                 .map(m -> new MethodStructureDTO(

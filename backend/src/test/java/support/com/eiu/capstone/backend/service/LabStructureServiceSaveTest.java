@@ -195,7 +195,7 @@ class LabStructureServiceSaveTest {
         UUID classId = UUID.randomUUID();
         UUID fieldId = UUID.randomUUID();
 
-        FieldStructureDTO fieldDto = new FieldStructureDTO(fieldId, "   ", "int", 1);
+        FieldStructureDTO fieldDto = new FieldStructureDTO(fieldId, "   ", "int", 1, false, false);
         ClassStructureDTO classDto = new ClassStructureDTO(
                 classId, "Car", 1, 2, false, List.of(fieldDto), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
