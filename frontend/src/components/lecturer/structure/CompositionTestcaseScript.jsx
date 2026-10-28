@@ -1,6 +1,7 @@
 import React from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
+import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
 import {
   allowedAssertionKinds,
   callAsOptionsForReceiver,
@@ -117,6 +118,20 @@ function CompositionStepEditor({
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
             </select>
+          </label>
+        )}
+
+        {step.invocationKind === 'METHOD' && step.methodId && (
+          <label className="block text-xs text-foreground-muted">
+            Repeat
+            <TestcaseRepeatCountInput
+              key={step.id}
+              repeatCount={step.repeatCount}
+              onChange={(repeatCount) => patchStep({ repeatCount })}
+            />
+            <span className="mt-0.5 block text-[10px] text-foreground-muted">
+              Invoke this method this many times in a row (min 1; very large values may time out at grade).
+            </span>
           </label>
         )}
 

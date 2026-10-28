@@ -599,6 +599,26 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void scenario_hiddenReceiverMethodRepeat_runsOnSameInstance() {
+        WorkerIpc.ScenarioStepSpec step = new WorkerIpc.ScenarioStepSpec(
+                "METHOD",
+                "Car",
+                "accelerate",
+                List.of(),
+                "[]",
+                "Car",
+                List.of("int", "String"),
+                "[2020,\"X\"]",
+                null,
+                null,
+                100);
+        SerializedInvocationOutcome result = engine.scenario(classesDir, List.of(step), List.of("speed"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(1, result.steps().size());
+        assertEquals("500", result.steps().get(0).fieldSnapshotsJson().get("speed"));
+    }
+
+    @Test
     void batch_runsMultipleScenarios() {
         WorkerIpc.BatchItemSpec speed = new WorkerIpc.BatchItemSpec(List.of(
                 new WorkerIpc.ScenarioStepSpec(

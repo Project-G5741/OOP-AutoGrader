@@ -352,14 +352,14 @@ public class TestcaseGrader {
 
     private static List<InvocationRubric> prepareSteps(TestcaseRubric testcase) {
         List<InvocationRubric> steps = resolveSteps(testcase);
-        if (testcase.testcaseType() != TestcaseType.UNIT) {
-            return steps;
+        if (testcase.testcaseType() == TestcaseType.UNIT) {
+            List<InvocationRubric> prepared = new ArrayList<>();
+            for (InvocationRubric step : steps) {
+                prepared.add(injectUnitHiddenReceiver(step));
+            }
+            return prepared;
         }
-        List<InvocationRubric> prepared = new ArrayList<>();
-        for (InvocationRubric step : steps) {
-            prepared.add(injectUnitHiddenReceiver(step));
-        }
-        return prepared;
+        return steps;
     }
 
     private static InvocationRubric injectUnitHiddenReceiver(InvocationRubric step) {
@@ -388,7 +388,8 @@ public class TestcaseGrader {
                 step.instanceName(),
                 step.dispatchClassId(),
                 step.dispatchClassName(),
-                step.resultTypeName());
+                step.resultTypeName(),
+                step.repeatCount());
     }
 
     private static int firstThrowIndex(List<InvocationOutcome> outcomes) {
@@ -406,12 +407,13 @@ public class TestcaseGrader {
 
     private static int boundStepIndex(AssertionRubric assertion, List<InvocationRubric> steps) {
         if (assertion.invocationId() != null) {
+            int last = Integer.MAX_VALUE;
             for (int i = 0; i < steps.size(); i++) {
                 if (assertion.invocationId().equals(steps.get(i).id())) {
-                    return i;
+                    last = i;
                 }
             }
-            return Integer.MAX_VALUE;
+            return last == Integer.MAX_VALUE ? Integer.MAX_VALUE : last;
         }
         return steps.size() == 1 ? 0 : Integer.MAX_VALUE;
     }

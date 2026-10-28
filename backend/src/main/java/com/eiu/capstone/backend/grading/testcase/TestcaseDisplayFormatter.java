@@ -167,18 +167,27 @@ public class TestcaseDisplayFormatter {
         if (invocation.hasReceiver()) {
             String receiverSetup = "new " + displayClassName(invocation.receiverClassName())
                     + "(" + formatArgs(invocation.receiverParamsJson()) + ")";
-            return receiverSetup + "\n" + className + "." + invocation.methodName() + "(" + args + ")";
+            return receiverSetup + "\n" + className + "." + invocation.methodName() + "(" + args + ")"
+                    + repeatSuffix(invocation);
         }
-        return className + "." + invocation.methodName() + "(" + args + ")";
+        return className + "." + invocation.methodName() + "(" + args + ")" + repeatSuffix(invocation);
     }
 
     private String formatNamedInstanceMethodCall(InvocationRubric invocation, String args) {
         String receiver = invocation.instanceName();
         if (hasDispatchType(invocation)) {
             String dispatchType = displayClassName(invocation.dispatchClassName());
-            return "((" + dispatchType + ") " + receiver + ")." + invocation.methodName() + "(" + args + ")";
+            return "((" + dispatchType + ") " + receiver + ")." + invocation.methodName() + "(" + args + ")"
+                    + repeatSuffix(invocation);
         }
-        return receiver + "." + invocation.methodName() + "(" + args + ")";
+        return receiver + "." + invocation.methodName() + "(" + args + ")" + repeatSuffix(invocation);
+    }
+
+    private static String repeatSuffix(InvocationRubric invocation) {
+        if (invocation == null || invocation.effectiveRepeatCount() <= 1) {
+            return "";
+        }
+        return " \u00d7 " + invocation.effectiveRepeatCount();
     }
 
     private static boolean hasDispatchType(InvocationRubric invocation) {

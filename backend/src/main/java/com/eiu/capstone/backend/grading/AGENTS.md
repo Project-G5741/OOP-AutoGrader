@@ -91,7 +91,7 @@ SubmissionController
 - Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
 - UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps
 - Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
-- Lecturer save 422s over 20 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
+- Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API

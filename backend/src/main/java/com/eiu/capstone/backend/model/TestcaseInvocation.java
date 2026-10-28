@@ -71,6 +71,9 @@ public class TestcaseInvocation {
             foreignKey = @ForeignKey(name = "testcase_invocation_dispatch_class_id_fkey"))
     private ClassEntity dispatchClass;
 
+    @Column(name = "repeat_count", nullable = false)
+    private int repeatCount = 1;
+
     public TestcaseInvocation() {}
 
     public UUID getId() { return id; }
@@ -107,4 +110,7 @@ public class TestcaseInvocation {
 
     public ClassEntity getDispatchClass() { return dispatchClass; }
     public void setDispatchClass(ClassEntity dispatchClass) { this.dispatchClass = dispatchClass; }
+
+    public int getRepeatCount() { return repeatCount; }
+    public void setRepeatCount(int repeatCount) { this.repeatCount = repeatCount; }
 }

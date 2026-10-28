@@ -1,6 +1,7 @@
 import React from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
+import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
 import {
   allowedAssertionKinds,
   applyUnitTarget,
@@ -72,6 +73,17 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
           })}
         </select>
       </label>
+
+      {step?.invocationKind === 'METHOD' && step.methodId && (
+        <label className="block text-xs text-foreground-muted">
+          Repeat
+          <TestcaseRepeatCountInput
+            key={step.id}
+            repeatCount={step.repeatCount}
+            onChange={(repeatCount) => patchStep({ ...step, repeatCount })}
+          />
+        </label>
+      )}
 
       {blocked && (
         <p className="rounded border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-warning-text">

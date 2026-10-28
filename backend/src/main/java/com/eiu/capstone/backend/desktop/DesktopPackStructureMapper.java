@@ -228,7 +228,8 @@ public class DesktopPackStructureMapper {
                 invocation.receiverConstructorId(),
                 invocation.receiverParamsJson(),
                 invocation.instanceName(),
-                invocation.dispatchClassId());
+                invocation.dispatchClassId(),
+                invocation.repeatCount() < 1 ? 1 : invocation.repeatCount());
     }
 
     private AssertionStructureDTO toAssertion(AssertionRubric assertion) {

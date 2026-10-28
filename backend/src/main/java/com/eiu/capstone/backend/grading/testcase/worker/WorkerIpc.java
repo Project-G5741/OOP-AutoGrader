@@ -184,7 +184,34 @@ public final class WorkerIpc {
             List<String> receiverParameterTypes,
             String receiverParamsJson,
             String instanceName,
-            String dispatchClassName) {}
+            String dispatchClassName,
+            int repeatCount) {
+
+        public ScenarioStepSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                String instanceName,
+                String dispatchClassName) {
+            this(
+                    kind,
+                    className,
+                    methodName,
+                    parameterTypes,
+                    paramsJson,
+                    receiverClassName,
+                    receiverParameterTypes,
+                    receiverParamsJson,
+                    instanceName,
+                    dispatchClassName,
+                    1);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CompareSpec(

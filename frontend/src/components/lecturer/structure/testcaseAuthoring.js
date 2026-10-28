@@ -1,5 +1,15 @@
-export const MAX_STEPS = 20;
+export const MAX_STEPS = 44;
+/** Java `Integer.MAX_VALUE` — matches backend repeat_count cap. */
+export const MAX_REPEAT_COUNT = 2147483647;
 export const MAX_NAMED_INSTANCES = 10;
+
+export function clampRepeatCount(raw) {
+  const parsed = Number.parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return Math.min(MAX_REPEAT_COUNT, parsed);
+}
 export const TEXT_COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
 /** @deprecated use comparisonModesForAssertion */
 export const COMPARISON_MODES = TEXT_COMPARISON_MODES;
@@ -62,6 +72,7 @@ export function emptyInvocation() {
     receiverParams: '[]',
     instanceName: '',
     dispatchClassId: null,
+    repeatCount: 1,
   };
 }
 
@@ -132,6 +143,7 @@ export function hydrateInvocation(inv) {
     receiverConstructorId: inv?.receiverConstructorId ?? null,
     params: inv?.params || '[]',
     receiverParams: inv?.receiverParams || '[]',
+    repeatCount: inv?.repeatCount != null && inv.repeatCount >= 1 ? inv.repeatCount : 1,
   };
 }
 
@@ -207,6 +219,7 @@ export function invocationForKindChange(invocation, kind) {
     receiverConstructorId: null,
     receiverParams: '[]',
     dispatchClassId: null,
+    repeatCount: 1,
   };
   if (kind === 'CONSTRUCTOR') {
     next.methodId = null;
@@ -237,6 +250,9 @@ function normalizeInvocation(step, unit) {
       receiverParams: '[]',
       dispatchClassId: null,
       params: stripInstanceRefs(hydrated.params),
+      repeatCount: hydrated.invocationKind === 'METHOD'
+        ? clampRepeatCount(hydrated.repeatCount ?? 1)
+        : 1,
     };
   }
   return {
@@ -245,6 +261,9 @@ function normalizeInvocation(step, unit) {
     receiverConstructorId: null,
     receiverParams: '[]',
     dispatchClassId: hydrated.dispatchClassId || null,
+    repeatCount: hydrated.invocationKind === 'CONSTRUCTOR'
+      ? 1
+      : clampRepeatCount(hydrated.repeatCount ?? 1),
   };
 }
 
