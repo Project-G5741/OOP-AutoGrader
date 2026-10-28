@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
 import PasswordStrengthField from '../components/ui/PasswordStrengthField';
 import Footer from '../components/Footer';
@@ -20,8 +20,37 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [touchedFields, setTouchedFields] = useState({ irn: false, password: false, confirm: false });
+  const formRef = useRef(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+
+  const FORM_TAB_SELECTOR =
+    'input:not([disabled]):not([tabindex="-1"]), button[type="submit"]:not([disabled])';
+
+  function wrapFormTab(e) {
+    if (e.key !== 'Tab' || !formRef.current) {
+      return;
+    }
+    const focusables = Array.from(formRef.current.querySelectorAll(FORM_TAB_SELECTOR));
+    if (focusables.length === 0) {
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+
+    if (e.shiftKey) {
+      if (active === first) {
+        e.preventDefault();
+        last.focus();
+      }
+      return;
+    }
+    if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   const rawFieldErrors = getFirstTimeSetupErrors(irn, password, confirm);
   const fieldErrors = {
@@ -108,7 +137,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
           </div>
 
           {!done ? (
-            <form onSubmit={handleSubmit} className="px-6 py-6 space-y-4">
+            <form ref={formRef} onSubmit={handleSubmit} onKeyDown={wrapFormTab} className="px-6 py-6 space-y-4">
               <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-secondary rounded-lg border border-border">
                 <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -168,7 +197,13 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
                     placeholder="Re-enter your password"
                     className={`w-full pl-10 pr-10 py-2.5 bg-surface-secondary border rounded-lg text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:border-transparent transition-all text-sm ${borderClass(fieldErrors.confirm, passwordMatch)}`}
                   />
-                  <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-disabled">
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-disabled"
+                  >
                     {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>

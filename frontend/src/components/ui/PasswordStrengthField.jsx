@@ -67,6 +67,7 @@ export default function PasswordStrengthField({
         <button
           className="u036-eye"
           type="button"
+          tabIndex={-1}
           aria-label={shown ? 'Hide password' : 'Show password'}
           aria-pressed={shown ? 'true' : 'false'}
           onClick={toggleVisibility}
