@@ -596,12 +596,14 @@ export default function TestcasesPanel({
                       <CompositionTestcaseScript
                         tc={selectedTestcase}
                         catalog={catalog}
+                        referenceSources={referenceSources}
                         onUpdate={(patch) => updateTestcase(selectedTestcase.id, patch)}
                       />
                     ) : (
                       <UnitTestcaseWorksheet
                         tc={selectedTestcase}
                         catalog={catalog}
+                        referenceSources={referenceSources}
                         onUpdate={(patch) => updateTestcase(selectedTestcase.id, patch)}
                       />
                     )}

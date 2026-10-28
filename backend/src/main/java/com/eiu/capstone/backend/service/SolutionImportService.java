@@ -361,7 +361,7 @@ public class SolutionImportService {
                     masterData.scopeId(method.scope),
                     method.isStatic,
                     method.isAbstract,
-                    mapParameters(method.parameterTypes)));
+                    mapParameters(method.parameterTypes, method.parameterNames)));
         }
         return out;
     }
@@ -379,20 +379,23 @@ public class SolutionImportService {
                     parsed.simpleName,
                     masterData.scopeId(constructor.scope),
                     isDefault,
-                    mapParameters(params)));
+                    mapParameters(params, constructor.parameterNames)));
         }
         return out;
     }
 
-    private List<ParameterStructureDTO> mapParameters(List<String> parameterTypes) {
+    private List<ParameterStructureDTO> mapParameters(List<String> parameterTypes, List<String> parameterNames) {
         if (parameterTypes == null || parameterTypes.isEmpty()) {
             return List.of();
         }
         List<ParameterStructureDTO> out = new ArrayList<>();
         for (int i = 0; i < parameterTypes.size(); i++) {
+            String name = parameterNames != null && i < parameterNames.size() && parameterNames.get(i) != null
+                    ? parameterNames.get(i)
+                    : "arg" + i;
             out.add(new ParameterStructureDTO(
                     UUID.randomUUID(),
-                    "arg" + i,
+                    name,
                     parameterTypes.get(i),
                     i,
                     false));

@@ -703,6 +703,146 @@ export function stepParameters(step, catalog) {
   return catalog.methodsById.get(step.methodId)?.parameters || [];
 }
 
+function escapeRegex(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function isSyntheticParameterName(name) {
+  return !name?.trim() || /^arg\d+$/i.test(name.trim());
+}
+
+function splitParamList(segment) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i];
+    if (char === '<') depth += 1;
+    else if (char === '>') depth = Math.max(0, depth - 1);
+    else if (char === ',' && depth === 0) {
+      parts.push(segment.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(segment.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function nameFromParamDeclaration(decl) {
+  const trimmed = decl.replace(/\.\.\./g, ' ').trim();
+  if (!trimmed) return null;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const last = tokens[tokens.length - 1];
+  return last.replace(/\[\]$/g, '');
+}
+
+function parseParameterNamesFromParamSegment(segment, expectedCount) {
+  const names = splitParamList(segment).map(nameFromParamDeclaration).filter(Boolean);
+  return names.length === expectedCount ? names : null;
+}
+
+function sourceTexts(referenceSources) {
+  return (referenceSources || [])
+    .map((entry) => (typeof entry === 'string' ? entry : entry?.source))
+    .filter((text) => text && text.trim());
+}
+
+function findConstructorParamNames(source, className, expectedCount) {
+  const pattern = new RegExp(`\\b${escapeRegex(className)}\\s*\\(([^)]*)\\)`, 'g');
+  let match = pattern.exec(source);
+  while (match) {
+    const names = parseParameterNamesFromParamSegment(match[1], expectedCount);
+    if (names) return names;
+    match = pattern.exec(source);
+  }
+  return null;
+}
+
+function findMethodParamNames(source, className, methodName, expectedCount) {
+  const patterns = [
+    new RegExp(`\\b${escapeRegex(className)}\\s*\\.\\s*${escapeRegex(methodName)}\\s*\\(([^)]*)\\)`, 'g'),
+    new RegExp(`\\b${escapeRegex(methodName)}\\s*\\(([^)]*)\\)`, 'g'),
+  ];
+  for (const pattern of patterns) {
+    let match = pattern.exec(source);
+    while (match) {
+      const names = parseParameterNamesFromParamSegment(match[1], expectedCount);
+      if (names) return names;
+      match = pattern.exec(source);
+    }
+  }
+  return null;
+}
+
+export function parameterNamesFromReference(referenceSources, className, invocationKind, methodName, expectedCount) {
+  if (!className || !expectedCount) return null;
+  for (const source of sourceTexts(referenceSources)) {
+    const names = invocationKind === 'CONSTRUCTOR'
+      ? findConstructorParamNames(source, className, expectedCount)
+      : findMethodParamNames(source, className, methodName, expectedCount);
+    if (names) return names;
+  }
+  for (const entry of referenceSources || []) {
+    if (typeof entry === 'object' && entry?.className === className && entry?.source?.trim()) {
+      const names = invocationKind === 'CONSTRUCTOR'
+        ? findConstructorParamNames(entry.source, className, expectedCount)
+        : findMethodParamNames(entry.source, className, methodName, expectedCount);
+      if (names) return names;
+    }
+  }
+  return null;
+}
+
+export function parametersForDisplay(rawParameters, context = {}) {
+  const params = rawParameters || [];
+  if (!params.length) return params;
+  if (!params.some((param) => isSyntheticParameterName(param.name))) {
+    return params;
+  }
+  const parsed = parameterNamesFromReference(
+    context.referenceSources,
+    context.className,
+    context.invocationKind,
+    context.methodName,
+    params.length,
+  );
+  if (!parsed) return params;
+  return params.map((param, index) => (
+    isSyntheticParameterName(param.name) && parsed[index]
+      ? { ...param, name: parsed[index] }
+      : param
+  ));
+}
+
+export function displayStepParameters(step, catalog, referenceSources = []) {
+  const raw = stepParameters(step, catalog);
+  if (step?.invocationKind === 'CONSTRUCTOR') {
+    const ctor = catalog.constructorsById.get(step.constructorId);
+    return parametersForDisplay(raw, {
+      referenceSources,
+      className: ctor?.className,
+      invocationKind: 'CONSTRUCTOR',
+      methodName: null,
+    });
+  }
+  const method = catalog.methodsById.get(step.methodId);
+  return parametersForDisplay(raw, {
+    referenceSources,
+    className: method?.className,
+    invocationKind: 'METHOD',
+    methodName: method?.name,
+  });
+}
+
+export function parameterFieldLabel(param, index) {
+  const type = param.dataType || '?';
+  if (param.name && !isSyntheticParameterName(param.name)) {
+    return `${param.name}: ${type}`;
+  }
+  return `${type} (parameter ${index + 1})`;
+}
+
 export function isObjectReturnStep(step, catalog) {
   if (!step) return false;
   if (step.invocationKind === 'CONSTRUCTOR') return Boolean(step.constructorId);

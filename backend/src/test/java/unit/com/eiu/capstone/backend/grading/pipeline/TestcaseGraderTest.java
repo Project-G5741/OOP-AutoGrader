@@ -436,7 +436,8 @@ class TestcaseGraderTest {
 
         assertEquals(TestcaseResultStatus.FAILED, result.status());
         assertTrue(result.inputDisplay().contains("bark"), result.inputDisplay());
-        assertFalse(result.inputDisplay().contains("print"), result.inputDisplay());
+        assertTrue(result.inputDisplay().contains("print"), result.inputDisplay());
+        assertTrue(result.inputDisplay().contains("new Dog"), result.inputDisplay());
         assertEquals("1", result.expectedDisplay());
     }
 
@@ -470,6 +471,7 @@ class TestcaseGraderTest {
 
         assertEquals(TestcaseResultStatus.PASSED, result.status());
         assertTrue(result.inputDisplay().contains("bark"), result.inputDisplay());
+        assertTrue(result.inputDisplay().contains("new Dog"), result.inputDisplay());
         assertEquals("hi", result.expectedDisplay());
     }
 

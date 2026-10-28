@@ -105,7 +105,7 @@ SubmissionController
 - After a METHOD that returns a student-loader object, static factories register `instanceName` as the product. Instance methods do not overwrite the named receiver with the return (no distinct return-name column this ship)
 - Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
 - Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`, including a name that already holds this same instance)
-- Scenario primary I/O is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step
+- Scenario primary **expected/actual** is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step. **Input** lists every authored step (newline-separated)
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
 - Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path reuses an idle worker from `SharedLocalWorkerCache` (60s TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).

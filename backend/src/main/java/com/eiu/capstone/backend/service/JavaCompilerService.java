@@ -111,7 +111,7 @@ public class JavaCompilerService {
                             Path outputDir,
                             DiagnosticCollector<JavaFileObject> diagnostics) {
         StandardJavaFileManager fileManager = fileManager();
-        List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8", "-proc:none");
+        List<String> options = List.of("-d", outputDir.toString(), "-encoding", "UTF-8", "-proc:none", "-parameters");
         StringWriter errorOutput = new StringWriter();
         JavaCompiler.CompilationTask task = compiler.getTask(
                 errorOutput, fileManager, diagnostics, options, null, sources);

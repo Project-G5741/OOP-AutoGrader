@@ -5,22 +5,22 @@ import {
   allowedAssertionKinds,
   applyUnitTarget,
   defaultExpectedValue,
+  displayStepParameters,
   emptyAssertion,
   emptyInvocation,
   FIELD_CLASS,
   fieldsForStepAssertion,
   selectedUnitTarget,
-  stepParameters,
   unitMemberBlockedReason,
   unitTargetKey,
   unitSelectableTargets,
 } from './testcaseAuthoring';
 
-export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate }) {
+export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, referenceSources = [] }) {
   const step = tc.invocations?.[0] || tc.invocation || emptyInvocation();
   const target = selectedUnitTarget(step, catalog);
   const blocked = unitMemberBlockedReason(target, catalog);
-  const parameters = stepParameters(step, catalog);
+  const parameters = displayStepParameters(step, catalog, referenceSources);
 
   const patchStep = (nextStep, extra = {}) => {
     onUpdate({

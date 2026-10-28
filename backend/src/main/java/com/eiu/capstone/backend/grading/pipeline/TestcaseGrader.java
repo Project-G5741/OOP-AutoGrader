@@ -585,7 +585,7 @@ public class TestcaseGrader {
         InvocationOutcome stepOutcome = primaryIndex >= 0 && primaryIndex < outcomes.size()
                 ? outcomes.get(primaryIndex)
                 : null;
-        String inputDisplay = displayFormatter.formatInput(testcase, primaryStep);
+        String inputDisplay = displayFormatter.formatInput(testcase);
         return displaysFor(primary, evaluations, stepOutcome, inputDisplay, fallbackActual, primaryStep);
     }
 
