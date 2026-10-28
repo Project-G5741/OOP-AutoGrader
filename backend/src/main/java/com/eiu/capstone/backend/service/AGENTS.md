@@ -20,7 +20,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender` |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
-| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope |
+| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope. Omits compiler-generated constructors when source declares none (class: implicit no-arg only; enum/record: all reflected ctors). Explicit no-arg class constructors import with `isDefault=false`; record canonical ctor from the header counts as explicit |
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
@@ -168,7 +168,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Current-term lecturer mail: `support` `CurrentTermMailServiceTest`; `authorization` `LecturerTermMailAuthorizationTest`
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
-- Solution import: `unit` `SolutionImportServiceTest` (partial compile, Java-only/`hasMmd`, nested static outer link); auth via `SecurityAuthorizationTest` solution-import cases
+- Solution import: `unit` `SolutionImportServiceTest`, `SolutionImportExplicitConstructorsTest` (partial compile, Java-only/`hasMmd`, nested static outer link, implicit default ctor omission); auth via `SecurityAuthorizationTest` solution-import cases
 - Operational testcase save: `support` `TestcaseRubricServiceTest` (Unit/Composition guardrails, upsert-by-id, park-delete-compact)
 - Upload persist: `support` `UploadPersistServiceTest` (one SQL write before snapshot and detail schedule)
 - Submission retention: `support` `SubmissionRetentionServiceTest`, `SubmissionRetentionKeepersTest`, `SubmissionDeletionServiceTest`
