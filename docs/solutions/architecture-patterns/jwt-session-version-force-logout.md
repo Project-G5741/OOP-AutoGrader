@@ -10,7 +10,7 @@ applies_when:
   - "Admin deletes, suspends, or removes a student from the current term while that user is still signed in"
   - "JWTs remain cryptographically valid after access is revoked"
   - "SPA keeps the session on HTTP 403 and only clears on 401"
-  - "GET /api/presence is permitAll but signed-in clients poll it as a heartbeat"
+  - "GET /api/presence is permitAll but signed-in clients call it on focus/navigation as a session probe"
 tags:
   - jwt
   - session-revoke
@@ -31,7 +31,7 @@ Lecturer hard-delete, suspend, and remove-from-current-term left the student's B
 2. On **suspend** and **remove from current term**, bump `session_version`. On **hard delete**, drop the row and clear the in-process version cache.
 3. `JwtAuthenticationFilter` accepts the token only when the account exists and claim `sv` matches the DB (via `SessionValidityService` with a short email→version cache). Mismatch or missing user → clear `SecurityContext` (request is anonymous).
 4. Keep `GET /api/presence` public for anonymous Active Users counts, but if the request carries `Authorization: Bearer …` and the principal is null (failed session check), return **401**.
-5. SPA `fetchPresenceCount` (10s poll): when a Bearer was sent and the response is 401, call `clearSessionAndRedirectToLogin`.
+5. SPA `fetchPresenceCount` (on mount, route change, focus, tab visible — no timer): when a Bearer was sent and the response is 401, call `clearSessionAndRedirectToLogin`. Revoked sessions still fail on any protected `apiFetch` immediately.
 
 ## Why presence must 401
 
