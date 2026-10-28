@@ -18,7 +18,7 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
 - Practice assemble: `mvn -DskipTests package -Pdesktop-dist` also builds classifier `desktop` → `target/backend-1.0.0-desktop.jar` (excludes PostgreSQL driver, springdoc, mail, jjwt). Default `package` still produces the full `backend-1.0.0.jar` + worker. `scripts/assemble-student-desktop.ps1` copies the desktop classifier to `backend.jar`, builds the thin Rust WebView2 host via `cargo` (`desktop/launcher/practice-host/`), and jlinks `runtime/jdk` when available.
-- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; optional build-arg `PRACTICE_BUNDLE_URL` → `/app/OOP-AutoGrader-Practice.zip`; API start is `exec java $JAVA_OPTS -jar app.jar` (default `-Xmx256m`); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md`
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; optional build-arg `PRACTICE_BUNDLE_URL` → `/app/OOP-AutoGrader-Practice.zip`; API start is `exec java $JAVA_OPTS -jar app.jar` (default caps in Dockerfile — `-Xmx256m` plus metaspace/code-cache limits); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md`, `DEPLOY_RAILWAY.md`
 - Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
@@ -28,7 +28,7 @@ Copy `backend/.env.backend.example` to `backend/.env`. Key variables:
 
 | Variable | Purpose |
 |---|---|
-| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM; prefer `socketTimeout=30&tcpKeepAlive=true` (also set in `application.properties` with Hikari `keepalive-time=120000`). Hikari also sets `reWriteBatchedInserts=true` and `stringtype=unspecified` so VARCHAR-mapped OT enums (`testcase_type`, `invocation_kind`, `assertion_kind`, `comparison_mode`) cast under batched inserts (lab clone / sync). |
+| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL — use Neon **pooler** hostname (`-pooler`) for production JVM; prefer `socketTimeout=30&tcpKeepAlive=true` (also set in `application.properties` with Hikari `keepalive-time=120000`). Hikari `maximum-pool-size` defaults to **5** (`HIKARI_MAXIMUM_POOL_SIZE`); `reWriteBatchedInserts=true` and `stringtype=unspecified` so VARCHAR-mapped OT enums cast under batched inserts (lab clone / sync). |
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials |
 | `GOOGLE_CLIENT_ID` | Google OAuth audience validation |
 | `JWT_SECRET` | HS256 JWT signing key (**required**, ≥32 bytes). Missing or too-short values fail startup. Generate locally with `openssl rand -base64 32`. Never commit a production value. |
@@ -136,8 +136,8 @@ Grading tuning properties (`application.properties`):
 
 | Property | Default | Purpose |
 |---|---|---|
-| `app.grading.parallelism` | `4` | Max concurrent challenge workers during grading (capped at CPU count) |
-| `app.compile.parallelism` | `4` | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
+| `app.grading.parallelism` | `2` (`APP_GRADING_PARALLELISM`) | Max concurrent challenge workers during grading (capped at CPU count) |
+| `app.compile.parallelism` | `2` (`APP_COMPILE_PARALLELISM`) | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
 | `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`). Local Maven: `target/backend-1.0.0-worker.jar`. Docker/Render image sets `/app/worker.jar`; if the configured path is missing, `WorkerProcessClient` falls back to `/app/worker.jar` then the local Maven path (so a Render env copied from local `target/...` still works). |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |

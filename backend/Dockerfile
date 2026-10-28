@@ -35,8 +35,9 @@ RUN set -eu; \
     fi
 
 EXPOSE 8080
-# API heap only. The testcase worker is spawned with hardcoded -Xmx64m and does not inherit JAVA_OPTS.
-ENV JAVA_OPTS="-Xmx256m"
+# API JVM caps (logical ~512MB budget with worker -Xmx64m in the same cgroup). Worker does not inherit JAVA_OPTS.
+# Railway Hobby may still show a 1GB replica limit; these flags keep RSS closer to small-host targets.
+ENV JAVA_OPTS="-Xmx256m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+ExitOnOutOfMemoryError"
 # Image layout path. Do not override on Render with the local Maven path (target/...).
 # WorkerProcessClient also falls back to /app/worker.jar if a stale WORKER_JAR is set.
 ENV WORKER_JAR=/app/worker.jar

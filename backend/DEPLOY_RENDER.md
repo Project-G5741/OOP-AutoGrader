@@ -10,7 +10,7 @@ Render deployment steps (Docker)
    - `JWT_SECRET` = <your-jwt-secret, at least 32 bytes; generate with `openssl rand -base64 32`. Changing this invalidates all existing sessions.>
    - `GOOGLE_CLIENT_ID` = <google client id>
    - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
-   - `JAVA_OPTS` = `-Xmx256m` (image default; the Dockerfile entrypoint expands this. Do **not** set `-Xmx512m`.)
+   - `JAVA_OPTS` = same as `backend/Dockerfile` (default `-Xmx256m` plus metaspace/code-cache caps). Do **not** set `-Xmx512m`. Railway notes: [DEPLOY_RAILWAY.md](./DEPLOY_RAILWAY.md).
    - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); build-time only
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
