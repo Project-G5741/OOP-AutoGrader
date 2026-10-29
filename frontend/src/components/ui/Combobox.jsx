@@ -59,6 +59,7 @@ export default function Combobox({
   }, [listOptions, query, searchable]);
 
   const isSm = size === 'sm';
+  const minWidthOverride = /\bmin-w-/.test(className);
 
   const fieldShellClass = cn(
     'relative flex w-full items-center rounded-lg border border-border bg-surface-secondary text-foreground shadow-sm',
@@ -94,7 +95,13 @@ export default function Combobox({
       }}
       onClose={() => setQuery('')}
     >
-      <div className={cn('relative', isSm ? 'min-w-[7rem]' : 'min-w-[14rem]', className)}>
+      <div
+        className={cn(
+          'relative w-full',
+          !minWidthOverride && (isSm ? 'min-w-[7rem]' : 'min-w-[14rem]'),
+          className,
+        )}
+      >
         {searchable ? (
           <div className={fieldShellClass}>
             {Icon && (
