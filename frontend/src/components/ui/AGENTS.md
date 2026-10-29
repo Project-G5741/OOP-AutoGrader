@@ -16,6 +16,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
+| `DangerAlert.jsx` | Destructive inline alert (`role="alert"`, error semantic tokens) for high-severity notices |
 | `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
 | `Modal.jsx` | Centered dialog shell built on `ModalOverlay`; optional `showClose` (default true) hides the top Close when the dialog already has Cancel |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
@@ -43,7 +44,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 ### Toast persist feedback
 
-- `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`)
+- `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`). Pass an **array** of toast objects to show a stacked batch (e.g. upload score + compile error); `showToast(null)` clears all
 - Persist mutations (create/update/save/delete/suspend/enroll) show success or error. Excel import warnings use `persist: true` so they stay until dismissed; **Show details** lists missing vs already-enrolled students.
 - Toast portals to `document.body` at `z-[110]` so it stays visible over modals (`z-[100]`)
 

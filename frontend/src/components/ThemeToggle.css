@@ -1,0 +1,64 @@
+/* Scoped to .u038 — colors from src/theme/tokens.js via CSS variables. */
+
+.u038 {
+  --toggle-bg: var(--surface);
+  --toggle-border: var(--text-muted);
+  --toggle-icon: var(--primary-text);
+}
+
+.u038 .theme {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px;
+  height: 32px;
+  background-color: var(--toggle-bg);
+  border-radius: 100%;
+  border: 1.5px solid var(--toggle-border);
+  box-shadow: 2px 2px 0 var(--toggle-border);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.u038 .input {
+  cursor: pointer;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  opacity: 0;
+  margin: 0;
+}
+
+.u038 .icon {
+  position: absolute;
+  top: calc(50% - 8px);
+  left: calc(50% - 8px);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.u038 .icon.icon-moon {
+  fill: var(--toggle-icon);
+  opacity: 1;
+}
+
+.u038 .icon.icon-sun {
+  stroke: var(--toggle-icon);
+}
+
+.u038 .input:checked ~ .icon.icon-sun {
+  opacity: 1;
+}
+
+.u038 .input:checked ~ .icon.icon-moon {
+  opacity: 0;
+}
+
+.u038 .theme:active {
+  box-shadow: 0 0 var(--toggle-border);
+  transform: translate(2px, 2px);
+}

@@ -12,12 +12,14 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
+import DangerAlert from '../ui/DangerAlert';
 import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
 import LabPrefixBadge from '../ui/LabPrefixBadge';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 import { formatMmdRelationType, firstCompileErrorLine, formatStudentTestcaseMessage } from '../../utils/formatters';
+import { classListHasCompileError } from '../../utils/compileErrors';
 import {
   consolidateStudentClassMembers,
   consolidateStudentMmdAttributes,
@@ -662,6 +664,10 @@ export default function StudentUI({
                     <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
                       {effectiveClassNormalizationNotice}
                     </div>
+                  )}
+
+                  {classListHasCompileError(classData) && (
+                    <DangerAlert className="mb-4">Compilation Error</DangerAlert>
                   )}
 
                   {classData.length > 0 ? (

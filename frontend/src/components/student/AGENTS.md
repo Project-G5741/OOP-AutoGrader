@@ -18,7 +18,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentStreakFlame.jsx` | Compact three-layer streak flame (`.u379`, styles in `StudentStreakFlame.css`) beside the mascot. Icon only, no plate. Grey until today's three missions are done, then the colored flame. Click opens daily missions. No separate Done button. `prefers-reduced-motion` draws one still flame and skips the count roll |
 | `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; same-name lab conflict modal (`confirmReplace`); term import clears lab packs on disk; after success a blocking **Okay**-only dialog relaunches via `restartPracticeApp` (`practice-restart`; no submit until reopen finishes); friendly errors via `apiError` context `import` |
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
-| `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: hands practice zip to the browser download manager via `GET /desktop-practice-bundle?access_token=` (no `fetch`/`blob`; not rendered in desktop build) |
+| `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (Uiverse-style progress; theme `--primary` / `--success`; `GET /desktop-practice-bundle?access_token=`; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -51,7 +51,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - `attemptNumber` — next unused attempt from backend `totalSubmissions + 1` after each upload (server still assigns `MAX+1` if the client number is stale)
 - `authToken` — from `user.accessToken`
 
-Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
+Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast. When any challenge in the upload `lab_result` has a Java compile failure, a second error **Toast** (`Compilation Error`) stacks with the score toast, and the Declaration Test tab shows a matching **DangerAlert** banner (per-class javac lines stay under each class card).
 
 After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD/Operation Test tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view loads class/mmd/testcases via read endpoints when no cached bundle exists.
 
@@ -95,7 +95,7 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 - Manual: log in as student, use the Home / History / Ranking bar (same control as the lecturer nav), open the account menu for Change Password and Logout
 - Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
-- Offline practice: web — **Download practice folder** (browser-native download of prebuilt runtime-only zip; lecturers distribute packs); desktop — **Import rubric pack** then **Okay** (app closes and relaunches); see `docs/DESKTOP_STUDENT_DIST.md`
+- Offline practice: web — **Practice folder** on the student NavBar (browser-native download of prebuilt runtime-only zip); desktop — **Import rubric pack** then **Okay** (app closes and relaunches); see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

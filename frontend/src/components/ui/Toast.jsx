@@ -36,6 +36,7 @@ export default function Toast({
   actionLabel = '',
   onAction,
   persist = false,
+  stacked = false,
 }) {
   const [exiting, setExiting] = useState(false);
 
@@ -57,7 +58,7 @@ export default function Toast({
   return (
     <div
       role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
-      className={`fixed right-10 top-16 z-[110] max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
+      className={`${stacked ? 'w-full' : 'fixed right-10 top-16 z-[110]'} max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
         exiting ? 'animate-toast-out' : 'animate-toast-in'
       } ${VARIANTS[type] || VARIANTS.success}`}
     >
@@ -94,27 +95,56 @@ export default function Toast({
   );
 }
 
+function nextToastId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export function ToastProvider({ children }) {
-  const [toast, setToast] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const showToast = useCallback((arg, type) => {
-    setToast(normalizeToast(arg, type));
+    if (arg == null) {
+      setToasts([]);
+      return;
+    }
+    if (Array.isArray(arg)) {
+      const batch = arg
+        .map((item) => normalizeToast(item))
+        .filter(Boolean)
+        .map((item) => ({ ...item, id: nextToastId() }));
+      setToasts(batch);
+      return;
+    }
+    const normalized = normalizeToast(arg, type);
+    if (!normalized) {
+      setToasts([]);
+      return;
+    }
+    setToasts([{ ...normalized, id: nextToastId() }]);
   }, []);
-  const dismiss = useCallback(() => setToast(null), []);
+  const dismiss = useCallback((id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
 
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      {toast && typeof document !== 'undefined'
+      {toasts.length > 0 && typeof document !== 'undefined'
         ? createPortal(
-            <Toast
-              message={toast.message}
-              type={toast.type}
-              actionLabel={toast.actionLabel}
-              onAction={toast.onAction}
-              durationMs={toast.durationMs}
-              persist={toast.persist}
-              onDismiss={dismiss}
-            />,
+            <div className="fixed right-10 top-16 z-[110] flex w-full max-w-sm flex-col gap-2">
+              {toasts.map((toast) => (
+                <Toast
+                  key={toast.id}
+                  message={toast.message}
+                  type={toast.type}
+                  actionLabel={toast.actionLabel}
+                  onAction={toast.onAction}
+                  durationMs={toast.durationMs}
+                  persist={toast.persist}
+                  stacked
+                  onDismiss={() => dismiss(toast.id)}
+                />
+              ))}
+            </div>,
             document.body,
           )
         : null}

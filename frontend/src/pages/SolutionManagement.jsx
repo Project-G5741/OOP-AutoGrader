@@ -197,6 +197,7 @@ export default function SolutionManagement() {
     );
     setError('');
     setImportReplacedChallengeIds([]);
+    setStructureLoading(true);
     const cached = structureCacheRef.current[labId];
     if (cached?.snapshot) {
       if (shouldDiscard) discardUnsavedLab(leavingId);
@@ -210,9 +211,11 @@ export default function SolutionManagement() {
       const challenges = saved.challenges || [];
       setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
       setSelectedChallengeId(challenges[0]?.id ?? null);
+      queueMicrotask(() => {
+        setStructureLoading(false);
+      });
       return;
     }
-    setStructureLoading(true);
     try {
       const structure = await loadStructure(labId);
       if (shouldDiscard) discardUnsavedLab(leavingId);
@@ -838,7 +841,16 @@ export default function SolutionManagement() {
         onCopyLab={openCopyLab}
         onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
       />
-      <SidebarInset>
+      <SidebarInset className="relative flex min-h-0 flex-1 flex-col">
+        {structureLoading && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-surface/40 backdrop-blur-[2px]"
+            aria-busy="true"
+            aria-label="Loading lab"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
         <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -864,7 +876,8 @@ export default function SolutionManagement() {
               <button
                 type="button"
                 onClick={handleDownloadLabPracticePack}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface-secondary"
+                disabled={structureLoading}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 title="Single-lab offline practice pack for students"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -874,7 +887,7 @@ export default function SolutionManagement() {
               <select
                 aria-label="Score prefix"
                 value={normalizeLabPrefix(savedSnapshot?.prefix)}
-                disabled={prefixSaving}
+                disabled={prefixSaving || structureLoading}
                 onChange={(event) => handlePrefixChange(event.target.value)}
                 className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground"
               >
@@ -888,7 +901,10 @@ export default function SolutionManagement() {
           )}
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+        <div
+          key={selectedLabId ?? 'none'}
+          className={`flex flex-1 flex-col gap-4 p-4 sm:p-6 ${!structureLoading ? 'animate-panel-in' : ''}`}
+        >
           {error && (
             <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">
               {error}
@@ -914,12 +930,7 @@ export default function SolutionManagement() {
             />
           )}
 
-          <div className="relative flex flex-col gap-4 lg:flex-row">
-            {structureLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            )}
+          <div className="flex flex-col gap-4 lg:flex-row">
             <StructureTree
               draft={draft}
               expandedChallenges={expandedChallenges}
@@ -1050,7 +1061,7 @@ export default function SolutionManagement() {
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={!isDirty || saving || !draft}
+              disabled={!isDirty || saving || !draft || structureLoading}
               onClick={handleSave}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
