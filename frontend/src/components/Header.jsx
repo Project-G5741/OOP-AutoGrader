@@ -1,5 +1,5 @@
-import { useTheme } from '../context/ThemeContext';
-import { Moon, Sun, LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation } from 'lucide-react';
+import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
@@ -23,7 +23,6 @@ export default function Header({
   headerBeforeUserMenu = null,
   headerUserSlot = null,
 }) {
-  const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
   const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
@@ -71,17 +70,7 @@ export default function Header({
               {user.fullName}
             </span>
           ))}
-          <button
-            onClick={toggleTheme}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:h-auto sm:w-auto sm:min-h-11 sm:min-w-[120px] sm:justify-between sm:px-3 sm:py-2"
-            type="button"
-          >
-            <span className="flex items-center gap-2">
-              {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              <span className="hidden sm:inline">{isDark ? 'Dark' : 'Light'}</span>
-            </span>
-          </button>
+          <ThemeToggle />
 
           {headerBeforeUserMenu}
           {!hideUserMenu && (

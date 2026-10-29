@@ -60,6 +60,7 @@ import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
 import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.plagiarism.PlagiarismSignals;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
+import com.eiu.capstone.backend.service.SubmissionUploadPathService;
 import com.eiu.capstone.backend.utility.TimeUtil;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -72,6 +73,7 @@ public class SubmissionController {
 
     private final JwtAuthHelper jwtAuthHelper;
     private final SubmissionStorageService submissionStorageService;
+    private final SubmissionUploadPathService submissionUploadPathService;
     private final LabRepository labRepository;
     private final GradingService gradingService;
     private final LabRubricCache labRubricCache;
@@ -96,6 +98,7 @@ public class SubmissionController {
 
     public SubmissionController(JwtAuthHelper jwtAuthHelper,
                                  SubmissionStorageService submissionStorageService,
+                                 SubmissionUploadPathService submissionUploadPathService,
                                  LabRepository labRepository,
                                  GradingService gradingService,
                                  LabRubricCache labRubricCache,
@@ -120,6 +123,7 @@ public class SubmissionController {
                                  @Autowired(required = false) DesktopRuntimeState desktopRuntimeState) {
         this.jwtAuthHelper = jwtAuthHelper;
         this.submissionStorageService = submissionStorageService;
+        this.submissionUploadPathService = submissionUploadPathService;
         this.labRepository = labRepository;
         this.gradingService = gradingService;
         this.labRubricCache = labRubricCache;
@@ -203,8 +207,9 @@ public class SubmissionController {
                     () -> labRubricCache.get(lab), rubricOverlapExecutor);
 
             long processStart = System.currentTimeMillis();
+            List<MultipartFile> uploadFiles = submissionUploadPathService.prepareUploadFiles(lab, files);
             SubmissionStorageService.ProcessResult uploadResult =
-                    submissionStorageService.processUpload(irn, requestId, files);
+                    submissionStorageService.processUpload(irn, requestId, uploadFiles);
             submissionFolderToDelete = uploadResult.submissionFolder;
             long processMs = System.currentTimeMillis() - processStart;
 

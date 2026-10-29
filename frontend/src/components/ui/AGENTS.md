@@ -12,17 +12,18 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
 | `Select.jsx` | Simple native `<select>` wrapper (card layout) |
-| `Combobox.jsx` | Custom listbox select — themed trigger, icon slot, keyboard nav; use instead of native `<select>` when polish matters |
+| `Combobox.jsx` | Headless UI combobox: input + chevron, anchored options with check; non-searchable fields open the list on click anywhere in the control; optional `searchable`, `size="sm"`; themed with semantic tokens |
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
+| `DangerAlert.jsx` | Destructive inline alert (`role="alert"`, error semantic tokens) for high-severity notices |
 | `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
 | `Modal.jsx` | Centered dialog shell built on `ModalOverlay`; optional `showClose` (default true) hides the top Close when the dialog already has Cancel |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
 | `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`, `deadline-3`, `deadline-2`, `deadline-1`) |
-| `LabPrefixBadge.jsx` | Official (`default`) or Practice (`outline`) lab badge. Unknown or missing prefix displays as Official |
+| `LabPrefixBadge.jsx` | Official (`default`), Practice (`outline`), or Midterm (`secondary`) lab badge. Unknown or missing prefix displays as Official |
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
@@ -33,7 +34,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 ### DropZone upload contract
 
 - Accepts props: `labId`, `attemptNumber`, `authToken`, `onUploadComplete` (and styling props)
-- Shows a one-line **Folder format** hint above the drop zone: `IRN_YourName` / (`challenge_1`, `challenge_2`, …); optional text after the name (e.g. `_lab_1`) is ignored
+- Shows a one-line **Folder format** hint above the drop zone. Default: `IRN_YourName` / `challenge_1`, …; optional text after the name (e.g. `_lab_1`) is ignored. When `labPrefix` is **Midterm**, hint and client validation expect `.java` and `.mmd` directly under `IRN_YourName` (no `challenge_n` folders); the server remaps into the single challenge before compile.
 - Client-side filter: `.mmd`, `.java`, and `.git/**`. Root may include `.git` beside `challenge_*` folders. Do not mention plagiarism to the student.
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload` — `{attemptNumber}` is a positive placeholder; the server assigns `MAX(attempt)+1`
@@ -43,7 +44,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 ### Toast persist feedback
 
-- `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`)
+- `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`). Pass an **array** of toast objects to show a stacked batch (e.g. upload score + compile error); `showToast(null)` clears all
 - Persist mutations (create/update/save/delete/suspend/enroll) show success or error. Excel import warnings use `persist: true` so they stay until dismissed; **Show details** lists missing vs already-enrolled students.
 - Toast portals to `document.body` at `z-[110]` so it stays visible over modals (`z-[100]`)
 

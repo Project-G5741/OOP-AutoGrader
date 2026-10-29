@@ -1,7 +1,22 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FolderOpen, Loader2, Upload, X } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
+import Combobox from '../../ui/Combobox';
+import { normalizeLabPrefix } from '../../ui/LabPrefixBadge';
 import { toFriendlyError } from '../../../utils/apiError';
+import {
+  SOLUTION_IMPORT_KIND,
+  defaultImportKindFromLabPrefix,
+  layoutForImportKind,
+  parseSolutionFolder,
+  prefixForImportKind,
+} from '../../../utils/solutionFolderParse';
+
+const IMPORT_KIND_OPTIONS = [
+  { value: SOLUTION_IMPORT_KIND.OFFICIAL, label: 'Official' },
+  { value: SOLUTION_IMPORT_KIND.PRACTICE, label: 'Practice' },
+  { value: SOLUTION_IMPORT_KIND.MIDTERM, label: 'Midterm' },
+];
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -59,9 +74,18 @@ function walkEntry(entry, pathPrefix, collected) {
   });
 }
 
+const PRIMARY_BTN =
+  'inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50';
+const SECONDARY_BTN =
+  'inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50';
+
 export default function SolutionImportPanel({
   disabled = false,
+  savedLabPrefix = 'Official',
+  onImportKindChange,
   onImport,
+  actionBar = 'inline',
+  onImportActionsChange,
 }) {
   const showToast = useToast();
   const folderInputRef = useRef(null);
@@ -69,6 +93,31 @@ export default function SolutionImportPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [selection, setSelection] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importKind, setImportKind] = useState(() =>
+    defaultImportKindFromLabPrefix(normalizeLabPrefix(savedLabPrefix)),
+  );
+
+  useEffect(() => {
+    if (selection) return;
+    setImportKind(defaultImportKindFromLabPrefix(normalizeLabPrefix(savedLabPrefix)));
+  }, [savedLabPrefix, selection]);
+
+  const isMidtermKind = importKind === SOLUTION_IMPORT_KIND.MIDTERM;
+
+  const folderHint = isMidtermKind
+    ? (
+      <>
+        One folder with <span className="font-mono text-primary/80">.java</span> and optional{' '}
+        <span className="font-mono text-primary/80">.mmd</span> directly inside (no{' '}
+        <span className="font-mono text-primary/80">challenge_n</span>)
+      </>
+    )
+    : (
+      <>
+        Lab root with <span className="font-mono text-primary/80">challenge_n</span> folders, or one{' '}
+        <span className="font-mono text-primary/80">challenge_n</span> folder with .java and optional .mmd
+      </>
+    );
 
   const rejectSelection = useCallback((message) => {
     showToast({ message, type: 'warning' });
@@ -80,8 +129,17 @@ export default function SolutionImportPanel({
       rejectSelection('No .java or .mmd files found. Drop a folder that contains your solution sources.');
       return;
     }
-    setSelection(summarizeEntries(entries));
-  }, [rejectSelection]);
+    const parsed = parseSolutionFolder(entries, { layout: layoutForImportKind(importKind) });
+    if (!parsed.ok) {
+      rejectSelection(parsed.error || 'Folder does not match the selected layout.');
+      return;
+    }
+    setSelection({
+      ...summarizeEntries(entries),
+      entries,
+      importKind,
+    });
+  }, [importKind, rejectSelection]);
 
   const handleFileList = useCallback((fileList) => {
     const entries = Array.from(fileList || []).map((file) => ({
@@ -152,7 +210,7 @@ export default function SolutionImportPanel({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleImport = async () => {
+  const handleImport = useCallback(async () => {
     if (!selection || importing) return;
     if (typeof onImport !== 'function') {
       showToast({
@@ -173,9 +231,21 @@ export default function SolutionImportPanel({
     } finally {
       setImporting(false);
     }
-  };
+  }, [clearSelection, importing, onImport, selection, showToast]);
 
-  const dropZoneClass = `flex min-h-[7.5rem] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-4 text-sm transition-colors ${
+  useEffect(() => {
+    if (actionBar !== 'external' || typeof onImportActionsChange !== 'function') return;
+    onImportActionsChange({
+      hasSelection: Boolean(selection),
+      importing,
+      clearSelection,
+      handleImport,
+    });
+  }, [actionBar, clearSelection, handleImport, importing, onImportActionsChange, selection]);
+
+  const dropZoneClass = `flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-3 py-4 text-sm transition-colors ${
+    actionBar === 'external' ? 'min-h-[6.5rem]' : 'min-h-[7.5rem]'
+  } ${
     disabled
       ? 'cursor-not-allowed opacity-50'
       : 'cursor-pointer'
@@ -185,8 +255,58 @@ export default function SolutionImportPanel({
       : 'border-border bg-surface-secondary text-foreground-secondary hover:border-primary hover:bg-primary-light'
   }`;
 
+  const actionButtons = (
+    <>
+      <button
+        type="button"
+        className={SECONDARY_BTN}
+        disabled={disabled || importing || !selection}
+        onClick={clearSelection}
+      >
+        Clear
+      </button>
+      <button
+        type="button"
+        className={PRIMARY_BTN}
+        disabled={disabled || importing || !selection}
+        onClick={handleImport}
+      >
+        {importing && <Loader2 className="h-4 w-4 animate-spin" />}
+        Import solution
+      </button>
+    </>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col space-y-3">
+      <div className="space-y-1.5">
+        <span className="text-xs font-medium text-foreground">Prefix</span>
+        <Combobox
+          aria-label="Lab prefix"
+          title="Official, Practice, or Midterm — sets lab prefix and student upload folder rules"
+          allowEmpty={false}
+          className="w-full min-w-0"
+          value={importKind}
+          disabled={disabled || importing}
+          options={IMPORT_KIND_OPTIONS}
+          onChange={async (next) => {
+            if (next === importKind) return;
+            const previous = importKind;
+            setImportKind(next);
+            setSelection(null);
+            if (folderInputRef.current) folderInputRef.current.value = '';
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (typeof onImportKindChange !== 'function') return;
+            const ok = await onImportKindChange(next);
+            if (!ok) setImportKind(previous);
+          }}
+        />
+        <p className="text-[11px] leading-relaxed text-foreground-muted">
+          Sets lab prefix to{' '}
+          <span className="font-medium text-foreground">{prefixForImportKind(importKind)}</span>{' '}
+          when you change layout. Student upload folder rules follow that prefix.
+        </p>
+      </div>
       <input
         ref={folderInputRef}
         type="file"
@@ -213,6 +333,7 @@ export default function SolutionImportPanel({
         }}
       />
 
+      <div className="flex min-h-0 flex-1 flex-col">
       {!selection ? (
         <div
           role="button"
@@ -229,10 +350,7 @@ export default function SolutionImportPanel({
         >
           <Upload className={`h-6 w-6 ${isDragging ? 'text-primary' : 'text-foreground-muted'}`} aria-hidden="true" />
           <span className="text-center font-medium text-foreground">Drop folder or click to choose</span>
-          <span className="text-center text-xs text-foreground-muted">
-            Lab root with <span className="font-mono text-primary/80">challenge_n</span> folders, or one{' '}
-            <span className="font-mono text-primary/80">challenge_n</span> folder with .java and optional .mmd
-          </span>
+          <span className="text-center text-xs text-foreground-muted">{folderHint}</span>
           <button
             type="button"
             disabled={disabled}
@@ -244,7 +362,7 @@ export default function SolutionImportPanel({
         </div>
       ) : (
         <div
-          className="rounded-xl border border-border bg-surface-secondary/40 p-4"
+          className={`rounded-xl border border-border bg-surface-secondary/40 p-4 ${actionBar === 'external' ? 'flex flex-1 flex-col justify-center' : ''}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-3">
@@ -257,6 +375,8 @@ export default function SolutionImportPanel({
               </p>
               <p className="text-xs text-foreground-muted">
                 {selection.javaCount} Java · {selection.mmdCount} MMD · {formatBytes(selection.totalBytes)}
+                {' · '}
+                {prefixForImportKind(selection.importKind || importKind)}
               </p>
             </div>
             <button
@@ -279,26 +399,15 @@ export default function SolutionImportPanel({
           </button>
         </div>
       )}
-
-      <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-        <button
-          type="button"
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={disabled || importing || !selection}
-          onClick={clearSelection}
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={disabled || importing || !selection}
-          onClick={handleImport}
-        >
-          {importing && <Loader2 className="h-4 w-4 animate-spin" />}
-          Import solution
-        </button>
       </div>
+
+      {actionBar === 'inline' && (
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+          {actionButtons}
+        </div>
+      )}
     </div>
   );
 }
+
+export { PRIMARY_BTN as schedulingPrimaryBtnClass, SECONDARY_BTN as schedulingSecondaryBtnClass };

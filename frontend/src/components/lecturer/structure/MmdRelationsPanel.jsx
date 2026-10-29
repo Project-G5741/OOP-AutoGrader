@@ -1,18 +1,21 @@
 import React from 'react';
 import { GitBranch, Plus, Trash2 } from 'lucide-react';
+import Combobox from '../../ui/Combobox';
 
 function ClassSelect({ value, options, onChange, placeholder }) {
   return (
-    <select
+    <Combobox
+      allowEmpty
+      emptyLabel={placeholder}
+      placeholder={placeholder}
+      className="w-full min-w-0"
       value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((cls) => (
-        <option key={cls.id} value={cls.id}>{cls.name || 'Untitled class'}</option>
-      ))}
-    </select>
+      options={(options || []).map((cls) => ({
+        value: cls.id,
+        label: cls.name || 'Untitled class',
+      }))}
+      onChange={(next) => onChange(next || null)}
+    />
   );
 }
 
@@ -84,16 +87,20 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
               </div>
               <div>
                 <label className="mb-1 block text-xs text-foreground-muted">Relation type</label>
-                <select
+                <Combobox
+                  allowEmpty
+                  emptyLabel="Type"
+                  placeholder="Type"
+                  className="w-full min-w-0"
                   value={relation.relationTypeId ?? ''}
-                  onChange={(e) => updateRelation(relation.id, { relationTypeId: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-                >
-                  <option value="">Type</option>
-                  {relationTypeOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                  ))}
-                </select>
+                  options={(relationTypeOptions || []).map((opt) => ({
+                    value: String(opt.id),
+                    label: opt.name,
+                  }))}
+                  onChange={(next) => updateRelation(relation.id, {
+                    relationTypeId: next === '' ? null : Number(next),
+                  })}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-foreground-muted">Target class</label>

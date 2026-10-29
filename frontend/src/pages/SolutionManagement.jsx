@@ -11,14 +11,15 @@ import DatePicker from '../components/ui/DatePicker';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar';
 import { Separator } from '../components/ui/separator';
 import { Badge } from '../components/ui/badge';
-import LabPrefixBadge, { normalizeLabPrefix } from '../components/ui/LabPrefixBadge';
+import { normalizeLabPrefix } from '../components/ui/LabPrefixBadge';
+import Combobox from '../components/ui/Combobox';
 import { formatLabDeadlineMeta } from '../theme/statusClasses';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
 import { validateLabName } from '../utils/validation';
-import { buildSolutionImportFormData, parseSolutionFolder } from '../utils/solutionFolderParse';
+import { buildSolutionImportFormData, layoutForImportKind, parseSolutionFolder, prefixForImportKind } from '../utils/solutionFolderParse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -197,6 +198,7 @@ export default function SolutionManagement() {
     );
     setError('');
     setImportReplacedChallengeIds([]);
+    setStructureLoading(true);
     const cached = structureCacheRef.current[labId];
     if (cached?.snapshot) {
       if (shouldDiscard) discardUnsavedLab(leavingId);
@@ -210,9 +212,11 @@ export default function SolutionManagement() {
       const challenges = saved.challenges || [];
       setExpandedChallenges(Object.fromEntries(challenges.map((c) => [c.id, true])));
       setSelectedChallengeId(challenges[0]?.id ?? null);
+      queueMicrotask(() => {
+        setStructureLoading(false);
+      });
       return;
     }
-    setStructureLoading(true);
     try {
       const structure = await loadStructure(labId);
       if (shouldDiscard) discardUnsavedLab(leavingId);
@@ -375,7 +379,10 @@ export default function SolutionManagement() {
     if (!selectedLabId || !draft) {
       throw new Error('Select a lab before importing a solution.');
     }
-    const parsed = parseSolutionFolder(selection.entries || []);
+    const importKind = selection.importKind;
+    const parsed = parseSolutionFolder(selection.entries || [], {
+      layout: layoutForImportKind(importKind),
+    });
     if (!parsed.ok) {
       throw new Error(parsed.error || 'Invalid solution folder.');
     }
@@ -658,10 +665,10 @@ export default function SolutionManagement() {
   };
 
   const handlePrefixChange = async (nextRaw) => {
-    if (!selectedLabId || prefixSaving) return;
+    if (!selectedLabId || prefixSaving) return false;
     const nextPrefix = normalizeLabPrefix(nextRaw);
     const previousPrefix = normalizeLabPrefix(savedSnapshot?.prefix);
-    if (nextPrefix === previousPrefix) return;
+    if (nextPrefix === previousPrefix) return true;
     setPrefixSaving(true);
     applyPrefixToSelectedLab(selectedLabId, nextPrefix);
     try {
@@ -674,18 +681,33 @@ export default function SolutionManagement() {
       const updated = await res.json();
       const savedPrefix = normalizeLabPrefix(updated.prefix);
       applyPrefixToSelectedLab(selectedLabId, savedPrefix);
-      showToast({
-        message: savedPrefix === 'Practice'
-          ? `${draft?.name || 'Lab'} is Practice. It stays on Score but is left out of Total.`
-          : `${draft?.name || 'Lab'} is Official and counts in Score Total.`,
-        type: 'success',
-      });
+      const labLabel = draft?.name || 'Lab';
+      let message = `${labLabel} is Official and counts in Score Total.`;
+      if (savedPrefix === 'Practice') {
+        message = `${labLabel} is Practice. It stays on Score but is left out of Total.`;
+      } else if (savedPrefix === 'Midterm') {
+        message = `${labLabel} is Midterm (flat uploads). It stays on Score but is left out of Total.`;
+      }
+      showToast({ message, type: 'success' });
+      return true;
     } catch (e) {
       applyPrefixToSelectedLab(selectedLabId, previousPrefix);
       showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+      return false;
     } finally {
       setPrefixSaving(false);
     }
+  };
+
+  const handleImportKindChange = async (importKind) => handlePrefixChange(prefixForImportKind(importKind));
+
+  const handleSaveScheduling = async () => {
+    const accessDirty = studentVisibleInput !== (savedSnapshot?.studentVisible !== false);
+    const deadlineDirty = (deadlineInput || '') !== (
+      savedSnapshot?.deadlineDate ? String(savedSnapshot.deadlineDate).slice(0, 10) : ''
+    );
+    if (accessDirty) await handleStudentAccessSave();
+    if (deadlineDirty) await handleDeadlineChange(deadlineInput || null);
   };
 
   const handleDeadlineChange = async (deadlineDate) => {
@@ -838,17 +860,21 @@ export default function SolutionManagement() {
         onCopyLab={openCopyLab}
         onDeleteLab={(labId) => setConfirmDelete({ type: 'lab', labId })}
       />
-      <SidebarInset>
+      <SidebarInset className="relative flex min-h-0 flex-1 flex-col">
+        {structureLoading && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-surface/40 backdrop-blur-[2px]"
+            aria-busy="true"
+            aria-label="Loading lab"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
         <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="min-w-0 flex-1">
             <div className="min-w-0">
-              {selectedLab ? (
-                <div className="flex justify-end">
-                  <LabPrefixBadge prefix={savedSnapshot?.prefix} />
-                </div>
-              ) : null}
               <p className="truncate text-sm font-semibold text-foreground">
                 {selectedLab?.name ?? 'Select a lab'}
               </p>
@@ -864,23 +890,17 @@ export default function SolutionManagement() {
               <button
                 type="button"
                 onClick={handleDownloadLabPracticePack}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface-secondary"
+                disabled={structureLoading}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 title="Single-lab offline practice pack for students"
               >
                 <Download className="h-3.5 w-3.5" />
                 Practice pack
               </button>
               <Badge variant={accessBadge.variant}>{accessBadge.label}</Badge>
-              <select
-                aria-label="Score prefix"
-                value={normalizeLabPrefix(savedSnapshot?.prefix)}
-                disabled={prefixSaving}
-                onChange={(event) => handlePrefixChange(event.target.value)}
-                className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground"
-              >
-                <option value="Official">Official</option>
-                <option value="Practice">Practice</option>
-              </select>
+              {savedSnapshot && (
+                <Badge variant="outline">{normalizeLabPrefix(savedSnapshot.prefix)}</Badge>
+              )}
               {savedSnapshot?.deadlineDate && (
                 <Badge variant="outline">Deadline set</Badge>
               )}
@@ -888,7 +908,10 @@ export default function SolutionManagement() {
           )}
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+        <div
+          key={selectedLabId ?? 'none'}
+          className={`flex flex-1 flex-col gap-4 p-4 sm:p-6 ${!structureLoading ? 'animate-panel-in' : ''}`}
+        >
           {error && (
             <div className="rounded-lg border border-error bg-error-bg px-4 py-3 text-sm text-error-text">
               {error}
@@ -901,25 +924,22 @@ export default function SolutionManagement() {
               labName={draft.name}
               savedStudentVisible={savedSnapshot?.studentVisible !== false}
               savedDeadlineDate={savedSnapshot?.deadlineDate}
+              savedLabPrefix={savedSnapshot?.prefix}
               studentVisible={studentVisibleInput}
               deadlineDate={deadlineInput}
               studentAccessSaving={studentAccessSaving}
               deadlineSaving={deadlineSaving}
+              prefixSaving={prefixSaving}
+              structureLoading={structureLoading}
               onStudentVisibleChange={setStudentVisibleInput}
               onDeadlineChange={setDeadlineInput}
-              onSaveStudentAccess={handleStudentAccessSave}
-              onSaveDeadline={() => handleDeadlineChange(deadlineInput)}
-              onClearDeadline={() => handleDeadlineChange(null)}
+              onSaveScheduling={handleSaveScheduling}
+              onImportKindChange={handleImportKindChange}
               onSolutionImport={handleSolutionImport}
             />
           )}
 
-          <div className="relative flex flex-col gap-4 lg:flex-row">
-            {structureLoading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/20">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            )}
+          <div className="flex flex-col gap-4 lg:flex-row">
             <StructureTree
               draft={draft}
               expandedChallenges={expandedChallenges}
@@ -1050,7 +1070,7 @@ export default function SolutionManagement() {
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={!isDirty || saving || !draft}
+              disabled={!isDirty || saving || !draft || structureLoading}
               onClick={handleSave}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
@@ -1076,21 +1096,23 @@ export default function SolutionManagement() {
             </div>
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Quarter</label>
-              <select
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              <Combobox
+                aria-label="Quarter"
+                allowEmpty
+                emptyLabel="Select quarter"
+                placeholder="Select quarter"
+                className="w-full min-w-0"
                 value={newLabTermId}
-                onChange={(e) => {
-                  const termId = e.target.value;
+                options={terms.map((term) => ({
+                  value: String(term.id),
+                  label: term.label,
+                }))}
+                onChange={(termId) => {
                   setNewLabTermId(termId);
                   const term = terms.find((t) => String(t.id) === String(termId));
                   setNewLabDeadline(term?.endDate ?? '');
                 }}
-              >
-                <option value="">Select quarter</option>
-                {terms.map((term) => (
-                  <option key={term.id} value={term.id}>{term.label}</option>
-                ))}
-              </select>
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Deadline (optional)</label>
@@ -1115,16 +1137,19 @@ export default function SolutionManagement() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Target quarter</label>
-              <select
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              <Combobox
+                aria-label="Target quarter"
+                allowEmpty
+                emptyLabel="Select quarter"
+                placeholder="Select quarter"
+                className="w-full min-w-0"
                 value={copyTargetTermId}
-                onChange={(e) => setCopyTargetTermId(e.target.value)}
-              >
-                <option value="">Select quarter</option>
-                {terms.map((term) => (
-                  <option key={term.id} value={term.id}>{term.label}</option>
-                ))}
-              </select>
+                options={terms.map((term) => ({
+                  value: String(term.id),
+                  label: term.label,
+                }))}
+                onChange={setCopyTargetTermId}
+              />
             </div>
             <div>
               <p className="mb-1 text-xs text-foreground-muted">

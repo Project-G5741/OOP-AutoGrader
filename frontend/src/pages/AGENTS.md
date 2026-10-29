@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking), lab sidebar, upload, stats; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit, history, and ranking views |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit, history, and ranking views |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
@@ -72,7 +72,7 @@ Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true
 
 ### Student navigation (`NavBar`)
 
-Same bar and buttons as the lecturer shell, on its own row under the header. Student items align to the start (`navAlign="start"`) and stay visible without a hamburger (`navCollapse={false}`). `StudentDashboard` passes `navItems`. The avatar menu does not repeat these links (`hideSectionLinks`).
+Same bar and buttons as the lecturer shell, on its own row under the header. Student items align to the start (`navAlign="start"`) and stay visible without a hamburger (`navCollapse={false}`). Web builds pass `navTrailing` with **Practice folder** (desktop practice zip download). `StudentDashboard` passes `navItems`. The avatar menu does not repeat these links (`hideSectionLinks`).
 
 | Item | Route | Shown when |
 |---|---|---|
@@ -84,7 +84,7 @@ Same bar and buttons as the lecturer shell, on its own row under the header. Stu
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results). Header shows **Enrolled Quarter:** from `GET /api/students/term-access` `quarterName` | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete |
+| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results). Header shows **Enrolled Quarter:** from `GET /api/students/term-access` `quarterName` | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete; when `lab_result` reports a compile error, a stacked **Compilation Error** error toast plus Declaration **DangerAlert** |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` + `my-labs` (all quarters, `termLabel` on each lab/submission) |
 | `view === 'ranking'` | `StudentRankingPage` | `GET /api/students/ranking/current` (web). Top 20, 10 per page; **Your ranking** under the table. Out-of-term: empty rows |
 
@@ -139,7 +139,7 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
 | `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
-| `PATCH /api/lecturer/labs/{labId}/prefix` | `SolutionManagement.jsx` — header control beside Live/Hidden; changing it PATCHes immediately. Official counts in Score Total; Practice stays a Score column and is left out of Total |
+| `PATCH /api/lecturer/labs/{labId}/prefix` | `SolutionManagement.jsx` — layout combobox in `SolutionImportPanel` (scheduling card right column); PATCH when layout changes. Official counts in Score Total; Practice and Midterm stay Score columns and are left out of Total |
 | `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenge ids sent as `replacedChallengeIds` on structure PUT (server wipes OT + rebuilds those challenges) |
 | `POST /api/feedback/create` | `FeedbackForm.jsx` (AppShell FAB) |
 | `GET /api/lecturer/feedback/list` | `FeedbackInbox.jsx` |

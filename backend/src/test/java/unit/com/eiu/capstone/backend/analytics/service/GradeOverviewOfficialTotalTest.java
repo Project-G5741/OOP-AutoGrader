@@ -14,6 +14,14 @@ import com.eiu.capstone.backend.analytics.service.GradeOverviewOfficialTotal;
 class GradeOverviewOfficialTotalTest {
 
     @Test
+    void average_ignoresMidtermAndPractice() {
+        BigDecimal total = GradeOverviewOfficialTotal.average(
+                Arrays.asList("Official", "Midterm", "Practice"),
+                Arrays.asList(new BigDecimal("80"), new BigDecimal("60"), new BigDecimal("100")));
+        assertEquals(new BigDecimal("80.00"), total);
+    }
+
+    @Test
     void average_ignoresPracticeAndTreatsMissingOfficialAsZero() {
         BigDecimal total = GradeOverviewOfficialTotal.average(
                 Arrays.asList("Official", "Official", "Practice"),

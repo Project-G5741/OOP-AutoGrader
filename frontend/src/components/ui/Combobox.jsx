@@ -1,9 +1,17 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import {
+  Combobox as HeadlessCombobox,
+  ComboboxButton,
+  ComboboxInput,
+  ComboboxOption,
+  ComboboxOptions,
+} from '@headlessui/react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from './cn';
 
 /**
- * Accessible custom select with themed trigger + list (replaces native <select> where styling matters).
+ * Headless UI combobox layout: input + chevron trigger, anchored options list with check mark.
+ * Non-searchable: entire field is one button so click anywhere opens the list.
  */
 export default function Combobox({
   value,
@@ -13,172 +21,181 @@ export default function Combobox({
   emptyLabel,
   allowEmpty = true,
   disabled = false,
+  searchable = false,
+  size = 'default',
   className = '',
   icon: Icon = null,
+  title,
   'aria-label': ariaLabel,
 }) {
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const rootRef = useRef(null);
-  const listId = useId();
+  const [query, setQuery] = useState('');
   const emptyOptionLabel = emptyLabel ?? placeholder;
 
-  const listOptions = useMemo(
-    () => (allowEmpty
-      ? [{ value: '', label: emptyOptionLabel, isPlaceholder: true }, ...options]
-      : options),
-    [allowEmpty, emptyOptionLabel, options],
+  const listOptions = useMemo(() => {
+    const mapped = options.map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+      isPlaceholder: false,
+    }));
+    if (allowEmpty) {
+      return [{ value: '', label: emptyOptionLabel, isPlaceholder: true }, ...mapped];
+    }
+    return mapped;
+  }, [allowEmpty, emptyOptionLabel, options]);
+
+  const selected = useMemo(
+    () => listOptions.find((opt) => String(opt.value) === String(value ?? '')) ?? null,
+    [listOptions, value],
   );
 
-  const selected = options.find((opt) => String(opt.value) === String(value));
-  const displayLabel = selected?.label ?? placeholder;
-  const hasValue = value !== '' && value != null && selected;
-
-  useEffect(() => {
-    const onPointerDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      setActiveIndex(-1);
-      return;
+  const filteredOptions = useMemo(() => {
+    if (!searchable || query.trim() === '') {
+      return listOptions;
     }
-    const idx = listOptions.findIndex((opt) => String(opt.value) === String(value));
-    setActiveIndex(idx >= 0 ? idx : 0);
-  }, [open, value, listOptions]);
+    const q = query.trim().toLowerCase();
+    return listOptions.filter(
+      (opt) => opt.isPlaceholder || opt.label.toLowerCase().includes(q),
+    );
+  }, [listOptions, query, searchable]);
 
-  const commit = (nextValue) => {
-    onChange?.(nextValue);
-    setOpen(false);
-  };
+  const isSm = size === 'sm';
 
-  const onTriggerKeyDown = (event) => {
-    if (disabled) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex((i) => {
-        const next = i + delta;
-        if (next < 0) return listOptions.length - 1;
-        if (next >= listOptions.length) return 0;
-        return next;
-      });
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      if (open && activeIndex >= 0) {
-        commit(listOptions[activeIndex].value);
-      } else {
-        setOpen(true);
-      }
-    } else if (event.key === 'Escape') {
-      setOpen(false);
-    }
-  };
+  const fieldShellClass = cn(
+    'relative flex w-full items-center rounded-lg border border-border bg-surface-secondary text-foreground shadow-sm',
+    'transition-colors duration-150',
+    'focus:outline-none focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30',
+    'data-focus:border-primary data-focus:ring-2 data-focus:ring-primary/30',
+    !disabled && 'hover:border-primary/40 hover:bg-primary-light',
+    disabled && 'cursor-not-allowed opacity-60',
+  );
+
+  const inputClass = cn(
+    'min-w-0 flex-1 border-0 bg-transparent py-2.5 text-sm font-medium text-foreground',
+    'placeholder:font-normal placeholder:text-foreground-muted focus:outline-none focus:ring-0',
+    Icon ? 'pl-10' : 'pl-3',
+    'pr-2',
+    isSm && 'py-1.5 text-xs uppercase tracking-wide',
+    !searchable && 'cursor-pointer',
+  );
+
+  const chevronClass = cn(
+    'shrink-0 text-foreground-muted transition-colors group-data-open:text-primary',
+    isSm ? 'mr-2 h-3.5 w-3.5' : 'mr-2.5 h-4 w-4',
+  );
 
   return (
-    <div ref={rootRef} className={cn('relative min-w-[14rem]', className)}>
-      <button
-        type="button"
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => !disabled && setOpen((o) => !o)}
-        onKeyDown={onTriggerKeyDown}
-        className={cn(
-          'group flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-all duration-200',
-          'border-border bg-surface-secondary text-foreground',
-          'shadow-sm dark:shadow-none',
-          'hover:border-primary/45 hover:ring-2 hover:ring-primary/15',
-          'focus-visible:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/35',
-          open && 'border-primary ring-2 ring-primary/30 bg-primary-light/30 dark:bg-primary/10',
-          hasValue && !open && 'border-primary/25',
-          disabled && 'cursor-not-allowed opacity-60',
-        )}
-      >
-        {Icon && (
-          <span
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg p-1.5 transition-colors',
-              hasValue || open
-                ? 'bg-primary/15 text-primary'
-                : 'bg-surface-tertiary/80 text-foreground-muted group-hover:text-primary',
-            )}
-            aria-hidden
-          >
-            <Icon className="h-4 w-4" strokeWidth={2.25} />
-          </span>
-        )}
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate font-medium',
-            !hasValue && 'font-normal text-foreground-muted',
-          )}
-        >
-          {displayLabel}
-        </span>
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 shrink-0 text-foreground-muted transition-transform duration-200',
-            open && 'rotate-180 text-primary',
-          )}
-          aria-hidden
-        />
-      </button>
-
-      {open && (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label={ariaLabel}
-          className={cn(
-            'absolute z-50 mt-2 max-h-64 w-full overflow-auto rounded-xl border border-border py-1.5',
-            'bg-surface/95 backdrop-blur-md',
-            'shadow-lg dark:shadow-none dark:ring-1 dark:ring-surface-tertiary',
-          )}
-        >
-          {listOptions.map((opt, index) => {
-            const isSelected = String(opt.value) === String(value);
-            const isActive = index === activeIndex;
-            const isPlaceholder = opt.isPlaceholder || opt.value === '';
-            return (
-              <li
-                key={`${opt.value}-${index}`}
-                role="option"
-                aria-selected={isSelected}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => commit(opt.value)}
+    <HeadlessCombobox
+      value={selected}
+      disabled={disabled}
+      onChange={(option) => {
+        if (option == null) return;
+        onChange?.(option.value);
+        setQuery('');
+      }}
+      onClose={() => setQuery('')}
+    >
+      <div className={cn('relative', isSm ? 'min-w-[7rem]' : 'min-w-[14rem]', className)}>
+        {searchable ? (
+          <div className={fieldShellClass}>
+            {Icon && (
+              <span
                 className={cn(
-                  'mx-1.5 flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors',
-                  isPlaceholder && 'text-foreground-muted italic',
-                  !isPlaceholder && 'text-foreground',
-                  isActive && 'bg-primary/12 text-primary',
-                  isSelected && !isPlaceholder && 'bg-primary/15 font-medium text-primary',
-                  !isActive && !isSelected && 'hover:bg-primary/8',
+                  'pointer-events-none absolute left-2.5 z-[1] flex items-center justify-center rounded-md p-1',
+                  'text-foreground-muted',
+                  selected && !selected.isPlaceholder && 'text-primary',
                 )}
+                aria-hidden
               >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                  {isSelected && !isPlaceholder && (
-                    <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} aria-hidden />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{opt.label}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+                <Icon className={cn(isSm ? 'h-3.5 w-3.5' : 'h-4 w-4')} strokeWidth={2.25} />
+              </span>
+            )}
+            <ComboboxInput
+              aria-label={ariaLabel}
+              placeholder={placeholder}
+              displayValue={(option) => (option?.isPlaceholder ? '' : option?.label) ?? ''}
+              onChange={(event) => setQuery(event.target.value)}
+              className={inputClass}
+            />
+            <ComboboxButton
+              className={cn(
+                'group flex shrink-0 items-center self-stretch px-1',
+                disabled && 'pointer-events-none',
+              )}
+            >
+              <ChevronDown className={cn(chevronClass, 'transition-transform group-data-open:rotate-180')} aria-hidden />
+            </ComboboxButton>
+          </div>
+        ) : (
+          <ComboboxButton
+            aria-label={ariaLabel}
+            title={title}
+            className={cn(
+              'group cursor-pointer text-left',
+              fieldShellClass,
+              disabled && 'pointer-events-none',
+            )}
+          >
+            {Icon && (
+              <span
+                className={cn(
+                  'pointer-events-none absolute left-2.5 z-[1] flex items-center justify-center rounded-md p-1',
+                  'text-foreground-muted',
+                  selected && !selected.isPlaceholder && 'text-primary',
+                )}
+                aria-hidden
+              >
+                <Icon className={cn(isSm ? 'h-3.5 w-3.5' : 'h-4 w-4')} strokeWidth={2.25} />
+              </span>
+            )}
+            <ComboboxInput
+              readOnly
+              tabIndex={-1}
+              placeholder={placeholder}
+              displayValue={(option) => (option?.isPlaceholder ? '' : option?.label) ?? ''}
+              className={cn(inputClass, 'pointer-events-none')}
+            />
+            <ChevronDown
+              className={cn(chevronClass, 'transition-transform group-data-open:rotate-180')}
+              aria-hidden
+            />
+          </ComboboxButton>
+        )}
+
+        <ComboboxOptions
+          anchor="bottom"
+          transition
+          className={cn(
+            'z-[200] w-[var(--input-width)] rounded-xl border border-border bg-surface p-1 shadow-xl',
+            '[--anchor-gap:0.25rem] empty:invisible',
+            'transition duration-100 ease-out data-closed:opacity-0',
+            'max-h-64 overflow-auto outline-none ring-1 ring-border/80',
+          )}
+        >
+          {filteredOptions.map((opt) => (
+            <ComboboxOption
+              key={`${String(opt.value)}-${opt.label}`}
+              value={opt}
+              className={cn(
+                'group flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2',
+                'text-sm text-foreground',
+                'hover:bg-primary-light data-focus:bg-primary-light',
+                opt.isPlaceholder && 'italic text-foreground-muted',
+              )}
+            >
+              <Check
+                className={cn(
+                  'h-4 w-4 shrink-0 text-primary opacity-0',
+                  'group-data-selected:opacity-100',
+                  opt.isPlaceholder && 'invisible',
+                )}
+                strokeWidth={2.5}
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+            </ComboboxOption>
+          ))}
+        </ComboboxOptions>
+      </div>
+    </HeadlessCombobox>
   );
 }

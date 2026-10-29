@@ -48,6 +48,7 @@ export default function NavBar({
   items = navItems,
   align = 'end',
   collapse = true,
+  trailing = null,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const activeItem = items.find((item) => item.id === active) ?? items[0];
@@ -120,19 +121,26 @@ export default function NavBar({
         </>
       )}
 
-      <nav className={`w-full flex-wrap items-center gap-2 ${rowAlign} ${collapse ? 'hidden lg:flex' : 'flex'}`}>
-        {items.map(({ id, label, icon }) => (
-          <NavButton
-            key={id}
-            id={id}
-            label={label}
-            icon={icon}
-            active={active}
-            onClick={handleNavigate}
-            onPrefetch={onPrefetch}
-          />
-        ))}
-      </nav>
+      <div
+        className={`flex w-full min-w-0 flex-wrap items-center gap-2 ${
+          trailing ? 'justify-between' : rowAlign
+        } ${collapse ? 'hidden lg:flex' : 'flex'}`}
+      >
+        <nav className={`flex min-w-0 flex-wrap items-center gap-2 ${trailing ? 'justify-start' : rowAlign}`}>
+          {items.map(({ id, label, icon }) => (
+            <NavButton
+              key={id}
+              id={id}
+              label={label}
+              icon={icon}
+              active={active}
+              onClick={handleNavigate}
+              onPrefetch={onPrefetch}
+            />
+          ))}
+        </nav>
+        {trailing ? <div className="ml-auto flex shrink-0 items-center">{trailing}</div> : null}
+      </div>
     </div>
   );
 }

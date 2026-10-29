@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
     "@react-oauth/google": "^0.13.5",
     "flatpickr": "^4.6.13",
     "jspdf": "^2.5.1",

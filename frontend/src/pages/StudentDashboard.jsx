@@ -21,6 +21,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
+import { labResultHasCompileError } from '../utils/compileErrors';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -842,18 +843,24 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const score = uploadResponse?.score != null
       ? Math.floor(Number(uploadResponse.score))
       : null;
-    showToast({
-      message: score != null
-        ? `Grading complete. Your score: ${score}/100`
-        : 'Grading completed successfully.',
-      type: 'success',
-    });
-    void refreshStreak();
 
     const resultMap = uploadResponse?.challengeResult ?? {};
     const submissionId = uploadResponse?.submissionId ?? null;
 
     const labResult = uploadResponse?.lab_result ?? uploadResponse?.labResult ?? null;
+
+    const scoreToast = {
+      message: score != null
+        ? `Grading complete. Your score: ${score}/100`
+        : 'Grading completed successfully.',
+      type: 'success',
+    };
+    if (labResultHasCompileError(labResult)) {
+      showToast([scoreToast, { message: 'Compilation Error', type: 'error' }]);
+    } else {
+      showToast(scoreToast);
+    }
+    void refreshStreak();
     const indexedLabResult = indexLabResultByChallengeId(labResult, challenges);
     const challengeScores = {
       ...normalizeChallengeScores(resultMap),
@@ -1017,6 +1024,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         navItems={studentNavItems}
         navAlign="start"
         navCollapse={false}
+        navTrailing={!IS_DESKTOP_APP ? <StudentOfflinePracticeDownload onToast={showToast} /> : null}
         activeNav={activeNav}
         onNavigate={handleNavChange}
         hideSectionLinks
@@ -1067,9 +1075,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         }
       >
         <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
-          {!showHistory && !showRanking && inCurrentTerm && !IS_DESKTOP_APP && (
-            <StudentOfflinePracticeDownload onToast={showToast} />
-          )}
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
               {labsError}

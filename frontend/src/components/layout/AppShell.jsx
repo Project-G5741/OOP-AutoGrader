@@ -18,6 +18,7 @@ export default function AppShell({
   navItems,
   navAlign = 'end',
   navCollapse = true,
+  navTrailing = null,
   showNav = false,
   className = '',
   onCommand,
@@ -66,6 +67,7 @@ export default function AppShell({
                 items={navItems}
                 align={navAlign}
                 collapse={navCollapse}
+                trailing={navTrailing}
               />
             </div>
           )}

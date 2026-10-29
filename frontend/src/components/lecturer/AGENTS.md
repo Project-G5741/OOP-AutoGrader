@@ -61,8 +61,8 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `structure/TestcaseAssertionFields.jsx` | Assertion kinds; Composition object-return equals() picker; constructors FIELD_STATE + EXCEPTION only |
 | `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
-| `structure/SolutionImportPanel.jsx` | Solution tab: drag/drop or folder picker for nested `.java` / `.mmd` sources; `onImport(selection)` posts via parent; clears selection on success |
-| `structure/LabSchedulingPanel.jsx` | Lab scheduling card: student access, submission deadline, solution import (`onSolutionImport` → `SolutionImportPanel`). Score prefix is chosen on the Solution page header, not in this card |
+| `structure/SolutionImportPanel.jsx` | Solution tab: layout selector (Official, Practice, Midterm); PATCHes lab prefix on layout change; validates folder against layout; `onImport` posts solution structure |
+| `structure/LabSchedulingPanel.jsx` | Two-column scheduling card: **left** — student access, deadline, single **Save**; **right** — `SolutionImportPanel` (layout sets lab prefix) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
 

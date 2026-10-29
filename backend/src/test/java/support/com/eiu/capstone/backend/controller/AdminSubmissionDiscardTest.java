@@ -48,6 +48,7 @@ import com.eiu.capstone.backend.service.SubmissionMmdMetaStore;
 import com.eiu.capstone.backend.service.SubmissionPackageNormalizationStore;
 import com.eiu.capstone.backend.service.SubmissionRetentionService;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
+import com.eiu.capstone.backend.service.SubmissionUploadPathService;
 import com.eiu.capstone.backend.service.UploadPersistService;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +56,7 @@ class AdminSubmissionDiscardTest {
 
     @Mock private JwtAuthHelper jwtAuthHelper;
     @Mock private SubmissionStorageService submissionStorageService;
+    @Mock private SubmissionUploadPathService submissionUploadPathService;
     @Mock private LabRepository labRepository;
     @Mock private GradingService gradingService;
     @Mock private LabRubricCache labRubricCache;
@@ -85,6 +87,7 @@ class AdminSubmissionDiscardTest {
         controller = new SubmissionController(
                 jwtAuthHelper,
                 submissionStorageService,
+                submissionUploadPathService,
                 labRepository,
                 gradingService,
                 labRubricCache,
@@ -119,6 +122,8 @@ class AdminSubmissionDiscardTest {
         Path folder = Files.createTempDirectory("admin-discard");
         when(studentTermAccessService.requireUploadAccess("admin@eiu.edu.vn", labId))
                 .thenReturn(new StudentTermAccessService.UploadAccess(user, lab));
+        when(submissionUploadPathService.prepareUploadFiles(any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(1));
         when(submissionStorageService.processUpload(any(), any(), any()))
                 .thenReturn(new SubmissionStorageService.ProcessResult(folder, List.of(), Map.of(), 0L));
         when(labRubricCache.get(lab)).thenReturn(null);
