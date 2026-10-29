@@ -408,6 +408,7 @@ export default function StudentUI({
             title="Drop your project files here"
             buttonText="Select Project"
             labId={selectedLabId}
+            labPrefix={selectedLab?.prefix}
             attemptNumber={nextAttemptNumber}
             authToken={getAccessToken()}
             onUploadComplete={onUploadComplete}

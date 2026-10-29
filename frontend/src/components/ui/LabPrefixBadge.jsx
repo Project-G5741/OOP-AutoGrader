@@ -1,14 +1,17 @@
 import { Badge } from './badge';
 
 export function normalizeLabPrefix(prefix) {
-  return prefix === 'Practice' ? 'Practice' : 'Official';
+  if (prefix === 'Practice') return 'Practice';
+  if (prefix === 'Midterm') return 'Midterm';
+  return 'Official';
 }
 
 export default function LabPrefixBadge({ prefix, className = '' }) {
   const label = normalizeLabPrefix(prefix);
-  const practice = label === 'Practice';
+  const variant =
+    label === 'Practice' ? 'outline' : label === 'Midterm' ? 'secondary' : 'default';
   return (
-    <Badge variant={practice ? 'outline' : 'default'} className={className}>
+    <Badge variant={variant} className={className}>
       {label}
     </Badge>
   );

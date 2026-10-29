@@ -1,23 +1,51 @@
 /**
  * Parse lecturer Solution import folder selection into challenge groups.
  * Accepts lab-root: Name/challenge_n/... or single-challenge: challenge_n/...
+ * Midterm layout: Name/*.java|.mmd (no challenge_n); maps to challenge 1 for the API.
  */
 
 import { CHALLENGE_FOLDER_PATTERN } from './bulkFolderParse';
 
 const CHALLENGE_NUMBER = /challenge[_-]?(\d+)/i;
 
+export const SOLUTION_IMPORT_KIND = {
+  OFFICIAL: 'official',
+  PRACTICE: 'practice',
+  MIDTERM: 'midterm',
+};
+
+export function layoutForImportKind(importKind) {
+  return importKind === SOLUTION_IMPORT_KIND.MIDTERM ? 'midterm' : 'standard';
+}
+
+export function prefixForImportKind(importKind) {
+  if (importKind === SOLUTION_IMPORT_KIND.PRACTICE) return 'Practice';
+  if (importKind === SOLUTION_IMPORT_KIND.MIDTERM) return 'Midterm';
+  return 'Official';
+}
+
+export function defaultImportKindFromLabPrefix(labPrefix) {
+  if (labPrefix === 'Practice') return SOLUTION_IMPORT_KIND.PRACTICE;
+  if (labPrefix === 'Midterm') return SOLUTION_IMPORT_KIND.MIDTERM;
+  return SOLUTION_IMPORT_KIND.OFFICIAL;
+}
+
 /**
  * @param {Array<{ file: File, relativePath: string }>} entries
+ * @param {{ layout?: 'standard' | 'midterm' }} [options]
  * @returns {{
  *   ok: boolean,
- *   shape?: 'lab-root' | 'single-challenge',
+ *   shape?: 'lab-root' | 'single-challenge' | 'midterm-flat',
  *   challenges?: Array<{ challengeNumber: number, folderName: string, files: Array<{ file: File, relativePath: string }> }>,
  *   skipped?: Array<{ challengeNumber?: number, reason: string }>,
  *   error?: string,
  * }}
  */
-export function parseSolutionFolder(entries) {
+export function parseSolutionFolder(entries, options = {}) {
+  const layout = options.layout === 'midterm' ? 'midterm' : 'standard';
+  if (layout === 'midterm') {
+    return parseMidtermSolutionFolder(entries);
+  }
   if (!Array.isArray(entries) || entries.length === 0) {
     return { ok: false, error: 'No .java or .mmd files found.' };
   }
@@ -104,6 +132,85 @@ export function parseSolutionFolder(entries) {
   }
 
   return finalizeChallenges(Array.from(byNumber.values()), shape);
+}
+
+function parseMidtermSolutionFolder(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return { ok: false, error: 'No .java or .mmd files found.' };
+  }
+
+  const normalized = entries
+    .map((e) => ({
+      file: e.file,
+      relativePath: String(e.relativePath || e.file?.webkitRelativePath || e.file?.name || '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, ''),
+    }))
+    .filter((e) => {
+      const lower = e.relativePath.toLowerCase();
+      return e.relativePath && (lower.endsWith('.java') || lower.endsWith('.mmd'));
+    });
+
+  if (normalized.length === 0) {
+    return { ok: false, error: 'No .java or .mmd files found.' };
+  }
+
+  const challengePattern = CHALLENGE_FOLDER_PATTERN;
+  let rootFolder = null;
+  const files = [];
+
+  for (const entry of normalized) {
+    const parts = entry.relativePath.split('/').filter(Boolean);
+    if (parts.length === 1) {
+      files.push(entry);
+      continue;
+    }
+    if (parts.length === 2) {
+      if (challengePattern.test(parts[1])) {
+        return {
+          ok: false,
+          error: 'Midterm layout expects .java and .mmd directly under one folder, not challenge_n subfolders.',
+        };
+      }
+      if (rootFolder == null) {
+        rootFolder = parts[0];
+      } else if (rootFolder !== parts[0]) {
+        return { ok: false, error: 'Midterm import accepts one folder at a time.' };
+      }
+      files.push(entry);
+      continue;
+    }
+    if (parts.length >= 3 && parts[1] === '.git') {
+      continue;
+    }
+    return {
+      ok: false,
+      error: 'Midterm layout expects IRN_Name/file.java (or loose .java files), not nested challenge folders.',
+    };
+  }
+
+  if (files.length === 0) {
+    return { ok: false, error: 'No .java or .mmd files found.' };
+  }
+
+  const challengeNumber = 1;
+  const withChallengePaths = files.map(({ file, relativePath }) => {
+    const parts = relativePath.split('/').filter(Boolean);
+    const fileName = parts[parts.length - 1];
+    const root = parts.length >= 2 ? parts[0] : 'solution';
+    return {
+      file,
+      relativePath: `${root}/challenge_${challengeNumber}/${fileName}`,
+    };
+  });
+
+  const challenge = {
+    challengeNumber,
+    folderName: `challenge_${challengeNumber}`,
+    files: withChallengePaths,
+  };
+
+  return finalizeChallenges([challenge], 'midterm-flat');
 }
 
 function finalizeChallenges(challenges, shape) {

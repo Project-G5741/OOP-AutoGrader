@@ -139,7 +139,7 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/analytics/student/{studentId}` | `LecturerDashboard.jsx` (Grading tab row selection) |
 | `PATCH /api/lecturer/labs/{labId}/deadline` | `SolutionManagement.jsx` — **Save deadline** / **Clear deadline** for the selected lab (date picker does not persist until Save) |
 | `PATCH /api/lecturer/labs/{labId}/student-access` | `SolutionManagement.jsx` — **Visible to students** toggle and **Save access** |
-| `PATCH /api/lecturer/labs/{labId}/prefix` | `SolutionManagement.jsx` — header control beside Live/Hidden; changing it PATCHes immediately. Official counts in Score Total; Practice stays a Score column and is left out of Total |
+| `PATCH /api/lecturer/labs/{labId}/prefix` | `SolutionManagement.jsx` — layout combobox in `SolutionImportPanel` (scheduling card right column); PATCH when layout changes. Official counts in Score Total; Practice and Midterm stay Score columns and are left out of Total |
 | `POST /api/lecturer/labs/{labId}/solution-import` | `SolutionManagement.jsx` — multipart solution folder → draft merge by `challengeNumber` (`solutionFolderParse.js`); no persist until **Save Lab Structure**; replaced challenge ids sent as `replacedChallengeIds` on structure PUT (server wipes OT + rebuilds those challenges) |
 | `POST /api/feedback/create` | `FeedbackForm.jsx` (AppShell FAB) |
 | `GET /api/lecturer/feedback/list` | `FeedbackInbox.jsx` |

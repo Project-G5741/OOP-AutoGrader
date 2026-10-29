@@ -578,6 +578,10 @@ class LabStructureServiceSaveTest {
                 labId, new com.eiu.capstone.backend.DTO.rubric.UpdateLabPrefixRequest("Practice"));
         assertEquals("Practice", updated.prefix());
 
+        LabStructureResponse midterm = labStructureService.updateLabPrefix(
+                labId, new com.eiu.capstone.backend.DTO.rubric.UpdateLabPrefixRequest("Midterm"));
+        assertEquals("Midterm", midterm.prefix());
+
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
                 () -> labStructureService.updateLabPrefix(

@@ -11,14 +11,15 @@ import DatePicker from '../components/ui/DatePicker';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar';
 import { Separator } from '../components/ui/separator';
 import { Badge } from '../components/ui/badge';
-import LabPrefixBadge, { normalizeLabPrefix } from '../components/ui/LabPrefixBadge';
+import { normalizeLabPrefix } from '../components/ui/LabPrefixBadge';
+import Combobox from '../components/ui/Combobox';
 import { formatLabDeadlineMeta } from '../theme/statusClasses';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatQualifiedClassName } from '../utils/classNaming';
 import { validateLabName } from '../utils/validation';
-import { buildSolutionImportFormData, parseSolutionFolder } from '../utils/solutionFolderParse';
+import { buildSolutionImportFormData, layoutForImportKind, parseSolutionFolder, prefixForImportKind } from '../utils/solutionFolderParse';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -378,7 +379,10 @@ export default function SolutionManagement() {
     if (!selectedLabId || !draft) {
       throw new Error('Select a lab before importing a solution.');
     }
-    const parsed = parseSolutionFolder(selection.entries || []);
+    const importKind = selection.importKind;
+    const parsed = parseSolutionFolder(selection.entries || [], {
+      layout: layoutForImportKind(importKind),
+    });
     if (!parsed.ok) {
       throw new Error(parsed.error || 'Invalid solution folder.');
     }
@@ -661,10 +665,10 @@ export default function SolutionManagement() {
   };
 
   const handlePrefixChange = async (nextRaw) => {
-    if (!selectedLabId || prefixSaving) return;
+    if (!selectedLabId || prefixSaving) return false;
     const nextPrefix = normalizeLabPrefix(nextRaw);
     const previousPrefix = normalizeLabPrefix(savedSnapshot?.prefix);
-    if (nextPrefix === previousPrefix) return;
+    if (nextPrefix === previousPrefix) return true;
     setPrefixSaving(true);
     applyPrefixToSelectedLab(selectedLabId, nextPrefix);
     try {
@@ -677,18 +681,33 @@ export default function SolutionManagement() {
       const updated = await res.json();
       const savedPrefix = normalizeLabPrefix(updated.prefix);
       applyPrefixToSelectedLab(selectedLabId, savedPrefix);
-      showToast({
-        message: savedPrefix === 'Practice'
-          ? `${draft?.name || 'Lab'} is Practice. It stays on Score but is left out of Total.`
-          : `${draft?.name || 'Lab'} is Official and counts in Score Total.`,
-        type: 'success',
-      });
+      const labLabel = draft?.name || 'Lab';
+      let message = `${labLabel} is Official and counts in Score Total.`;
+      if (savedPrefix === 'Practice') {
+        message = `${labLabel} is Practice. It stays on Score but is left out of Total.`;
+      } else if (savedPrefix === 'Midterm') {
+        message = `${labLabel} is Midterm (flat uploads). It stays on Score but is left out of Total.`;
+      }
+      showToast({ message, type: 'success' });
+      return true;
     } catch (e) {
       applyPrefixToSelectedLab(selectedLabId, previousPrefix);
       showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+      return false;
     } finally {
       setPrefixSaving(false);
     }
+  };
+
+  const handleImportKindChange = async (importKind) => handlePrefixChange(prefixForImportKind(importKind));
+
+  const handleSaveScheduling = async () => {
+    const accessDirty = studentVisibleInput !== (savedSnapshot?.studentVisible !== false);
+    const deadlineDirty = (deadlineInput || '') !== (
+      savedSnapshot?.deadlineDate ? String(savedSnapshot.deadlineDate).slice(0, 10) : ''
+    );
+    if (accessDirty) await handleStudentAccessSave();
+    if (deadlineDirty) await handleDeadlineChange(deadlineInput || null);
   };
 
   const handleDeadlineChange = async (deadlineDate) => {
@@ -856,11 +875,6 @@ export default function SolutionManagement() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="min-w-0 flex-1">
             <div className="min-w-0">
-              {selectedLab ? (
-                <div className="flex justify-end">
-                  <LabPrefixBadge prefix={savedSnapshot?.prefix} />
-                </div>
-              ) : null}
               <p className="truncate text-sm font-semibold text-foreground">
                 {selectedLab?.name ?? 'Select a lab'}
               </p>
@@ -884,16 +898,9 @@ export default function SolutionManagement() {
                 Practice pack
               </button>
               <Badge variant={accessBadge.variant}>{accessBadge.label}</Badge>
-              <select
-                aria-label="Score prefix"
-                value={normalizeLabPrefix(savedSnapshot?.prefix)}
-                disabled={prefixSaving || structureLoading}
-                onChange={(event) => handlePrefixChange(event.target.value)}
-                className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground"
-              >
-                <option value="Official">Official</option>
-                <option value="Practice">Practice</option>
-              </select>
+              {savedSnapshot && (
+                <Badge variant="outline">{normalizeLabPrefix(savedSnapshot.prefix)}</Badge>
+              )}
               {savedSnapshot?.deadlineDate && (
                 <Badge variant="outline">Deadline set</Badge>
               )}
@@ -917,15 +924,17 @@ export default function SolutionManagement() {
               labName={draft.name}
               savedStudentVisible={savedSnapshot?.studentVisible !== false}
               savedDeadlineDate={savedSnapshot?.deadlineDate}
+              savedLabPrefix={savedSnapshot?.prefix}
               studentVisible={studentVisibleInput}
               deadlineDate={deadlineInput}
               studentAccessSaving={studentAccessSaving}
               deadlineSaving={deadlineSaving}
+              prefixSaving={prefixSaving}
+              structureLoading={structureLoading}
               onStudentVisibleChange={setStudentVisibleInput}
               onDeadlineChange={setDeadlineInput}
-              onSaveStudentAccess={handleStudentAccessSave}
-              onSaveDeadline={() => handleDeadlineChange(deadlineInput)}
-              onClearDeadline={() => handleDeadlineChange(null)}
+              onSaveScheduling={handleSaveScheduling}
+              onImportKindChange={handleImportKindChange}
               onSolutionImport={handleSolutionImport}
             />
           )}
@@ -1087,21 +1096,23 @@ export default function SolutionManagement() {
             </div>
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Quarter</label>
-              <select
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              <Combobox
+                aria-label="Quarter"
+                allowEmpty
+                emptyLabel="Select quarter"
+                placeholder="Select quarter"
+                className="w-full min-w-0"
                 value={newLabTermId}
-                onChange={(e) => {
-                  const termId = e.target.value;
+                options={terms.map((term) => ({
+                  value: String(term.id),
+                  label: term.label,
+                }))}
+                onChange={(termId) => {
                   setNewLabTermId(termId);
                   const term = terms.find((t) => String(t.id) === String(termId));
                   setNewLabDeadline(term?.endDate ?? '');
                 }}
-              >
-                <option value="">Select quarter</option>
-                {terms.map((term) => (
-                  <option key={term.id} value={term.id}>{term.label}</option>
-                ))}
-              </select>
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Deadline (optional)</label>
@@ -1126,16 +1137,19 @@ export default function SolutionManagement() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs text-foreground-muted">Target quarter</label>
-              <select
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+              <Combobox
+                aria-label="Target quarter"
+                allowEmpty
+                emptyLabel="Select quarter"
+                placeholder="Select quarter"
+                className="w-full min-w-0"
                 value={copyTargetTermId}
-                onChange={(e) => setCopyTargetTermId(e.target.value)}
-              >
-                <option value="">Select quarter</option>
-                {terms.map((term) => (
-                  <option key={term.id} value={term.id}>{term.label}</option>
-                ))}
-              </select>
+                options={terms.map((term) => ({
+                  value: String(term.id),
+                  label: term.label,
+                }))}
+                onChange={setCopyTargetTermId}
+              />
             </div>
             <div>
               <p className="mb-1 text-xs text-foreground-muted">

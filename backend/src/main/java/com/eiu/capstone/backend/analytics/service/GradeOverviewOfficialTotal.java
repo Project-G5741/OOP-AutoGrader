@@ -15,19 +15,19 @@ public final class GradeOverviewOfficialTotal {
         if (prefixes.size() != scores.size()) {
             throw new IllegalArgumentException("prefix and score lists must match");
         }
-        int officialCount = 0;
+        int countedLabs = 0;
         BigDecimal sum = BigDecimal.ZERO;
         for (int i = 0; i < prefixes.size(); i++) {
-            if (!LabPrefix.OFFICIAL.equals(prefixes.get(i))) {
+            if (!LabPrefix.countsInScoreTotal(prefixes.get(i))) {
                 continue;
             }
-            officialCount++;
+            countedLabs++;
             BigDecimal score = scores.get(i);
             sum = sum.add(score != null ? score : BigDecimal.ZERO);
         }
-        if (officialCount == 0) {
+        if (countedLabs == 0) {
             return null;
         }
-        return sum.divide(BigDecimal.valueOf(officialCount), 2, RoundingMode.DOWN);
+        return sum.divide(BigDecimal.valueOf(countedLabs), 2, RoundingMode.DOWN);
     }
 }
