@@ -277,7 +277,7 @@ export default function ClassDetailPanel({
                       updateFields(fields);
                     }}
                   />
-                  <div className="col-span-2">
+                  <div className="col-span-2 min-w-0">
                     <ScopeSelect
                       value={field.scopeId}
                       options={scopeOptions}
@@ -288,7 +288,7 @@ export default function ClassDetailPanel({
                       }}
                     />
                   </div>
-                  <label className="col-span-2 flex items-center gap-2 text-sm">
+                  <label className="col-span-2 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
                     <input
                       type="checkbox"
                       checked={!!field.isStatic}
@@ -300,7 +300,7 @@ export default function ClassDetailPanel({
                     />
                     static
                   </label>
-                  <label className="col-span-1 flex items-center gap-2 text-sm">
+                  <label className="col-span-1 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
                     <input
                       type="checkbox"
                       checked={!!field.isFinal}
