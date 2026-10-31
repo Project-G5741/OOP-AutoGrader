@@ -2,35 +2,34 @@ package com.eiu.capstone.backend.grading.testcase;
 
 import java.nio.file.Path;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PreDestroy;
 
 /**
- * Reuses one idle local worker JVM across upload, bulk grade, and lecturer dry-run
- * so consecutive calls skip cold spawn. Sandbox sessions are never cached (classes
- * are tarred per open). Callers must already hold {@code workerJvmSlot}.
+ * Optionally reuses one idle local worker JVM across upload, bulk grade, and lecturer dry-run.
+ * Default idle TTL is 0 (close on release) so production RSS drops after OT. Positive TTL parks
+ * one alive handle for reuse. Sandbox sessions are never cached (classes are tarred per open).
+ * Callers must already hold {@code workerJvmSlot}.
  */
 @Component
 public class SharedLocalWorkerCache {
-
-    private static final long DEFAULT_IDLE_TTL_MS = 60_000L;
 
     private final long idleTtlMs;
     private final Object lock = new Object();
     private WorkerSessionHandle idle;
     private long idleDeadlineMs;
 
-    public SharedLocalWorkerCache() {
-        this(DEFAULT_IDLE_TTL_MS);
-    }
-
-    /** Visible for unit tests with a short TTL. */
-    public SharedLocalWorkerCache(long idleTtlMs) {
-        this.idleTtlMs = idleTtlMs <= 0 ? DEFAULT_IDLE_TTL_MS : idleTtlMs;
+    public SharedLocalWorkerCache(
+            @Value("${app.grading.worker-idle-ttl-ms:0}") long idleTtlMs) {
+        this.idleTtlMs = Math.max(0L, idleTtlMs);
     }
 
     public boolean hasIdleLocal() {
+        if (idleTtlMs <= 0) {
+            return false;
+        }
         synchronized (lock) {
             return idle != null && idle.isAlive() && System.currentTimeMillis() < idleDeadlineMs;
         }
@@ -40,13 +39,15 @@ public class SharedLocalWorkerCache {
         if (factory.isSandboxEnabled()) {
             return factory.open(root, timeoutSeconds);
         }
-        synchronized (lock) {
-            if (idle != null && idle.isAlive() && System.currentTimeMillis() < idleDeadlineMs) {
-                WorkerSessionHandle handle = idle;
-                idle = null;
-                return handle;
+        if (idleTtlMs > 0) {
+            synchronized (lock) {
+                if (idle != null && idle.isAlive() && System.currentTimeMillis() < idleDeadlineMs) {
+                    WorkerSessionHandle handle = idle;
+                    idle = null;
+                    return handle;
+                }
+                discardIdleLocked();
             }
-            discardIdleLocked();
         }
         return factory.open(root, timeoutSeconds);
     }
@@ -55,7 +56,7 @@ public class SharedLocalWorkerCache {
         if (handle == null) {
             return;
         }
-        if (factory.isSandboxEnabled()) {
+        if (factory.isSandboxEnabled() || idleTtlMs <= 0) {
             handle.close();
             return;
         }

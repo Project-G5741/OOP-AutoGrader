@@ -259,14 +259,13 @@ public class SubmissionStorageService {
         List<JavaFileObject> sources = new ArrayList<>();
         for (SourceEntry entry : normalization.sources()) {
             try {
-                sources.add(new MemorySourceJavaFileObject(
-                        entry.logicalPath(),
-                        entry.source().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                sources.add(new MemorySourceJavaFileObject(entry.logicalPath(), entry.source()));
             } catch (IllegalArgumentException e) {
                 return failedChallenge(challengeName, challengeFolder, start, challengeFolder, 0, 0, 0,
                         e.getMessage());
             }
         }
+        rawSources.clear();
         long buildSourcesMs = System.currentTimeMillis() - buildSourcesStart;
 
         if (sources.isEmpty()) {
@@ -280,6 +279,7 @@ public class SubmissionStorageService {
             outcome = javaCompilerService.compileSources(sources, classesFolder);
         } catch (RuntimeException e) {
             long javacMs = System.currentTimeMillis() - javacStart;
+            discardSourceContents(sources);
             return failedChallenge(challengeName, challengeFolder, start, classesFolder,
                     buildSourcesMs, javacMs, 0, runtimeErrorMessage(e));
         }
@@ -289,6 +289,7 @@ public class SubmissionStorageService {
         if (!outcome.succeeded()) {
             CompileClassAttribution.Result attributed = CompileClassAttribution.attribute(
                     outcome, normalization.sources());
+            discardSourceContents(sources);
             return new ChallengeResult(
                     challengeName,
                     challengeFolder,
@@ -298,6 +299,7 @@ public class SubmissionStorageService {
                     attributed.failedClassNames(),
                     attributed.compileErrorsByClassName());
         }
+        discardSourceContents(sources);
         return new ChallengeResult(challengeName, challengeFolder, classCount, null, packageNormalizationNotice);
     }
 
@@ -312,6 +314,18 @@ public class SubmissionStorageService {
         deleteRecursively(cleanupTarget);
         logCompileTiming(challengeName, startMs, buildSourcesMs, javacMs, countMs);
         return new ChallengeResult(challengeName, challengeFolder, 0, message, null);
+    }
+
+    private static void discardSourceContents(List<JavaFileObject> sources) {
+        if (sources == null) {
+            return;
+        }
+        for (JavaFileObject source : sources) {
+            if (source instanceof MemorySourceJavaFileObject memorySource) {
+                memorySource.discardContent();
+            }
+        }
+        sources.clear();
     }
 
     private static String runtimeErrorMessage(RuntimeException e) {

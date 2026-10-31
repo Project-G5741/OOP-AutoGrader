@@ -20,7 +20,7 @@ Spring-free JSON coerce and value compare used by both the API scoring path and 
 - `JavaTypeResolver.resolve(String)` still rejects unknown types (v1 scalars/wrappers/`String` and those arrays).
 - `resolve(String, ClassLoader)` / `resolveAll(types, loader)` load rubric class names such as `Engine` (and arrays of those) via `loadStudentClass`.
 - `loadStudentClass` accepts binary (`Outer$Inner`), dotted nested (`Outer.Inner`), and unambiguous simple nested names (`Inner` when exactly one `*$Inner.class` is on a directory `URLClassLoader`).
-- `JsonValueCoercer.coerceParams` resolves JSON objects `{"$instance":"<name>"}` through a `Function<String,Object>` supplied by the worker engine. Other params stay scalars. Do not JSON-encode live objects.
+- `JsonValueCoercer.coerceParams` resolves JSON objects `{"$instance":"<name>"}` through a `Function<String,Object>` supplied by the worker engine. With a student/reference `ClassLoader`, ENUM-typed params coerce a non-blank JSON string via `Enum.valueOf`. Without a loader, ENUM type hints coerce textual expected values to the constant name string (assertion compare). Other params stay scalars. Do not JSON-encode live objects.
 
 ## Work Guidance
 

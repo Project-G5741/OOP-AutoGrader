@@ -309,10 +309,15 @@ export function validateTestcaseForDryRun(tc, catalog) {
       const param = parameters[p];
       const value = values[p];
       const argLabel = param.name ? `${param.name}` : `argument ${p + 1}`;
-      const objectArg = isRubricClassType(param.dataType, catalog);
+      const objectArg = isOrdinaryRubricClassType(param.dataType, catalog);
+      const enumArg = isRubricEnumType(param.dataType, catalog);
       if (composition && objectArg) {
         if (!isInstanceRef(value) || !String(value.$instance || '').trim()) {
           return `${label}: choose a named instance for ${argLabel}.`;
+        }
+      } else if (enumArg) {
+        if (value === null || value === undefined || value === '') {
+          return `${label}: enter an enum constant name for ${argLabel}.`;
         }
       } else if (value === null || value === undefined || value === '') {
         return `${label}: enter a value for ${argLabel}.`;
@@ -331,10 +336,26 @@ export function validateTestcaseForDryRun(tc, catalog) {
     }
     if (composition && assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
       const field = catalog.fieldsById.get(assertion.fieldId);
-      if (field && isRubricClassType(field.dataType, catalog)) {
+      if (field && isOrdinaryRubricClassType(field.dataType, catalog)) {
         const instance = readInstanceExpected(assertion.expectedValue);
         if (!instance?.trim()) {
           return 'Each object field assertion must choose a named instance.';
+        }
+      }
+      if (field && isRubricEnumType(field.dataType, catalog)) {
+        const raw = assertion.expectedValue;
+        let blank = raw == null || String(raw).trim() === '';
+        if (!blank) {
+          try {
+            const parsed = JSON.parse(raw);
+            blank = parsed === null || parsed === ''
+              || (typeof parsed === 'string' && !parsed.trim());
+          } catch {
+            blank = !String(raw).trim();
+          }
+        }
+        if (blank) {
+          return 'Each enum field assertion must enter a constant name.';
         }
       }
     }
@@ -633,8 +654,17 @@ export function buildMemberCatalog(
     });
   });
 
+  const enumClassNames = new Set();
+  classes.forEach((cls) => {
+    if (!cls.name) return;
+    if (declaringTypeKey(cls.declaringTypeId, declaringTypeOptions) === 'enum') {
+      enumClassNames.add(cls.name);
+    }
+  });
+
   return {
     classNames,
+    enumClassNames,
     classIdByName,
     childrenByParentId,
     noArgClassIds,
@@ -652,8 +682,19 @@ export function isRubricClassType(typeName, catalog) {
   return Boolean(core && catalog.classNames.has(core));
 }
 
+/** Rubric ENUM type names — constant-name literals, not named instances. */
+export function isRubricEnumType(typeName, catalog) {
+  const core = coreTypeName(typeName);
+  return Boolean(core && catalog?.enumClassNames?.has(core));
+}
+
+/** Ordinary (non-enum) rubric class — requires Named instance / equals(). */
+export function isOrdinaryRubricClassType(typeName, catalog) {
+  return isRubricClassType(typeName, catalog) && !isRubricEnumType(typeName, catalog);
+}
+
 export function hasRubricClassArgument(parameters, catalog) {
-  return (parameters || []).some((param) => isRubricClassType(param.dataType, catalog));
+  return (parameters || []).some((param) => isOrdinaryRubricClassType(param.dataType, catalog));
 }
 
 export function unitMemberBlockedReason(target, catalog) {
@@ -867,7 +908,7 @@ export function isObjectReturnStep(step, catalog) {
   if (step.invocationKind === 'CONSTRUCTOR') return Boolean(step.constructorId);
   const method = catalog.methodsById.get(step.methodId);
   if (!method || isVoidReturn(method.returnType)) return false;
-  return isRubricClassType(method.returnType, catalog);
+  return isOrdinaryRubricClassType(method.returnType, catalog);
 }
 
 export function resultClassName(step, catalog) {
@@ -897,7 +938,7 @@ function fieldOwnerClassIdsForStep(step, catalog) {
   }
   const method = catalog.methodsById.get(step.methodId);
   if (!method) return [];
-  if (isRubricClassType(method.returnType, catalog) && !isVoidReturn(method.returnType)) {
+  if (isOrdinaryRubricClassType(method.returnType, catalog) && !isVoidReturn(method.returnType)) {
     const returnName = coreTypeName(method.returnType);
     const rootId = classIdForClassName(returnName, catalog);
     if (!rootId) return [];
@@ -944,7 +985,7 @@ export function namedInstancesBefore(steps, catalog, index) {
       return;
     }
     const method = catalog.methodsById.get(step.methodId);
-    if (method?.isStatic && isRubricClassType(method.returnType, catalog)) {
+    if (method?.isStatic && isOrdinaryRubricClassType(method.returnType, catalog)) {
       used.add(name);
       named.push({ name, className: coreTypeName(method.returnType) });
     }
@@ -958,7 +999,7 @@ export function compositionNameRole(step, catalog) {
   const method = catalog.methodsById.get(step.methodId);
   if (!method) return null;
   if (method.isStatic) {
-    return isRubricClassType(method.returnType, catalog) ? 'product' : null;
+    return isOrdinaryRubricClassType(method.returnType, catalog) ? 'product' : null;
   }
   return 'receiver';
 }

@@ -29,7 +29,7 @@ Detect copied lab submissions with three independent checks: ordered git history
 
 - Reconstruct `.git` to a temp dir only when `logs/HEAD` is missing; never run hooks; delete the temp tree after read
 - Do not fail student upload if snapshot or inspect throws
-- Inspect compares against every other lab fingerprint (all prior attempts of other students), not latest-only
+- Inspect compares against every other lab fingerprint (all prior attempts of other students), not latest-only; pairwise compare walks peers in chunks of 100 so signal conversion does not keep every peer decoded at once
 - Persist a match row only when a content check fires (git, metadata, or hash Jaccard `> 0.90`); non-matches are omitted
 - Score-gate promotion when the original author's lab best rises re-evaluates existing matches whose `other_submission_id` is this uploader
 - Snapshot via `snapshotSignals` on the upload thread, then call `inspectUpload(submission, signals)` on the Spring bean from `persistExecutor` (bean entrypoint; compare must not run inside an open Neon TX). Do not read multipart off-thread. Do not re-wrap the whole inspect in one `@Transactional` — that pins the pool during CPU compare.

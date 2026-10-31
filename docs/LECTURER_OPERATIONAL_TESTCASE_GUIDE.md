@@ -135,7 +135,7 @@ A Composition test is an ordered list of constructor and/or method steps (1–20
 
 Later steps pass named objects as arguments with `{"$instance":"acct"}` (use the **$instance** control next to a rubric-class parameter).
 
-Literal arguments are primitives, wrappers, String, null, and arrays of those. Arrays or lists of named objects are not valid as one argument.
+Literal arguments are primitives, wrappers, String, null, arrays of those, and **enum constant names** when the parameter (or FIELD_STATE / RETURN_VALUE type) is a Structure **ENUM** class — type the simple name (e.g. `BIRTHDAY`), not a Named instance. Enum slots cannot be null or blank; a misspelled constant fails at dry-run/grade, not at save. Arrays or lists of named objects are not valid as one argument.
 
 ### 6.2 Example — deposit then check balance
 

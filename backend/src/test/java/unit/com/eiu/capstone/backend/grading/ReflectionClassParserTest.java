@@ -19,7 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ReflectionClassParserTest {
 
-    private final ReflectionClassParser parser = new ReflectionClassParser();
+    private final ReflectionClassParser parser = new ReflectionClassParser(null);
 
     @Test
     void loadsStaticNestedClassWithOuterMetadata(@TempDir Path tempDir) throws Exception {

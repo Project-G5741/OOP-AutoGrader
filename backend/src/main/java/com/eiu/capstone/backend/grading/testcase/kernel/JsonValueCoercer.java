@@ -16,12 +16,19 @@ public class JsonValueCoercer {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Object[] coerceParams(String paramsJson, List<String> parameterTypes) {
-        return coerceParams(paramsJson, parameterTypes, null);
+        return coerceParams(paramsJson, parameterTypes, null, null);
     }
 
     public Object[] coerceParams(String paramsJson,
                                  List<String> parameterTypes,
                                  Function<String, Object> namedInstances) {
+        return coerceParams(paramsJson, parameterTypes, namedInstances, null);
+    }
+
+    public Object[] coerceParams(String paramsJson,
+                                 List<String> parameterTypes,
+                                 Function<String, Object> namedInstances,
+                                 ClassLoader loader) {
         JsonNode array = parseArray(paramsJson);
         if (array.size() != parameterTypes.size()) {
             throw new IllegalArgumentException("Parameter count mismatch: expected "
@@ -29,17 +36,21 @@ public class JsonValueCoercer {
         }
         Object[] values = new Object[parameterTypes.size()];
         for (int i = 0; i < parameterTypes.size(); i++) {
-            values[i] = coerceValue(array.get(i), parameterTypes.get(i), namedInstances);
+            values[i] = coerceValue(array.get(i), parameterTypes.get(i), namedInstances, loader);
         }
         return values;
     }
 
     public Object coerceExpectedValue(String expectedValueJson, String typeHint) {
+        return coerceExpectedValue(expectedValueJson, typeHint, null);
+    }
+
+    public Object coerceExpectedValue(String expectedValueJson, String typeHint, ClassLoader loader) {
         JsonNode node = parseNode(expectedValueJson);
         if (typeHint == null || typeHint.isBlank()) {
             return jsonToObject(node);
         }
-        return coerceValue(node, typeHint);
+        return coerceValue(node, typeHint, null, loader);
     }
 
     public String toJson(Object value) {
@@ -63,10 +74,14 @@ public class JsonValueCoercer {
     }
 
     public Object coerceFromNode(JsonNode node, String typeHint) {
+        return coerceFromNode(node, typeHint, null);
+    }
+
+    public Object coerceFromNode(JsonNode node, String typeHint, ClassLoader loader) {
         if (typeHint == null || typeHint.isBlank()) {
             return jsonToObject(node);
         }
-        return coerceValue(node, typeHint);
+        return coerceValue(node, typeHint, null, loader);
     }
 
     private JsonNode parseArray(String json) {
@@ -91,22 +106,32 @@ public class JsonValueCoercer {
         }
     }
 
-    private Object coerceValue(JsonNode node, String typeName) {
-        return coerceValue(node, typeName, null);
+    private Object coerceValue(JsonNode node, String typeName, Function<String, Object> namedInstances) {
+        return coerceValue(node, typeName, namedInstances, null);
     }
 
-    private Object coerceValue(JsonNode node, String typeName, Function<String, Object> namedInstances) {
+    private Object coerceValue(JsonNode node,
+                               String typeName,
+                               Function<String, Object> namedInstances,
+                               ClassLoader loader) {
         if (isInstanceRef(node)) {
             if (namedInstances == null) {
                 throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
             }
             return namedInstances.apply(node.get(INSTANCE_REF_KEY).asText());
         }
+        if (typeName != null && typeName.endsWith("[]")) {
+            if (node.isNull()) {
+                return null;
+            }
+            return coerceArray(node, typeName.substring(0, typeName.length() - 2), namedInstances, loader);
+        }
+        Class<?> enumType = resolveEnumType(typeName, loader);
+        if (enumType != null) {
+            return coerceEnumConstant(node, enumType, typeName);
+        }
         if (node.isNull()) {
             return null;
-        }
-        if (typeName.endsWith("[]")) {
-            return coerceArray(node, typeName.substring(0, typeName.length() - 2), namedInstances);
         }
         return switch (typeName) {
             case "int", "Integer" -> node.isNumber() ? node.intValue() : Integer.parseInt(node.asText());
@@ -118,25 +143,67 @@ public class JsonValueCoercer {
             case "short", "Short" -> node.isNumber() ? (short) node.intValue() : Short.parseShort(node.asText());
             case "char", "Character" -> node.asText().isEmpty() ? '\0' : node.asText().charAt(0);
             case "String" -> node.asText();
-            default -> throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
+            default -> {
+                // Assertion expecteds often lack a ClassLoader; ENUM field/return names compare as strings.
+                if (node.isTextual()) {
+                    String name = node.asText();
+                    if (name == null || name.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "Enum constant name must be non-blank for type: " + typeName);
+                    }
+                    yield name;
+                }
+                throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
+            }
         };
+    }
+
+    private static Class<?> resolveEnumType(String typeName, ClassLoader loader) {
+        if (loader == null || typeName == null || typeName.isBlank() || typeName.endsWith("[]")) {
+            return null;
+        }
+        try {
+            Class<?> clazz = JavaTypeResolver.resolve(typeName, loader);
+            return clazz.isEnum() ? clazz : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object coerceEnumConstant(JsonNode node, Class<?> enumType, String typeName) {
+        if (node == null || node.isNull()) {
+            throw new IllegalArgumentException("Enum arguments require a non-blank constant name: " + typeName);
+        }
+        if (!node.isTextual() && !node.isNumber()) {
+            throw new IllegalArgumentException("Enum constant must be a name string for type: " + typeName);
+        }
+        String name = node.asText();
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Enum constant name must be non-blank for type: " + typeName);
+        }
+        try {
+            return Enum.valueOf((Class) enumType.asSubclass(Enum.class), name);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "No enum constant " + enumType.getSimpleName() + "." + name, ex);
+        }
     }
 
     private boolean isInstanceRef(JsonNode node) {
         return node != null && node.isObject() && node.has(INSTANCE_REF_KEY) && node.get(INSTANCE_REF_KEY).isTextual();
     }
 
-    private Object coerceArray(JsonNode node, String elementType) {
-        return coerceArray(node, elementType, null);
-    }
-
-    private Object coerceArray(JsonNode node, String elementType, Function<String, Object> namedInstances) {
+    private Object coerceArray(JsonNode node,
+                               String elementType,
+                               Function<String, Object> namedInstances,
+                               ClassLoader loader) {
         if (!node.isArray()) {
             throw new IllegalArgumentException("Expected JSON array for type " + elementType + "[]");
         }
         List<Object> elements = new ArrayList<>();
         for (JsonNode child : node) {
-            elements.add(coerceValue(child, elementType, namedInstances));
+            elements.add(coerceValue(child, elementType, namedInstances, loader));
         }
         return switch (elementType) {
             case "int", "Integer" -> elements.stream().mapToInt(v -> (Integer) v).toArray();

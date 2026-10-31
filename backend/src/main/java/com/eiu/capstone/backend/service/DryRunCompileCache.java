@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
@@ -20,8 +21,7 @@ import jakarta.annotation.PreDestroy;
 @Component
 public class DryRunCompileCache {
 
-    private static final long IDLE_TTL_MS = 60_000L;
-
+    private final long idleTtlMs;
     private final Object lock = new Object();
     private String cachedKey;
     private Path cachedClassesDir;
@@ -29,16 +29,24 @@ public class DryRunCompileCache {
     private List<SourceEntry> cachedNormalizedSources;
     private long deadlineMs;
 
+    public DryRunCompileCache(
+            @Value("${app.grading.dry-run-compile-idle-ttl-ms:5000}") long idleTtlMs) {
+        this.idleTtlMs = Math.max(0L, idleTtlMs);
+    }
+
     public record Hit(Path classesDir, CompileOutcome outcome, List<SourceEntry> normalizedSources) {}
 
     public Hit getIfFresh(String key) {
+        if (idleTtlMs <= 0) {
+            return null;
+        }
         synchronized (lock) {
             if (cachedKey != null
                     && cachedKey.equals(key)
                     && cachedClassesDir != null
                     && Files.isDirectory(cachedClassesDir)
                     && System.currentTimeMillis() < deadlineMs) {
-                deadlineMs = System.currentTimeMillis() + IDLE_TTL_MS;
+                deadlineMs = System.currentTimeMillis() + idleTtlMs;
                 return new Hit(cachedClassesDir, cachedOutcome, cachedNormalizedSources);
             }
             return null;
@@ -49,6 +57,9 @@ public class DryRunCompileCache {
                     Path classesDir,
                     CompileOutcome outcome,
                     List<SourceEntry> normalizedSources) {
+        if (idleTtlMs <= 0) {
+            return;
+        }
         synchronized (lock) {
             if (cachedClassesDir != null && !cachedClassesDir.equals(classesDir)) {
                 deleteQuietly(cachedClassesDir.getParent());
@@ -57,7 +68,7 @@ public class DryRunCompileCache {
             cachedClassesDir = classesDir;
             cachedOutcome = outcome;
             cachedNormalizedSources = normalizedSources;
-            deadlineMs = System.currentTimeMillis() + IDLE_TTL_MS;
+            deadlineMs = System.currentTimeMillis() + idleTtlMs;
         }
     }
 

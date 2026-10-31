@@ -5,7 +5,7 @@ import {
   FIELD_CLASS,
   isArrayOrListType,
   isInstanceRef,
-  isRubricClassType,
+  isOrdinaryRubricClassType,
   namedInstanceMatchesParamType,
   parseParamsArray,
   parseScalarInput,
@@ -38,8 +38,10 @@ export default function TestcaseParamFields({
       {parameters.map((param, index) => {
         const label = parameterFieldLabel(param, index);
         const value = values[index];
-        const objectArray = isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);
-        const objectArg = !isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);
+        const objectArray = isArrayOrListType(param.dataType)
+          && isOrdinaryRubricClassType(param.dataType, catalog);
+        const objectArg = !isArrayOrListType(param.dataType)
+          && isOrdinaryRubricClassType(param.dataType, catalog);
 
         if (objectArray) {
           return (

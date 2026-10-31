@@ -233,7 +233,11 @@ export default function StudentUI({
     return () => clearInterval(id);
   }, []);
 
-  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  const currentBundle = selectedChallengeId
+    ? (sessionChallengeBundles[selectedChallengeId]
+      ?? sessionChallengeBundles[String(selectedChallengeId)]
+      ?? null)
+    : null;
   const effectiveClassNormalizationNotice =
     classNormalizationNotice
     ?? currentBundle?.normalizationNotice
@@ -461,15 +465,6 @@ export default function StudentUI({
 
         {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex min-h-0 flex-col gap-4 lg:min-h-[560px] lg:flex-row">
-          {isRefreshingResults && (
-            <div
-              className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/60"
-              aria-busy="true"
-              aria-label="Refreshing results"
-            >
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
           {/* Challenges sidebar - Từ backend */}
           <div className="w-full lg:w-[30%] flex-shrink-0 bg-surface rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-border">
@@ -488,7 +483,8 @@ export default function StudentUI({
               ) : (
                 challenges.map((ch) => {
                   const chHasScore = resultsRevealed && hasSessionChallengeScore(sessionChallengeScores, ch.id);
-                  const bundle = sessionChallengeBundles[ch.id];
+                  const bundle = sessionChallengeBundles[ch.id]
+                    ?? sessionChallengeBundles[String(ch.id)];
                   const bundleTotal = bundle?.scores?.total;
                   const chScore = chHasScore
                     ? (bundleTotal != null
@@ -558,10 +554,14 @@ export default function StudentUI({
               </div>
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — spinner only while detail trees are loading or refreshing */}
             <div className="flex-1 overflow-auto p-5">
-              {isLoadingDetails ? (
-                <div className="flex items-center justify-center h-48">
+              {isLoadingDetails || isRefreshingResults ? (
+                <div
+                  className="flex items-center justify-center h-48"
+                  aria-busy="true"
+                  aria-label="Loading challenge details"
+                >
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (

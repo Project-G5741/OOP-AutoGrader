@@ -42,6 +42,8 @@ public class PlagiarismService {
     public static final String ROLE_PLAGIARIZER = "PLAGIARIZER";
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
+    /** Compare peer fingerprints in chunks so a large lab does not pin the full peer list on the heap. */
+    static final int PEER_COMPARE_CHUNK_SIZE = 100;
 
     private final SubmissionPlagiarismFingerprintRepository fingerprintRepository;
     private final SubmissionPlagiarismMatchRepository matchRepository;
@@ -102,7 +104,7 @@ public class PlagiarismService {
 
         InspectPrep prep = transactionTemplate.execute(status ->
                 prepareInspect(submission, captured, submissionId, labId, userId));
-        if (prep == null || prep.peers().isEmpty()) {
+        if (prep == null || prep.peerFingerprints().isEmpty()) {
             return;
         }
 
@@ -136,12 +138,10 @@ public class PlagiarismService {
 
         Set<UUID> scoreUserIds = new HashSet<>();
         scoreUserIds.add(userId);
-        List<PeerCandidate> peers = new ArrayList<>(others.size());
         for (SubmissionPlagiarismFingerprint other : others) {
             if (other.getUserId() != null) {
                 scoreUserIds.add(other.getUserId());
             }
-            peers.add(new PeerCandidate(other.getSubmissionId(), other.getUserId(), toSignals(other)));
         }
         Map<UUID, List<LabSubmission>> attemptsByUser = attemptsByUser(labId, scoreUserIds);
         Map<UUID, LabSubmission> submissionsById = submissionsById(attemptsByUser);
@@ -151,29 +151,36 @@ public class PlagiarismService {
         BigDecimal priorBest = bestScoreExcluding(
                 attemptsByUser.getOrDefault(userId, List.of()), submissionId);
         Map<UUID, BigDecimal> bestByUser = bestScoresFromAttempts(attemptsByUser);
-        return new InspectPrep(submissionId, labId, userId, captured, peers,
+        return new InspectPrep(submissionId, labId, userId, captured, List.copyOf(others),
                 attemptsByUser, submissionsById, currentScore, priorBest, bestByUser);
     }
 
     /** No Session / DataSource — runs with the pool connection released. */
     protected List<SubmissionPlagiarismMatch> compareInMemory(InspectPrep prep) {
         List<SubmissionPlagiarismMatch> matches = new ArrayList<>();
-        for (PeerCandidate peer : prep.peers()) {
-            PlagiarismComparison comparison = PlagiarismComparator.compare(prep.captured(), peer.signals());
-            if (!comparison.flagged()) {
-                continue;
+        List<SubmissionPlagiarismFingerprint> peers = prep.peerFingerprints();
+        for (int offset = 0; offset < peers.size(); offset += PEER_COMPARE_CHUNK_SIZE) {
+            int end = Math.min(offset + PEER_COMPARE_CHUNK_SIZE, peers.size());
+            for (int i = offset; i < end; i++) {
+                SubmissionPlagiarismFingerprint other = peers.get(i);
+                PeerCandidate peer = new PeerCandidate(
+                        other.getSubmissionId(), other.getUserId(), toSignals(other));
+                PlagiarismComparison comparison = PlagiarismComparator.compare(prep.captured(), peer.signals());
+                if (!comparison.flagged()) {
+                    continue;
+                }
+                BigDecimal otherBest = prep.bestByUser().getOrDefault(peer.userId(), BigDecimal.ZERO);
+                boolean scoreGate = scoreGateAllowsFlag(prep.priorBest(), otherBest, prep.currentScore());
+                SubmissionPlagiarismMatch match = new SubmissionPlagiarismMatch();
+                match.setLabId(prep.labId());
+                match.setSubmissionId(prep.submissionId());
+                match.setOtherSubmissionId(peer.submissionId());
+                match.setGitMatch(comparison.gitMatch());
+                match.setMetadataMatch(comparison.metadataMatch());
+                match.setHashSimilarity(comparison.hashSimilarity());
+                match.setFlagged(scoreGate);
+                matches.add(match);
             }
-            BigDecimal otherBest = prep.bestByUser().getOrDefault(peer.userId(), BigDecimal.ZERO);
-            boolean scoreGate = scoreGateAllowsFlag(prep.priorBest(), otherBest, prep.currentScore());
-            SubmissionPlagiarismMatch match = new SubmissionPlagiarismMatch();
-            match.setLabId(prep.labId());
-            match.setSubmissionId(prep.submissionId());
-            match.setOtherSubmissionId(peer.submissionId());
-            match.setGitMatch(comparison.gitMatch());
-            match.setMetadataMatch(comparison.metadataMatch());
-            match.setHashSimilarity(comparison.hashSimilarity());
-            match.setFlagged(scoreGate);
-            matches.add(match);
         }
         return matches;
     }
@@ -193,7 +200,7 @@ public class PlagiarismService {
             UUID labId,
             UUID userId,
             PlagiarismSignals captured,
-            List<PeerCandidate> peers,
+            List<SubmissionPlagiarismFingerprint> peerFingerprints,
             Map<UUID, List<LabSubmission>> attemptsByUser,
             Map<UUID, LabSubmission> submissionsById,
             BigDecimal currentScore,

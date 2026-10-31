@@ -1,26 +1,174 @@
 package com.eiu.capstone.backend.grading;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.grading.testcase.ProcessTreeKiller;
+import com.eiu.capstone.backend.grading.testcase.WorkerEnvironment;
+import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Parses compiled student classes into {@link ParsedClass} DTOs. Production prefers a one-shot
+ * worker JVM ({@code --reflect}) so student types never enter the API Metaspace. Falls back to
+ * in-process reflection when the worker jar is unavailable or the reflect child fails
+ * (unit tests / misconfigured local / transient worker errors).
+ */
 @Component
 public class ReflectionClassParser {
 
+    private static final Logger log = LoggerFactory.getLogger(ReflectionClassParser.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final long REFLECT_TIMEOUT_SECONDS = 30L;
+    private static final int STDERR_CAP_BYTES = 4096;
+
+    private final WorkerProcessClient workerProcessClient;
+    private final Semaphore workerJvmSlot;
+
+    /** Test helper when no worker client / slot is wired. */
+    public ReflectionClassParser(WorkerProcessClient workerProcessClient) {
+        this(workerProcessClient, null);
+    }
+
+    @Autowired
+    public ReflectionClassParser(
+            WorkerProcessClient workerProcessClient,
+            @Qualifier("workerJvmSlot") Semaphore workerJvmSlot) {
+        this.workerProcessClient = workerProcessClient;
+        this.workerJvmSlot = workerJvmSlot;
+    }
+
     public List<ParsedClass> parseClasses(Path classesDir) {
+        if (classesDir == null || !Files.isDirectory(classesDir)) {
+            return List.of();
+        }
+        try {
+            if (workerProcessClient != null && workerJarAvailable()) {
+                return parseViaWorker(classesDir);
+            }
+            return parseInProcess(classesDir);
+        } catch (SubmissionProcessingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SubmissionProcessingException("Could not parse compiled classes in " + classesDir, e);
+        }
+    }
+
+    private boolean workerJarAvailable() {
+        try {
+            workerProcessClient.productionCommand("--self-check");
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private List<ParsedClass> parseViaWorker(Path classesDir) throws Exception {
+        boolean acquired = false;
+        if (workerJvmSlot != null) {
+            workerJvmSlot.acquire();
+            acquired = true;
+        }
+        try {
+            return runReflectProcess(classesDir);
+        } catch (Exception e) {
+            log.warn("Class reflect worker failed for {}; falling back to in-process parse: {}",
+                    classesDir, e.toString());
+            return parseInProcess(classesDir);
+        } finally {
+            if (acquired) {
+                workerJvmSlot.release();
+            }
+        }
+    }
+
+    private List<ParsedClass> runReflectProcess(Path classesDir) throws Exception {
+        List<String> command = workerProcessClient.productionCommand(
+                "--reflect", classesDir.toAbsolutePath().normalize().toString());
+        ProcessBuilder builder = new ProcessBuilder(command);
+        WorkerEnvironment.apply(builder);
+        builder.redirectErrorStream(false);
+        Process process = builder.start();
+        AtomicInteger stderrKept = new AtomicInteger();
+        Thread drain = new Thread(() -> drainStderr(process, stderrKept), "class-reflect-stderr");
+        drain.setDaemon(true);
+        drain.start();
+
+        StringBuilder stdout = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (stdout.length() > 0) {
+                    stdout.append('\n');
+                }
+                stdout.append(line);
+            }
+        } catch (IOException e) {
+            ProcessTreeKiller.kill(process);
+            throw new SubmissionProcessingException(
+                    "Class reflect worker stdout read failed for " + classesDir, e);
+        }
+
+        boolean finished = process.waitFor(REFLECT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        if (!finished) {
+            ProcessTreeKiller.kill(process);
+            throw new SubmissionProcessingException("Class reflect worker timed out for " + classesDir);
+        }
+        if (process.exitValue() != 0) {
+            throw new SubmissionProcessingException(
+                    "Class reflect worker failed (exit " + process.exitValue() + ") for " + classesDir);
+        }
+        String json = stdout.toString().trim();
+        if (json.isEmpty()) {
+            return List.of();
+        }
+        ParsedClass[] parsed = MAPPER.readValue(json, ParsedClass[].class);
+        return parsed == null ? List.of() : Arrays.asList(parsed);
+    }
+
+    private static void drainStderr(Process process, AtomicInteger stderrKept) {
+        byte[] buffer = new byte[4096];
+        try (InputStream err = process.getErrorStream()) {
+            int read;
+            while ((read = err.read(buffer)) != -1) {
+                int already = stderrKept.get();
+                int room = Math.max(0, STDERR_CAP_BYTES - already);
+                if (room > 0) {
+                    stderrKept.addAndGet(Math.min(room, read));
+                }
+            }
+        } catch (Exception ignored) {
+            // process closed
+        }
+    }
+
+    /** In-process path for tests when worker.jar is absent, and fallback after reflect failure. */
+    public List<ParsedClass> parseInProcess(Path classesDir) {
         List<Path> classFiles;
         try (var stream = Files.list(classesDir)) {
             classFiles = stream
@@ -46,7 +194,7 @@ public class ReflectionClassParser {
                     result.add(parseClass(clazz));
                 } catch (ClassNotFoundException | LinkageError | TypeNotPresentException e) {
                     System.out.println("  [warn] Could not load compiled class '" + binaryName
-                            + "' (" + e.getClass().getSimpleName() + ") — treating as missing.");
+                            + "' (" + e.getClass().getSimpleName() + ") - treating as missing.");
                 }
             }
         } catch (IOException e) {

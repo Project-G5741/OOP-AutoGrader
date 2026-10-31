@@ -42,8 +42,19 @@ public class SubmissionDetailPersistGate {
             return;
         }
         CompletableFuture<Void> future = inflight.get(submissionId);
+        // Upload returns before the async task may have been scheduled; brief retry avoids
+        // a GET that races ahead of runAsync and reads half-written detail rows.
         if (future == null) {
-            return;
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            future = inflight.get(submissionId);
+            if (future == null) {
+                return;
+            }
         }
         try {
             future.get(WAIT_SECONDS, TimeUnit.SECONDS);

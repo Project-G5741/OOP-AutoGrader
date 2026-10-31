@@ -121,8 +121,8 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
-                new SharedLocalWorkerCache(),
-                new DryRunCompileCache(),
+                new SharedLocalWorkerCache(0L),
+                new DryRunCompileCache(5_000L),
                 5);
 
         TestcaseResultDTO result = wired.dryRun(labId, challengeId, request);
@@ -186,8 +186,8 @@ class TestcaseDryRunServiceTest {
                 new WorkerSessionFactory(false,
                         new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
                         org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
-                new SharedLocalWorkerCache(),
-                new DryRunCompileCache(),
+                new SharedLocalWorkerCache(0L),
+                new DryRunCompileCache(5_000L),
                 5);
     }
 

@@ -32,8 +32,28 @@ class SharedLocalWorkerCacheTest {
     }
 
     @Test
+    void zeroTtlClosesOnReleaseWithoutParking() {
+        cache = new SharedLocalWorkerCache(0L);
+        WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
+        WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
+        when(factory.isSandboxEnabled()).thenReturn(false);
+        when(factory.open(any(Path.class), anyInt())).thenReturn(handle);
+        when(handle.isAlive()).thenReturn(true);
+
+        Path root = Path.of("tmp", "sub");
+        WorkerSessionHandle first = cache.borrow(factory, root, 5);
+        cache.release(factory, first);
+        assertFalse(cache.hasIdleLocal());
+        verify(handle).close();
+
+        WorkerSessionHandle second = cache.borrow(factory, root, 5);
+        assertSame(handle, second);
+        verify(factory, times(2)).open(root, 5);
+    }
+
+    @Test
     void secondBorrowWithinTtlReusesSameHandleWithoutSpawn() {
-        cache = new SharedLocalWorkerCache();
+        cache = new SharedLocalWorkerCache(60_000L);
         WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
         WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
         when(factory.isSandboxEnabled()).thenReturn(false);
@@ -75,7 +95,7 @@ class SharedLocalWorkerCacheTest {
 
     @Test
     void sandboxEnabledNeverCaches() {
-        cache = new SharedLocalWorkerCache();
+        cache = new SharedLocalWorkerCache(60_000L);
         WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
         WorkerSessionHandle first = mock(WorkerSessionHandle.class);
         WorkerSessionHandle second = mock(WorkerSessionHandle.class);
@@ -95,7 +115,7 @@ class SharedLocalWorkerCacheTest {
 
     @Test
     void deadHandleIsClosedAndNotParked() {
-        cache = new SharedLocalWorkerCache();
+        cache = new SharedLocalWorkerCache(60_000L);
         WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
         WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
         when(factory.isSandboxEnabled()).thenReturn(false);

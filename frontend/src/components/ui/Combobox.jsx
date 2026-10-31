@@ -71,7 +71,7 @@ export default function Combobox({
   );
 
   const inputClass = cn(
-    'min-w-0 flex-1 border-0 bg-transparent py-2.5 text-sm font-medium text-foreground',
+    'min-w-0 flex-1 truncate border-0 bg-transparent py-2.5 text-sm font-medium text-foreground',
     'placeholder:font-normal placeholder:text-foreground-muted focus:outline-none focus:ring-0',
     Icon ? 'pl-10' : 'pl-3',
     'pr-2',
@@ -137,7 +137,7 @@ export default function Combobox({
             aria-label={ariaLabel}
             title={title}
             className={cn(
-              'group cursor-pointer text-left',
+              'group cursor-pointer text-left max-w-full overflow-hidden',
               fieldShellClass,
               disabled && 'pointer-events-none',
             )}

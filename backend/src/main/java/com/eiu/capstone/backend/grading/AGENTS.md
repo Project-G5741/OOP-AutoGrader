@@ -22,7 +22,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON, chunked line reads) or `HttpWorkerTransport` (remote REST invoke) |
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
 | `grading/testcase/WorkerSessionHandle.java` | Worker JVM session; respawn keeps the host slot |
-| `grading/testcase/SharedLocalWorkerCache.java` | Reuses one idle local worker across upload, bulk grade, and dry-run (60s idle TTL); sandbox never cached |
+| `grading/testcase/SharedLocalWorkerCache.java` | Optional idle local worker reuse (`app.grading.worker-idle-ttl-ms`, default 0 = close on release); sandbox never cached |
+| `grading/testcase/worker/WorkerClassReflector.java` | One-shot `--reflect` class parse in the worker JVM (keeps student types out of API Metaspace) |
 | `grading/rubric/DryRunChallengeCatalogCache.java` | One Neon load per challenge caches validate membership + assemble maps (60s); cleared on rubric invalidate |
 | `grading/rubric/RubricMemberMaps.java` | Lookup maps built from challenge members for OT rubric assembly |
 | `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
@@ -50,7 +51,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
 | `grading/rubric/RubricParameterMaps.java` | Group rubric parameters by constructor/method id for assembler, lab load, and lecturer save validation |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
-| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local warm worker via `SharedLocalWorkerCache` (60s idle TTL) |
+| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local worker via `SharedLocalWorkerCache` (default close-on-release) |
 
 ## Local Contracts
 
@@ -58,7 +59,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 
 ```
 SubmissionController
-  → StudentTermAccessService.requireUploadAccess()  (one query; 30s success cache; warmed by GET /api/labs)
+  → StudentTermAccessService.requireUploadAccess()  (one query; 10s success cache; warmed by GET /api/labs)
   → LabRubricCache.get(lab)                         (overlaps compile)
   → SubmissionStorageService.processUpload()
   → assign lab_submission.id in memory
@@ -94,7 +95,7 @@ SubmissionController
 - Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
-- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab still `Class.forName(..., false, ...)` in the API
+- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
 - IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (list of scenarios; each item may carry its own `classesDir` for lab-wide OT). `compare` is not used. Upload/bulk: one lab-wide `batch` round-trip; dry-run: one-item batch
 - In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1
@@ -108,10 +109,10 @@ SubmissionController
 - Scenario primary **expected/actual** is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step. **Input** lists every authored step (newline-separated)
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
-- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path reuses an idle worker from `SharedLocalWorkerCache` (60s TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
+- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (default close-on-release; optional positive idle TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
-- Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`
+- Value types v1: primitives, `String`, null, arrays of primitives; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
 
 ### Result persistence
 

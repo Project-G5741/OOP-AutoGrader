@@ -76,7 +76,7 @@ class IsolatedWorkerAeTest {
                     public int value() { return 1; }
                 }
                 """);
-        List<ParsedClass> parsed = new ReflectionClassParser().parseClasses(classesDir);
+        List<ParsedClass> parsed = new ReflectionClassParser(null).parseClasses(classesDir);
         assertEquals(1, parsed.size());
         assertEquals("StaticExit", parsed.get(0).simpleName);
     }

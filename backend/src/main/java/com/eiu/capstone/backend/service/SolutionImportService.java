@@ -201,7 +201,7 @@ public class SolutionImportService {
                     parsed.isAbstract,
                     parsed.isStatic,
                     mapFields(parsed, masterData),
-                    mapMethods(parsed.methods, masterData),
+                    mapMethods(parsed, masterData),
                     mapConstructors(parsed, masterData, explicitConstructors),
                     outerId,
                     1));
@@ -357,12 +357,15 @@ public class SolutionImportService {
         return out;
     }
 
-    private List<MethodStructureDTO> mapMethods(List<ParsedMethod> methods, MasterDataIndex masterData) {
-        if (methods == null) {
+    private List<MethodStructureDTO> mapMethods(ParsedClass parsed, MasterDataIndex masterData) {
+        if (parsed.methods == null) {
             return List.of();
         }
         List<MethodStructureDTO> out = new ArrayList<>();
-        for (ParsedMethod method : methods) {
+        for (ParsedMethod method : parsed.methods) {
+            if (shouldOmitEnumBuiltinMethod(parsed, method)) {
+                continue;
+            }
             out.add(new MethodStructureDTO(
                     UUID.randomUUID(),
                     method.name,
@@ -396,6 +399,30 @@ public class SolutionImportService {
                     mapParameters(params, constructor.parameterNames)));
         }
         return out;
+    }
+
+    /**
+     * Skip {@code values()} and {@code valueOf(String)} emitted by javac on every enum type.
+     */
+    private static boolean shouldOmitEnumBuiltinMethod(ParsedClass parsed, ParsedMethod method) {
+        if (!"enum".equals(declaringKind(parsed)) || method == null || method.name == null) {
+            return false;
+        }
+        if ("values".equals(method.name)) {
+            return method.isStatic
+                    && (method.parameterTypes == null || method.parameterTypes.isEmpty())
+                    && method.returnType != null
+                    && method.returnType.endsWith("[]")
+                    && parsed.simpleName.equals(simpleName(method.returnType.substring(0, method.returnType.length() - 2)));
+        }
+        if ("valueOf".equals(method.name)) {
+            return method.isStatic
+                    && method.parameterTypes != null
+                    && method.parameterTypes.size() == 1
+                    && "String".equals(simpleName(method.parameterTypes.get(0)))
+                    && parsed.simpleName.equals(simpleName(method.returnType));
+        }
+        return false;
     }
 
     /**

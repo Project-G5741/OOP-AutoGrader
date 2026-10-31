@@ -37,7 +37,7 @@ RUN set -eu; \
 EXPOSE 8080
 # API JVM caps (logical ~512MB budget with worker -Xmx64m in the same cgroup). Worker does not inherit JAVA_OPTS.
 # Railway Hobby may still show a 1GB replica limit; these flags keep RSS closer to small-host targets.
-ENV JAVA_OPTS="-Xmx256m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_OPTS="-Xmx192m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m -XX:+ExitOnOutOfMemoryError -XX:G1PeriodicGCInterval=15000 -XX:G1PeriodicGCSystemLoadThreshold=0"
 # Image layout path. Do not override on Render with the local Maven path (target/...).
 # WorkerProcessClient also falls back to /app/worker.jar if a stale WORKER_JAR is set.
 ENV WORKER_JAR=/app/worker.jar

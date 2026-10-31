@@ -90,6 +90,9 @@ public class LabResultAssembler {
                         (left, right) -> left,
                         LinkedHashMap::new));
 
+        // Student upload: scores + applicability only (detail trees via GET). Lecturer bulk keeps full trees.
+        boolean thinTrees = mode == DisclosureMode.STUDENT;
+
         Map<String, ChallengeDetailBundleDTO> labResult = new LinkedHashMap<>();
         for (ChallengeRubric challengeRubric : challengeRubrics) {
             int number = challengeRubric.challengeNumber();
@@ -114,43 +117,61 @@ public class LabResultAssembler {
                             challengeRubric.hasMmd(),
                             defaultTestcaseApplicable));
 
-            List<ClassDetailDTO> classData = pillarScores.classApplicable()
-                    ? classStructureService.buildClassDataFromRubric(
+            ChallengeCompileErrors challengeCompileErrors =
+                    compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none());
+            // Thin student upload omits detail trees except compile-error Class cards (toast + Declaration).
+            boolean omitDetailTrees = thinTrees && challengeCompileErrors.isEmpty();
+
+            List<ClassDetailDTO> classData;
+            MmdResponseDTO mmdResponse;
+            List<TestcaseResultDTO> testcases;
+            if (omitDetailTrees) {
+                classData = List.of();
+                mmdResponse = new MmdResponseDTO(List.of(), null);
+                testcases = List.of();
+            } else {
+                classData = pillarScores.classApplicable()
+                        ? classStructureService.buildClassDataFromRubric(
+                                challengeRubric,
+                                correctIds,
+                                challengeCompileErrors,
+                                snapshot,
+                                mode)
+                        : List.of();
+
+                if (thinTrees) {
+                    mmdResponse = new MmdResponseDTO(List.of(), null);
+                    testcases = List.of();
+                } else if (pillarScores.mmdApplicable()) {
+                    MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
+                    ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
+                    Boolean mmdSubmittedOverride = mmdResult != null
+                            ? mmdResult.mmdSubmitted()
+                            : (mmdMeta != null ? mmdMeta.mmdSubmitted : Boolean.FALSE);
+                    List<MmdClassDTO> mmdClasses = classStructureService.buildMmdDataFromRubric(
                             challengeRubric,
                             correctIds,
-                            compileErrors.getOrDefault(challengeId, ChallengeCompileErrors.none()),
+                            mmdResult != null ? mmdResult.outcome() : null,
+                            mmdSubmittedOverride,
+                            mmdMeta,
+                            submissionId,
                             snapshot,
-                            mode)
-                    : List.of();
-
-            MmdResponseDTO mmdResponse;
-            if (pillarScores.mmdApplicable()) {
-                MmdPillarGrader.MmdPillarResult mmdResult = computed.mmdResultsByChallengeNumber.get(number);
-                ChallengeMmdMeta mmdMeta = computed.mmdMetaByChallengeId.get(challengeId);
-                Boolean mmdSubmittedOverride = mmdResult != null
-                        ? mmdResult.mmdSubmitted()
-                        : (mmdMeta != null ? mmdMeta.mmdSubmitted : Boolean.FALSE);
-                List<MmdClassDTO> mmdClasses = classStructureService.buildMmdDataFromRubric(
-                        challengeRubric,
-                        correctIds,
-                        mmdResult != null ? mmdResult.outcome() : null,
-                        mmdSubmittedOverride,
-                        mmdMeta,
-                        submissionId,
-                        snapshot,
-                        mode);
-                String parseError = mmdMeta != null ? mmdMeta.parseError : null;
-                if (parseError == null && mmdResult != null) {
-                    parseError = mmdResult.parseError();
+                            mode);
+                    String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+                    if (parseError == null && mmdResult != null) {
+                        parseError = mmdResult.parseError();
+                    }
+                    mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
+                    testcases = pillarScores.testcaseApplicable()
+                            ? buildTestcaseResults(challengeRubric, testcaseResultsById, mode)
+                            : List.of();
+                } else {
+                    mmdResponse = new MmdResponseDTO(List.of(), null);
+                    testcases = pillarScores.testcaseApplicable()
+                            ? buildTestcaseResults(challengeRubric, testcaseResultsById, mode)
+                            : List.of();
                 }
-                mmdResponse = new MmdResponseDTO(mmdClasses, parseError);
-            } else {
-                mmdResponse = new MmdResponseDTO(List.of(), null);
             }
-
-            List<TestcaseResultDTO> testcases = pillarScores.testcaseApplicable()
-                    ? buildTestcaseResults(challengeRubric, testcaseResultsById, mode)
-                    : List.of();
 
             Map<String, BigDecimal> scores = Map.of(
                     "class", pillarScores.classPillar(),
