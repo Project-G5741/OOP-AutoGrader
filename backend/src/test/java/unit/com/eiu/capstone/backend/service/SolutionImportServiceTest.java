@@ -214,6 +214,26 @@ class SolutionImportServiceTest {
                 .findFirst()
                 .orElseThrow();
         assertTrue(color.constructors() == null || color.constructors().isEmpty());
+        assertTrue(color.methods() == null || color.methods().isEmpty(),
+                "Compiler enum values()/valueOf(String) must not be imported");
+    }
+
+    @Test
+    void simpleEnum_matchesFlowerTypeImportShape() {
+        List<MultipartFile> files = List.of(javaFile("challenge_1/FlowerType.java", """
+                public enum FlowerType {
+                    RESPECTFUL_FLOWER,
+                    GRATITUDINAL_FLOWER
+                }
+                """));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var flowerType = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "FlowerType".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(2, flowerType.fields().size());
+        assertTrue(flowerType.methods() == null || flowerType.methods().isEmpty());
     }
 
     @Test
@@ -232,6 +252,26 @@ class SolutionImportServiceTest {
                 .findFirst()
                 .orElseThrow();
         assertFalse(planet.constructors().isEmpty());
+        assertTrue(planet.methods() == null || planet.methods().isEmpty(),
+                "Only values/valueOf are omitted; Planet has no authored methods");
+    }
+
+    @Test
+    void enumWithAuthoredMethod_importsMethodOnly() {
+        List<MultipartFile> files = List.of(javaFile("challenge_1/Season.java", """
+                public enum Season {
+                    SPRING;
+                    public String label() { return name(); }
+                }
+                """));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var season = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Season".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1, season.methods().size());
+        assertEquals("label", season.methods().get(0).name());
     }
 
     @Test
