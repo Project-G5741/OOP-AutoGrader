@@ -18,7 +18,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentStreakFlame.jsx` | Compact three-layer streak flame (`.u379`, styles in `StudentStreakFlame.css`) beside the mascot. Icon only, no plate. Grey until today's three missions are done, then the colored flame. Click opens daily missions. No separate Done button. `prefers-reduced-motion` draws one still flame and skips the count roll |
 | `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; same-name lab conflict modal (`confirmReplace`); term import clears lab packs on disk; after success a blocking **Okay**-only dialog relaunches via `restartPracticeApp` (`practice-restart`; no submit until reopen finishes); friendly errors via `apiError` context `import` |
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
-| `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (Uiverse-style progress; theme `--primary` / `--success`; `GET /desktop-practice-bundle?access_token=`; not in desktop build) |
+| `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (Uiverse-style progress; theme `--primary` / `--success`; `GET /desktop-practice-bundle` via `apiFetch` + blob save; **Done** only after the zip body is received; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts

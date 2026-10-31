@@ -143,7 +143,13 @@ html.dark .practice-folder-download {
 
 .practice-folder-download__label:has(.practice-folder-download__input:checked) {
   width: 52px;
-  animation: practice-folder-installed 0.4s ease 3.5s forwards;
+}
+
+.practice-folder-download__label--complete {
+  width: 128px;
+  min-width: 128px;
+  border-color: var(--success);
+  animation: practice-folder-installed 0.4s ease forwards;
 }
 
 .practice-folder-download__label:has(.practice-folder-download__input:checked)::before {
@@ -170,8 +176,27 @@ html.dark .practice-folder-download {
   visibility: hidden;
 }
 
-.practice-folder-download__input:checked ~ .practice-folder-download__title--done {
-  animation: practice-folder-show-done 0.4s ease 3.5s forwards;
+.practice-folder-download__label--complete .practice-folder-download__title:not(.practice-folder-download__title--done) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.practice-folder-download__label--complete .practice-folder-download__title--done {
+  animation: practice-folder-show-done 0.4s ease forwards;
+}
+
+.practice-folder-download__label--complete .practice-folder-download__circle {
+  animation: practice-folder-circle-delete 0.2s ease forwards;
+  opacity: 0;
+  visibility: hidden;
+  width: 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.practice-folder-download__label--complete::before {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .practice-folder-download__label--busy {
@@ -252,7 +277,9 @@ html.dark .practice-folder-download {
   .practice-folder-download__label:has(.practice-folder-download__input:checked)::before,
   .practice-folder-download__input:checked + .practice-folder-download__circle,
   .practice-folder-download__input:checked + .practice-folder-download__circle::before,
-  .practice-folder-download__input:checked ~ .practice-folder-download__title--done {
+  .practice-folder-download__label--complete,
+  .practice-folder-download__label--complete .practice-folder-download__title--done,
+  .practice-folder-download__label--complete .practice-folder-download__circle {
     animation: none;
   }
 
