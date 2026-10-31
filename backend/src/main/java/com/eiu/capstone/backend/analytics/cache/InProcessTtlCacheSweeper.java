@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.analytics.cache;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.service.MasterDataCache;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
 
@@ -17,15 +18,18 @@ public class InProcessTtlCacheSweeper {
     private final LabStatisticsCache labStatisticsCache;
     private final MasterDataCache masterDataCache;
     private final StudentTermAccessService studentTermAccessService;
+    private final LabRubricCache labRubricCache;
 
     public InProcessTtlCacheSweeper(AnalyticsDashboardCache analyticsDashboardCache,
                                     LabStatisticsCache labStatisticsCache,
                                     MasterDataCache masterDataCache,
-                                    StudentTermAccessService studentTermAccessService) {
+                                    StudentTermAccessService studentTermAccessService,
+                                    LabRubricCache labRubricCache) {
         this.analyticsDashboardCache = analyticsDashboardCache;
         this.labStatisticsCache = labStatisticsCache;
         this.masterDataCache = masterDataCache;
         this.studentTermAccessService = studentTermAccessService;
+        this.labRubricCache = labRubricCache;
     }
 
     @Scheduled(fixedDelayString = "${app.cache.sweep-interval-ms:30000}")
@@ -34,5 +38,6 @@ public class InProcessTtlCacheSweeper {
         labStatisticsCache.sweepExpired();
         masterDataCache.sweepExpired();
         studentTermAccessService.sweepExpired();
+        labRubricCache.sweepExpired();
     }
 }

@@ -1,5 +1,6 @@
 package unit.com.eiu.capstone.backend.grading.rubric;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -34,7 +35,7 @@ class LabRubricCacheTest {
 
     @BeforeEach
     void setUp() {
-        cache = new LabRubricCache(labRubricService, labRepository, 30);
+        cache = new LabRubricCache(labRubricService, labRepository, 30, 8);
     }
 
     @Test
@@ -78,6 +79,34 @@ class LabRubricCacheTest {
         assertSame(snap, cache.getAll(List.of(lab)).get(lab.getId()));
         assertSame(snap, cache.getAll(List.of(lab)).get(lab.getId()));
         verify(labRubricService, times(1)).loadForLabs(anyCollection());
+    }
+
+    @Test
+    void sweepExpired_removesDeadEntriesWithoutRehit() throws Exception {
+        LabRubricCache shortTtl = new LabRubricCache(labRubricService, labRepository, 0, 8);
+        Lab lab = lab("Short");
+        LabRubricSnapshot snap = new LabRubricSnapshot(lab.getId(), Map.of());
+        when(labRubricService.loadForLab(lab)).thenReturn(snap);
+        shortTtl.get(lab);
+        assertEquals(1, shortTtl.size());
+        Thread.sleep(20L);
+        shortTtl.sweepExpired();
+        assertEquals(0, shortTtl.size());
+    }
+
+    @Test
+    void maxSize_evictsOlderEntries() {
+        LabRubricCache tiny = new LabRubricCache(labRubricService, labRepository, 30, 2);
+        Lab a = lab("A");
+        Lab b = lab("B");
+        Lab c = lab("C");
+        when(labRubricService.loadForLab(a)).thenReturn(new LabRubricSnapshot(a.getId(), Map.of()));
+        when(labRubricService.loadForLab(b)).thenReturn(new LabRubricSnapshot(b.getId(), Map.of()));
+        when(labRubricService.loadForLab(c)).thenReturn(new LabRubricSnapshot(c.getId(), Map.of()));
+        tiny.get(a);
+        tiny.get(b);
+        tiny.get(c);
+        assertTrue(tiny.size() <= 2);
     }
 
     private static Lab lab(String name) {

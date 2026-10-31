@@ -190,7 +190,7 @@ class SubmissionPipelineIntegrationTest {
                 }
             };
             GradingPipeline pipeline = new GradingPipeline(
-                    new ReflectionClassParser(),
+                    new ReflectionClassParser(null),
                     new ClassReflectionGrader(),
                     new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                     grader,
@@ -297,7 +297,7 @@ class SubmissionPipelineIntegrationTest {
 
     private GradingPipeline pipeline() {
         return new GradingPipeline(
-                new ReflectionClassParser(),
+                new ReflectionClassParser(null),
                 new ClassReflectionGrader(),
                 new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                 new TestcaseGrader(null, null, null, null),
@@ -313,7 +313,7 @@ class SubmissionPipelineIntegrationTest {
             }
         };
         return new GradingPipeline(
-                new ReflectionClassParser(),
+                new ReflectionClassParser(null),
                 new ClassReflectionGrader(),
                 new MmdPillarGrader(new MmdParser(), new MmdComparisonService()),
                 grader,

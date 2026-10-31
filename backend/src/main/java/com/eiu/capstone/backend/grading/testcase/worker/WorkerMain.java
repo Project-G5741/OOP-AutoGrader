@@ -19,6 +19,7 @@ public final class WorkerMain {
         String mode = args != null && args.length > 0 ? args[0] : "";
         switch (mode) {
             case "--self-check" -> ipcOut.println("{\"ok\":true}");
+            case "--reflect" -> reflect(ipcOut, args);
             case "--dump-env" -> dumpEnv(ipcOut, args);
             case "--hang" -> hang();
             case "--child-hang" -> childHang(ipcOut);
@@ -28,6 +29,15 @@ public final class WorkerMain {
             }
             default -> ipcLoop(ipcIn, ipcOut);
         }
+    }
+
+    private static void reflect(PrintStream ipcOut, String[] args) throws Exception {
+        if (args == null || args.length < 2 || args[1] == null || args[1].isBlank()) {
+            ipcOut.println("[]");
+            return;
+        }
+        var classes = WorkerClassReflector.parseClasses(java.nio.file.Path.of(args[1]));
+        ipcOut.println(WorkerIpc.mapper().writeValueAsString(classes));
     }
 
     private static void ipcLoop(InputStream ipcIn, PrintStream ipcOut) throws Exception {

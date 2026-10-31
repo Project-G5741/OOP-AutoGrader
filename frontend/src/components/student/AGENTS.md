@@ -53,7 +53,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 
 Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast. When any challenge in the upload `lab_result` has a Java compile failure, a second error **Toast** (`Compilation Error`) stacks with the score toast, and the Declaration Test tab shows a matching **DangerAlert** banner (per-class javac lines stay under each class card).
 
-After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD/Operation Test tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view loads class/mmd/testcases via read endpoints when no cached bundle exists.
+After upload, `StudentDashboard` uses the upload payload for stats and challenge scores. Student `lab_result` is scores-only (thin); Class/MMD/OT trees load via `GET .../class|mmd|testcases` for **all** scored challenges in one post-upload prefetch (single overlay spinner). Challenge clicks then read the in-memory cache. A bundle stays “thin” until each applicable pillar has its tree. Switching labs uses the `GET /api/labs` cache. History view loads class/mmd/testcases via read endpoints when no cached bundle exists.
 
 - **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
 

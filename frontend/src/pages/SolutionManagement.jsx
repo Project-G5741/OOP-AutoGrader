@@ -113,6 +113,26 @@ export default function SolutionManagement() {
   const selectedLabIdRef = useRef(null);
   const savingRef = useRef(false);
   const structureCacheRef = useRef({});
+  const structureCacheTouchedRef = useRef({});
+  const STRUCTURE_CACHE_MAX_LABS = 2;
+
+  const rememberStructureCache = useCallback((labId, entry) => {
+    structureCacheRef.current[labId] = entry;
+    structureCacheTouchedRef.current[labId] = Date.now();
+    const keys = Object.keys(structureCacheRef.current);
+    if (keys.length <= STRUCTURE_CACHE_MAX_LABS) {
+      return;
+    }
+    const ordered = keys.sort(
+      (a, b) => (structureCacheTouchedRef.current[a] || 0) - (structureCacheTouchedRef.current[b] || 0),
+    );
+    while (ordered.length > STRUCTURE_CACHE_MAX_LABS) {
+      const victim = ordered.shift();
+      delete structureCacheRef.current[victim];
+      delete structureCacheTouchedRef.current[victim];
+    }
+  }, []);
+
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
@@ -164,12 +184,12 @@ export default function SolutionManagement() {
       })),
     }));
     const snapshot = cloneDraft(structure);
-    structureCacheRef.current[labId] = { draft: cloneDraft(nextDraft), snapshot };
+    rememberStructureCache(labId, { draft: cloneDraft(nextDraft), snapshot });
     selectedLabIdRef.current = labId;
     setSelectedLabId(labId);
     setDraft(nextDraft);
     setSavedSnapshot(snapshot);
-  }, []);
+  }, [rememberStructureCache]);
 
   const discardUnsavedLab = useCallback((labId) => {
     const cached = structureCacheRef.current[labId];
@@ -201,6 +221,7 @@ export default function SolutionManagement() {
     setStructureLoading(true);
     const cached = structureCacheRef.current[labId];
     if (cached?.snapshot) {
+      structureCacheTouchedRef.current[labId] = Date.now();
       if (shouldDiscard) discardUnsavedLab(leavingId);
       discardUnsavedLab(labId);
       const saved = cloneDraft(cached.snapshot);

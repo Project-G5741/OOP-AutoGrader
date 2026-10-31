@@ -18,8 +18,8 @@ Spring Boot 3.2 / Java 17 REST API for the OOP AutoGrader: authentication, user 
 - Local: `mvn spring-boot:run` from `backend/` (port `8002` by default). Operational testcase invoke uses `target/backend-1.0.0-worker.jar` (`WORKER_JAR`); after changing worker/kernel code run `mvn package -DskipTests` (root `npm run backend` does this before `spring-boot:run`)
 - Root orchestration: `npm run backend` from repository root
 - Practice assemble: `mvn -DskipTests package -Pdesktop-dist` also builds classifier `desktop` → `target/backend-1.0.0-desktop.jar` (excludes PostgreSQL driver, springdoc, mail, jjwt). Default `package` still produces the full `backend-1.0.0.jar` + worker. `scripts/assemble-student-desktop.ps1` copies the desktop classifier to `backend.jar`, builds the thin Rust WebView2 host via `cargo` (`desktop/launcher/practice-host/`), and jlinks `runtime/jdk` when available.
-- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; optional build-arg `PRACTICE_BUNDLE_URL` → `/app/OOP-AutoGrader-Practice.zip`; API start is `exec java $JAVA_OPTS -jar app.jar` (default caps in Dockerfile — `-Xmx256m` plus metaspace/code-cache limits); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md`, `DEPLOY_RAILWAY.md`
-- Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse stays in the API with `Class.forName(..., false, ...)`. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
+- Docker: multi-stage `Dockerfile`; copies `backend-1.0.0.jar` → `/app/app.jar` and `backend-1.0.0-worker.jar` → `/app/worker.jar` by name; optional build-arg `PRACTICE_BUNDLE_URL` → `/app/OOP-AutoGrader-Practice.zip`; API start is `exec java $JAVA_OPTS -jar app.jar` (default caps in Dockerfile — `-Xmx192m`, Metaspace `96m`, code cache `32m`, G1 periodic GC); worker stays `-Xmx64m` and does not inherit `JAVA_OPTS`; see `DEPLOY_RENDER.md`, `DEPLOY_RAILWAY.md`
+- Operational testcase invoke runs in the thin worker JAR (one JVM per lecturer dry-run or per student upload when any challenge has OT; host slot of 1 on the HTTP thread). Class-tab parse prefers a one-shot worker `--reflect` (same `workerJvmSlot`, env allowlist) so student types stay out of API Metaspace; falls back to in-process `URLClassLoader` when the worker JAR is missing or reflect fails. Worker env is allowlisted; that is not a filesystem or `/proc` jail.
 - **Requires a JDK** (not JRE) — `JavaCompilerService` uses `javax.tools.JavaCompiler`
 
 ### Environment
@@ -42,7 +42,7 @@ Password-reset emails use the request `Origin` when it matches an allowed fronte
 | `SUBMISSION_BASE_DIR` | Upload temp root (default `submissions/`) |
 | `SPRINGDOC_ENABLED` | OpenAPI/Swagger. Default `true` locally. Set `false` in production so `/v3/api-docs` and `/swagger-ui/**` are not registered. |
 | `PORT` | Server port (default `8002`) |
-| `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx256m`). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
+| `JAVA_OPTS` | Docker/Render API JVM flags only (image default `-Xmx192m` plus Metaspace/code-cache/G1 periodic). Expanded by the Dockerfile entrypoint. Ignored by `mvn spring-boot:run`. Do not set `-Xmx512m` on 512MB hosts (worker needs headroom). |
 | `DESKTOP_PACK_SIGNING_PRIVATE_KEY` | Optional Base64 PKCS#8 Ed25519 key for lecturer desktop practice pack export; pairs with `classpath:desktop-pack-public.key`. When unset, export returns 503. |
 | `APP_BURST_MAX_REQUESTS` | Mutating burst max (POST/PUT/PATCH/DELETE outside `/api/auth`) per window (default `5` → `app.burst.max-requests`) |
 | `APP_BURST_MAX_READS` | Read burst max (GET/HEAD) per window (default `30` → `app.burst.max-reads`). Higher than writes so one screen's GET fan-out (lecturer dashboard ~13) does not jail the user |
@@ -128,7 +128,7 @@ Student-facing challenge scores, Class tab, and stats **current grade** use the 
 
 ### Submission pipeline (summary)
 
-Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs/list`) → rubric cache load **overlaps** compile on `rubricOverlapExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
+Upload → `StudentTermAccessService.requireUploadAccess` (one query, cached 10s on success; warmed by `GET /api/labs/list`) → rubric cache load **overlaps** compile on `rubricOverlapExecutor` → `SubmissionStorageService` (parallel in-memory compile per challenge via `compileExecutor`) → assign `lab_submission.id` in memory → `GradingService` compute + `lab_result` assemble → `UploadPersistService` one JDBC statement (insert submission `MAX+1` with final score, challenge-score UPSERT, progress UPSERT; snapshot file; detail UPSERT after that statement on `persistExecutor`) → compile/package/mmd sidecars on `persistExecutor` → snapshot plagiarism signals on the request thread, then `PlagiarismService.inspectUpload(submission, signals)` on `persistExecutor` (failures swallowed) → MMD hook (no-op by default) → cleanup temp folder on `persistExecutor`. Lecturer plagiarism flags typically appear within ~1–3s (live SQL; lab statistics cache invalidated again after inspect).
 
 Class / MMD / Testcase GETs wait on `SubmissionDetailPersistGate` until that submission’s detail UPSERT finishes (or 60s). Challenge sidebar scores use stored `submission_challenge_result` when present.
 
@@ -141,6 +141,8 @@ Grading tuning properties (`application.properties`):
 | `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
 | `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`). Local Maven: `target/backend-1.0.0-worker.jar`. Docker/Render image sets `/app/worker.jar`; if the configured path is missing, `WorkerProcessClient` falls back to `/app/worker.jar` then the local Maven path (so a Render env copied from local `target/...` still works). |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
+| `app.grading.worker-idle-ttl-ms` | `0` | Local worker park TTL; `0` closes on release (no warm reuse). Positive values reuse one idle handle. |
+| `app.grading.dry-run-compile-idle-ttl-ms` | `5000` | Dry-run compiled classes dir reuse TTL |
 | `app.grading.sandbox.enabled` | `false` | Route testcase invoke/dry-run through remote `sandbox-runner` (`SANDBOX_ENABLED`) |
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |
 | `app.grading.sandbox.runner-token` | _(empty)_ | Bearer token shared with runner (`SANDBOX_RUNNER_TOKEN`) |
@@ -148,18 +150,19 @@ Grading tuning properties (`application.properties`):
 | Pillar order (upload) | class → MMD → OT per challenge | OT challenges: all class+MMD on `gradingExecutor` first, then one worker JVM; pillars are sequential (no MMD∥OT) to spare CPU/RAM on small hosts |
 | `rubricOverlapExecutor` bean | 2 threads (not CPU-capped) | Upload-only: `labRubricCache.get` overlapping compile. Isolated so `rubricFuture.join()` never queues behind inspect/detail/sidecars. |
 | `persistExecutor` bean | 2 threads (not CPU-capped) | Off-request detail UPSERT, sidecars, plagiarism inspect, and temp-folder delete. Uncapped so 1-CPU Render can wait on Neon without blocking the other persist task. |
-| `app.grading.rubric-cache-ttl-minutes` | `30` | In-process lab rubric cache TTL |
+| `app.grading.rubric-cache-ttl-minutes` | `2` | In-process lab rubric cache TTL |
+| `app.grading.rubric-cache-max-size` | `8` | Hard cap on rubric cache lab entries; swept with other TTL caches |
 | `app.grading.timing-log` | `false` | Print aligned `[timing]` blocks (`utility/TimingLog`) for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, compile, each challenge, grade submission, structure save, and read paths |
-| `app.upload.access-cache-ttl-seconds` | `30` | Successful `requireUploadAccess` cache TTL. `GET /api/labs/list` warms it. Denials are not cached. `0` disables. |
-| `app.upload.access-cache-max-size` | `4096` | Hard cap on upload-access success cache entries |
-| `app.master-data-cache-ttl-minutes` | `60` | In-process master data (scope/type labels) cache TTL |
+| `app.upload.access-cache-ttl-seconds` | `10` | Successful `requireUploadAccess` cache TTL. `GET /api/labs/list` warms it. Denials are not cached. `0` disables. |
+| `app.upload.access-cache-max-size` | `256` | Hard cap on upload-access success cache entries |
+| `app.master-data-cache-ttl-minutes` | `5` | In-process master data (scope/type labels) cache TTL |
 | `app.master-data-cache-max-size` | `1` | Hard cap on master-data cache entries (single key) |
-| `app.analytics.lecturer-overview-cache-ttl-seconds` | `90` | TTL for `/api/lecturer/overview` in-process cache (bound by `@Value`; bootstrap `/api/lecturer/bootstrap/dashboard` bypasses) |
-| `app.analytics.dashboard-cache-ttl-seconds` | `180` | TTL for `/api/analytics/dashboard` per filter set (bootstrap `/reports` bypasses) |
-| `app.analytics.dashboard-cache-max-size` | `256` | Hard cap on dashboard filter-set entries (incl. free-text `course`) |
-| `app.analytics.lab-statistics-cache-ttl-seconds` | `120` | TTL for `/api/labs/{id}/statistics`; invalidated on upload for that lab |
-| `app.analytics.lab-statistics-cache-max-size` | `512` | Hard cap on lab-statistics cache entries |
-| `app.cache.sweep-interval-ms` | `30000` | Proactive sweep of expired in-process TTL cache entries (`InProcessTtlCacheSweeper`) |
+| `app.analytics.lecturer-overview-cache-ttl-seconds` | `30` | TTL for `/api/lecturer/overview` in-process cache (bound by `@Value`; bootstrap `/api/lecturer/bootstrap/dashboard` bypasses) |
+| `app.analytics.dashboard-cache-ttl-seconds` | `60` | TTL for `/api/analytics/dashboard` per filter set (bootstrap `/reports` bypasses) |
+| `app.analytics.dashboard-cache-max-size` | `32` | Hard cap on dashboard filter-set entries (incl. free-text `course`) |
+| `app.analytics.lab-statistics-cache-ttl-seconds` | `30` | TTL for `/api/labs/{id}/statistics`; invalidated on upload for that lab |
+| `app.analytics.lab-statistics-cache-max-size` | `64` | Hard cap on lab-statistics cache entries |
+| `app.cache.sweep-interval-ms` | `30000` | Proactive sweep of expired in-process TTL cache entries (`InProcessTtlCacheSweeper`, includes `LabRubricCache`) |
 | `app.submission.daily-max-per-student` | `30` | Web/cloud only (`!desktop`): max persisted uploads per student per Vietnam calendar day (all labs); HTTP **429** + `X-Daily-Submission-Limit: 1` when exceeded; Admin test uploads unchanged (discarded before persist) |
 | `app.submission.retention.enabled` | `true` (cloud); `false` on `desktop` profile | Strip extra on-time details and delete late rows after upload + nightly job |
 | `app.submission.retention.max-per-lab` | `1` | Nightly finder: extra on-time rows beyond the latest attempt that still have ticks (on-time highest keeps ticks in Java) |

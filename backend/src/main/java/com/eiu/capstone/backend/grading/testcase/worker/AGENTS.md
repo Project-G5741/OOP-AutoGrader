@@ -8,7 +8,8 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 
 | File | Role |
 |---|---|
-| `WorkerMain.java` | `main`; retains stdin/stdout for IPC before any `System.setOut` |
+| `WorkerMain.java` | `main`; retains stdin/stdout for IPC before any `System.setOut`; `--reflect` entry |
+| `WorkerClassReflector.java` | One-shot class parse for `--reflect` (ParsedClass-shaped DTOs) |
 | `WorkerIpc.java` | NDJSON ops `invoke`, `scenario`, `batch`; request/response records |
 | `WorkerInvokeEngine.java` | Reflection invoke and named-instance scenario |
 
@@ -16,6 +17,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 
 - Launch with `java -jar worker.jar`, never the API fat JAR or `PropertiesLauncher`.
 - `--self-check` prints `{"ok":true}` and exits (packaging probe).
+- `--reflect <classesDir>` prints a JSON array of reflected class DTOs and exits (Class pillar; API does not load student types).
 - Probe flags `--dump-env`, `--hang`, `--child-hang`, `--stderr-flood` skip the IPC loop.
 - Default path is the NDJSON IPC loop (`WorkerIpc` → `WorkerInvokeEngine`). Student classes load only in this JVM.
 - IPC stdout is UTF-8 NDJSON; one request line in, one response line out (up to `WorkerIpc.MAX_LINE_BYTES`, 4MiB for lab-wide OT). The API `ProcessWorkerTransport` reads lines in chunks (not one byte at a time).

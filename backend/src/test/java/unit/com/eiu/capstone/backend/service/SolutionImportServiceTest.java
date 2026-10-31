@@ -49,7 +49,7 @@ class SolutionImportServiceTest {
                 labRepository,
                 masterDataRepository,
                 compiler,
-                new ReflectionClassParser(),
+                new ReflectionClassParser(null),
                 new MmdParser());
 
         Lab lab = new Lab();

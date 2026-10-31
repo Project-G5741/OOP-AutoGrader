@@ -80,7 +80,7 @@ class GradingServiceTest {
         when(handle.isAlive()).thenReturn(true);
 
         Semaphore slot = mock(Semaphore.class);
-        SharedLocalWorkerCache workerCache = new SharedLocalWorkerCache();
+        SharedLocalWorkerCache workerCache = new SharedLocalWorkerCache(0L);
         var gradingExecutor = Executors.newSingleThreadExecutor();
         try {
             doAnswer(invocation -> null).when(slot).acquire();
@@ -121,7 +121,7 @@ class GradingServiceTest {
                             Map.of()));
             verify(slot).acquire();
             verify(workerSessionFactory).open(eq(challengeFolder.getParent()), eq(5));
-            verify(handle, never()).close();
+            verify(handle).close();
             verify(slot).release();
         } finally {
             workerCache.shutdown();
@@ -153,7 +153,7 @@ class GradingServiceTest {
                     new ParsedSubmissionSnapshotBuilder(),
                     slot,
                     workerSessionFactory,
-                    new SharedLocalWorkerCache(),
+                    new SharedLocalWorkerCache(0L),
                     5,
                     0,
                     false);
@@ -199,7 +199,7 @@ class GradingServiceTest {
                     new ParsedSubmissionSnapshotBuilder(),
                     slot,
                     workerSessionFactory,
-                    new SharedLocalWorkerCache(),
+                    new SharedLocalWorkerCache(0L),
                     5,
                     0,
                     false);

@@ -12,11 +12,21 @@ import javax.tools.SimpleJavaFileObject;
  */
 public class MemorySourceJavaFileObject extends SimpleJavaFileObject {
 
-    private final String source;
+    private String source;
 
     public MemorySourceJavaFileObject(String logicalPath, byte[] content) {
         super(toSourceUri(logicalPath), Kind.SOURCE);
         this.source = new String(content, StandardCharsets.UTF_8);
+    }
+
+    public MemorySourceJavaFileObject(String logicalPath, String content) {
+        super(toSourceUri(logicalPath), Kind.SOURCE);
+        this.source = content != null ? content : "";
+    }
+
+    /** Drop source text after javac so the heap can reclaim it. */
+    public void discardContent() {
+        this.source = "";
     }
 
     public static URI toSourceUri(String logicalPath) {
@@ -50,6 +60,6 @@ public class MemorySourceJavaFileObject extends SimpleJavaFileObject {
 
     @Override
     public String getCharContent(boolean ignoreEncodingErrors) {
-        return source;
+        return source != null ? source : "";
     }
 }
