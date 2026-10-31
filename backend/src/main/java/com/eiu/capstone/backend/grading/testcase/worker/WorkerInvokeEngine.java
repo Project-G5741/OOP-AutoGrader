@@ -224,7 +224,7 @@ public final class WorkerInvokeEngine {
         try {
             Class<?> clazz = findClass(loader, spec.className());
             List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
-            Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances);
+            Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
             try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
                 System.setOut(captured);
                 if (kind(spec) == InvocationKind.CONSTRUCTOR) {
@@ -424,7 +424,7 @@ public final class WorkerInvokeEngine {
             return instantiateHiddenReceiver(loader, clazz);
         }
         Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
-        Object[] args = coercer.coerceParams(paramsJson, parameterTypes, namedInstances);
+        Object[] args = coercer.coerceParams(paramsJson, parameterTypes, namedInstances, loader);
         return constructor.newInstance(args);
     }
 
@@ -732,7 +732,8 @@ public final class WorkerInvokeEngine {
         if (type.isArray()) {
             return isLiteralArray(value);
         }
-        return type == String.class
+        return type.isEnum()
+                || type == String.class
                 || type == Integer.class
                 || type == Long.class
                 || type == Double.class

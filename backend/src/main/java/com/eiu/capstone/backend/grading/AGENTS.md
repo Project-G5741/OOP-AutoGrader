@@ -112,7 +112,7 @@ SubmissionController
 - Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (default close-on-release; optional positive idle TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
-- Value types v1: primitives, `String`, null, arrays of primitives; scenario params may also pass named instances as `{"$instance":"<name>"}`
+- Value types v1: primitives, `String`, null, arrays of primitives; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
 
 ### Result persistence
 

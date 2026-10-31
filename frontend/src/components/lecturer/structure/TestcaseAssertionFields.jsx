@@ -10,7 +10,7 @@ import {
   displayScalar,
   FIELD_CLASS_COMPACT,
   fieldsForStepAssertion,
-  isRubricClassType,
+  isOrdinaryRubricClassType,
   parseFieldStateExpected,
   parseScalarInput,
   readInstanceExpected,
@@ -68,7 +68,7 @@ function FieldExpected({
   onChange,
 }) {
   const field = catalog.fieldsById.get(assertion.fieldId);
-  const objectField = field && isRubricClassType(field.dataType, catalog);
+  const objectField = field && isOrdinaryRubricClassType(field.dataType, catalog);
   const showNamedInstancePicker = allowFieldInstanceRef && objectField;
   const instanceName = readInstanceExpected(assertion.expectedValue) || '';
 
@@ -165,7 +165,7 @@ export default function TestcaseAssertionFields({
             let expectedValue = assertion.expectedValue;
             if (allowFieldInstanceRef && fieldId) {
               const field = catalog.fieldsById.get(fieldId);
-              if (field && isRubricClassType(field.dataType, catalog)) {
+              if (field && isOrdinaryRubricClassType(field.dataType, catalog)) {
                 if (readInstanceExpected(expectedValue) == null) {
                   expectedValue = JSON.stringify({ $instance: namedInstances[0]?.name || '' });
                 }

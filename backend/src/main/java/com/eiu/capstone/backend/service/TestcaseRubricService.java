@@ -27,6 +27,7 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.ChallengeTestcasesResponse;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
+import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
 import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
 import com.eiu.capstone.backend.grading.rubric.RubricMemberMaps;
 import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
@@ -583,7 +584,7 @@ public class TestcaseRubricService {
             throw unprocessable("UNIT cannot pass named instances as arguments");
         }
         List<String> paramTypes = paramTypesFor(step, memberIds);
-        if (hasRubricClassArgument(paramTypes, memberIds)) {
+        if (hasOrdinaryRubricClassArgument(paramTypes, memberIds)) {
             throw unprocessable("UNIT cannot pass a rubric-class object as an argument");
         }
         rejectObjectArrayArgs(step.params(), paramTypes, memberIds, "Invocation params");
@@ -648,6 +649,9 @@ public class TestcaseRubricService {
                 }
                 if (isStatic && name != null) {
                     String producedType = coreTypeName(returnType);
+                    if (memberIds.isEnumTypeName(returnType)) {
+                        throw unprocessable("ENUM returns cannot be named instances");
+                    }
                     if (!memberIds.rubricClassNames().contains(producedType)) {
                         throw unprocessable("Only rubric-class method returns may be named");
                     }
@@ -693,7 +697,7 @@ public class TestcaseRubricService {
             }
             InvocationStructureDTO step = stepsById.get(assertion.invocationId());
             validateAssertionKind(assertion.assertionKind(), step, memberIds);
-            validateExpectedValue(dto.testcaseType(), assertion, namedInstances);
+            validateExpectedValue(dto.testcaseType(), assertion, step, memberIds, namedInstances);
         }
     }
 
@@ -718,8 +722,14 @@ public class TestcaseRubricService {
 
     private void validateExpectedValue(TestcaseType testcaseType,
                                        AssertionStructureDTO assertion,
+                                       InvocationStructureDTO step,
+                                       ChallengeMemberIds memberIds,
                                        Map<String, String> namedInstances) {
+        String enumExpectedType = enumExpectedType(assertion, step, memberIds);
         String raw = assertion.expectedValue();
+        if (enumExpectedType != null && (raw == null || raw.isBlank())) {
+            throw unprocessable("Enum expected values require a non-blank constant name");
+        }
         if (raw == null || raw.isBlank()) {
             return;
         }
@@ -727,6 +737,15 @@ public class TestcaseRubricService {
         if (assertion.assertionKind() == AssertionKind.EXCEPTION) {
             if (!node.isTextual() || node.asText().isBlank()) {
                 throw unprocessable("Exception assertion expected value must be the exception type");
+            }
+            return;
+        }
+        if (enumExpectedType != null) {
+            if (node.isObject() && (node.has(OBJECT_CHECK_KEY) || node.has(INSTANCE_REF_KEY))) {
+                throw unprocessable("Enum expected values must be a constant name, not a named instance");
+            }
+            if (node.isNull() || !node.isTextual() || node.asText().isBlank()) {
+                throw unprocessable("Enum expected values require a non-blank constant name");
             }
             return;
         }
@@ -742,6 +761,22 @@ public class TestcaseRubricService {
             }
             requireNamedInstance(node.get(INSTANCE_REF_KEY), namedInstances, "Field-state");
         }
+    }
+
+    private String enumExpectedType(AssertionStructureDTO assertion,
+                                    InvocationStructureDTO step,
+                                    ChallengeMemberIds memberIds) {
+        if (assertion.assertionKind() == AssertionKind.FIELD_STATE && assertion.fieldId() != null) {
+            String dataType = memberIds.fieldDataTypeById().get(assertion.fieldId());
+            return memberIds.isEnumTypeName(dataType) ? dataType : null;
+        }
+        if (assertion.assertionKind() == AssertionKind.RETURN_VALUE
+                && step != null
+                && step.invocationKind() == InvocationKind.METHOD) {
+            String returnType = memberIds.methodReturnTypeById().get(step.methodId());
+            return memberIds.isEnumTypeName(returnType) ? returnType : null;
+        }
+        return null;
     }
 
     private void validateObjectCheck(TestcaseType testcaseType,
@@ -822,7 +857,15 @@ public class TestcaseRubricService {
                     throw unprocessable("Named instance '" + name + "' type does not match parameter type");
                 }
             } else if (paramType != null
-                    && memberIds.rubricClassNames().contains(coreTypeName(paramType))
+                    && memberIds.isEnumTypeName(paramType)
+                    && !isArrayOrListType(paramType)) {
+                if (element == null || element.isNull()
+                        || !element.isTextual()
+                        || element.asText().isBlank()) {
+                    throw unprocessable("Enum arguments require a non-blank constant name");
+                }
+            } else if (paramType != null
+                    && memberIds.isOrdinaryRubricClassType(paramType)
                     && !isArrayOrListType(paramType)) {
                 throw unprocessable("Rubric-class arguments must be named instances");
             }
@@ -925,9 +968,9 @@ public class TestcaseRubricService {
         throw unprocessable(label + " values must be literals");
     }
 
-    private boolean hasRubricClassArgument(List<String> paramTypes, ChallengeMemberIds memberIds) {
+    private boolean hasOrdinaryRubricClassArgument(List<String> paramTypes, ChallengeMemberIds memberIds) {
         for (String paramType : paramTypes) {
-            if (memberIds.rubricClassNames().contains(coreTypeName(paramType))) {
+            if (memberIds.isOrdinaryRubricClassType(paramType)) {
                 return true;
             }
         }
@@ -1324,6 +1367,7 @@ public class TestcaseRubricService {
             List<ClassEntity> challengeClasses = classesByChallenge.getOrDefault(challengeId, List.of());
             Set<UUID> classIds = new HashSet<>();
             Set<String> rubricClassNames = new HashSet<>();
+            Set<String> enumClassNames = new HashSet<>();
             Map<UUID, String> classNameByClassId = new HashMap<>();
             Map<String, UUID> classIdByName = new HashMap<>();
             for (ClassEntity cls : challengeClasses) {
@@ -1332,12 +1376,19 @@ public class TestcaseRubricService {
                 if (cls.getName() != null && !cls.getName().isBlank()) {
                     rubricClassNames.add(cls.getName());
                     classIdByName.put(cls.getName(), cls.getId());
+                    String declaringName = cls.getDeclaringType() != null
+                            ? cls.getDeclaringType().getName()
+                            : null;
+                    if (EnumDeclaringTypes.isEnum(declaringName)) {
+                        enumClassNames.add(cls.getName());
+                    }
                 }
             }
 
             Set<UUID> constructorIds = new HashSet<>();
             Set<UUID> methodIds = new HashSet<>();
             Set<UUID> fieldIds = new HashSet<>();
+            Map<UUID, String> fieldDataTypeById = new HashMap<>();
             Map<UUID, String> classNameByConstructorId = new HashMap<>();
             Map<UUID, UUID> classIdByMethodId = new HashMap<>();
             Map<UUID, Boolean> methodStaticById = new HashMap<>();
@@ -1370,6 +1421,9 @@ public class TestcaseRubricService {
             }
             for (Field field : fieldsByChallenge.getOrDefault(challengeId, List.of())) {
                 fieldIds.add(field.getId());
+                if (field.getFieldDeclaration() != null && field.getFieldDeclaration().getDataType() != null) {
+                    fieldDataTypeById.put(field.getId(), field.getFieldDeclaration().getDataType());
+                }
             }
 
             // Heritage map is lab-wide parent→children; ChallengeMemberIds only walks within
@@ -1380,12 +1434,14 @@ public class TestcaseRubricService {
                     fieldIds,
                     classIds,
                     rubricClassNames,
+                    enumClassNames,
                     classIdByName,
                     heritageChildrenByParentId,
                     classNameByConstructorId,
                     classIdByMethodId,
                     methodStaticById,
                     methodReturnTypeById,
+                    fieldDataTypeById,
                     noArgConstructorClassIds,
                     challengeCtorParams,
                     challengeMethodParams));
@@ -1414,6 +1470,8 @@ public class TestcaseRubricService {
                 Set.of(),
                 Set.of(),
                 Set.of(),
+                Set.of(),
+                Map.of(),
                 Map.of(),
                 Map.of(),
                 Map.of(),
@@ -1532,15 +1590,27 @@ public class TestcaseRubricService {
             Set<UUID> fieldIds,
             Set<UUID> classIds,
             Set<String> rubricClassNames,
+            Set<String> enumClassNames,
             Map<String, UUID> classIdByName,
             Map<UUID, Set<UUID>> heritageChildrenByParentId,
             Map<UUID, String> classNameByConstructorId,
             Map<UUID, UUID> classIdByMethodId,
             Map<UUID, Boolean> methodStaticById,
             Map<UUID, String> methodReturnTypeById,
+            Map<UUID, String> fieldDataTypeById,
             Set<UUID> noArgConstructorClassIds,
             Map<UUID, List<String>> paramTypesByConstructorId,
             Map<UUID, List<String>> paramTypesByMethodId) {
+
+        boolean isEnumTypeName(String typeName) {
+            String core = coreTypeName(typeName);
+            return core != null && enumClassNames.contains(core);
+        }
+
+        boolean isOrdinaryRubricClassType(String typeName) {
+            String core = coreTypeName(typeName);
+            return core != null && rubricClassNames.contains(core) && !enumClassNames.contains(core);
+        }
 
         boolean isHeritageDescendant(UUID ancestorClassId, UUID descendantClassId) {
             if (ancestorClassId == null || descendantClassId == null) {

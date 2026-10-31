@@ -293,6 +293,52 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void scenarioEnumConstantLiteralArgResolves() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Event.java", """
+                        public enum Event {
+                            BIRTHDAY, WEDDING
+                        }
+                        """,
+                "Cake.java", """
+                        public class Cake {
+                            private Event type;
+                            public Cake(Event type) { this.type = type; }
+                            public Event getType() { return type; }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Cake", List.of("Event"), "[\"BIRTHDAY\"]", "cake")), List.of("type"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText(), steps.get(0).toString());
+        assertEquals("\"BIRTHDAY\"", steps.get(0).get("fieldSnapshotsJson").get("type").asText());
+    }
+
+    @Test
+    void scenarioUnknownEnumConstantFails() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Event.java", """
+                        public enum Event { BIRTHDAY }
+                        """,
+                "Cake.java", """
+                        public class Cake {
+                            public Cake(Event type) {}
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Cake", List.of("Event"), "[\"NOPE\"]", "cake")), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("ERROR", steps.get(0).get("kind").asText());
+        assertTrue(steps.get(0).get("errorMessage").asText().contains("No enum constant"));
+    }
+
+    @Test
     void scenarioStopsLaterStepsAfterFirstThrew() throws Exception {
         Path dir = compileSources(Map.of(
                 "Boom.java", """

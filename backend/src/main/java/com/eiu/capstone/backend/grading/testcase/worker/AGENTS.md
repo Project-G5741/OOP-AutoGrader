@@ -25,7 +25,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios; each item may carry its own `classesDir` for lab-wide OT; pool size capped by CPUs / `batchParallelism`; each item gets its own student `URLClassLoader` and named-instance registry). `compare` is unused.
 - `scenario` looks up a method on `dispatchClassName` when set, then `invoke`s it on the named receiver so dynamic dispatch runs. Without dispatch, keep concrete-class `getDeclaredMethod` lookup.
 - Class load uses `JavaTypeResolver.loadStudentClass` so nested types resolve from binary, dotted, or unambiguous simple nested names.
-- Params may include `{"$instance":"<name>"}`; live objects never round-trip as JSON.
+- Params may include `{"$instance":"<name>"}` or ENUM constant-name JSON strings (coerced with the student ClassLoader); live objects never round-trip as JSON.
 - Method steps may carry `repeatCount` &gt; 1: the worker resolves the receiver once (hidden, named, or explicit) and invokes the method that many times on the **same** instance before field snapshots and assertions run. Do not duplicate scenario steps in the API for repeats.
 - Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 - Any step `THREW`, `ERROR`, or `TIMED_OUT`: omit later steps. Completed scenario top-level `kind` is `NORMAL` (facts in `steps`) or `ERROR`/`TIMED_OUT` for whole-op failure.
