@@ -21,7 +21,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender` |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
-| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope. Omits compiler-generated constructors when source declares none (class: implicit no-arg only; enum/record: all reflected ctors). Explicit no-arg class constructors import with `isDefault=false`; record canonical ctor from the header counts as explicit |
+| `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope. Omits compiler-generated constructors when source declares none (class: implicit no-arg only; enum/record: all reflected ctors). Omits javac enum builtins `values()` and `valueOf(String)` on import. Explicit no-arg class constructors import with `isDefault=false`; record canonical ctor from the header counts as explicit |
 | `TermService` | Create terms by year, set current term, enroll/remove students, delete non-current quarters (bulk SQL lab wipe via `LabStructureService.deleteLabsCascadeBulk`); optional `copyLabIds` on create clones from outgoing current |
 | `StudentAccountExpiryService` | Hard-deletes student-only accounts three quarters after first enrollment |
 | `StudentAccountExpiryScheduler` | Daily purge job (`Asia/Ho_Chi_Minh`, 04:00) |
@@ -165,7 +165,7 @@ Per upload request (unique `requestId` prevents collisions):
 - MMD outcomes codec: `unit` `MmdOutcomesCodecTest` (round-trip present/typeOk + member flags)
 - History stats: `support` `StudentHistoryServiceTest` (one aggregate row for scope stats)
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
-- Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists)
+- Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists); scheduler rate/enabled via `app.deadline-reminder.*` (default hourly; off when `app.deadline-reminder.enabled=false`)
 - Current-term lecturer mail: `support` `CurrentTermMailServiceTest`; `authorization` `LecturerTermMailAuthorizationTest`
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
