@@ -103,6 +103,7 @@ export function defaultFieldStateExpected(field) {
   const type = coreTypeName(field.dataType);
   if (type === 'String' || type === 'char' || type === 'Character') return '""';
   if (type === 'boolean' || type === 'Boolean') return 'false';
+  if (type === 'LocalDate') return '"2024-01-01"';
   return '0';
 }
 
@@ -319,6 +320,10 @@ export function validateTestcaseForDryRun(tc, catalog) {
         if (value === null || value === undefined || value === '') {
           return `${label}: enter an enum constant name for ${argLabel}.`;
         }
+      } else if (isLocalDateType(param.dataType)) {
+        if (!isIsoLocalDate(value)) {
+          return `${label}: enter ${argLabel} as yyyy-MM-dd.`;
+        }
       } else if (value === null || value === undefined || value === '') {
         return `${label}: enter a value for ${argLabel}.`;
       }
@@ -356,6 +361,20 @@ export function validateTestcaseForDryRun(tc, catalog) {
         }
         if (blank) {
           return 'Each enum field assertion must enter a constant name.';
+        }
+      }
+    }
+    if (assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
+      const field = catalog.fieldsById.get(assertion.fieldId);
+      if (field && isLocalDateType(field.dataType)) {
+        let dateValue = assertion.expectedValue;
+        try {
+          dateValue = JSON.parse(assertion.expectedValue);
+        } catch {
+          // keep the raw text
+        }
+        if (!isIsoLocalDate(dateValue)) {
+          return 'Each date field assertion must be yyyy-MM-dd.';
         }
       }
     }
@@ -400,6 +419,24 @@ export function coreTypeName(typeName) {
   }
   const dot = trimmed.lastIndexOf('.');
   return dot < 0 ? trimmed : trimmed.slice(dot + 1);
+}
+
+const ISO_LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function isLocalDateType(typeName) {
+  return coreTypeName(typeName) === 'LocalDate';
+}
+
+export function isIsoLocalDate(value) {
+  if (typeof value !== 'string' || !ISO_LOCAL_DATE.test(value)) return false;
+  const [, yearText, monthText, dayText] = value.match(ISO_LOCAL_DATE);
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
 }
 
 export function isArrayOrListType(typeName) {

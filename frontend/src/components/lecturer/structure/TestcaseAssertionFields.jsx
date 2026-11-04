@@ -10,6 +10,7 @@ import {
   displayScalar,
   FIELD_CLASS_COMPACT,
   fieldsForStepAssertion,
+  isLocalDateType,
   isOrdinaryRubricClassType,
   parseFieldStateExpected,
   parseScalarInput,
@@ -103,7 +104,7 @@ function FieldExpected({
         ...assertion,
         expectedValue: writeFieldStateScalar(parseScalarInput(e.target.value)),
       })}
-      placeholder="value"
+      placeholder={isLocalDateType(field?.dataType) ? 'yyyy-MM-dd' : 'value'}
     />
   );
 }

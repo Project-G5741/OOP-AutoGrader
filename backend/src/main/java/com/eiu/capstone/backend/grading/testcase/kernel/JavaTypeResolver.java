@@ -5,6 +5,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -35,6 +36,7 @@ public final class JavaTypeResolver {
             case "Short" -> Short.class;
             case "Character" -> Character.class;
             case "String" -> String.class;
+            case "LocalDate", "java.time.LocalDate" -> LocalDate.class;
             default -> throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
         };
     }

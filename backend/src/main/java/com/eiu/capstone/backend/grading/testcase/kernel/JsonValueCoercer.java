@@ -1,5 +1,7 @@
 package com.eiu.capstone.backend.grading.testcase.kernel;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +57,9 @@ public class JsonValueCoercer {
 
     public String toJson(Object value) {
         try {
+            if (value instanceof LocalDate date) {
+                return objectMapper.writeValueAsString(date.toString());
+            }
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
             return String.valueOf(value);
@@ -133,6 +138,9 @@ public class JsonValueCoercer {
         if (node.isNull()) {
             return null;
         }
+        if (isLocalDateType(typeName)) {
+            return parseLocalDate(node);
+        }
         return switch (typeName) {
             case "int", "Integer" -> node.isNumber() ? node.intValue() : Integer.parseInt(node.asText());
             case "long", "Long" -> node.isNumber() ? node.longValue() : Long.parseLong(node.asText());
@@ -156,6 +164,27 @@ public class JsonValueCoercer {
                 throw new IllegalArgumentException("Unsupported type in v1: " + typeName);
             }
         };
+    }
+
+    static boolean isLocalDateType(String typeName) {
+        return "LocalDate".equals(typeName) || "java.time.LocalDate".equals(typeName);
+    }
+
+    private static LocalDate parseLocalDate(JsonNode node) {
+        if (!node.isTextual()) {
+            throw new IllegalArgumentException("LocalDate must be an ISO-8601 date (yyyy-MM-dd)");
+        }
+        String text = node.asText() == null ? "" : node.asText().trim();
+        try {
+            LocalDate date = LocalDate.parse(text);
+            if (!date.toString().equals(text)) {
+                throw new DateTimeException(text);
+            }
+            return date;
+        } catch (DateTimeException ex) {
+            throw new IllegalArgumentException(
+                    "LocalDate must be an ISO-8601 date (yyyy-MM-dd): " + text, ex);
+        }
     }
 
     private static Class<?> resolveEnumType(String typeName, ClassLoader loader) {

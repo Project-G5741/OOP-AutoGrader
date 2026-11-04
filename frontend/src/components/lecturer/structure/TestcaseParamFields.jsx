@@ -5,6 +5,7 @@ import {
   FIELD_CLASS,
   isArrayOrListType,
   isInstanceRef,
+  isLocalDateType,
   isOrdinaryRubricClassType,
   namedInstanceMatchesParamType,
   parseParamsArray,
@@ -90,7 +91,11 @@ export default function TestcaseParamFields({
               className={`${FIELD_CLASS} font-mono`}
               value={displayScalar(value)}
               onChange={(e) => setValue(index, parseScalarInput(e.target.value))}
-              placeholder={isArrayOrListType(param.dataType) ? '[1, 2]' : 'value'}
+              placeholder={
+                isLocalDateType(param.dataType)
+                  ? 'yyyy-MM-dd'
+                  : (isArrayOrListType(param.dataType) ? '[1, 2]' : 'value')
+              }
             />
           </label>
         );

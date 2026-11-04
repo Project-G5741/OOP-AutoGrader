@@ -726,9 +726,13 @@ public class TestcaseRubricService {
                                        ChallengeMemberIds memberIds,
                                        Map<String, String> namedInstances) {
         String enumExpectedType = enumExpectedType(assertion, step, memberIds);
+        String localDateType = localDateExpectedType(assertion, step, memberIds);
         String raw = assertion.expectedValue();
         if (enumExpectedType != null && (raw == null || raw.isBlank())) {
             throw unprocessable("Enum expected values require a non-blank constant name");
+        }
+        if (localDateType != null && (raw == null || raw.isBlank() || "null".equals(raw.trim()))) {
+            throw unprocessable("LocalDate expected values must be yyyy-MM-dd");
         }
         if (raw == null || raw.isBlank()) {
             return;
@@ -746,6 +750,12 @@ public class TestcaseRubricService {
             }
             if (node.isNull() || !node.isTextual() || node.asText().isBlank()) {
                 throw unprocessable("Enum expected values require a non-blank constant name");
+            }
+            return;
+        }
+        if (localDateType != null) {
+            if (!isIsoLocalDateNode(node)) {
+                throw unprocessable("LocalDate expected values must be yyyy-MM-dd");
             }
             return;
         }
@@ -777,6 +787,39 @@ public class TestcaseRubricService {
             return memberIds.isEnumTypeName(returnType) ? returnType : null;
         }
         return null;
+    }
+
+    private String localDateExpectedType(AssertionStructureDTO assertion,
+                                         InvocationStructureDTO step,
+                                         ChallengeMemberIds memberIds) {
+        if (assertion.assertionKind() == AssertionKind.FIELD_STATE && assertion.fieldId() != null) {
+            String dataType = memberIds.fieldDataTypeById().get(assertion.fieldId());
+            return isLocalDateType(dataType) ? dataType : null;
+        }
+        if (assertion.assertionKind() == AssertionKind.RETURN_VALUE
+                && step != null
+                && step.invocationKind() == InvocationKind.METHOD) {
+            String returnType = memberIds.methodReturnTypeById().get(step.methodId());
+            return isLocalDateType(returnType) ? returnType : null;
+        }
+        return null;
+    }
+
+    private static boolean isLocalDateType(String typeName) {
+        String simple = coreTypeName(typeName);
+        return "LocalDate".equals(simple);
+    }
+
+    private static boolean isIsoLocalDateNode(JsonNode node) {
+        if (node == null || node.isNull() || !node.isTextual()) {
+            return false;
+        }
+        String text = node.asText() == null ? "" : node.asText().trim();
+        try {
+            return java.time.LocalDate.parse(text).toString().equals(text);
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private void validateObjectCheck(TestcaseType testcaseType,
@@ -863,6 +906,10 @@ public class TestcaseRubricService {
                         || !element.isTextual()
                         || element.asText().isBlank()) {
                     throw unprocessable("Enum arguments require a non-blank constant name");
+                }
+            } else if (paramType != null && isLocalDateType(paramType) && !isArrayOrListType(paramType)) {
+                if (!isIsoLocalDateNode(element)) {
+                    throw unprocessable("LocalDate arguments must be yyyy-MM-dd");
                 }
             } else if (paramType != null
                     && memberIds.isOrdinaryRubricClassType(paramType)

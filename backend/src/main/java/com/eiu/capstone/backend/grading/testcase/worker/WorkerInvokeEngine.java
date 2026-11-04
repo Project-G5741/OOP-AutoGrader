@@ -501,6 +501,9 @@ public final class WorkerInvokeEngine {
         if (type.isArray()) {
             return acceptsLiteralDefaultArg(type.getComponentType(), loader);
         }
+        if (type == java.time.LocalDate.class) {
+            return true;
+        }
         if (loader != null && type.getClassLoader() == loader) {
             return false;
         }
@@ -534,6 +537,9 @@ public final class WorkerInvokeEngine {
         }
         if (type.isArray()) {
             return Array.newInstance(type.getComponentType(), 0);
+        }
+        if (type == java.time.LocalDate.class) {
+            return null;
         }
         return null;
     }
@@ -733,6 +739,7 @@ public final class WorkerInvokeEngine {
             return isLiteralArray(value);
         }
         return type.isEnum()
+                || type == java.time.LocalDate.class
                 || type == String.class
                 || type == Integer.class
                 || type == Long.class
