@@ -110,7 +110,10 @@ public class TestcaseRubricAssembler {
                 ? dto.instanceName().trim() : null;
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
             UUID constructorId = dto.constructorId();
-            String className = maps.classNameByConstructorId().get(constructorId);
+            boolean implicitDefault = constructorId == null;
+            String className = implicitDefault
+                    ? maps.classNameByClassId().get(dispatchClassId)
+                    : maps.classNameByConstructorId().get(constructorId);
             int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
             return new InvocationRubric(
                     invocationId,
@@ -119,8 +122,10 @@ public class TestcaseRubricAssembler {
                     null,
                     className,
                     null,
-                    maps.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
-                    dto.params() != null ? dto.params() : "[]",
+                    implicitDefault
+                            ? List.of()
+                            : maps.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
+                    implicitDefault ? "[]" : (dto.params() != null ? dto.params() : "[]"),
                     null,
                     null,
                     List.of(),

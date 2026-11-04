@@ -3,11 +3,10 @@
 -- Counts: challenge 1 → 4, 2 → 4, 3 → 8, 4 → 10, 5 → 10.
 --
 -- Re-run replaces operational testcases for this lab only (submission OT rows
--- for those testcases cascade). It also inserts four public no-arg constructors
--- (is_default) for MocCauTea, DinhNgocTraTea, LotusTea, and JasmineTea when
--- missing. Composition can only call constructors that exist on the rubric, and
--- those classes are specified with no parameters, so the compiler-generated
--- constructor already satisfies Declaration grading.
+-- for those testcases cascade). Concrete teas are constructed with the
+-- Composition default constructor (dispatch_class_id, no rubric constructor).
+-- Any public no-arg constructors previously inserted for those four classes
+-- are removed so Structure can stay without them.
 --
 -- Each testcase asserts a different method or constructor. A composition may
 -- still construct the receiver as setup; that setup is not a separate testcase.
@@ -42,22 +41,14 @@
 
 BEGIN;
 
--- Concrete teas have no rubric constructor. Composition needs one.
-INSERT INTO constructor_declaration (id, name, scope, is_default)
-VALUES
-    ('a4e10001-0001-4000-8000-000000000001', 'MocCauTea', 1, true),
-    ('a4e10001-0001-4000-8000-000000000003', 'DinhNgocTraTea', 1, true),
-    ('a4e10001-0001-4000-8000-000000000005', 'LotusTea', 1, true),
-    ('a4e10001-0001-4000-8000-000000000007', 'JasmineTea', 1, true)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO constructor (id, class_id, constructor_declaration_id, name)
-VALUES
-    ('a4e10001-0001-4000-8000-000000000002', '0025c54f-e441-4d23-a3e5-944f53046283', 'a4e10001-0001-4000-8000-000000000001', 'MocCauTea'),
-    ('a4e10001-0001-4000-8000-000000000004', 'bef41e57-25fc-4edb-a069-dd1a5d1306f2', 'a4e10001-0001-4000-8000-000000000003', 'DinhNgocTraTea'),
-    ('a4e10001-0001-4000-8000-000000000006', '661ab25f-66ce-4e18-85bf-e740ff6faadd', 'a4e10001-0001-4000-8000-000000000005', 'LotusTea'),
-    ('a4e10001-0001-4000-8000-000000000008', '42e631d5-a8d5-4944-a83a-cf203bef3d5e', 'a4e10001-0001-4000-8000-000000000007', 'JasmineTea')
-ON CONFLICT (id) DO NOTHING;
+ALTER TABLE testcase_invocation DROP CONSTRAINT IF EXISTS testcase_invocation_kind_check;
+ALTER TABLE testcase_invocation ADD CONSTRAINT testcase_invocation_kind_check CHECK (
+    (invocation_kind = 'CONSTRUCTOR' AND method_id IS NULL AND (
+        constructor_id IS NOT NULL
+        OR (constructor_id IS NULL AND dispatch_class_id IS NOT NULL)
+    ))
+    OR (invocation_kind = 'METHOD' AND method_id IS NOT NULL AND constructor_id IS NULL)
+);
 
 DELETE FROM testcase t
 USING challenge c
@@ -594,11 +585,11 @@ BEGIN
     VALUES (gen_random_uuid(), 'c5096bc4-cda0-4cb0-bee5-be3b914ba813', 'COMPOSITION',
             'Moc Cau order of 1.25 kg includes tea tax', 6, true)
     RETURNING id INTO tc;
-    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, params, receiver_params, order_index, instance_name, repeat_count)
+    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, dispatch_class_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000002',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '0025c54f-e441-4d23-a3e5-944f53046283',
             '[]'::jsonb, '[]'::jsonb, 0, 'moc', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"moc"}, 1.25]'::jsonb, '[]'::jsonb, 1, 'line', 1);
     INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, method_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES (gen_random_uuid(), tc, 'METHOD', '43bde16b-ed16-403a-b6c7-3b7262dfafac',
@@ -611,11 +602,11 @@ BEGIN
     VALUES (gen_random_uuid(), 'c5096bc4-cda0-4cb0-bee5-be3b914ba813', 'COMPOSITION',
             'Two Moc Cau teas are equal', 7, true)
     RETURNING id INTO tc;
-    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, params, receiver_params, order_index, instance_name, repeat_count)
+    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, dispatch_class_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000002',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '0025c54f-e441-4d23-a3e5-944f53046283',
             '[]'::jsonb, '[]'::jsonb, 0, 'left', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000002',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '0025c54f-e441-4d23-a3e5-944f53046283',
             '[]'::jsonb, '[]'::jsonb, 1, 'right', 1);
     INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, method_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES (gen_random_uuid(), tc, 'METHOD', 'cd04e8bf-d83f-4b52-b68b-e320f305eb39',
@@ -629,15 +620,15 @@ BEGIN
     VALUES (gen_random_uuid(), 'c5096bc4-cda0-4cb0-bee5-be3b914ba813', 'COMPOSITION',
             'Ordered items match when the teas match, even if the weight differs', 8, true)
     RETURNING id INTO tc;
-    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, params, receiver_params, order_index, instance_name, repeat_count)
+    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, dispatch_class_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000006',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '661ab25f-66ce-4e18-85bf-e740ff6faadd',
             '[]'::jsonb, '[]'::jsonb, 0, 'lotusA', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000006',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '661ab25f-66ce-4e18-85bf-e740ff6faadd',
             '[]'::jsonb, '[]'::jsonb, 1, 'lotusB', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"lotusA"}, 0.5]'::jsonb, '[]'::jsonb, 2, 'light', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"lotusB"}, 3.0]'::jsonb, '[]'::jsonb, 3, 'heavy', 1);
     INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, method_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES (gen_random_uuid(), tc, 'METHOD', 'ea1a66b4-467c-4b15-8ecd-03acd8acfe32',
@@ -652,19 +643,19 @@ BEGIN
     VALUES (gen_random_uuid(), 'c5096bc4-cda0-4cb0-bee5-be3b914ba813', 'COMPOSITION',
             'Cart total ignores a null and a duplicate tea', 9, true)
     RETURNING id INTO tc;
-    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, params, receiver_params, order_index, instance_name, repeat_count)
+    INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, constructor_id, dispatch_class_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'c9e1c5ad-cc9f-4c6e-9739-4303aa7a0577',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'c9e1c5ad-cc9f-4c6e-9739-4303aa7a0577', NULL,
             '[]'::jsonb, '[]'::jsonb, 0, 'cart', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000002',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '0025c54f-e441-4d23-a3e5-944f53046283',
             '[]'::jsonb, '[]'::jsonb, 1, 'moc', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', 'a4e10001-0001-4000-8000-000000000008',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', NULL, '42e631d5-a8d5-4944-a83a-cf203bef3d5e',
             '[]'::jsonb, '[]'::jsonb, 2, 'jasmine', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"moc"}, 2.0]'::jsonb, '[]'::jsonb, 3, 'cup', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"moc"}, 10.0]'::jsonb, '[]'::jsonb, 4, 'extra', 1),
-        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50',
+        (gen_random_uuid(), tc, 'CONSTRUCTOR', '7bd247a8-5bfb-4732-9c37-ed52b7e0ff50', NULL,
             '[{"$instance":"jasmine"}, 0.25]'::jsonb, '[]'::jsonb, 5, 'pot', 1);
     INSERT INTO testcase_invocation (id, testcase_id, invocation_kind, method_id, params, receiver_params, order_index, instance_name, repeat_count)
     VALUES
@@ -692,5 +683,28 @@ BEGIN
         RAISE EXCEPTION 'Expected 36 operational testcases for Lab 4';
     END IF;
 END $$;
+
+-- Drop the no-arg tea constructors from the earlier run, after invocations no longer reference them.
+DELETE FROM submission_constructor_result
+WHERE constructor_id IN (
+    'a4e10001-0001-4000-8000-000000000002',
+    'a4e10001-0001-4000-8000-000000000004',
+    'a4e10001-0001-4000-8000-000000000006',
+    'a4e10001-0001-4000-8000-000000000008'
+);
+DELETE FROM constructor
+WHERE id IN (
+    'a4e10001-0001-4000-8000-000000000002',
+    'a4e10001-0001-4000-8000-000000000004',
+    'a4e10001-0001-4000-8000-000000000006',
+    'a4e10001-0001-4000-8000-000000000008'
+);
+DELETE FROM constructor_declaration
+WHERE id IN (
+    'a4e10001-0001-4000-8000-000000000001',
+    'a4e10001-0001-4000-8000-000000000003',
+    'a4e10001-0001-4000-8000-000000000005',
+    'a4e10001-0001-4000-8000-000000000007'
+);
 
 COMMIT;

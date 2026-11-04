@@ -228,8 +228,9 @@ public final class WorkerInvokeEngine {
             try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
                 System.setOut(captured);
                 if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                    Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
-                    Object instance = constructor.newInstance(args);
+                    Object instance = spec.implicitDefaultConstructor()
+                            ? instantiateHiddenReceiver(loader, clazz)
+                            : findConstructor(clazz, parameterTypes, loader).newInstance(args);
                     ObjectFacts facts = describeObject(loader, instance, registry);
                     register(registry, spec.instanceName(), instance);
                     return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);

@@ -766,6 +766,34 @@ class TestcaseRubricServiceTest {
     }
 
     @Test
+    void saveForChallenge_compositionImplicitDefaultConstructor_roundTripsClassWithoutConstructorRow() {
+        UUID stepId = UUID.randomUUID();
+        InvocationStructureDTO construct = new InvocationStructureDTO(
+                stepId,
+                InvocationKind.CONSTRUCTOR,
+                null,
+                null,
+                "[]",
+                null,
+                "[]",
+                "car",
+                classId);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(construct),
+                List.of(fieldStateAssertion(UUID.randomUUID(), stepId, speedFieldId, "0")));
+
+        stubChallengeAndMembers();
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        InvocationStructureDTO saved = response.testcases().get(0).invocations().get(0);
+        assertNull(saved.constructorId());
+        assertEquals(classId, saved.dispatchClassId());
+        assertEquals("car", saved.instanceName());
+        assertEquals("[]", saved.params());
+    }
+
+    @Test
     void saveForChallenge_compositionSetupStepsWithoutAssertions_saves() {
         UUID firstCtorId = UUID.randomUUID();
         UUID secondCtorId = UUID.randomUUID();

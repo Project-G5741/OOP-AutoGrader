@@ -185,7 +185,11 @@ public final class WorkerIpc {
             String receiverParamsJson,
             String instanceName,
             String dispatchClassName,
-            int repeatCount) {
+            int repeatCount,
+            String constructMode) {
+
+        /** Composition step that builds the object the way a Unit hidden receiver does. */
+        public static final String CONSTRUCT_DEFAULT = "DEFAULT";
 
         public ScenarioStepSpec(
                 String kind,
@@ -209,7 +213,39 @@ public final class WorkerIpc {
                     receiverParamsJson,
                     instanceName,
                     dispatchClassName,
-                    1);
+                    1,
+                    null);
+        }
+
+        public ScenarioStepSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                String instanceName,
+                String dispatchClassName,
+                int repeatCount) {
+            this(
+                    kind,
+                    className,
+                    methodName,
+                    parameterTypes,
+                    paramsJson,
+                    receiverClassName,
+                    receiverParameterTypes,
+                    receiverParamsJson,
+                    instanceName,
+                    dispatchClassName,
+                    repeatCount,
+                    null);
+        }
+
+        public boolean implicitDefaultConstructor() {
+            return CONSTRUCT_DEFAULT.equals(constructMode);
         }
     }
 

@@ -613,12 +613,12 @@ public class TestcaseRubricService {
                 namedCount = registerName(name, usedNames, namedCount);
                 validateArgs(
                         step.params(),
-                        memberIds.paramTypesByConstructorId().getOrDefault(step.constructorId(), List.of()),
+                        paramTypesFor(step, memberIds),
                         named,
                         true,
                         memberIds,
                         "Invocation params");
-                named.put(name, memberIds.classNameByConstructorId().get(step.constructorId()));
+                named.put(name, producedConstructorType(step, memberIds));
             } else if (step.invocationKind() == InvocationKind.METHOD) {
                 boolean isStatic = isStaticMethod(step.methodId(), memberIds);
                 String name = blankToNull(step.instanceName());
@@ -850,9 +850,16 @@ public class TestcaseRubricService {
                                     ChallengeMemberIds memberIds,
                                     boolean unit) {
         if (invocation.invocationKind() == InvocationKind.CONSTRUCTOR) {
-            validateConstructorRef(invocation.constructorId(), memberIds);
             if (invocation.methodId() != null) {
                 throw unprocessable("CONSTRUCTOR invocation must not set methodId");
+            }
+            if (invocation.constructorId() != null) {
+                validateConstructorRef(invocation.constructorId(), memberIds);
+                if (invocation.dispatchClassId() != null) {
+                    throw unprocessable("A rubric constructor step cannot also name a default-constructor class");
+                }
+            } else {
+                validateImplicitDefaultConstructor(invocation, memberIds, unit);
             }
         } else if (invocation.invocationKind() == InvocationKind.METHOD) {
             if (invocation.methodId() == null || !memberIds.methodIds().contains(invocation.methodId())) {
@@ -1026,9 +1033,42 @@ public class TestcaseRubricService {
 
     private List<String> paramTypesFor(InvocationStructureDTO step, ChallengeMemberIds memberIds) {
         if (step.invocationKind() == InvocationKind.CONSTRUCTOR) {
+            if (step.constructorId() == null) {
+                return List.of();
+            }
             return memberIds.paramTypesByConstructorId().getOrDefault(step.constructorId(), List.of());
         }
         return memberIds.paramTypesByMethodId().getOrDefault(step.methodId(), List.of());
+    }
+
+    private String producedConstructorType(InvocationStructureDTO step, ChallengeMemberIds memberIds) {
+        if (step.constructorId() != null) {
+            return memberIds.classNameByConstructorId().get(step.constructorId());
+        }
+        return memberIds.classNameByClassId().get(step.dispatchClassId());
+    }
+
+    private void validateImplicitDefaultConstructor(InvocationStructureDTO invocation,
+                                                    ChallengeMemberIds memberIds,
+                                                    boolean unit) {
+        if (unit) {
+            throw unprocessable("UNIT requires a rubric constructor");
+        }
+        if (invocation.dispatchClassId() == null
+                || !memberIds.classIds().contains(invocation.dispatchClassId())) {
+            throw unprocessable("Default constructor requires a class in this challenge");
+        }
+        String className = memberIds.classNameByClassId().get(invocation.dispatchClassId());
+        if (className != null && memberIds.enumClassNames().contains(coreTypeName(className))) {
+            throw unprocessable("ENUM classes cannot use a default constructor step");
+        }
+        JsonNode params = parseJsonNode(
+                invocation.params() == null || invocation.params().isBlank() ? "[]" : invocation.params(),
+                "Invocation params",
+                true);
+        if (!params.isEmpty()) {
+            throw unprocessable("A default constructor step takes no arguments");
+        }
     }
 
     private boolean isStaticMethod(UUID methodId, ChallengeMemberIds memberIds) {
@@ -1194,10 +1234,16 @@ public class TestcaseRubricService {
                         ? 1
                         : normalizedRepeatCount(dto.repeatCount()));
         if (dto.invocationKind() == InvocationKind.CONSTRUCTOR) {
-            invocation.setConstructor(requireConstructor(dto.constructorId(), memberIds));
             invocation.setMethod(null);
             invocation.setReceiverConstructor(null);
-            invocation.setDispatchClass(null);
+            if (dto.constructorId() != null) {
+                invocation.setConstructor(requireConstructor(dto.constructorId(), memberIds));
+                invocation.setDispatchClass(null);
+            } else {
+                invocation.setConstructor(null);
+                invocation.setDispatchClass(requireClass(dto.dispatchClassId(), memberIds));
+                invocation.setParams("[]");
+            }
         } else {
             invocation.setMethod(requireMethod(dto.methodId(), memberIds));
             invocation.setConstructor(null);
@@ -1483,6 +1529,7 @@ public class TestcaseRubricService {
                     rubricClassNames,
                     enumClassNames,
                     classIdByName,
+                    classNameByClassId,
                     heritageChildrenByParentId,
                     classNameByConstructorId,
                     classIdByMethodId,
@@ -1518,6 +1565,7 @@ public class TestcaseRubricService {
                 Set.of(),
                 Set.of(),
                 Set.of(),
+                Map.of(),
                 Map.of(),
                 Map.of(),
                 Map.of(),
@@ -1639,6 +1687,7 @@ public class TestcaseRubricService {
             Set<String> rubricClassNames,
             Set<String> enumClassNames,
             Map<String, UUID> classIdByName,
+            Map<UUID, String> classNameByClassId,
             Map<UUID, Set<UUID>> heritageChildrenByParentId,
             Map<UUID, String> classNameByConstructorId,
             Map<UUID, UUID> classIdByMethodId,

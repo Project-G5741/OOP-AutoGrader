@@ -287,7 +287,7 @@ export function validateTestcaseForDryRun(tc, catalog) {
     const step = steps[i];
     const label = composition ? `Step ${i + 1}` : 'Testcase';
     if (step.invocationKind === 'CONSTRUCTOR') {
-      if (!step.constructorId) {
+      if (!step.constructorId && !isImplicitDefaultConstructor(step)) {
         return `${label}: choose a constructor.`;
       }
     } else if (!step.methodId) {
@@ -699,10 +699,22 @@ export function buildMemberCatalog(
     }
   });
 
+  const classNameById = new Map();
+  const concreteClasses = [];
+  classes.forEach((cls) => {
+    if (!cls?.id || !cls.name) return;
+    classNameById.set(cls.id, cls.name);
+    if (isConcreteRubricClass(cls, declaringTypeOptions)) {
+      concreteClasses.push({ id: cls.id, name: cls.name });
+    }
+  });
+
   return {
     classNames,
     enumClassNames,
     classIdByName,
+    classNameById,
+    concreteClasses,
     childrenByParentId,
     noArgClassIds,
     constructors,
@@ -793,8 +805,39 @@ export function applyUnitTarget(step, key, catalog) {
   };
 }
 
+export const IMPLICIT_DEFAULT_PREFIX = 'default:';
+
+export function implicitDefaultConstructorKey(classId) {
+  return `${IMPLICIT_DEFAULT_PREFIX}${classId}`;
+}
+
+export function isImplicitDefaultConstructor(step) {
+  return step?.invocationKind === 'CONSTRUCTOR' && !step.constructorId && Boolean(step.dispatchClassId);
+}
+
+export function implicitDefaultConstructorOptions(catalog) {
+  return (catalog?.concreteClasses || []).filter((cls) => !catalog.noArgClassIds?.has(cls.id));
+}
+
+export function constructorClassName(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.className || null;
+  }
+  return catalog.classNameById?.get(step.dispatchClassId) || null;
+}
+
+export function constructorClassId(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+  }
+  return step.dispatchClassId || null;
+}
+
 export function stepParameters(step, catalog) {
   if (step?.invocationKind === 'CONSTRUCTOR') {
+    if (isImplicitDefaultConstructor(step)) return [];
     return catalog.constructorsById.get(step.constructorId)?.parameters || [];
   }
   return catalog.methodsById.get(step.methodId)?.parameters || [];
@@ -951,7 +994,7 @@ export function isObjectReturnStep(step, catalog) {
 export function resultClassName(step, catalog) {
   if (!step) return null;
   if (step.invocationKind === 'CONSTRUCTOR') {
-    return catalog.constructorsById.get(step.constructorId)?.className || null;
+    return constructorClassName(step, catalog);
   }
   const method = catalog.methodsById.get(step.methodId);
   return method ? coreTypeName(method.returnType) : null;
@@ -970,7 +1013,7 @@ export function classIdForClassName(className, catalog) {
 function fieldOwnerClassIdsForStep(step, catalog) {
   if (!step) return [];
   if (step.invocationKind === 'CONSTRUCTOR') {
-    const classId = catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+    const classId = constructorClassId(step, catalog);
     return classId ? [classId] : [];
   }
   const method = catalog.methodsById.get(step.methodId);
@@ -1016,9 +1059,8 @@ export function namedInstancesBefore(steps, catalog, index) {
     const name = step.instanceName?.trim();
     if (!name || used.has(name)) return;
     if (step.invocationKind === 'CONSTRUCTOR') {
-      const ctor = catalog.constructorsById.get(step.constructorId);
       used.add(name);
-      named.push({ name, className: ctor?.className || '' });
+      named.push({ name, className: constructorClassName(step, catalog) || '' });
       return;
     }
     const method = catalog.methodsById.get(step.methodId);
