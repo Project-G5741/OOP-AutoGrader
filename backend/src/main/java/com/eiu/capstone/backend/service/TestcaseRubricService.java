@@ -921,7 +921,9 @@ public class TestcaseRubricService {
             } else if (paramType != null
                     && memberIds.isOrdinaryRubricClassType(paramType)
                     && !isArrayOrListType(paramType)) {
-                throw unprocessable("Rubric-class arguments must be named instances");
+                if (element != null && !element.isNull()) {
+                    throw unprocessable("Rubric-class arguments must be named instances");
+                }
             }
         }
     }

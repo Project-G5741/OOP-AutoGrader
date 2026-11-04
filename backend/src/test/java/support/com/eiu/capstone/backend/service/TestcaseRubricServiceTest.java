@@ -794,6 +794,39 @@ class TestcaseRubricServiceTest {
     }
 
     @Test
+    void saveForChallenge_compositionNullRubricClassArgument_saves() {
+        UUID addId = UUID.randomUUID();
+        UUID ctorStepId = UUID.randomUUID();
+        UUID addStepId = UUID.randomUUID();
+        Method add = instanceMethod(addId, classEntity, "add", "void");
+        Parameter item = methodParam(add, "item", "Car", 0);
+        InvocationStructureDTO construct = constructorInvocation(ctorStepId, "cart", "[]");
+        InvocationStructureDTO call = new InvocationStructureDTO(
+                addStepId,
+                InvocationKind.METHOD,
+                null,
+                addId,
+                "[null]",
+                null,
+                "[]",
+                "cart",
+                null);
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(construct, call),
+                List.of(stdoutAssertion(UUID.randomUUID(), addStepId, "\"\"")));
+
+        stubChallengeAndMembers();
+        stubExtraMembers(List.of(classEntity), List.of(constructor), List.of(method, add), List.of());
+        when(methodRepository.findById(addId)).thenReturn(Optional.of(add));
+        when(parameterRepository.findByMethodIn(any())).thenReturn(List.of(item));
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals("[null]", response.testcases().get(0).invocations().get(1).params());
+    }
+
+    @Test
     void saveForChallenge_compositionSetupStepsWithoutAssertions_saves() {
         UUID firstCtorId = UUID.randomUUID();
         UUID secondCtorId = UUID.randomUUID();
