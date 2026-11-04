@@ -645,6 +645,51 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void compositionImplicitDefault_prefersNoArgThenShortestConstructor() throws Exception {
+        WorkerIpc.ScenarioStepSpec car = new WorkerIpc.ScenarioStepSpec(
+                "CONSTRUCTOR",
+                "Car",
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                null,
+                "car",
+                null,
+                1,
+                WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT);
+        SerializedInvocationOutcome carResult = engine.scenario(classesDir, List.of(car), List.of("speed"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, carResult.kind(), carResult.errorMessage());
+        assertEquals("0", carResult.steps().get(0).fieldSnapshotsJson().get("speed"));
+
+        Path dir = compileSources(Map.of(
+                "Tea.java", """
+                        public class Tea {
+                            private String name;
+                            public Tea() { this.name = "plain"; }
+                            public Tea(String name) { this.name = name; }
+                        }
+                        """));
+        WorkerIpc.ScenarioStepSpec tea = new WorkerIpc.ScenarioStepSpec(
+                "CONSTRUCTOR",
+                "Tea",
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                null,
+                "cup",
+                null,
+                1,
+                WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT);
+        SerializedInvocationOutcome teaResult = engine.scenario(dir, List.of(tea), List.of("name"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, teaResult.kind(), teaResult.errorMessage());
+        assertEquals("\"plain\"", teaResult.steps().get(0).fieldSnapshotsJson().get("name"));
+    }
+
+    @Test
     void scenario_hiddenReceiverMethodRepeat_runsOnSameInstance() {
         WorkerIpc.ScenarioStepSpec step = new WorkerIpc.ScenarioStepSpec(
                 "METHOD",

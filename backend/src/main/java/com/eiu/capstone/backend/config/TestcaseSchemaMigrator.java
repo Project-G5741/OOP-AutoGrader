@@ -43,6 +43,29 @@ public class TestcaseSchemaMigrator {
         }
         ensureKeptScenarioColumns();
         ensureComparisonModeEnum();
+        ensureImplicitDefaultConstructorCheck();
+    }
+
+    /**
+     * A Composition constructor step may omit {@code constructor_id} when
+     * {@code dispatch_class_id} names the class to build with the Unit hidden-receiver rule.
+     */
+    private void ensureImplicitDefaultConstructorCheck() {
+        if (!tableExists("testcase_invocation")) {
+            return;
+        }
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase_invocation DROP CONSTRAINT IF EXISTS testcase_invocation_kind_check
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE testcase_invocation ADD CONSTRAINT testcase_invocation_kind_check CHECK (
+                    (invocation_kind = 'CONSTRUCTOR' AND method_id IS NULL AND (
+                        constructor_id IS NOT NULL
+                        OR (constructor_id IS NULL AND dispatch_class_id IS NOT NULL)
+                    ))
+                    OR (invocation_kind = 'METHOD' AND method_id IS NOT NULL AND constructor_id IS NULL)
+                )
+                """);
     }
 
     private void ensureComparisonModeEnum() {

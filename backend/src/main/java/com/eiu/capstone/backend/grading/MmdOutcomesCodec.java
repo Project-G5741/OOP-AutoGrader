@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -35,7 +36,19 @@ public final class MmdOutcomesCodec {
             return null;
         }
         try {
-            Document doc = MAPPER.readValue(json, Document.class);
+            JsonNode node = MAPPER.readTree(json);
+            // H2 JSON + setString stores a JSON *string* (quoted document). Unwrap once.
+            if (node != null && node.isTextual()) {
+                String inner = node.asText();
+                if (inner == null || inner.isBlank()) {
+                    return null;
+                }
+                node = MAPPER.readTree(inner);
+            }
+            if (node == null || !node.isObject()) {
+                return null;
+            }
+            Document doc = MAPPER.treeToValue(node, Document.class);
             return doc == null ? null : doc.toOutcome();
         } catch (Exception e) {
             return null;

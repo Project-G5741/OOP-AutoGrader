@@ -367,8 +367,11 @@ public class LabRubricService {
                 ? context.classNameByClassId().get(dispatchClassId) : null;
         String instanceName = invocation.getInstanceName();
         if (invocation.getInvocationKind() == InvocationKind.CONSTRUCTOR) {
-            UUID constructorId = invocation.getConstructor().getId();
-            String className = context.classNameByConstructorId().get(constructorId);
+            boolean implicitDefault = invocation.getConstructor() == null;
+            UUID constructorId = implicitDefault ? null : invocation.getConstructor().getId();
+            String className = implicitDefault
+                    ? dispatchClassName
+                    : context.classNameByConstructorId().get(constructorId);
             return new InvocationRubric(
                     invocation.getId(),
                     invocation.getInvocationKind(),
@@ -376,8 +379,10 @@ public class LabRubricService {
                     null,
                     className,
                     null,
-                    context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
-                    invocation.getParams(),
+                    implicitDefault
+                            ? List.of()
+                            : context.paramTypesByConstructorId().getOrDefault(constructorId, List.of()),
+                    implicitDefault ? "[]" : invocation.getParams(),
                     null,
                     null,
                     List.of(),

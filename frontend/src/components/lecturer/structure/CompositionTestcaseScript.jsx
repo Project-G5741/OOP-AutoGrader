@@ -6,6 +6,9 @@ import {
   allowedAssertionKinds,
   callAsOptionsForReceiver,
   compositionNameRole,
+  implicitDefaultConstructorKey,
+  implicitDefaultConstructorOptions,
+  isImplicitDefaultConstructor,
   defaultExpectedValue,
   emptyAssertion,
   displayStepParameters,
@@ -77,9 +80,23 @@ function CompositionStepEditor({
             Constructor
             <select
               className={FIELD_CLASS}
-              value={step.constructorId || ''}
+              value={
+                step.constructorId
+                  || (isImplicitDefaultConstructor(step) ? implicitDefaultConstructorKey(step.dispatchClassId) : '')
+              }
               onChange={(e) => {
-                const constructorId = e.target.value || null;
+                const selected = e.target.value || '';
+                if (selected.startsWith('default:')) {
+                  onChange({
+                    ...step,
+                    constructorId: null,
+                    methodId: null,
+                    dispatchClassId: selected.slice('default:'.length),
+                    params: '[]',
+                  });
+                  return;
+                }
+                const constructorId = selected || null;
                 const ctor = catalog.constructorsById.get(constructorId);
                 onChange({
                   ...step,
@@ -90,6 +107,11 @@ function CompositionStepEditor({
               }}
             >
               <option value="">Select constructor</option>
+              {implicitDefaultConstructorOptions(catalog).map((cls) => (
+                <option key={implicitDefaultConstructorKey(cls.id)} value={implicitDefaultConstructorKey(cls.id)}>
+                  {`${cls.name}() — default`}
+                </option>
+              ))}
               {catalog.constructors.map((opt) => (
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}

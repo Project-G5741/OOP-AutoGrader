@@ -108,6 +108,9 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-28-field-declaration-modifiers.sql` | Operator-run: `field_declaration.is_static` and `field_declaration.is_final` (default false). Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-10-28-testcase-invocation-repeat-count.sql` | Operator-run: `testcase_invocation.repeat_count` (default 1). Startup migrator applies the same column on PostgreSQL |
 | `docs/sql/2026-10-22-admin-role.sql` | Operator-run: insert the `ADMIN` role row only (no user, no password). The first Admin account is inserted by an operator |
+| `docs/sql/2026-11-04-lab4-operational-testcases.sql` | Operator-run on Supabase: Lab 4 operational testcases (4/4/8/10/10). Concrete teas use the Composition default constructor and any previously inserted no-arg constructor rows for those classes are removed |
+| `docs/sql/2026-11-04-composition-default-constructor.sql` | Operator-run: `testcase_invocation` may store a Composition default constructor as `dispatch_class_id` with a null `constructor_id`. Startup migrator applies the same check |
+| `docs/sql/2026-11-04-drop-lab4-tea-default-constructors.sql` | Operator-run on Supabase: retarget Lab 4 tea composition steps to the default constructor and delete the four inserted no-arg constructor rows |
 
 ### Project facts
 

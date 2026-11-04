@@ -103,6 +103,7 @@ export function defaultFieldStateExpected(field) {
   const type = coreTypeName(field.dataType);
   if (type === 'String' || type === 'char' || type === 'Character') return '""';
   if (type === 'boolean' || type === 'Boolean') return 'false';
+  if (type === 'LocalDate') return '"2024-01-01"';
   return '0';
 }
 
@@ -286,7 +287,7 @@ export function validateTestcaseForDryRun(tc, catalog) {
     const step = steps[i];
     const label = composition ? `Step ${i + 1}` : 'Testcase';
     if (step.invocationKind === 'CONSTRUCTOR') {
-      if (!step.constructorId) {
+      if (!step.constructorId && !isImplicitDefaultConstructor(step)) {
         return `${label}: choose a constructor.`;
       }
     } else if (!step.methodId) {
@@ -318,6 +319,10 @@ export function validateTestcaseForDryRun(tc, catalog) {
       } else if (enumArg) {
         if (value === null || value === undefined || value === '') {
           return `${label}: enter an enum constant name for ${argLabel}.`;
+        }
+      } else if (isLocalDateType(param.dataType)) {
+        if (!isIsoLocalDate(value)) {
+          return `${label}: enter ${argLabel} as yyyy-MM-dd.`;
         }
       } else if (value === null || value === undefined || value === '') {
         return `${label}: enter a value for ${argLabel}.`;
@@ -356,6 +361,20 @@ export function validateTestcaseForDryRun(tc, catalog) {
         }
         if (blank) {
           return 'Each enum field assertion must enter a constant name.';
+        }
+      }
+    }
+    if (assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
+      const field = catalog.fieldsById.get(assertion.fieldId);
+      if (field && isLocalDateType(field.dataType)) {
+        let dateValue = assertion.expectedValue;
+        try {
+          dateValue = JSON.parse(assertion.expectedValue);
+        } catch {
+          // keep the raw text
+        }
+        if (!isIsoLocalDate(dateValue)) {
+          return 'Each date field assertion must be yyyy-MM-dd.';
         }
       }
     }
@@ -400,6 +419,24 @@ export function coreTypeName(typeName) {
   }
   const dot = trimmed.lastIndexOf('.');
   return dot < 0 ? trimmed : trimmed.slice(dot + 1);
+}
+
+const ISO_LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function isLocalDateType(typeName) {
+  return coreTypeName(typeName) === 'LocalDate';
+}
+
+export function isIsoLocalDate(value) {
+  if (typeof value !== 'string' || !ISO_LOCAL_DATE.test(value)) return false;
+  const [, yearText, monthText, dayText] = value.match(ISO_LOCAL_DATE);
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
 }
 
 export function isArrayOrListType(typeName) {
@@ -662,10 +699,22 @@ export function buildMemberCatalog(
     }
   });
 
+  const classNameById = new Map();
+  const concreteClasses = [];
+  classes.forEach((cls) => {
+    if (!cls?.id || !cls.name) return;
+    classNameById.set(cls.id, cls.name);
+    if (isConcreteRubricClass(cls, declaringTypeOptions)) {
+      concreteClasses.push({ id: cls.id, name: cls.name });
+    }
+  });
+
   return {
     classNames,
     enumClassNames,
     classIdByName,
+    classNameById,
+    concreteClasses,
     childrenByParentId,
     noArgClassIds,
     constructors,
@@ -756,8 +805,39 @@ export function applyUnitTarget(step, key, catalog) {
   };
 }
 
+export const IMPLICIT_DEFAULT_PREFIX = 'default:';
+
+export function implicitDefaultConstructorKey(classId) {
+  return `${IMPLICIT_DEFAULT_PREFIX}${classId}`;
+}
+
+export function isImplicitDefaultConstructor(step) {
+  return step?.invocationKind === 'CONSTRUCTOR' && !step.constructorId && Boolean(step.dispatchClassId);
+}
+
+export function implicitDefaultConstructorOptions(catalog) {
+  return (catalog?.concreteClasses || []).filter((cls) => !catalog.noArgClassIds?.has(cls.id));
+}
+
+export function constructorClassName(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.className || null;
+  }
+  return catalog.classNameById?.get(step.dispatchClassId) || null;
+}
+
+export function constructorClassId(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+  }
+  return step.dispatchClassId || null;
+}
+
 export function stepParameters(step, catalog) {
   if (step?.invocationKind === 'CONSTRUCTOR') {
+    if (isImplicitDefaultConstructor(step)) return [];
     return catalog.constructorsById.get(step.constructorId)?.parameters || [];
   }
   return catalog.methodsById.get(step.methodId)?.parameters || [];
@@ -914,7 +994,7 @@ export function isObjectReturnStep(step, catalog) {
 export function resultClassName(step, catalog) {
   if (!step) return null;
   if (step.invocationKind === 'CONSTRUCTOR') {
-    return catalog.constructorsById.get(step.constructorId)?.className || null;
+    return constructorClassName(step, catalog);
   }
   const method = catalog.methodsById.get(step.methodId);
   return method ? coreTypeName(method.returnType) : null;
@@ -933,7 +1013,7 @@ export function classIdForClassName(className, catalog) {
 function fieldOwnerClassIdsForStep(step, catalog) {
   if (!step) return [];
   if (step.invocationKind === 'CONSTRUCTOR') {
-    const classId = catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+    const classId = constructorClassId(step, catalog);
     return classId ? [classId] : [];
   }
   const method = catalog.methodsById.get(step.methodId);
@@ -979,9 +1059,8 @@ export function namedInstancesBefore(steps, catalog, index) {
     const name = step.instanceName?.trim();
     if (!name || used.has(name)) return;
     if (step.invocationKind === 'CONSTRUCTOR') {
-      const ctor = catalog.constructorsById.get(step.constructorId);
       used.add(name);
-      named.push({ name, className: ctor?.className || '' });
+      named.push({ name, className: constructorClassName(step, catalog) || '' });
       return;
     }
     const method = catalog.methodsById.get(step.methodId);

@@ -264,7 +264,10 @@ CREATE TABLE IF NOT EXISTS testcase_invocation (
     CONSTRAINT testcase_invocation_testcase_id_order_index_key
         UNIQUE (testcase_id, order_index),
     CONSTRAINT testcase_invocation_kind_check CHECK (
-        (invocation_kind = 'CONSTRUCTOR' AND constructor_id IS NOT NULL AND method_id IS NULL)
+        (invocation_kind = 'CONSTRUCTOR' AND method_id IS NULL AND (
+            constructor_id IS NOT NULL
+            OR (constructor_id IS NULL AND dispatch_class_id IS NOT NULL)
+        ))
         OR (invocation_kind = 'METHOD' AND method_id IS NOT NULL AND constructor_id IS NULL)
     )
 );

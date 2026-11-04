@@ -228,8 +228,9 @@ public final class WorkerInvokeEngine {
             try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
                 System.setOut(captured);
                 if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                    Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
-                    Object instance = constructor.newInstance(args);
+                    Object instance = spec.implicitDefaultConstructor()
+                            ? instantiateHiddenReceiver(loader, clazz)
+                            : findConstructor(clazz, parameterTypes, loader).newInstance(args);
                     ObjectFacts facts = describeObject(loader, instance, registry);
                     register(registry, spec.instanceName(), instance);
                     return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
@@ -501,6 +502,9 @@ public final class WorkerInvokeEngine {
         if (type.isArray()) {
             return acceptsLiteralDefaultArg(type.getComponentType(), loader);
         }
+        if (type == java.time.LocalDate.class) {
+            return true;
+        }
         if (loader != null && type.getClassLoader() == loader) {
             return false;
         }
@@ -534,6 +538,9 @@ public final class WorkerInvokeEngine {
         }
         if (type.isArray()) {
             return Array.newInstance(type.getComponentType(), 0);
+        }
+        if (type == java.time.LocalDate.class) {
+            return null;
         }
         return null;
     }
@@ -733,6 +740,7 @@ public final class WorkerInvokeEngine {
             return isLiteralArray(value);
         }
         return type.isEnum()
+                || type == java.time.LocalDate.class
                 || type == String.class
                 || type == Integer.class
                 || type == Long.class

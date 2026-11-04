@@ -52,6 +52,9 @@ One of up to three scoring slices per challenge: `.class` reflection / Declarati
 ### Declaration Test
 The Class-tab name for the class grading pillar: the class shell plus fields, methods, and constructors compared to the rubric. A member earns its points only when every graded declaration attribute matches; otherwise it earns none. Distinct from MMD grading and from operational testcases. Lecturer breakdowns for the same pillar are titled Declaration Score.
 
+### Declaration alias lists
+Lecturer-authored ordered lists of acceptable names and datatypes (or return types) on a rubric field, method, or parameter. Matching is Cartesian: the student’s name may be any listed name and the type any listed type. The first entry in each list is the primary used for expected/display; other entries are match-only. Constructor and class names are not aliased. The same lists apply to Declaration Test and MMD. Aliases are never system-generated.
+
 ### Scoring weight
 A positive integer (default 1) that scales how much a challenge, class shell, MMD pillar, or operational-testcase pillar contributes to the next rollup. Lecturers set weights only in Solution Management. Labs have no weight. A testcase has no per-testcase scoring weight. Challenge-level `testcase_weight` affects student totals when the testcase pillar is applicable.
 

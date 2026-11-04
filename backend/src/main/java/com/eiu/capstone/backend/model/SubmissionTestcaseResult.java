@@ -50,16 +50,17 @@ public class SubmissionTestcaseResult {
     @Column(name = "result", nullable = false, length = 64)
     private TestcaseResultStatus result;
 
-    @Column(name = "feedback")
+    @Column(name = "feedback", columnDefinition = "TEXT")
     private String feedback;
 
-    @Column(name = "input_display")
+    /** Composition scripts can exceed Hibernate's default VARCHAR(255); match Postgres TEXT. */
+    @Column(name = "input_display", columnDefinition = "TEXT")
     private String inputDisplay;
 
-    @Column(name = "expected_display")
+    @Column(name = "expected_display", columnDefinition = "TEXT")
     private String expectedDisplay;
 
-    @Column(name = "actual_display")
+    @Column(name = "actual_display", columnDefinition = "TEXT")
     private String actualDisplay;
 
     @Column(name = "created_at", nullable = false)

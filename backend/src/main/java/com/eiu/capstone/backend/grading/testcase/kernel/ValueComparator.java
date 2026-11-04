@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.grading.testcase.kernel;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -18,6 +19,11 @@ public final class ValueComparator {
         }
         if (actual instanceof Number actualNumber && expected instanceof Number expectedNumber) {
             return compareNumbers(actualNumber, expectedNumber, mode);
+        }
+        if (actual instanceof LocalDate || expected instanceof LocalDate) {
+            LocalDate actualDate = asLocalDate(actual);
+            LocalDate expectedDate = asLocalDate(expected);
+            return actualDate != null && actualDate.equals(expectedDate);
         }
         if (actual instanceof String actualText && expected instanceof String expectedText) {
             return compareText(actualText, expectedText, mode);
@@ -53,6 +59,23 @@ public final class ValueComparator {
 
     private static boolean isFloatingPoint(Number value) {
         return value instanceof Float || value instanceof Double;
+    }
+
+    /** Field snapshots store a LocalDate as its ISO text. */
+    private static LocalDate asLocalDate(Object value) {
+        if (value instanceof LocalDate date) {
+            return date;
+        }
+        if (value instanceof String text) {
+            String trimmed = text.trim();
+            try {
+                LocalDate parsed = LocalDate.parse(trimmed);
+                return parsed.toString().equals(trimmed) ? parsed : null;
+            } catch (RuntimeException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static boolean compareText(String actual, String expected, ComparisonMode mode) {

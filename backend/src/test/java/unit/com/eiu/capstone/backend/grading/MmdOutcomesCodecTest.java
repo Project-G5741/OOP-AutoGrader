@@ -61,4 +61,18 @@ class MmdOutcomesCodecTest {
     void fromJson_invalidJson_returnsNull() {
         assertNull(MmdOutcomesCodec.fromJson("{not-json"));
     }
+
+    @Test
+    void fromJson_doubleEncodedJsonString_unwrapsAndRestores() {
+        UUID fieldId = UUID.randomUUID();
+        MmdGradingOutcome original = new MmdGradingOutcome();
+        original.setField(fieldId, true);
+        String objectJson = MmdOutcomesCodec.toJson(original);
+        // Simulate H2 JSON column after setString: a JSON string whose text is the document.
+        String doubleEncoded = "\"" + objectJson.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+
+        MmdGradingOutcome restored = MmdOutcomesCodec.fromJson(doubleEncoded);
+        assertNotNull(restored);
+        assertTrue(restored.isFieldCorrect(fieldId));
+    }
 }

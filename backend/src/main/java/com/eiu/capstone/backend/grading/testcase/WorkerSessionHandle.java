@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
+import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.grading.testcase.transport.WorkerTransport;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 
@@ -392,7 +393,11 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.receiverParamsJson(),
                 invocation.instanceName(),
                 invocation.dispatchClassName(),
-                invocation.effectiveRepeatCount());
+                invocation.effectiveRepeatCount(),
+                invocation.kind() == InvocationKind.CONSTRUCTOR
+                        && invocation.constructorId() == null
+                        ? WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT
+                        : null);
     }
 
     /**

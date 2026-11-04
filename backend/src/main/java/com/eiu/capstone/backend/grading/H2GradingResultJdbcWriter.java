@@ -143,7 +143,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
         }
         String sql = """
                 INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (SubmissionChallengeResult row : challengeRows) {
@@ -152,6 +152,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                 statement.setObject(3, row.getChallenge().getId());
                 statement.setBoolean(4, row.isCorrect());
                 statement.setBigDecimal(5, row.getScore() == null ? BigDecimal.ZERO : row.getScore());
+                // CAST AS JSON: plain setString on a JSON column stores a JSON *string* (double-encoded).
                 statement.setString(6, row.getMmdOutcomes());
                 statement.addBatch();
             }
@@ -276,7 +277,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
         String merge = """
                 MERGE INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
                 KEY (submission_id, challenge_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))
                 """;
         withConnection(dataSource, "Failed to upsert challenge results", connection -> {
             try (PreparedStatement statement = connection.prepareStatement(merge)) {
@@ -304,15 +305,20 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             return;
         }
         UUID submissionId = payload.submissionId();
-        withTransaction(dataSource, "Failed to upsert submission details", connection -> {
+        // Member flags first, own transaction: a long OT display string must not roll back Declaration IDs.
+        withTransaction(dataSource, "Failed to upsert submission member flags", connection -> {
             mergeFlags(connection, submissionId, "submission_field_result", "field_id", payload.fields());
             mergeFlags(connection, submissionId, "submission_method_result", "method_id", payload.methods());
             mergeFlags(connection, submissionId, "submission_constructor_result", "constructor_id",
                     payload.constructors());
             mergeFlags(connection, submissionId, "submission_relation_result", "class_relation_id",
                     payload.relations());
-            mergeTestcases(connection, submissionId, payload.testcases());
         });
+        if (!isEmpty(payload.testcases())) {
+            withTransaction(dataSource, "Failed to upsert submission testcase details", connection -> {
+                mergeTestcases(connection, submissionId, payload.testcases());
+            });
+        }
     }
 
     private static boolean isEmpty(List<?> rows) {
