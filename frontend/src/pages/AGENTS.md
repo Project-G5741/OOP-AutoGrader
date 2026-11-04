@@ -123,11 +123,11 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
 | `GET /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — labs from other quarters not already present in the selected quarter by name (with `termLabel`) |
 | `POST /api/lecturer/terms/{termId}/sync-labs` | `TermManagement.jsx` — body `{ sourceLabIds }` deep-copies into selected quarter |
-| `GET /api/labs/{labId}/challenges/list?studentId=` | `StudentDashboard.jsx` |
-| `GET /api/labs/{labId}/stats?studentId=` | `StudentDashboard.jsx` |
-| `GET /api/labs/{labId}/challenges/{id}/class?studentId=` | `StudentDashboard.jsx` |
-| `GET /api/labs/{labId}/challenges/{id}/mmd?studentId=` | `StudentDashboard.jsx` |
-| `GET /api/labs/{labId}/challenges/{id}/testcases?studentId=` | `StudentDashboard.jsx` |
+| `GET /api/labs/{labId}/challenges/list` | `StudentDashboard.jsx` (principal-scoped; no client `studentId`) |
+| `GET /api/labs/{labId}/stats` | `StudentDashboard.jsx` (`studentId` query only when `user.id` is set) |
+| `GET /api/labs/{labId}/challenges/{id}/class` | `StudentDashboard.jsx` (optional `studentId`; required for thin post-upload sidecar on desktop) |
+| `GET /api/labs/{labId}/challenges/{id}/mmd` | `StudentDashboard.jsx` (same as `/class`) |
+| `GET /api/labs/{labId}/challenges/{id}/testcases` | `StudentDashboard.jsx` (same as `/class`) |
 | `GET /api/lecturer/overview` | `LecturerDashboard.jsx` |
 | `GET /api/lecturer/grade-overview` | `LecturerDashboard.jsx` (`activeNav === 'grading'`) |
 | `GET /api/labs/{labId}/statistics` | `LecturerDashboard.jsx` |

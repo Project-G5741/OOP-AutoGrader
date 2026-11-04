@@ -107,6 +107,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Signed-in web `AppShell` mounts a Feedback FAB (`fixed` bottom-right `z-[90]`, under modals/toast). Login and desktop (`VITE_APP_MODE === 'desktop'`) do not show it. Form: `frontend/src/components/feedback/`.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
+- Student detail GETs (`/class`, `/mmd`, `/testcases`) and lab `/stats` omit `studentId` when `user.id` is missing (desktop `DESKTOP_USER`); the API resolves the local student from the JWT principal. Do not gate those fetches on client `studentId` — thin `lab_result` after upload relies on the sidecar GETs
 
 ## Verification
 

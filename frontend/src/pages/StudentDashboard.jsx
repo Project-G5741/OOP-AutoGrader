@@ -455,14 +455,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [stats.totalSubmissions, selectedLabId]);
 
   const fetchStats = useCallback(async (labId) => {
-    if (!labId || !studentId) {
+    if (!labId) {
       setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       return;
     }
     const generation = statsFetchGenRef.current;
     try {
+      const statsQuery = new URLSearchParams();
+      if (studentId) {
+        statsQuery.set('studentId', studentId);
+      }
+      const statsQs = statsQuery.toString() ? `?${statsQuery.toString()}` : '';
       const statsRes = await apiFetch(
-        `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`,
+        `${API_BASE}/api/labs/${labId}/stats${statsQs}`,
         { headers: authHeaders() },
       );
       if (generation !== statsFetchGenRef.current) return;
@@ -501,7 +506,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     { force = false, submissionId, challengeScores, applyToUi = true } = {},
   ) => {
     const key = challengeCacheKey(challengeId);
-    if (!labId || !key || !studentId) {
+    // Desktop practice has no user.id; the API resolves the local student from the principal.
+    if (!labId || !key) {
       if (applyToUi) {
         setClassData([]);
         setClassNormalizationNotice(null);
@@ -562,11 +568,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
 
     try {
-      const query = new URLSearchParams({ studentId });
+      const query = new URLSearchParams();
+      if (studentId) {
+        query.set('studentId', studentId);
+      }
       if (submissionId) {
         query.set('submissionId', submissionId);
       }
-      const qs = `?${query.toString()}`;
+      const qs = query.toString() ? `?${query.toString()}` : '';
       const [classRes, mmdRes, testcaseRes] = await Promise.all([
         apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
         apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
