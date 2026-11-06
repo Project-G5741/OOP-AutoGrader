@@ -50,19 +50,19 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 | `UploadPanel.jsx` | Static placeholder — **not imported anywhere** |
 
-| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity. ENUM classes edit constants by name only (type and scope stay empty) |
+| `structure/ClassDetailPanel.jsx` | Class Definition editor: members plus optional Extends/Implements pair (shared inheritance/realization row); Outer class stays for nested identity. Field rows include **static** and **final** checkboxes (non-ENUM). ENUM classes edit constants by name only (type and scope stay empty) |
 | `structure/ChallengeDetailPanel.jsx` | Challenge-level tabs: MMD Relations \| Operational Testcases; challenge / class / MMD / testcase pillar weights; **Requires MMD diagram** (`hasMmd`) then **Requires Declaration Test** (`hasClass`) on challenge chrome (no per-testcase weight) |
 | `structure/WeightInput.jsx` | Integer weight field (min 1) for challenge, class, MMD, and operational-testcase pillars |
 | `structure/TestcasesPanel.jsx` | Operational testcase list; **Add new testcase** (default UNIT) plus per-testcase Type dropdown; dry-run I/O, Run all, Save Testcases; shared `normalizeTestcaseForApi` for save and dry-run; list shows lecturer shorthand **Ex** (example, not hidden) or **TS*n*** (hidden) via `lecturerTestcaseShortLabels`; list/editor split is draggable on `lg+`; editor column stays `flex-1 min-w-0` so the panel cannot overflow the viewport |
 | `structure/UnitTestcaseWorksheet.jsx` | Closed Unit canvas: one member picker, scalar params, allowed assertions; no step list, instance names, `$instance`, or equals() |
 | `structure/CompositionTestcaseScript.jsx` | Composition canvas: ordered named-object steps, required names on constructs and static object returns, `$instance` args, optional **Call as** (`dispatchClassId`) on instance-method receivers, optional per-step assertions, equals() |
 | `structure/testcaseAuthoring.js` | Shared empty/hydrate/normalize helpers and member catalog for Unit and Composition; Composition preserves `dispatchClassId`; Unit always nulls it; Call-as ancestor helpers from Extends/Implements |
-| `structure/TestcaseParamFields.jsx` | Per-parameter scalar or `$instance` argument editors |
+| `structure/TestcaseParamFields.jsx` | Per-parameter scalar, ENUM constant-name, or `$instance` argument editors |
 | `structure/TestcaseAssertionFields.jsx` | Assertion kinds; Composition object-return equals() picker; constructors FIELD_STATE + EXCEPTION only |
 | `structure/DryRunResultCard.jsx` | Lecturer dry-run I/O card (input, expected, actual) |
 | `structure/ReferenceJavaFiles.jsx` | Drag/drop or file-picker for reference `.java` sources (dry-run) |
-| `structure/SolutionImportPanel.jsx` | Solution tab: drag/drop or folder picker for nested `.java` / `.mmd` sources; `onImport(selection)` posts via parent; clears selection on success |
-| `structure/LabSchedulingPanel.jsx` | Lab scheduling card: student access, submission deadline, solution import (`onSolutionImport` → `SolutionImportPanel`) |
+| `structure/SolutionImportPanel.jsx` | Solution tab: layout selector (Official, Practice, Midterm); PATCHes lab prefix on layout change; validates folder against layout; `onImport` posts solution structure |
+| `structure/LabSchedulingPanel.jsx` | Two-column scheduling card: **left** — student access, deadline, single **Save**; **right** — `SolutionImportPanel` (layout sets lab prefix) |
 | `structure/MmdRelationsPanel.jsx` | MMD relation editor for selected challenge |
 
 
@@ -76,6 +76,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 
 - `LecturerDashboard.jsx` fetches overview, lab statistics, submitter roster (`GET /api/labs/{labId}/submissions`), per-challenge roster (`GET /api/labs/{labId}/challenges/{challengeId}/students`), and grade overview (`GET /api/lecturer/grade-overview`)
+- Lab Overview **Total Attempts** uses `totalAttempts` (sum of each student's highest `attempt_number` on the lab — lifetime uploads). It does not show remaining `lab_submission` row count or `student_lab_progress.attempts_count` after retention.
 - Overview card click uses `students`, `labs`, and `scoreRows` already on `GET /api/lecturer/overview` (no second request). At-risk rows are `atRisk` (total under 70, missing labs as 0).
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
@@ -84,9 +85,9 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - Lab Student roster and challenge tab roster pagination both count **students who submitted** (lab-level or challenge-graded), page size **5**
 
-- `SubmissionTable` on the lab overview lists submitters only; **Score** is highest lab score; **Attempt** / **Submitted At** are from the latest attempt; when `plagiarismFlagged` is true the Plagiarism column shows one role icon from `plagiarismRole` (`ORIGINAL` or `PLAGIARIZER`) plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY still shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
+- `SubmissionTable` on the lab overview lists students with an on-time score only; **Score** is the stored on-time highest; **Attempt** / **Submitted At** are from that on-time attempt (late uploads do not replace the row); when `plagiarismFlagged` is true the Plagiarism column shows one role icon from `plagiarismRole` (`ORIGINAL` or `PLAGIARIZER`) plus overlap % (same `overlapByStudentAndLab` source as the grade matrix); SUMMARY still shows Submitted / Enrolled / Completion / Plagiarism % (`plagiarismRate` from lab statistics)
 - Lecturer-only `PlagiarismDangerMark`: victim (earlier first submit in lab) = yellow warning; plagiarizer (later first submit) = red warning; lab presence = yellow. Roles are mutually exclusive and use earliest lab submission time (a victim's later re-upload does not flip them to plagiarizer). On the grade matrix, the score is centered first; mark + overlap % (from `GET /api/lecturer/plagiarism/flags` → `overlapByStudentAndLab` / `rolesByStudentAndLab`) sit to the right on one line when flagged. Roster / challenge tables use the same marks in the Plagiarism column. Display-only (no click-to-details). Students are not notified.
-- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer. On the **Score** nav page the matrix grows to fill remaining viewport height (`flex-1` chain from `AppShell` through `DashboardSection`).
+- `GradeOverviewTable` uses two matching `bg-surface` panels with a gutter: identity has no horizontal scroll; labs scroll horizontally; vertical `scrollTop` is synced; one shared pagination footer. On the **Score** nav page the matrix grows to fill remaining viewport height (`flex-1` chain from `AppShell` through `DashboardSection`). Each lab column header places an Official (`default`) or Practice (`outline`) badge above the lab-name sort button, so clicking the badge does not sort. Student, IRN, and Total Score use the same header height. Total is the server Official-only average (`formatNumber` shows `--` when that total is null).
 
 - Student roster supports server-side sort via `sort` query param (`studentName`, `studentCode`, `score`, `attempt`, `submittedAt`); default `studentName,asc`; **clickable column headers** on `SubmissionTable` with dual chevrons (no toolbar sort buttons)
 
@@ -127,6 +128,10 @@ LecturerDashboard
        → DashboardSection (grading overview — lab stats, roster, challenge tabs)
 
        → ExportMenu (overview export)
+
+  → DashboardSection (activeNav === 'ranking')
+
+       → RankingBoard (`src/components/ranking/RankingBoard.jsx`)
 
   → DashboardSection (activeNav === 'score')
 

@@ -149,10 +149,10 @@ export function getChangePasswordErrors(currentPassword, newPassword, confirmPas
   };
 }
 
-export function getUserFormErrors(form, mode) {
+export function getUserFormErrors(form, mode, { allowEmptyRoles = false } = {}) {
   const roleNames = form.roles || [];
   const errors = {
-    roles: roleNames.length ? '' : 'Select at least one role.',
+    roles: roleNames.length || allowEmptyRoles ? '' : 'Select at least one role.',
     studentIrn: '',
     lecturerIrn: '',
     fullname: validateFullName(form.fullname),
@@ -161,12 +161,13 @@ export function getUserFormErrors(form, mode) {
   };
 
   const hasLecturer = roleNames.includes('LECTURER');
-  const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer;
+  const hasAdmin = roleNames.includes('ADMIN');
+  const needsStudentIrn = roleNames.includes('STUDENT') && !hasLecturer && !hasAdmin;
 
   if (needsStudentIrn) {
     errors.studentIrn = validateStudentIrn(form.studentIrn);
   }
-  if (hasLecturer) {
+  if (hasLecturer || hasAdmin) {
     errors.lecturerIrn = validateLecturerCode(form.lecturerIrn);
   }
 

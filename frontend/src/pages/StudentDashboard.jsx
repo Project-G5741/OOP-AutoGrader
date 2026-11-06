@@ -1,20 +1,27 @@
 // StudentDashboard.jsx
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { Clock, Home, Store, Trophy } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
+import StudentRankingPage from './StudentRankingPage';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
+import StudentStreakFlame from '../components/student/StudentStreakFlame';
+import MascotShop from '../components/student/MascotShop';
+import { mascotArt } from '../components/student/studentMascots';
+import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import { useToast } from '../components/ui/Toast';
-import { getAccessToken, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
+import { getAccessToken, hasRole, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
+import { labResultHasCompileError } from '../utils/compileErrors';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -140,10 +147,75 @@ function indexLabResultByChallengeId(labResult, challenges) {
     if (challengeNumber == null) continue;
     const bundle = labResult[`challenge_${challengeNumber}`];
     if (bundle) {
-      indexed[challenge.id] = bundle;
+      indexed[challengeCacheKey(challenge.id)] = bundle;
     }
   }
   return indexed;
+}
+
+function challengeCacheKey(challengeId) {
+  return challengeId == null ? '' : String(challengeId);
+}
+
+/**
+ * Student upload returns scores-only (or Class compile cards). Detail trees load via GET.
+ * OT rows may later be merged into this same cache object without Class/MMD — that must
+ * still count as thin, or the UI reapplies empty Class/MMD and wipes a successful GET.
+ */
+function isThinChallengeBundle(bundle) {
+  if (!bundle) {
+    return true;
+  }
+  const classes = bundle.class ?? [];
+  const mmdClasses = bundle.mmd?.classes ?? (Array.isArray(bundle.mmd) ? bundle.mmd : []);
+  const testcases = bundle.testcases ?? [];
+  const applicability = bundle.scoreApplicability ?? bundle.score_applicability ?? {};
+
+  const classNeeded = applicability.class !== false;
+  const mmdNeeded = applicability.mmd === true;
+  const testcaseNeeded = applicability.testcase === true;
+
+  const classReady = !classNeeded || classes.length > 0;
+  const mmdReady = !mmdNeeded || mmdClasses.length > 0;
+  const testcaseReady = !testcaseNeeded || testcases.length > 0;
+
+  return !(classReady && mmdReady && testcaseReady);
+}
+
+/**
+ * Tab caches are ready only when every applicable pillar has data. Empty [] from a racy
+ * or failed GET must not count as a hit (Declaration score can show while classData is []).
+ */
+function detailCachesReady(challengeId, bundle, classCache, mmdCache, testcaseCache) {
+  const key = challengeCacheKey(challengeId);
+  if (!key) return false;
+  if (!Object.hasOwn(classCache, key)
+      || !Object.hasOwn(mmdCache, key)
+      || !Object.hasOwn(testcaseCache, key)) {
+    return false;
+  }
+  const applicability = bundle?.scoreApplicability ?? bundle?.score_applicability ?? {};
+  const classes = classCache[key] ?? [];
+  const mmdClasses = mmdCache[key]?.classes ?? [];
+  if (applicability.class !== false && classes.length === 0) {
+    return false;
+  }
+  if (applicability.mmd === true && mmdClasses.length === 0) {
+    return false;
+  }
+  return true;
+}
+
+const LAB_RESULT_CACHE_TTL_MS = 60_000;
+
+function pruneExpiredLabResultCache(cacheRef, atRef) {
+  const now = Date.now();
+  for (const challengeId of Object.keys(atRef.current)) {
+    if (now - atRef.current[challengeId] > LAB_RESULT_CACHE_TTL_MS) {
+      delete cacheRef.current[challengeId];
+      delete atRef.current[challengeId];
+    }
+  }
 }
 
 function challengeScoresFromBundles(indexedLabResult) {
@@ -151,7 +223,7 @@ function challengeScoresFromBundles(indexedLabResult) {
   for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
     const total = bundle?.scores?.total;
     if (total != null) {
-      scores[challengeId] = Math.floor(Number(total));
+      scores[challengeCacheKey(challengeId)] = Math.floor(Number(total));
     }
   }
   return scores;
@@ -186,10 +258,89 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const showToast = useToast();
   const navigate = useNavigate();
   const showHistory = view === 'history';
+  const showRanking = view === 'ranking';
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showMascotShop, setShowMascotShop] = useState(false);
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
+  const [streak, setStreak] = useState(null);
+  const [awardPulse, setAwardPulse] = useState(0);
+  const [restoringStreak, setRestoringStreak] = useState(false);
+  const streakSnapshot = useRef(null);
+
+  const applyStreak = useCallback((next) => {
+    const prev = streakSnapshot.current;
+    const awarded = prev && next && next.points > prev.points;
+    const missionJustDone = Boolean(next?.missionCompletedNow) || (prev && next && (
+      (!prev.loggedIn && next.loggedIn)
+      || (prev.submitCount < (prev.submitGoal ?? 3) && next.submitCount >= (next.submitGoal ?? 3))
+      || (prev.petCount < (prev.petGoal ?? 4) && next.petCount >= (next.petGoal ?? 4))
+    ));
+    if (missionJustDone && !awarded) {
+      showToast('Mission complete', 'success');
+    }
+    if (awarded) {
+      const gained = next.points - prev.points;
+      showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
+      setAwardPulse((value) => value + 1);
+    }
+    streakSnapshot.current = next;
+    setStreak(next);
+  }, [showToast]);
+
+  const refreshStreak = useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      applyStreak(await response.json());
+    } catch {
+      /* the dashboard still works when the streak request fails */
+    }
+  }, [applyStreak]);
+
+  useEffect(() => {
+    refreshStreak();
+  }, [refreshStreak]);
+
+  const petFox = useCallback(async () => {
+    const goal = streakSnapshot.current?.petGoal ?? 4;
+    if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/pet`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        return;
+      }
+      applyStreak(await response.json());
+    } catch (error) {
+      showToast(toFriendlyError(error), 'error');
+    }
+  }, [applyStreak, showToast]);
+
+  const restoreStreak = useCallback(async () => {
+    setRestoringStreak(true);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/restore`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        return;
+      }
+      applyStreak(await response.json());
+    } catch (error) {
+      showToast(toFriendlyError(error), 'error');
+    } finally {
+      setRestoringStreak(false);
+    }
+  }, [applyStreak, showToast]);
 
   const [labs, setLabs] = useState([]);
   const [labSummariesById, setLabSummariesById] = useState({});
@@ -212,9 +363,29 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     latestSubmission: null,
   });
   const [nextAttemptNumber, setNextAttemptNumber] = useState(1);
+  const [dailySubmissionQuota, setDailySubmissionQuota] = useState(null);
+
+  const refreshDailySubmissionQuota = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/api/students/daily-submission-quota`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDailySubmissionQuota({
+        usedToday: Number(data.usedToday) || 0,
+        dailyLimit: Number(data.dailyLimit) || 30,
+        remaining: Number(data.remaining) || 0,
+        canSubmit: data.canSubmit !== false,
+      });
+    } catch {
+      /* submit still works; server enforces quota */
+    }
+  }, []);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(
-    () => view !== 'history' && isInCurrentTerm(user?.inCurrentTerm),
+    () => view !== 'history' && view !== 'ranking' && isInCurrentTerm(user?.inCurrentTerm),
   );
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
@@ -227,9 +398,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const mmdDataCacheRef = useRef({});
   const testcaseDataCacheRef = useRef({});
   const labResultCacheRef = useRef({});
+  const labResultCacheAtRef = useRef({});
   const statsFetchGenRef = useRef(0);
   const skipLabReloadRef = useRef(false);
   const challengesByLabRef = useRef({});
+  /** True while post-upload prefetch runs — blocks the challenge-switch effect from a second spinner. */
+  const prefetchingDetailsRef = useRef(false);
 
   const studentId = user?.id;
 
@@ -281,14 +455,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [stats.totalSubmissions, selectedLabId]);
 
   const fetchStats = useCallback(async (labId) => {
-    if (!labId || !studentId) {
+    if (!labId) {
       setStats({ currentGrade: null, totalSubmissions: null, latestSubmission: null });
       return;
     }
     const generation = statsFetchGenRef.current;
     try {
+      const statsQuery = new URLSearchParams();
+      if (studentId) {
+        statsQuery.set('studentId', studentId);
+      }
+      const statsQs = statsQuery.toString() ? `?${statsQuery.toString()}` : '';
       const statsRes = await apiFetch(
-        `${API_BASE}/api/labs/${labId}/stats?studentId=${studentId}`,
+        `${API_BASE}/api/labs/${labId}/stats${statsQs}`,
         { headers: authHeaders() },
       );
       if (generation !== statsFetchGenRef.current) return;
@@ -310,139 +489,166 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   }, [studentId]);
 
+  const applyDetailCachesToState = useCallback((challengeId) => {
+    const key = challengeCacheKey(challengeId);
+    setClassData(classDataCacheRef.current[key] ?? []);
+    setClassNormalizationNotice(classNoticeCacheRef.current[key] ?? null);
+    const parsedMmd = parseMmdResponse(
+        mmdDataCacheRef.current[key] ?? { classes: [], parseError: null });
+    setMmdData(parsedMmd.classes);
+    setMmdParseError(parsedMmd.parseError);
+    setTestCases(testcaseDataCacheRef.current[key] ?? []);
+  }, []);
+
   const fetchChallengeDetails = useCallback(async (
     labId,
     challengeId,
-    { force = false, submissionId, challengeScores } = {},
+    { force = false, submissionId, challengeScores, applyToUi = true } = {},
   ) => {
-    if (!labId || !challengeId || !studentId) {
-      setClassData([]);
-      setClassNormalizationNotice(null);
-      setMmdData([]);
-      setMmdParseError(null);
-      setTestCases([]);
+    const key = challengeCacheKey(challengeId);
+    // Desktop practice has no user.id; the API resolves the local student from the principal.
+    if (!labId || !key) {
+      if (applyToUi) {
+        setClassData([]);
+        setClassNormalizationNotice(null);
+        setMmdData([]);
+        setMmdParseError(null);
+        setTestCases([]);
+      }
       return;
     }
 
     if (!hasSessionChallengeScore(challengeScores, challengeId)) {
-      setClassData([]);
-      setClassNormalizationNotice(null);
-      setMmdData([]);
-      setMmdParseError(null);
-      setTestCases([]);
+      if (applyToUi) {
+        setClassData([]);
+        setClassNormalizationNotice(null);
+        setMmdData([]);
+        setMmdParseError(null);
+        setTestCases([]);
+      }
       return;
     }
 
-    const cachedBundle = !force && labResultCacheRef.current[challengeId];
-    if (cachedBundle) {
-      const bundle = applyCachedBundleToState(
-          cachedBundle,
-          setClassData,
-          setMmdData,
-          setMmdParseError,
-          setTestCases,
-          setClassNormalizationNotice);
-      classDataCacheRef.current[challengeId] = bundle.classData;
-      classNoticeCacheRef.current[challengeId] = bundle.normalizationNotice;
-      mmdDataCacheRef.current[challengeId] = {
+    pruneExpiredLabResultCache(labResultCacheRef, labResultCacheAtRef);
+    const thinBundle = labResultCacheRef.current[key];
+    const cachedBundle = !force && thinBundle;
+    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
+      const bundle = applyChallengeBundle(cachedBundle);
+      classDataCacheRef.current[key] = bundle.classData;
+      classNoticeCacheRef.current[key] = bundle.normalizationNotice;
+      mmdDataCacheRef.current[key] = {
         classes: bundle.mmdData,
         parseError: bundle.mmdParseError,
       };
-      testcaseDataCacheRef.current[challengeId] = bundle.testCases;
+      testcaseDataCacheRef.current[key] = bundle.testCases;
+      if (applyToUi) {
+        applyCachedBundleToState(
+            cachedBundle,
+            setClassData,
+            setMmdData,
+            setMmdParseError,
+            setTestCases,
+            setClassNormalizationNotice);
+      }
       return;
     }
 
-    const cachedClass = !force && classDataCacheRef.current[challengeId];
-    const cachedNotice = !force && Object.hasOwn(classNoticeCacheRef.current, challengeId)
-      ? classNoticeCacheRef.current[challengeId]
-      : null;
-    const cachedMmd = !force && mmdDataCacheRef.current[challengeId];
-    const cachedTestcases = !force && testcaseDataCacheRef.current[challengeId];
-    if (cachedClass && cachedMmd && cachedTestcases) {
-      setClassData(cachedClass);
-      setClassNormalizationNotice(cachedNotice);
-      const parsedMmd = parseMmdResponse(cachedMmd);
-      setMmdData(parsedMmd.classes);
-      setMmdParseError(parsedMmd.parseError);
-      setTestCases(cachedTestcases);
+    const cacheBundle = thinBundle ?? labResultCacheRef.current[key];
+    if (!force && detailCachesReady(
+        key,
+        cacheBundle,
+        classDataCacheRef.current,
+        mmdDataCacheRef.current,
+        testcaseDataCacheRef.current,
+    )) {
+      if (applyToUi) {
+        applyDetailCachesToState(key);
+      }
       return;
     }
 
     try {
-      const query = new URLSearchParams({ studentId });
+      const query = new URLSearchParams();
+      if (studentId) {
+        query.set('studentId', studentId);
+      }
       if (submissionId) {
         query.set('submissionId', submissionId);
       }
-      const qs = `?${query.toString()}`;
+      const qs = query.toString() ? `?${query.toString()}` : '';
       const [classRes, mmdRes, testcaseRes] = await Promise.all([
-        cachedClass
-          ? Promise.resolve({
-              ok: true,
-              json: async () => ({
-                classes: cachedClass,
-                normalizationNotice: classNoticeCacheRef.current[challengeId] ?? null,
-              }),
-            })
-          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
-        cachedMmd
-          ? Promise.resolve({ ok: true, json: async () => cachedMmd })
-          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
-        cachedTestcases
-          ? Promise.resolve({ ok: true, json: async () => cachedTestcases })
-          : apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
+        apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/class${qs}`, { headers: authHeaders() }),
+        apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/mmd${qs}`, { headers: authHeaders() }),
+        apiFetch(`${API_BASE}/api/labs/${labId}/challenges/${challengeId}/testcases${qs}`, { headers: authHeaders() }),
       ]);
 
-      const classJson = classRes.ok ? await classRes.json() : [];
-      const parsedClass = parseClassTabResponse(classJson);
-      const mmdJson = mmdRes.ok ? await mmdRes.json() : { classes: [], parseError: null };
-      const parsedMmd = parseMmdResponse(mmdJson);
-      const testcaseRaw = testcaseRes.ok ? await testcaseRes.json() : [];
+      const classJson = classRes.ok ? await classRes.json() : null;
+      const parsedClass = classJson != null
+        ? parseClassTabResponse(classJson)
+        : { classData: [], normalizationNotice: null };
+      const mmdJson = mmdRes.ok ? await mmdRes.json() : null;
+      const parsedMmd = mmdJson != null
+        ? parseMmdResponse(mmdJson)
+        : { classes: [], parseError: null };
+      const testcaseRaw = testcaseRes.ok ? await testcaseRes.json() : null;
       const testcaseJson = Array.isArray(testcaseRaw) ? testcaseRaw : [];
-      const mappedTestcases = !cachedTestcases
-        ? mergeTestcaseBundle(challengeId, testcaseJson, labResultCacheRef)
-        : cachedTestcases;
+      const mappedTestcases = testcaseRes.ok
+        ? mergeTestcaseBundle(key, testcaseJson, labResultCacheRef)
+        : [];
 
-      if (!cachedClass) {
-        classDataCacheRef.current[challengeId] = parsedClass.classData;
-        classNoticeCacheRef.current[challengeId] = parsedClass.normalizationNotice;
+      // Only cache successful responses — never poison the cache with !ok empties.
+      if (classRes.ok) {
+        classDataCacheRef.current[key] = parsedClass.classData;
+        classNoticeCacheRef.current[key] = parsedClass.normalizationNotice;
+      } else {
+        delete classDataCacheRef.current[key];
+        delete classNoticeCacheRef.current[key];
       }
-      if (!cachedMmd) {
-        mmdDataCacheRef.current[challengeId] = parsedMmd;
+      if (mmdRes.ok) {
+        mmdDataCacheRef.current[key] = parsedMmd;
+      } else {
+        delete mmdDataCacheRef.current[key];
       }
-      if (!cachedTestcases) {
-        testcaseDataCacheRef.current[challengeId] = mappedTestcases;
+      if (testcaseRes.ok) {
+        testcaseDataCacheRef.current[key] = mappedTestcases;
+      } else {
+        delete testcaseDataCacheRef.current[key];
       }
-      setClassData(parsedClass.classData);
-      setClassNormalizationNotice(parsedClass.normalizationNotice);
-      setMmdData(parsedMmd.classes);
-      setMmdParseError(parsedMmd.parseError);
-      setTestCases(mappedTestcases);
-
-      if (!cachedTestcases && mappedTestcases.length > 0) {
-        setSessionResultsByLab((prev) => {
-          const lab = prev[labId];
-          if (!lab) return prev;
-          return {
-            ...prev,
-            [labId]: {
-              ...lab,
-              challengeBundles: {
-                ...(lab.challengeBundles ?? {}),
-                [challengeId]: labResultCacheRef.current[challengeId],
-              },
-            },
-          };
-        });
+      if (applyToUi) {
+        setClassData(classRes.ok ? parsedClass.classData : []);
+        setClassNormalizationNotice(classRes.ok ? parsedClass.normalizationNotice : null);
+        setMmdData(mmdRes.ok ? parsedMmd.classes : []);
+        setMmdParseError(mmdRes.ok ? parsedMmd.parseError : null);
+        setTestCases(testcaseRes.ok ? mappedTestcases : []);
       }
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
-      setClassData([]);
-      setClassNormalizationNotice(null);
-      setMmdData([]);
-      setMmdParseError(null);
-      setTestCases([]);
+      if (applyToUi) {
+        setClassData([]);
+        setClassNormalizationNotice(null);
+        setMmdData([]);
+        setMmdParseError(null);
+        setTestCases([]);
+      }
     }
-  }, [studentId, setSessionResultsByLab]);
+  }, [studentId, applyDetailCachesToState]);
+
+  const prefetchAllChallengeDetails = useCallback(async (
+    labId,
+    challengeList,
+    { submissionId, challengeScores } = {},
+  ) => {
+    const ids = (challengeList ?? [])
+        .map((ch) => ch?.id)
+        .filter((id) => id != null && hasSessionChallengeScore(challengeScores, id));
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((challengeId) => fetchChallengeDetails(labId, challengeId, {
+      force: true,
+      submissionId,
+      challengeScores,
+      applyToUi: false,
+    })));
+  }, [fetchChallengeDetails]);
 
   const fetchLabSummaries = useCallback(async () => {
     const token = getAccessToken();
@@ -470,7 +676,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     async function fetchLabs() {
-      if (showHistory || !inCurrentTerm) {
+      if (showHistory || showRanking || !inCurrentTerm) {
         setLabs([]);
         setIsLoadingLabs(false);
         return;
@@ -480,7 +686,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         if (IS_DESKTOP_APP) {
           await waitForDesktopBootstrap();
         }
-        const res = await apiFetch(`${API_BASE}/api/labs/list`, { headers: authHeaders() });
+        const res = await apiFetch(`${API_BASE}/api/labs/list?scope=student`, { headers: authHeaders() });
         if (!res.ok) {
           throw new Error(await friendlyLoadErrorFromResponse(res));
         }
@@ -498,10 +704,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-    if (!showHistory && inCurrentTerm) {
+    if (!showHistory && !showRanking && inCurrentTerm) {
       fetchLabSummaries();
     }
-  }, [fetchLabSummaries, inCurrentTerm, showHistory]);
+  }, [fetchLabSummaries, inCurrentTerm, showHistory, showRanking]);
 
   useEffect(() => {
     let cancelled = false;
@@ -526,6 +732,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (inCurrentTerm && !showHistory && !showRanking) {
+      refreshDailySubmissionQuota();
+    }
+  }, [inCurrentTerm, showHistory, showRanking, refreshDailySubmissionQuota]);
 
   useEffect(() => {
     if (!selectedLabId) return;
@@ -563,6 +775,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     if (!selectedChallengeId || !selectedLabId || !resultsRevealed) return;
+    // Post-upload prefetch owns loading; avoid a second spinner / duplicate GETs.
+    if (prefetchingDetailsRef.current || isRefreshingResults) return;
 
     const labSession = sessionResultsByLab[selectedLabId];
     const challengeScores = labSession?.challengeScores ?? {};
@@ -575,8 +789,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
 
-    const cachedBundle = labResultCacheRef.current[selectedChallengeId];
-    if (cachedBundle) {
+    const selectedKey = challengeCacheKey(selectedChallengeId);
+    const cachedBundle = labResultCacheRef.current[selectedKey];
+    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -587,16 +802,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
 
-    const cachedClass = classDataCacheRef.current[selectedChallengeId];
-    const cachedMmd = mmdDataCacheRef.current[selectedChallengeId];
-    const cachedTestcases = testcaseDataCacheRef.current[selectedChallengeId];
-    if (cachedClass && cachedMmd && cachedTestcases) {
-      setClassData(cachedClass);
-      setClassNormalizationNotice(classNoticeCacheRef.current[selectedChallengeId] ?? null);
-      const parsedMmd = parseMmdResponse(cachedMmd);
-      setMmdData(parsedMmd.classes);
-      setMmdParseError(parsedMmd.parseError);
-      setTestCases(cachedTestcases);
+    if (detailCachesReady(
+        selectedKey,
+        cachedBundle,
+        classDataCacheRef.current,
+        mmdDataCacheRef.current,
+        testcaseDataCacheRef.current,
+    )) {
+      applyDetailCachesToState(selectedKey);
       return;
     }
 
@@ -604,6 +817,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setIsLoadingDetails(true);
       try {
         await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
+          force: true,
           submissionId: labSession?.submissionId,
           challengeScores,
         });
@@ -618,8 +832,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     selectedLabId,
     selectedChallengeId,
     fetchChallengeDetails,
+    applyDetailCachesToState,
     resultsRevealed,
     sessionResultsByLab,
+    isRefreshingResults,
   ]);
 
   const handleLabChange = (labId) => {
@@ -672,8 +888,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setTestCases([]);
       return;
     }
-    const cachedBundle = labResultCacheRef.current[challengeId];
-    if (cachedBundle) {
+    const key = challengeCacheKey(challengeId);
+    const cachedBundle = labResultCacheRef.current[key];
+    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -683,20 +900,36 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           setClassNormalizationNotice);
       return;
     }
-    const cachedClass = classDataCacheRef.current[challengeId];
-    const cachedMmd = mmdDataCacheRef.current[challengeId];
-    const cachedTestcases = testcaseDataCacheRef.current[challengeId];
-    setClassData(cachedClass ?? []);
-    setClassNormalizationNotice(classNoticeCacheRef.current[challengeId] ?? null);
-    const parsedMmd = parseMmdResponse(cachedMmd ?? { classes: [], parseError: null });
-    setMmdData(parsedMmd.classes);
-    setMmdParseError(parsedMmd.parseError);
-    setTestCases(cachedTestcases ?? []);
+    if (detailCachesReady(
+        key,
+        cachedBundle,
+        classDataCacheRef.current,
+        mmdDataCacheRef.current,
+        testcaseDataCacheRef.current,
+    )) {
+      applyDetailCachesToState(key);
+      return;
+    }
+    if (selectedLabId) {
+      setClassData([]);
+      setClassNormalizationNotice(null);
+      setMmdData([]);
+      setMmdParseError(null);
+      setTestCases([]);
+      const labSession = sessionResultsByLab[selectedLabId];
+      setIsLoadingDetails(true);
+      void fetchChallengeDetails(selectedLabId, challengeId, {
+        force: true,
+        submissionId: labSession?.submissionId,
+        challengeScores,
+      }).finally(() => setIsLoadingDetails(false));
+    }
   };
 
   const handleUploadComplete = async (uploadResponse) => {
     if (!selectedLabId) return;
 
+    refreshDailySubmissionQuota();
     skipLabReloadRef.current = true;
     statsFetchGenRef.current += 1;
     const reportedTotal = uploadResponse?.totalSubmissions;
@@ -730,17 +963,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const score = uploadResponse?.score != null
       ? Math.floor(Number(uploadResponse.score))
       : null;
-    showToast({
-      message: score != null
-        ? `Grading complete. Your score: ${score}/100`
-        : 'Grading completed successfully.',
-      type: 'success',
-    });
 
     const resultMap = uploadResponse?.challengeResult ?? {};
     const submissionId = uploadResponse?.submissionId ?? null;
 
     const labResult = uploadResponse?.lab_result ?? uploadResponse?.labResult ?? null;
+
+    const scoreToast = {
+      message: score != null
+        ? `Grading complete. Your score: ${score}/100`
+        : 'Grading completed successfully.',
+      type: 'success',
+    };
+    void refreshStreak();
     const indexedLabResult = indexLabResultByChallengeId(labResult, challenges);
     const challengeScores = {
       ...normalizeChallengeScores(resultMap),
@@ -763,6 +998,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     mmdDataCacheRef.current = {};
     testcaseDataCacheRef.current = {};
     labResultCacheRef.current = indexedLabResult;
+    const stampedAt = Date.now();
+    labResultCacheAtRef.current = Object.fromEntries(
+      Object.keys(indexedLabResult).map((id) => [id, stampedAt]),
+    );
 
     setSessionResultsByLab((prev) => ({
       ...prev,
@@ -795,35 +1034,35 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       prev.includes(selectedLabId) ? prev : [...prev, selectedLabId]
     );
 
+    prefetchingDetailsRef.current = true;
     setIsRefreshingResults(true);
+    setIsLoadingDetails(false);
     try {
+      const needsSidecar = Object.values(indexedLabResult).some((bundle) => isThinChallengeBundle(bundle));
+      if (needsSidecar) {
+        await prefetchAllChallengeDetails(selectedLabId, challenges, {
+          submissionId,
+          challengeScores,
+        });
+      } else {
+        for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
+          if (!bundle || isThinChallengeBundle(bundle)) continue;
+          const key = challengeCacheKey(challengeId);
+          const applied = applyChallengeBundle(bundle);
+          classDataCacheRef.current[key] = applied.classData;
+          classNoticeCacheRef.current[key] = applied.normalizationNotice;
+          mmdDataCacheRef.current[key] = {
+            classes: applied.mmdData,
+            parseError: applied.mmdParseError,
+          };
+          testcaseDataCacheRef.current[key] = applied.testCases;
+        }
+      }
       if (
         selectedChallengeId
         && hasSessionChallengeScore(challengeScores, selectedChallengeId)
       ) {
-        const cachedBundle = indexedLabResult[selectedChallengeId];
-        if (cachedBundle) {
-          const bundle = applyCachedBundleToState(
-              cachedBundle,
-              setClassData,
-              setMmdData,
-              setMmdParseError,
-              setTestCases,
-              setClassNormalizationNotice);
-          classDataCacheRef.current[selectedChallengeId] = bundle.classData;
-          classNoticeCacheRef.current[selectedChallengeId] = bundle.normalizationNotice;
-          mmdDataCacheRef.current[selectedChallengeId] = {
-            classes: bundle.mmdData,
-            parseError: bundle.mmdParseError,
-          };
-          testcaseDataCacheRef.current[selectedChallengeId] = bundle.testCases;
-        } else {
-          await fetchChallengeDetails(selectedLabId, selectedChallengeId, {
-            force: true,
-            submissionId,
-            challengeScores,
-          });
-        }
+        applyDetailCachesToState(challengeCacheKey(selectedChallengeId));
       } else {
         setClassData([]);
         setClassNormalizationNotice(null);
@@ -832,19 +1071,67 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         setTestCases([]);
       }
     } finally {
+      prefetchingDetailsRef.current = false;
       setIsRefreshingResults(false);
     }
+    if (labResultHasCompileError(labResult)) {
+      showToast([scoreToast, { message: 'Compilation Error', type: 'error' }]);
+    } else {
+      showToast(scoreToast);
+    }
   };
+
+  const studentNavItems = useMemo(() => {
+    const items = [];
+    if (inCurrentTerm) {
+      items.push({ id: 'home', label: 'Home', icon: Home });
+    }
+    items.push({ id: 'history', label: 'History', icon: Clock });
+    if (!IS_DESKTOP_APP && inCurrentTerm) {
+      items.push({ id: 'ranking', label: 'Ranking', icon: Trophy });
+    }
+    return items;
+  }, [inCurrentTerm]);
+
+  const activeNav = showRanking ? 'ranking' : showHistory ? 'history' : 'home';
+
+  const handleNavChange = useCallback((navId) => {
+    if (navId === 'home' && inCurrentTerm) {
+      navigate(ROUTES.studentDashboard);
+    } else if (navId === 'history') {
+      navigate(ROUTES.studentHistory);
+    } else if (navId === 'ranking' && !IS_DESKTOP_APP && inCurrentTerm) {
+      navigate(ROUTES.studentRanking);
+    }
+  }, [inCurrentTerm, navigate]);
 
   const handleCommand = (cmd) => {
     if (cmd === 'home') {
       navigate(inCurrentTerm ? ROUTES.studentDashboard : ROUTES.studentHistory);
     } else if (cmd === 'history') {
       navigate(ROUTES.studentHistory);
+    } else if (cmd === 'ranking' && !IS_DESKTOP_APP) {
+      navigate(ROUTES.studentRanking);
+    } else if (cmd === 'lecturerArea') {
+      navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
+    } else if (cmd === 'mascotShop') {
+      setShowMascotShop(true);
     }
   };
+
+  const applyShop = useCallback((shop) => {
+    if (!shop) return;
+    const prev = streakSnapshot.current;
+    const next = {
+      ...(prev || {}),
+      points: shop.points,
+      equipped: shop.equipped || 'fox',
+    };
+    streakSnapshot.current = next;
+    setStreak(next);
+  }, []);
 
   if (view === 'dashboard' && !inCurrentTerm) {
     return <Navigate to={ROUTES.studentHistory} replace />;
@@ -858,22 +1145,61 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         user={user}
         onLogout={onLogout}
         onCommand={handleCommand}
+        showNav
+        navItems={studentNavItems}
+        navAlign="start"
+        navCollapse={false}
+        navTrailing={!IS_DESKTOP_APP ? <StudentOfflinePracticeDownload onToast={showToast} /> : null}
+        activeNav={activeNav}
+        onNavigate={handleNavChange}
+        hideSectionLinks
         hideHome={!inCurrentTerm}
         hideChangePassword={IS_DESKTOP_APP}
-        className="!mt-0"
-        headerUserSlot={IS_DESKTOP_APP && !showHistory ? (
+        showLecturerArea={!IS_DESKTOP_APP && hasRole(user?.roles, 'ADMIN')}
+        className={showRanking ? 'flex min-h-0 flex-1 flex-col' : ''}
+        headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
-        headerAddon={
-          <div className="-my-1 shrink-0">
-            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} />
+        headerBeforeUserMenu={
+          <div className="flex shrink-0 items-center gap-1">
+            <StudentStreakFlame
+              streak={streak?.streak ?? 0}
+              loggedIn={Boolean(streak?.loggedIn)}
+              submitCount={streak?.submitCount ?? 0}
+              submitGoal={streak?.submitGoal ?? 3}
+              petCount={streak?.petCount ?? 0}
+              petGoal={streak?.petGoal ?? 4}
+              completedToday={Boolean(streak?.completedToday)}
+              broken={Boolean(streak?.broken)}
+              savedStreak={streak?.savedStreak ?? 0}
+              canRestore={Boolean(streak?.canRestore)}
+              awardPulse={awardPulse}
+              restoring={restoringStreak}
+              onRestore={restoreStreak}
+            />
+            <button
+              type="button"
+              onClick={() => setShowMascotShop(true)}
+              aria-label={`Open mascot shop. ${formatNumber(streak?.points ?? 0)} points`}
+              className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Store className="h-4 w-4 text-warning-text" aria-hidden="true" />
+              <span className="tabular-nums">{formatNumber(streak?.points ?? 0)}</span>
+            </button>
           </div>
         }
+        headerAddon={
+          <button
+            type="button"
+            className="-my-1 shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={`Pet the ${mascotArt(streak?.equipped || 'fox').name}. ${Math.min(streak?.petCount ?? 0, streak?.petGoal ?? 4)} of ${streak?.petGoal ?? 4} pets today.`}
+            onClick={petFox}
+          >
+            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} mascotId={streak?.equipped || 'fox'} />
+          </button>
+        }
       >
-        <div className="w-full">
-          {!showHistory && inCurrentTerm && !IS_DESKTOP_APP && (
-            <StudentOfflinePracticeDownload onToast={showToast} />
-          )}
+        <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
           {labsError && (
             <div className="mb-4 rounded-md border border-warning/40 bg-warning-bg p-3 text-sm text-warning-text">
               {labsError}
@@ -887,6 +1213,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               onNavigate={() => navigate(ROUTES.studentDashboard)}
               inCurrentTerm={inCurrentTerm}
             />
+          ) : showRanking ? (
+            <StudentRankingPage user={user} inCurrentTerm={inCurrentTerm} />
           ) : (
             <StudentUI
               user={user}
@@ -915,10 +1243,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               sessionChallengeBundles={sessionChallengeBundles}
               sessionOverallScore={sessionOverallScore}
               error={labsError || challengesError}
+              dailySubmissionQuota={dailySubmissionQuota}
             />
           )}
         </div>
       </AppShell>
+
+      <MascotShop
+        open={showMascotShop}
+        onClose={() => setShowMascotShop(false)}
+        onUpdated={applyShop}
+      />
 
       {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal

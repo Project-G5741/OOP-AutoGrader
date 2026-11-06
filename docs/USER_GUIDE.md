@@ -24,6 +24,7 @@
   - [3.3 History — Past Submissions](#33-history--past-submissions)
   - [3.4 Notifications](#34-notifications)
   - [3.5 Profile & Password](#35-profile--password)
+  - [3.6 Daily streak](#36-daily-streak)
 - [4. Common Questions](#4-common-questions)
 
 ---
@@ -236,6 +237,10 @@ After selecting a term, the right panel shows two lists:
 4. If anyone is skipped, a warning popup appears. Click **Show details** to see who is not in the system and who is already in the quarter.
 
 > Accepted file types: `.xlsx`, `.xls`, `.csv`. Only existing active student accounts can be enrolled; import does not create new users.
+
+#### Emailing the current quarter
+
+On the **Quarters** page, click **Email quarter** (top right, next to **Add quarter**, and on the current quarter’s toolbar). Compose a subject and message, then **Send**. One email goes to each **active student enrolled in the current quarter**, using their AutoGrader account address (Brevo in production, SMTP locally). Students without an email are skipped.
 
 #### Suspending / Restoring from Roster
 
@@ -499,6 +504,21 @@ Click your avatar or name in the **top-right header** and select **Edit Profile*
 3. **Confirm New Password** — must match the new password.
 4. Click **Save**.
 
+**Logout** is the last item in that same account menu, under **Change Password**.
+
+---
+
+### 3.6 Daily streak
+
+A flame icon sits beside the mascot in the top-right header (submit dashboard and history). It stays grey until all three missions are done, then it lights in color. There is no background behind the icon.
+
+- Click the flame to see today's three missions: open the page, submit 3 times, and pet the mascot 4 times.
+- Finishing any one mission shows **Mission complete**.
+- Pet the fox by clicking it. Pets after the fourth today are not counted.
+- When all three are done on the same day, the streak increases by 1. You receive 50 points, plus 5 points for every 5 streak days you have reached. Day 5 pays 55, day 6 still pays 55, day 10 pays 60, and day 101 pays 150.
+- Missing a day pauses the streak. You can restore it once each month from the mission list, or finish that day's missions to start again at day 1.
+- The flame has no separate button. The point total sits on the shop button beside the flame.
+
 ---
 
 ## 4. Common Questions
@@ -542,7 +562,7 @@ A: Go to **Terms**, select the term, and drag an Excel/CSV file onto the drop zo
 ---
 
 **Q: What does Active Users in the footer mean?**  
-A: It is how many people are currently signed in and using the app. The count refreshes every 10 seconds and drops when someone logs out. The course title stays in the center of the footer.
+A: It is how many people are recently active in the app (signed in and using it in the last half-minute). The count updates when you open a page, change section, or return to the tab—not on a fixed timer—and drops when someone logs out or switches away. The course title stays in the center of the footer.
 
 ---
 

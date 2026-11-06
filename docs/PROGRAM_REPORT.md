@@ -236,6 +236,7 @@ SUBMISSION_BASE_DIR=submissions
 ```env
 VITE_GOOGLE_CLIENT_ID=<your-google-client-id>
 VITE_API_URL=http://localhost:8002
+VITE_MAINTENANCE_MODE=false
 ```
 
 **Database** — create PostgreSQL database `oop_autograder` (schema is managed externally; SQL scripts live in `docs/sql/`).
@@ -282,7 +283,7 @@ mvn spring-boot:run
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| **Frontend** | Vercel | `VITE_API_URL` and `VITE_GOOGLE_CLIENT_ID` baked at build time |
+| **Frontend** | Vercel | `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`, and `VITE_MAINTENANCE_MODE` baked at build time |
 | **Backend** | Render (Docker) | Multi-stage `Dockerfile` in `backend/`; Neon pooler URL for DB |
 | **Database** | Neon PostgreSQL | Use `-pooler` hostname for production JVM |
 

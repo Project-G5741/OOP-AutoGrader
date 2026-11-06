@@ -1,18 +1,21 @@
 import React from 'react';
 import { GitBranch, Plus, Trash2 } from 'lucide-react';
+import Combobox from '../../ui/Combobox';
 
 function ClassSelect({ value, options, onChange, placeholder }) {
   return (
-    <select
+    <Combobox
+      allowEmpty
+      emptyLabel={placeholder}
+      placeholder={placeholder}
+      className="w-full min-w-0"
       value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((cls) => (
-        <option key={cls.id} value={cls.id}>{cls.name || 'Untitled class'}</option>
-      ))}
-    </select>
+      options={(options || []).map((cls) => ({
+        value: cls.id,
+        label: cls.name || 'Untitled class',
+      }))}
+      onChange={(next) => onChange(next || null)}
+    />
   );
 }
 
@@ -51,7 +54,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
 
   return (
     <div className="space-y-4 pb-4">
-      <div className="rounded-xl border border-border bg-surface dark:border-border">
+      <div className="min-w-0 rounded-xl border border-border bg-surface dark:border-border">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3 dark:border-border">
           <GitBranch className="h-4 w-4 text-chart-blue" />
           <h3 className="font-medium text-foreground">MMD Relationships</h3>
@@ -71,9 +74,9 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
           {relations.map((relation, index) => (
             <div
               key={relation.id}
-              className="grid gap-3 rounded-lg border border-border p-3 dark:border-border md:grid-cols-[1fr_1fr_1fr_auto]"
+              className="grid min-w-0 gap-3 rounded-lg border border-border p-3 dark:border-border md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
             >
-              <div>
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs text-foreground-muted">Source class</label>
                 <ClassSelect
                   value={relation.sourceClassId}
@@ -82,20 +85,24 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
                   onChange={(sourceClassId) => updateRelation(relation.id, { sourceClassId })}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs text-foreground-muted">Relation type</label>
-                <select
+                <Combobox
+                  allowEmpty
+                  emptyLabel="Type"
+                  placeholder="Type"
+                  className="w-full min-w-0"
                   value={relation.relationTypeId ?? ''}
-                  onChange={(e) => updateRelation(relation.id, { relationTypeId: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-                >
-                  <option value="">Type</option>
-                  {relationTypeOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                  ))}
-                </select>
+                  options={(relationTypeOptions || []).map((opt) => ({
+                    value: String(opt.id),
+                    label: opt.name,
+                  }))}
+                  onChange={(next) => updateRelation(relation.id, {
+                    relationTypeId: next === '' ? null : Number(next),
+                  })}
+                />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="mb-1 block text-xs text-foreground-muted">Target class</label>
                 <ClassSelect
                   value={relation.targetClassId}
@@ -104,7 +111,7 @@ export default function MmdRelationsPanel({ challenge, relationTypeOptions, onCh
                   onChange={(targetClassId) => updateRelation(relation.id, { targetClassId })}
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex shrink-0 items-end">
                 <button
                   type="button"
                   onClick={() => removeRelation(relation.id)}

@@ -6,6 +6,9 @@ const VARIANT = {
   outline: 'border-border bg-transparent text-foreground-secondary',
   warning: 'border-transparent bg-warning-bg text-warning-text',
   destructive: 'border-transparent bg-error-bg text-error-text',
+  'deadline-3': 'border-transparent bg-warning-bg text-warning-text',
+  'deadline-2': 'border-transparent bg-warning text-warning-bg',
+  'deadline-1': 'border-transparent bg-error text-white dark:text-error-bg',
 };
 
 export function Badge({ variant = 'default', className = '', children, ...props }) {

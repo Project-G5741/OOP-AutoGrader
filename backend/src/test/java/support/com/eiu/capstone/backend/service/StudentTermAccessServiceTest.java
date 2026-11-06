@@ -6,11 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Role;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
@@ -170,6 +175,39 @@ class StudentTermAccessServiceTest {
                 () -> accessService.requireUploadAccess("a@eiu.edu.vn", labId));
         assertEquals(403, ex.getStatusCode().value());
         assertEquals("You are not enrolled in the current quarter", ex.getReason());
+    }
+
+    @Test
+    void requireUploadAccess_adminIsAllowedWithoutEnrollment() {
+        UserAccount user = activeUser();
+        UserAccount withRole = activeUser();
+        withRole.setRoles(Set.of(new Role("ADMIN")));
+        Term term = currentTerm();
+        Lab lab = new Lab();
+        lab.setStudentVisible(true);
+        lab.setTerm(term);
+        UUID labId = UUID.randomUUID();
+        when(userAccountRepository.findUploadAccess("a@eiu.edu.vn", labId))
+                .thenReturn(uploadAccessRow(user, lab, term, 0L));
+        when(userAccountRepository.findByEmail("a@eiu.edu.vn")).thenReturn(Optional.of(withRole));
+        when(labDeadlineHelper.isOpenForStudentSubmission(
+                org.mockito.ArgumentMatchers.eq(true),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+
+        StudentTermAccessService.UploadAccess access =
+                accessService.requireUploadAccess("a@eiu.edu.vn", labId);
+        assertSame(user, access.user());
+    }
+
+    @Test
+    void isInCurrentTerm_adminWithoutEnrollment() {
+        UserAccount user = activeUser();
+        user.setRoles(Set.of(new Role("ADMIN")));
+        when(termService.findCurrentTerm()).thenReturn(Optional.of(currentTerm()));
+
+        assertTrue(accessService.isInCurrentTerm(user));
+        verify(termService, never()).isInCurrentTerm(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

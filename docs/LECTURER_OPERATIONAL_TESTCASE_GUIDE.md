@@ -130,12 +130,14 @@ A Composition test is an ordered list of constructor and/or method steps (1–20
 | Step | What you name |
 |------|----------------|
 | **Constructor** | Required **instance name** for the constructed object (e.g. `acct`) |
+
+A concrete class with no no-arg constructor in Structure still appears as `ClassName() — default`. That step takes no arguments. Dry-run and grade build it the same way a Unit hidden receiver is built: the no-arg constructor when the student's class has one, otherwise the shortest constructor filled with `0`, `false`, `'\0'`, `null`, or an empty array. The structure editor does not gain a constructor row. Classes that already list a no-arg constructor use that row.
 | **Static factory** that returns a rubric-class object | Required **product name** (same `instanceName` field; that name is the product) |
 | **Instance method** | **Receiver** — pick an earlier name of matching class. That name stays the receiver; the return does **not** overwrite it |
 
 Later steps pass named objects as arguments with `{"$instance":"acct"}` (use the **$instance** control next to a rubric-class parameter).
 
-Literal arguments are primitives, wrappers, String, null, and arrays of those. Arrays or lists of named objects are not valid as one argument.
+Literal arguments are primitives, wrappers, String, null, arrays of those, **LocalDate** as `yyyy-MM-dd` (for example `2024-06-13`), and **enum constant names** when the parameter (or FIELD_STATE / RETURN_VALUE type) is a Structure **ENUM** class — type the simple name (e.g. `BIRTHDAY`), not a Named instance. A `LocalDate` slot needs that ISO date; a blank box is not a date. Enum slots cannot be null or blank; a misspelled constant fails at dry-run/grade, not at save. Arrays or lists of named objects are not valid as one argument.
 
 ### 6.2 Example — deposit then check balance
 

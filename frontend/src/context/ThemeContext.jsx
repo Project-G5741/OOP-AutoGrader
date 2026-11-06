@@ -1,8 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'oop-theme';
+const THEME_TRANSITION_MS = 36;
+const THEME_TRANSITION_CLASS = 'theme-transition';
 
 const ThemeContext = createContext();
+
+let themeTransitionTimeoutId;
+
+function enableThemeTransition() {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.classList.add(THEME_TRANSITION_CLASS);
+  if (themeTransitionTimeoutId != null) {
+    window.clearTimeout(themeTransitionTimeoutId);
+  }
+  themeTransitionTimeoutId = window.setTimeout(() => {
+    root.classList.remove(THEME_TRANSITION_CLASS);
+    themeTransitionTimeoutId = undefined;
+  }, THEME_TRANSITION_MS);
+}
 
 function readSystemDark() {
   if (typeof window === 'undefined') return false;
@@ -47,6 +64,7 @@ export function ThemeProvider({ children }) {
   const setTheme = useCallback((next) => {
     const value = next === 'dark' ? 'dark' : 'light';
     localStorage.setItem(STORAGE_KEY, value);
+    enableThemeTransition();
     setThemeState(value);
   }, []);
 

@@ -1,0 +1,626 @@
+package com.eiu.capstone.backend.analytics.service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
+import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
+import com.eiu.capstone.backend.analytics.dto.ChallengeStudentRowDTO;
+import com.eiu.capstone.backend.analytics.dto.GradeOverviewLabColumnDTO;
+import com.eiu.capstone.backend.analytics.dto.GradeOverviewResponse;
+import com.eiu.capstone.backend.analytics.dto.GradeOverviewStudentRowDTO;
+import com.eiu.capstone.backend.analytics.dto.LabAttemptHistoryItemDTO;
+import com.eiu.capstone.backend.analytics.dto.LabStatisticsResponse;
+import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
+import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
+import com.eiu.capstone.backend.analytics.mapper.AnalyticsMapper;
+import com.eiu.capstone.backend.analytics.repository.LecturerAnalyticsRepository;
+import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Term;
+import com.eiu.capstone.backend.plagiarism.PlagiarismService;
+import com.eiu.capstone.backend.repository.LabRepository;
+import com.eiu.capstone.backend.service.ChallengeService;
+import com.eiu.capstone.backend.service.TermService;
+import com.eiu.capstone.backend.utility.TimeUtil;
+
+@Service
+public class LecturerAnalyticsService {
+
+    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("70");
+
+    private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
+    private final ChallengeService challengeService;
+    private final LecturerOverviewCache lecturerOverviewCache;
+    private final LabStatisticsCache labStatisticsCache;
+    private final PlagiarismService plagiarismService;
+    private final TermService termService;
+    private final LabRepository labRepository;
+
+    public LecturerAnalyticsService(LecturerAnalyticsRepository lecturerAnalyticsRepository,
+                                    ChallengeService challengeService,
+                                    LecturerOverviewCache lecturerOverviewCache,
+                                    LabStatisticsCache labStatisticsCache,
+                                    PlagiarismService plagiarismService,
+                                    TermService termService,
+                                    LabRepository labRepository) {
+        this.lecturerAnalyticsRepository = lecturerAnalyticsRepository;
+        this.challengeService = challengeService;
+        this.lecturerOverviewCache = lecturerOverviewCache;
+        this.labStatisticsCache = labStatisticsCache;
+        this.plagiarismService = plagiarismService;
+        this.termService = termService;
+        this.labRepository = labRepository;
+    }
+
+    public LecturerOverviewResponse getOverview() {
+        return lecturerOverviewCache.get(this::loadOverview);
+    }
+
+    /** Fresh overview for tab bootstrap — bypasses multi-minute TTL (always-fresh visit). */
+    public LecturerOverviewResponse getOverviewFresh() {
+        return loadOverview();
+    }
+
+    private LecturerOverviewResponse loadOverview() {
+        Optional<Term> currentTerm = termService.findCurrentTerm();
+        if (currentTerm.isEmpty()) {
+            return emptyOverview();
+        }
+        UUID termId = currentTerm.get().getId();
+
+        Object[] metrics = lecturerAnalyticsRepository.findOverviewMetricsForTerm(termId);
+        BigDecimal averageScore = null;
+        long activeStudents = 0L;
+        if (metrics != null && metrics.length >= 5) {
+            averageScore = AnalyticsMapper.toBigDecimal(metrics[2]);
+            activeStudents = AnalyticsMapper.toLong(metrics[4]);
+        }
+
+        List<LecturerOverviewResponse.RecentSubmissionItem> recentSubmissions = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findRecentSubmissionsForTerm(termId, 10)) {
+            LecturerOverviewResponse.RecentSubmissionItem item = toRecentSubmission(row);
+            if (item != null) {
+                recentSubmissions.add(item);
+            }
+        }
+
+        List<LecturerOverviewResponse.OverviewStudentItem> students = loadOverviewStudents(termId);
+        List<LecturerOverviewResponse.OverviewLabItem> labs = loadOverviewLabs(termId);
+        List<LecturerOverviewResponse.OverviewScoreItem> scoreRows = loadOverviewScoreRows(termId);
+        long atRiskFromRoster = students.stream().filter(LecturerOverviewResponse.OverviewStudentItem::atRisk).count();
+
+        return new LecturerOverviewResponse(
+                students.size(),
+                labs.size(),
+                averageScore,
+                atRiskFromRoster,
+                recentSubmissions,
+                activeStudents,
+                students,
+                labs,
+                scoreRows
+        );
+    }
+
+    private static LecturerOverviewResponse emptyOverview() {
+        return new LecturerOverviewResponse(0L, 0L, null, 0L, List.of(), 0L, List.of(), List.of(), List.of());
+    }
+
+    private List<LecturerOverviewResponse.OverviewStudentItem> loadOverviewStudents(UUID termId) {
+        List<LecturerOverviewResponse.OverviewStudentItem> students = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewStudentsForTerm(termId)) {
+            if (row == null || row.length < 4) {
+                continue;
+            }
+            BigDecimal totalScore = AnalyticsMapper.toBigDecimal(row[3]);
+            boolean atRisk = totalScore != null && totalScore.compareTo(AT_RISK_TOTAL_BELOW) < 0;
+            students.add(new LecturerOverviewResponse.OverviewStudentItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toString(row[2]),
+                    totalScore,
+                    atRisk));
+        }
+        return students;
+    }
+
+    private List<LecturerOverviewResponse.OverviewLabItem> loadOverviewLabs(UUID termId) {
+        List<LecturerOverviewResponse.OverviewLabItem> labs = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewLabsForTerm(termId)) {
+            if (row == null || row.length < 4) {
+                continue;
+            }
+            labs.add(new LecturerOverviewResponse.OverviewLabItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toBigDecimal(row[2]),
+                    AnalyticsMapper.toLong(row[3])));
+        }
+        return labs;
+    }
+
+    private List<LecturerOverviewResponse.OverviewScoreItem> loadOverviewScoreRows(UUID termId) {
+        List<LecturerOverviewResponse.OverviewScoreItem> rows = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findOverviewScoreRowsForTerm(termId)) {
+            if (row == null || row.length < 6) {
+                continue;
+            }
+            rows.add(new LecturerOverviewResponse.OverviewScoreItem(
+                    AnalyticsMapper.toString(row[0]),
+                    AnalyticsMapper.toString(row[1]),
+                    AnalyticsMapper.toString(row[2]),
+                    AnalyticsMapper.toString(row[3]),
+                    AnalyticsMapper.toString(row[4]),
+                    AnalyticsMapper.toBigDecimal(row[5])));
+        }
+        return rows;
+    }
+
+    public LabStatisticsResponse getLabStatistics(UUID labId) {
+        requireCurrentTermLab(labId);
+        return labStatisticsCache.get(labId, () -> loadLabStatistics(labId));
+    }
+
+    private LabStatisticsResponse loadLabStatistics(UUID labId) {
+        Object[] summary = lecturerAnalyticsRepository.findLabStatisticsSummary(labId);
+        // Completion = quarter-enrolled active students who submitted ÷ quarter-enrolled active students
+        // (student role only; lecturers/teachers excluded — not all accounts in the system).
+        long activeEnrolledCount = lecturerAnalyticsRepository.countActiveEnrolledStudentsForLab(labId);
+        long studentsSubmitted = lecturerAnalyticsRepository.countActiveStudentsSubmittedForLab(labId);
+
+        if (summary == null && activeEnrolledCount == 0) {
+            return emptyLabStatistics(labId);
+        }
+
+        BigDecimal completionRate = null;
+        if (activeEnrolledCount > 0) {
+            completionRate = BigDecimal.valueOf(studentsSubmitted)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(activeEnrolledCount), 2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal plagiarismRate = null;
+        if (studentsSubmitted > 0) {
+            long flaggedStudents = plagiarismService.countFlaggedStudentsForLab(labId);
+            plagiarismRate = BigDecimal.valueOf(flaggedStudents)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(studentsSubmitted), 2, RoundingMode.HALF_UP);
+        }
+
+        List<LabStatisticsResponse.GradeDistributionBucket> gradeDistribution = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findGradeDistribution(labId)) {
+            if (row != null && row.length >= 2) {
+                gradeDistribution.add(new LabStatisticsResponse.GradeDistributionBucket(
+                        AnalyticsMapper.toString(row[0]),
+                        AnalyticsMapper.toLong(row[1])
+                ));
+            }
+        }
+
+        String labName = summary != null
+                ? AnalyticsMapper.toString(summary[1])
+                : lecturerAnalyticsRepository.findLabName(labId);
+        BigDecimal averageScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[2]) : null;
+        BigDecimal highestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[3]) : null;
+        BigDecimal lowestScore = summary != null ? AnalyticsMapper.toBigDecimal(summary[4]) : null;
+        long submissionCount = summary != null ? AnalyticsMapper.toLong(summary[5]) : 0L;
+        long totalAttempts = lecturerAnalyticsRepository.sumAttemptsCountForLab(labId);
+
+        return new LabStatisticsResponse(
+                labId,
+                labName,
+                averageScore,
+                highestScore,
+                lowestScore,
+                submissionCount,
+                totalAttempts,
+                activeEnrolledCount,
+                studentsSubmitted,
+                completionRate,
+                plagiarismRate,
+                gradeDistribution
+        );
+    }
+
+    public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId,
+                                                        int page,
+                                                        int size,
+                                                        String sort,
+                                                        String afterName,
+                                                        UUID afterId) {
+        return getLabSubmissions(labId, page, size, sort, afterName, afterId, null);
+    }
+
+    public Page<SubmissionSummaryDTO> getLabSubmissions(UUID labId,
+                                                        int page,
+                                                        int size,
+                                                        String sort,
+                                                        String afterName,
+                                                        UUID afterId,
+                                                        String search) {
+        requireCurrentTermLab(labId);
+        int safeSize = size <= 0 ? 5 : Math.min(size, 100);
+        int safePage = Math.max(page, 0);
+        SortSpec sortSpec = resolveLabSort(sort);
+
+        long total = lecturerAnalyticsRepository.countSubmittedStudentsForLab(labId, search);
+        List<SubmissionSummaryDTO> items = new ArrayList<>();
+        if (total > 0) {
+            List<Object[]> rows;
+            if (afterName != null && afterId != null) {
+                rows = lecturerAnalyticsRepository.findLabStudentRosterAfter(
+                        labId, sortSpec.column(), sortSpec.direction(), afterName, afterId, safeSize);
+            } else {
+                int offset = safePage * safeSize;
+                rows = lecturerAnalyticsRepository.findLabStudentRoster(
+                        labId, sortSpec.column(), sortSpec.direction(), offset, safeSize, search);
+            }
+            for (Object[] row : rows) {
+                SubmissionSummaryDTO item = toLabRosterRow(row);
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            items = withPlagiarismFlags(labId, items);
+        }
+
+        return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
+    }
+
+    public List<SubmissionSummaryDTO> getLabSubmissionsExport(UUID labId, String sort) {
+        requireCurrentTermLab(labId);
+        SortSpec sortSpec = resolveLabSort(sort);
+        List<SubmissionSummaryDTO> items = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findLabStudentRosterExport(
+                labId, sortSpec.column(), sortSpec.direction())) {
+            SubmissionSummaryDTO item = toLabRosterRow(row);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+        return withPlagiarismFlags(labId, items);
+    }
+
+    public Page<ChallengeStudentRowDTO> getChallengeStudentRoster(UUID labId,
+                                                                  UUID challengeId,
+                                                                  int page,
+                                                                  int size,
+                                                                  String sort) {
+        requireCurrentTermLab(labId);
+        int safeSize = size <= 0 ? 5 : Math.min(size, 100);
+        int safePage = Math.max(page, 0);
+        SortSpec sortSpec = resolveChallengeSort(sort);
+
+        long total = lecturerAnalyticsRepository.countSubmittedStudentsForChallenge(labId, challengeId);
+        List<ChallengeStudentRowDTO> items = new ArrayList<>();
+        if (total > 0) {
+            int offset = safePage * safeSize;
+            for (Object[] row : lecturerAnalyticsRepository.findChallengeStudentRoster(
+                    labId, challengeId, sortSpec.column(), sortSpec.direction(), offset, safeSize)) {
+                ChallengeStudentRowDTO item = toChallengeRosterRow(row, challengeId);
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            items = withChallengePlagiarismFlags(labId, items);
+        }
+
+        return new PageImpl<>(items, PageRequest.of(safePage, safeSize), total);
+    }
+
+    public GradeOverviewResponse getGradeOverview(int page, int size, String sort) {
+        return getGradeOverview(page, size, sort, null);
+    }
+
+    public GradeOverviewResponse getGradeOverview(int page, int size, String sort, String search) {
+        int safeSize = size <= 0 ? 10 : Math.min(size, 100);
+        int safePage = Math.max(page, 0);
+        SortSpec sortSpec = resolveGradeOverviewSort(sort);
+
+        Optional<Term> currentTerm = termService.findCurrentTerm();
+        if (currentTerm.isEmpty()) {
+            return new GradeOverviewResponse(List.of(), List.of(), safePage, safeSize, 0L, 0);
+        }
+        UUID termId = currentTerm.get().getId();
+
+        List<GradeOverviewLabColumnDTO> labs = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findLabsForTermOrdered(termId)) {
+            UUID labId = AnalyticsMapper.toUuid(row[0]);
+            String labName = AnalyticsMapper.toString(row[1]);
+            String prefix = AnalyticsMapper.toString(row[2]);
+            if (labId != null) {
+                labs.add(new GradeOverviewLabColumnDTO(labId, labName, prefix));
+            }
+        }
+
+        long totalStudents = lecturerAnalyticsRepository.countGradeOverviewStudentsForTerm(termId, search);
+        List<GradeOverviewStudentRowDTO> rows = new ArrayList<>();
+        if (totalStudents > 0) {
+            int offset = safePage * safeSize;
+            List<Object[]> students = lecturerAnalyticsRepository.findGradeOverviewStudentsForTerm(
+                    termId,
+                    sortSpec.column(), sortSpec.direction(), sortSpec.labId(), offset, safeSize, search);
+            List<UUID> studentIds = new ArrayList<>();
+            for (Object[] row : students) {
+                UUID studentId = AnalyticsMapper.toUuid(row[0]);
+                if (studentId != null) {
+                    studentIds.add(studentId);
+                }
+            }
+
+            Map<UUID, Map<UUID, BigDecimal>> scoresByStudent = new HashMap<>();
+            for (Object[] row : lecturerAnalyticsRepository.findLabScoresForStudents(studentIds, termId)) {
+                UUID studentId = AnalyticsMapper.toUuid(row[0]);
+                UUID labId = AnalyticsMapper.toUuid(row[1]);
+                BigDecimal score = AnalyticsMapper.toBigDecimal(row[2]);
+                if (studentId == null || labId == null) {
+                    continue;
+                }
+                scoresByStudent.computeIfAbsent(studentId, ignored -> new HashMap<>()).put(labId, score);
+            }
+
+            for (Object[] row : students) {
+                UUID studentId = AnalyticsMapper.toUuid(row[0]);
+                if (studentId == null) {
+                    continue;
+                }
+                Map<UUID, BigDecimal> studentScores = scoresByStudent.getOrDefault(studentId, Map.of());
+                List<BigDecimal> labScores = new ArrayList<>();
+                List<String> prefixes = new ArrayList<>();
+                for (GradeOverviewLabColumnDTO lab : labs) {
+                    labScores.add(studentScores.get(lab.labId()));
+                    prefixes.add(lab.prefix());
+                }
+                BigDecimal totalScore = GradeOverviewOfficialTotal.average(prefixes, labScores);
+                rows.add(new GradeOverviewStudentRowDTO(
+                        studentId,
+                        AnalyticsMapper.toString(row[1]),
+                        AnalyticsMapper.toString(row[2]),
+                        totalScore,
+                        labScores
+                ));
+            }
+        }
+
+        int totalPages = safeSize > 0 ? (int) Math.ceil((double) totalStudents / safeSize) : 0;
+        return new GradeOverviewResponse(labs, rows, safePage, safeSize, totalStudents, totalPages);
+    }
+
+    public List<LabAttemptHistoryItemDTO> getLabAttemptHistory(UUID labId, UUID studentId) {
+        requireCurrentTermLab(labId);
+        List<LabAttemptHistoryItemDTO> items = new ArrayList<>();
+        for (Object[] row : lecturerAnalyticsRepository.findLabAttemptHistory(labId, studentId)) {
+            LabAttemptHistoryItemDTO item = toAttemptHistoryRow(row);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+        return items;
+    }
+
+    private void requireCurrentTermLab(UUID labId) {
+        Term current = termService.findCurrentTerm()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        Lab lab = labRepository.findByIdWithTerm(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        if (lab.getTerm() == null || !current.getId().equals(lab.getTerm().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
+        }
+    }
+
+    private LabStatisticsResponse emptyLabStatistics(UUID labId) {
+        String labName = lecturerAnalyticsRepository.findLabName(labId);
+        return new LabStatisticsResponse(
+                labId,
+                labName,
+                null,
+                null,
+                null,
+                0L,
+                0L,
+                0L,
+                0L,
+                null,
+                null,
+                List.of()
+        );
+    }
+
+    private LecturerOverviewResponse.RecentSubmissionItem toRecentSubmission(Object[] row) {
+        if (row == null || row.length < 6) {
+            return null;
+        }
+        return new LecturerOverviewResponse.RecentSubmissionItem(
+                AnalyticsMapper.toString(row[0]),
+                AnalyticsMapper.toString(row[1]),
+                AnalyticsMapper.toString(row[2]),
+                AnalyticsMapper.toBigDecimal(row[3]),
+                AnalyticsMapper.toInt(row[4]),
+                TimeUtil.formatDisplayTimestamp(row[5])
+        );
+    }
+
+    private List<SubmissionSummaryDTO> withPlagiarismFlags(UUID labId, List<SubmissionSummaryDTO> items) {
+        Map<UUID, String> roles = plagiarismService.studentRolesForLab(labId);
+        if (roles.isEmpty()) {
+            return items;
+        }
+        List<SubmissionSummaryDTO> marked = new ArrayList<>(items.size());
+        for (SubmissionSummaryDTO item : items) {
+            String role = item.studentId() == null ? null : roles.get(item.studentId());
+            marked.add(new SubmissionSummaryDTO(
+                    item.studentId(),
+                    item.studentName(),
+                    item.studentCode(),
+                    item.score(),
+                    item.attempt(),
+                    item.submittedAt(),
+                    item.bestSubmission(),
+                    item.submissionId(),
+                    item.hasSubmission(),
+                    role != null,
+                    role));
+        }
+        return marked;
+    }
+
+    private List<ChallengeStudentRowDTO> withChallengePlagiarismFlags(UUID labId, List<ChallengeStudentRowDTO> items) {
+        Map<UUID, String> roles = plagiarismService.studentRolesForLab(labId);
+        if (roles.isEmpty()) {
+            return items;
+        }
+        List<ChallengeStudentRowDTO> marked = new ArrayList<>(items.size());
+        for (ChallengeStudentRowDTO item : items) {
+            String role = item.studentId() == null ? null : roles.get(item.studentId());
+            marked.add(new ChallengeStudentRowDTO(
+                    item.studentId(),
+                    item.studentName(),
+                    item.studentCode(),
+                    item.score(),
+                    item.attempts(),
+                    item.submittedAt(),
+                    item.hasSubmission(),
+                    item.submissionId(),
+                    role != null,
+                    role));
+        }
+        return marked;
+    }
+
+    private SubmissionSummaryDTO toLabRosterRow(Object[] row) {
+        if (row == null || row.length < 8) {
+            return null;
+        }
+        UUID submissionId = AnalyticsMapper.toUuid(row[7]);
+        return new SubmissionSummaryDTO(
+                AnalyticsMapper.toUuid(row[0]),
+                AnalyticsMapper.toString(row[1]),
+                AnalyticsMapper.toString(row[2]),
+                AnalyticsMapper.toBigDecimal(row[3]),
+                AnalyticsMapper.toInt(row[4]),
+                TimeUtil.formatDisplayTimestamp(row[5]),
+                AnalyticsMapper.toBoolean(row[6]),
+                submissionId,
+                submissionId != null
+        );
+    }
+
+    private ChallengeStudentRowDTO toChallengeRosterRow(Object[] row, UUID challengeId) {
+        if (row == null || row.length < 8) {
+            return null;
+        }
+        UUID submissionId = AnalyticsMapper.toUuid(row[7]);
+        boolean hasSubmission = AnalyticsMapper.toBoolean(row[6]);
+        BigDecimal score = AnalyticsMapper.toBigDecimal(row[3]);
+        if (score == null && submissionId != null && hasSubmission) {
+            Integer computed = challengeService.computeChallengeScoreForSubmission(submissionId, challengeId);
+            if (computed != null) {
+                score = BigDecimal.valueOf(computed);
+            }
+        }
+        return new ChallengeStudentRowDTO(
+                AnalyticsMapper.toUuid(row[0]),
+                AnalyticsMapper.toString(row[1]),
+                AnalyticsMapper.toString(row[2]),
+                score,
+                AnalyticsMapper.toInt(row[4]),
+                TimeUtil.formatDisplayTimestamp(row[5]),
+                hasSubmission,
+                submissionId
+        );
+    }
+
+    private LabAttemptHistoryItemDTO toAttemptHistoryRow(Object[] row) {
+        if (row == null || row.length < 5) {
+            return null;
+        }
+        return new LabAttemptHistoryItemDTO(
+                AnalyticsMapper.toInt(row[0]),
+                AnalyticsMapper.toBigDecimal(row[1]),
+                TimeUtil.formatDisplayTimestamp(row[2]),
+                AnalyticsMapper.toUuid(row[3]),
+                AnalyticsMapper.toBoolean(row[4])
+        );
+    }
+
+    private SortSpec resolveChallengeSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return new SortSpec("u.full_name", "ASC");
+        }
+        String[] parts = sort.split(",", 2);
+        String field = parts[0].trim().toLowerCase();
+        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+        String column = switch (field) {
+            case "score" -> "challenge_best.best_score";
+            case "attempts", "attempt" -> "challenge_attempts.attempt_count";
+            case "studentname", "student_name" -> "u.full_name";
+            case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
+            case "submittedat", "submitted_at" -> "challenge_latest.submitted_at";
+            default -> "u.full_name";
+        };
+        return new SortSpec(column, direction);
+    }
+
+    private SortSpec resolveLabSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return new SortSpec("u.full_name", "ASC");
+        }
+        String[] parts = sort.split(",", 2);
+        String field = parts[0].trim().toLowerCase();
+        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+        String column = switch (field) {
+            case "score" -> "qb.score";
+            case "attempt" -> "ob.attempt_number";
+            case "studentname", "student_name" -> "u.full_name";
+            case "studentcode", "student_code" -> "COALESCE(u.student_code, u.teacher_code)";
+            case "submittedat", "submitted_at" -> "ob.submitted_at";
+            default -> "u.full_name";
+        };
+        return new SortSpec(column, direction);
+    }
+
+    private SortSpec resolveGradeOverviewSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return new SortSpec("full_name", "ASC", null);
+        }
+        String[] parts = sort.split(",", 3);
+        String field = parts[0].trim().toLowerCase();
+        if ("labscore".equals(field) && parts.length >= 3) {
+            String direction = parts[2].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+            try {
+                UUID labId = UUID.fromString(parts[1].trim());
+                return new SortSpec("lab_score", direction, labId);
+            } catch (IllegalArgumentException ignored) {
+                return new SortSpec("full_name", "ASC", null);
+            }
+        }
+        String direction = parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc") ? "DESC" : "ASC";
+        String column = switch (field) {
+            case "score" -> "total_score";
+            case "irn", "studentcode", "student_code" -> "irn";
+            case "studentname", "student_name" -> "full_name";
+            default -> "full_name";
+        };
+        return new SortSpec(column, direction, null);
+    }
+
+    private record SortSpec(String column, String direction, UUID labId) {
+        SortSpec(String column, String direction) {
+            this(column, direction, null);
+        }
+    }
+}
+

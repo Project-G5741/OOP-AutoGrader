@@ -1,20 +1,23 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import Combobox from '../../ui/Combobox';
 import ParameterRows from './ParameterRows';
 import WeightInput from './WeightInput';
 
 function ScopeSelect({ value, options, onChange }) {
   return (
-    <select
+    <Combobox
+      allowEmpty
+      emptyLabel="Scope"
+      placeholder="Scope"
+      className="w-full min-w-0"
       value={value ?? ''}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-    >
-      <option value="">Scope</option>
-      {options.map((opt) => (
-        <option key={opt.id} value={opt.id}>{opt.name}</option>
-      ))}
-    </select>
+      options={(options || []).map((opt) => ({
+        value: String(opt.id),
+        label: opt.name,
+      }))}
+      onChange={(next) => onChange(next === '' ? null : Number(next))}
+    />
   );
 }
 
@@ -167,11 +170,17 @@ export default function ClassDetailPanel({
           </div>
           <div>
             <label className="mb-1 block text-xs text-foreground-muted">Outer class (optional)</label>
-            <select
-              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+            <Combobox
+              allowEmpty
+              emptyLabel="None (top-level)"
+              placeholder="None (top-level)"
+              className="w-full min-w-0"
               value={classData.outerClassId ?? ''}
-              onChange={(e) => {
-                const outerClassId = e.target.value || null;
+              options={outerClassOptions.map((cls) => ({
+                value: cls.id,
+                label: cls.name,
+              }))}
+              onChange={(outerClassId) => {
                 if (!outerClassId) {
                   patch({ outerClassId: null, isStatic: false });
                 } else if (!classData.outerClassId) {
@@ -180,46 +189,44 @@ export default function ClassDetailPanel({
                   patch({ outerClassId });
                 }
               }}
-            >
-              <option value="">None (top-level)</option>
-              {outerClassOptions.map((cls) => (
-                <option key={cls.id} value={cls.id}>{cls.name}</option>
-              ))}
-            </select>
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs text-foreground-muted">Extends / Implements</label>
-            <select
-              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white disabled:opacity-60"
+            <Combobox
+              allowEmpty={false}
+              className="w-full min-w-0"
               value={pair.kind}
               disabled={!canSetHeritage}
-              onChange={(e) => {
-                const kind = e.target.value;
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'extends', label: 'Extends' },
+                { value: 'implements', label: 'Implements' },
+              ]}
+              onChange={(kind) => {
                 if (kind === 'none') {
                   applyHeritage('none', null);
                   return;
                 }
                 applyHeritage(kind, pair.targetClassId);
               }}
-            >
-              <option value="none">None</option>
-              <option value="extends">Extends</option>
-              <option value="implements">Implements</option>
-            </select>
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs text-foreground-muted">Target class</label>
-            <select
-              className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white disabled:opacity-60"
+            <Combobox
+              allowEmpty
+              emptyLabel="Select class"
+              placeholder="Select class"
+              className="w-full min-w-0"
               value={pair.targetClassId ?? ''}
               disabled={!canSetHeritage || pair.kind === 'none'}
-              onChange={(e) => applyHeritage(pair.kind, e.target.value || null)}
-            >
-              <option value="">Select class</option>
-              {heritageTargets.map((cls) => (
-                <option key={cls.id} value={cls.id}>{cls.name || 'Untitled class'}</option>
-              ))}
-            </select>
+              options={heritageTargets.map((cls) => ({
+                value: cls.id,
+                label: cls.name || 'Untitled class',
+              }))}
+              onChange={(targetId) => applyHeritage(pair.kind, targetId || null)}
+            />
           </div>
           <WeightInput
             id={`class-weight-${classData.id}`}
@@ -249,7 +256,7 @@ export default function ClassDetailPanel({
           {(classData.fields || []).map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
               <input
-                className={`${enumClass ? 'col-span-11' : 'col-span-6'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
+                className={`${enumClass ? 'col-span-11' : 'col-span-4'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
                 placeholder={enumClass ? 'Constant name' : 'Field name'}
                 value={field.name}
                 onChange={(e) => {
@@ -261,7 +268,7 @@ export default function ClassDetailPanel({
               {!enumClass && (
                 <>
                   <input
-                    className="col-span-3 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                    className="col-span-2 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
                     placeholder="type"
                     value={field.dataType}
                     onChange={(e) => {
@@ -270,7 +277,7 @@ export default function ClassDetailPanel({
                       updateFields(fields);
                     }}
                   />
-                  <div className="col-span-2">
+                  <div className="col-span-2 min-w-0">
                     <ScopeSelect
                       value={field.scopeId}
                       options={scopeOptions}
@@ -281,6 +288,30 @@ export default function ClassDetailPanel({
                       }}
                     />
                   </div>
+                  <label className="col-span-2 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!field.isStatic}
+                      onChange={(e) => {
+                        const fields = [...classData.fields];
+                        fields[index] = { ...field, isStatic: e.target.checked };
+                        updateFields(fields);
+                      }}
+                    />
+                    static
+                  </label>
+                  <label className="col-span-1 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!field.isFinal}
+                      onChange={(e) => {
+                        const fields = [...classData.fields];
+                        fields[index] = { ...field, isFinal: e.target.checked };
+                        updateFields(fields);
+                      }}
+                    />
+                    final
+                  </label>
                 </>
               )}
               <button
@@ -301,6 +332,8 @@ export default function ClassDetailPanel({
                 name: '',
                 dataType: '',
                 scopeId: enumClass ? null : scopeOptions[0]?.id,
+                isStatic: false,
+                isFinal: false,
               },
             ])}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-surface-tertiary py-3 text-sm text-primary-text transition-colors hover:bg-surface-secondary"

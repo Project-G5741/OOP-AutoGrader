@@ -3,6 +3,8 @@ package unit.com.eiu.capstone.backend.grading;
 import com.eiu.capstone.backend.grading.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -15,8 +17,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
+import com.eiu.capstone.backend.DTO.ClassDetailDTO;
 import com.eiu.capstone.backend.DTO.MmdClassDTO;
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
+import com.eiu.capstone.backend.service.ChallengeCompileErrors;
 import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
@@ -48,12 +52,62 @@ class LabResultAssemblerTest {
                 new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
                 computed(challengeId, true, true),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                DisclosureMode.LECTURER);
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertEquals(1, bundle.getClassData().size());
         assertEquals("CakeFactory", bundle.getClassData().get(0).name());
         assertEquals(1, structureService.mmdBuilds);
+    }
+
+    @Test
+    void assemble_studentMode_omitsDetailTrees() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new ThrowingTestcaseMapper());
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed(challengeId, true, true),
+                Map.of(),
+                Map.of(challengeId, "packages normalized"),
+                DisclosureMode.STUDENT);
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertTrue(bundle.getClassData().isEmpty());
+        assertTrue(bundle.getMmd().classes().isEmpty());
+        assertTrue(bundle.getTestcases().isEmpty());
+        assertEquals(true, bundle.getScoreApplicability().get("class"));
+        assertEquals("packages normalized", bundle.getNormalizationNotice());
+        assertEquals(0, structureService.mmdBuilds);
+    }
+
+    @Test
+    void assemble_studentMode_keepsClassCardsOnCompileError_omitsMmdOt() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        StubClassOnCompileErrorStructureService structureService = new StubClassOnCompileErrorStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new ThrowingTestcaseMapper());
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed(challengeId, true, true),
+                Map.of(challengeId, ChallengeCompileErrors.catastrophic("javac failed")),
+                Map.of(),
+                DisclosureMode.STUDENT);
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertFalse(bundle.getClassData().isEmpty());
+        assertEquals("CakeFactory", bundle.getClassData().get(0).name());
+        assertTrue(bundle.getMmd().classes().isEmpty());
+        assertTrue(bundle.getTestcases().isEmpty());
+        assertNull(bundle.getNormalizationNotice());
+        assertEquals(0, structureService.mmdBuilds);
+        assertEquals(1, structureService.classBuilds);
     }
 
     @Test
@@ -68,7 +122,8 @@ class LabResultAssemblerTest {
                 new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
                 computed(challengeId, false, false),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                DisclosureMode.LECTURER);
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertEquals(1, bundle.getClassData().size());
@@ -92,7 +147,8 @@ class LabResultAssemblerTest {
                 new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
                 computed(challengeId, true, false),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                DisclosureMode.LECTURER);
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertEquals(1, bundle.getClassData().size());
@@ -123,7 +179,8 @@ class LabResultAssemblerTest {
                 new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
                 computed,
                 Map.of(),
-                Map.of());
+                Map.of(),
+                DisclosureMode.LECTURER);
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertTrue(bundle.getMmd().classes().isEmpty());
@@ -155,7 +212,8 @@ class LabResultAssemblerTest {
                 new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
                 computed(challengeId, false, true, false),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                DisclosureMode.LECTURER);
 
         ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
         assertTrue(bundle.getClassData().isEmpty());
@@ -283,6 +341,48 @@ class LabResultAssemblerTest {
                     submissionId,
                     snapshot,
                     disclosureMode);
+        }
+    }
+
+    private static final class StubClassOnCompileErrorStructureService extends ClassStructureService {
+        private int classBuilds;
+        private int mmdBuilds;
+
+        private StubClassOnCompileErrorStructureService() {
+            super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
+        }
+
+        @Override
+        public LabChallengeStructureBundle loadChallengeStructures(Collection<UUID> challengeIds) {
+            fail("upload assemble must not loadChallengeStructures");
+            return null;
+        }
+
+        @Override
+        public List<ClassDetailDTO> buildClassDataFromRubric(
+                ChallengeRubric challengeRubric,
+                SubmissionCorrectIds correctIds,
+                ChallengeCompileErrors compileErrors,
+                ChallengeSnapshot snapshot,
+                DisclosureMode disclosureMode) {
+            classBuilds++;
+            String name = challengeRubric.classes().isEmpty()
+                    ? "Unknown"
+                    : challengeRubric.classes().get(0).name();
+            return List.of(new ClassDetailDTO(name, "CLASS", "error", "javac failed", List.of(), List.of(), List.of()));
+        }
+
+        @Override
+        public List<MmdClassDTO> buildMmdDataFromRubric(ChallengeRubric challengeRubric,
+                                                        SubmissionCorrectIds correctIds,
+                                                        com.eiu.capstone.backend.grading.MmdGradingOutcome mmdOutcome,
+                                                        Boolean mmdSubmittedOverride,
+                                                        ChallengeMmdMeta mmdMeta,
+                                                        UUID submissionId,
+                                                        ChallengeSnapshot snapshot,
+                                                        DisclosureMode disclosureMode) {
+            mmdBuilds++;
+            return List.of();
         }
     }
 

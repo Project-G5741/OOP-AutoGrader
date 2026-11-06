@@ -101,10 +101,20 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-20-feedback-lecturer-response.sql` | Operator-run: `feedback_item.lecturer_response` + `response_at` |
 | `docs/sql/2026-10-20-feedback-soft-archive.sql` | Operator-run: `feedback_item.archived_at` (soft-archive Resolved items that have a reply) |
 | `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
+| `docs/sql/2026-10-20-student-daily-streak.sql` | Operator-run: `student_daily_streak` (daily missions, streak, reward points). Startup migrator applies the same `CREATE TABLE IF NOT EXISTS` on PostgreSQL |
+| `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
+| `docs/sql/2026-10-21-weekly-ranking-payout.sql` | Operator-run: `weekly_ranking_week` + `weekly_ranking_entry` (Sunday freeze ledger). Startup migrator applies the same statements on PostgreSQL |
+| `docs/sql/2026-10-21-lab-prefix.sql` | Operator-run: `lab.prefix` (`Official` or `Practice`, default `Official`). Startup migrator applies the same `ADD COLUMN IF NOT EXISTS` on PostgreSQL |
+| `docs/sql/2026-10-28-field-declaration-modifiers.sql` | Operator-run: `field_declaration.is_static` and `field_declaration.is_final` (default false). Startup migrator applies the same columns on PostgreSQL |
+| `docs/sql/2026-10-28-testcase-invocation-repeat-count.sql` | Operator-run: `testcase_invocation.repeat_count` (default 1). Startup migrator applies the same column on PostgreSQL |
+| `docs/sql/2026-10-22-admin-role.sql` | Operator-run: insert the `ADMIN` role row only (no user, no password). The first Admin account is inserted by an operator |
+| `docs/sql/2026-11-04-lab4-operational-testcases.sql` | Operator-run on Supabase: Lab 4 operational testcases (4/4/8/10/10). Concrete teas use the Composition default constructor and any previously inserted no-arg constructor rows for those classes are removed |
+| `docs/sql/2026-11-04-composition-default-constructor.sql` | Operator-run: `testcase_invocation` may store a Composition default constructor as `dispatch_class_id` with a null `constructor_id`. Startup migrator applies the same check |
+| `docs/sql/2026-11-04-drop-lab4-tea-default-constructors.sql` | Operator-run on Supabase: retarget Lab 4 tea composition steps to the default constructor and delete the four inserted no-arg constructor rows |
 
 ### Project facts
 
 - Full-stack OOP AutoGrader for EIU Capstone — students upload Java + MMD, backend compiles and grades via reflection against a PostgreSQL rubric
 - Root `npm start` runs frontend (`:5173`) and backend (`:8002`) concurrently
 - Google OAuth restricted to `@eiu.edu.vn`; JWT session; Spring Security default-deny (filter + matcher table)
-- Backend tests live under five aspect homes (`unit`, `integration`, `authorization`, `regression`, `support`) in `backend/src/test/java/`; `mvn test` from `backend/` and the Docker image build both run that suite. Frontend has no automated tests yet.
+- Backend tests live under five aspect homes (`unit`, `integration`, `authorization`, `regression`, `support`) in `backend/src/test/java/`. Package-private desktop pack tests sit in `src/test/java/com/eiu/capstone/backend/desktop/` so the folder matches the package. `mvn test` from `backend/` and the Docker image build both run that suite. Frontend has no automated tests yet.

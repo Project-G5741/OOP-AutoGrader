@@ -11,6 +11,7 @@ import ReportsPage from './Reports';
 import FeedbackInbox from './FeedbackInbox';
 import SubmissionTable from '../components/lecturer/SubmissionTable';
 import GradeOverviewTable from '../components/lecturer/GradeOverviewTable';
+import RankingBoard from '../components/ranking/RankingBoard';
 import GradeOverviewSubmissionHistory from '../components/lecturer/GradeOverviewSubmissionHistory';
 import ExportMenu from '../components/lecturer/ExportMenu';
 import LecturerSubmissionDrawer from '../components/lecturer/LecturerSubmissionDrawer';
@@ -25,7 +26,7 @@ import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
-import { LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
+import { hasRole, LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -179,6 +180,9 @@ export default function LecturerDashboard({ user, onLogout }) {
   const [challengesLabId, setChallengesLabId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [overviewDetail, setOverviewDetail] = useState(null);
+  const [rankingBoard, setRankingBoard] = useState({ weekStart: null, weekEnd: null, rows: [] });
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [rankingError, setRankingError] = useState(null);
 
   const clearLabDetailState = useCallback(() => {
     setSelectedLabId(null);
@@ -516,6 +520,33 @@ export default function LecturerDashboard({ user, onLogout }) {
     }
   }, [activeNav, fetchGradeOverview, gradeOverviewSort, gradeOverviewSearch]);
 
+  const fetchRanking = useCallback(async ({ fresh = false } = {}) => {
+    setLoadingRanking(true);
+    setRankingError(null);
+    try {
+      if (fresh) {
+        invalidateLecturerBootstrap('ranking');
+      }
+      const data = await getOrFetchLecturerBootstrap('ranking', bootstrapJson, { fresh: true });
+      setRankingBoard({
+        weekStart: data.weekStart ?? null,
+        weekEnd: data.weekEnd ?? null,
+        rows: Array.isArray(data.rows) ? data.rows : [],
+      });
+    } catch (err) {
+      setRankingBoard({ weekStart: null, weekEnd: null, rows: [] });
+      setRankingError(toFriendlyError(err, 'read'));
+    } finally {
+      setLoadingRanking(false);
+    }
+  }, [bootstrapJson]);
+
+  useEffect(() => {
+    if (activeNav === 'ranking') {
+      fetchRanking();
+    }
+  }, [activeNav, fetchRanking]);
+
   useEffect(() => {
     if (selectedLabId) {
       setActiveTab('overview');
@@ -737,6 +768,7 @@ export default function LecturerDashboard({ user, onLogout }) {
     { label: 'Highest Score', value: formatNumber(labStatistics?.highestScore) },
     { label: 'Lowest Score', value: formatNumber(labStatistics?.lowestScore) },
     { label: 'Total Submissions', value: formatNumber(labStatistics?.submissionCount) },
+    { label: 'Total Attempts', value: formatNumber(labStatistics?.totalAttempts) },
     { label: 'Enrolled Students', value: formatNumber(labStatistics?.studentCount) },
     { label: 'Students Submitted', value: formatNumber(labStatistics?.studentsSubmitted) },
   ], [labStatistics]);
@@ -813,6 +845,7 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleShellCommand = useCallback((cmd) => {
     if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
+    else if (cmd === 'studentArea') navigate(ROUTES.studentDashboard);
     else if (cmd === 'changePassword' || cmd === 'editProfile') setShowProfile(true);
   }, [navigate]);
 
@@ -836,10 +869,11 @@ export default function LecturerDashboard({ user, onLogout }) {
         onLogout={onLogout}
         showNav
         hideHistory
+        showStudentArea={hasRole(user?.roles, 'ADMIN')}
         activeNav={activeNav}
         onNavigate={handleNavChange}
         onCommand={handleShellCommand}
-        className={activeNav === 'score' ? 'flex min-h-0 flex-col' : ''}
+        className={activeNav === 'score' || activeNav === 'ranking' ? 'flex min-h-0 flex-col' : ''}
       >
         {isInitialLoading ? (
           <LoadingSpinner />
@@ -1063,6 +1097,32 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
                 </div>
               </div>
+            </DashboardSection>
+          </div>
+        ) : activeNav === 'ranking' ? (
+          <div className="flex max-w-full min-h-0 flex-1 flex-col">
+            <DashboardSection
+              title="Ranking"
+              className="flex min-h-0 flex-1 flex-col"
+              contentClassName="flex min-h-0 flex-1 flex-col gap-4"
+              actions={
+                <button
+                  onClick={() => fetchRanking({ fresh: true })}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
+                  title="Refresh"
+                  type="button"
+                >
+                  <RefreshCw className={`w-4 h-4 text-foreground-secondary ${loadingRanking ? 'animate-spin' : ''}`} />
+                </button>
+              }
+            >
+              <RankingBoard
+                weekStart={rankingBoard.weekStart}
+                weekEnd={rankingBoard.weekEnd}
+                rows={rankingBoard.rows}
+                loading={loadingRanking}
+                error={rankingError}
+              />
             </DashboardSection>
           </div>
         ) : activeNav === 'score' ? (

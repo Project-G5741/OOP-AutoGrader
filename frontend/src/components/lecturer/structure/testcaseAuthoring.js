@@ -1,5 +1,15 @@
-export const MAX_STEPS = 20;
+export const MAX_STEPS = 44;
+/** Java `Integer.MAX_VALUE` — matches backend repeat_count cap. */
+export const MAX_REPEAT_COUNT = 2147483647;
 export const MAX_NAMED_INSTANCES = 10;
+
+export function clampRepeatCount(raw) {
+  const parsed = Number.parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return Math.min(MAX_REPEAT_COUNT, parsed);
+}
 export const TEXT_COMPARISON_MODES = ['EXACT', 'TRIMMED', 'NORMALIZED_WHITESPACE'];
 /** @deprecated use comparisonModesForAssertion */
 export const COMPARISON_MODES = TEXT_COMPARISON_MODES;
@@ -62,6 +72,7 @@ export function emptyInvocation() {
     receiverParams: '[]',
     instanceName: '',
     dispatchClassId: null,
+    repeatCount: 1,
   };
 }
 
@@ -92,6 +103,7 @@ export function defaultFieldStateExpected(field) {
   const type = coreTypeName(field.dataType);
   if (type === 'String' || type === 'char' || type === 'Character') return '""';
   if (type === 'boolean' || type === 'Boolean') return 'false';
+  if (type === 'LocalDate') return '"2024-01-01"';
   return '0';
 }
 
@@ -132,6 +144,7 @@ export function hydrateInvocation(inv) {
     receiverConstructorId: inv?.receiverConstructorId ?? null,
     params: inv?.params || '[]',
     receiverParams: inv?.receiverParams || '[]',
+    repeatCount: inv?.repeatCount != null && inv.repeatCount >= 1 ? inv.repeatCount : 1,
   };
 }
 
@@ -207,6 +220,7 @@ export function invocationForKindChange(invocation, kind) {
     receiverConstructorId: null,
     receiverParams: '[]',
     dispatchClassId: null,
+    repeatCount: 1,
   };
   if (kind === 'CONSTRUCTOR') {
     next.methodId = null;
@@ -237,6 +251,9 @@ function normalizeInvocation(step, unit) {
       receiverParams: '[]',
       dispatchClassId: null,
       params: stripInstanceRefs(hydrated.params),
+      repeatCount: hydrated.invocationKind === 'METHOD'
+        ? clampRepeatCount(hydrated.repeatCount ?? 1)
+        : 1,
     };
   }
   return {
@@ -245,6 +262,9 @@ function normalizeInvocation(step, unit) {
     receiverConstructorId: null,
     receiverParams: '[]',
     dispatchClassId: hydrated.dispatchClassId || null,
+    repeatCount: hydrated.invocationKind === 'CONSTRUCTOR'
+      ? 1
+      : clampRepeatCount(hydrated.repeatCount ?? 1),
   };
 }
 
@@ -267,7 +287,7 @@ export function validateTestcaseForDryRun(tc, catalog) {
     const step = steps[i];
     const label = composition ? `Step ${i + 1}` : 'Testcase';
     if (step.invocationKind === 'CONSTRUCTOR') {
-      if (!step.constructorId) {
+      if (!step.constructorId && !isImplicitDefaultConstructor(step)) {
         return `${label}: choose a constructor.`;
       }
     } else if (!step.methodId) {
@@ -290,10 +310,19 @@ export function validateTestcaseForDryRun(tc, catalog) {
       const param = parameters[p];
       const value = values[p];
       const argLabel = param.name ? `${param.name}` : `argument ${p + 1}`;
-      const objectArg = isRubricClassType(param.dataType, catalog);
+      const objectArg = isOrdinaryRubricClassType(param.dataType, catalog);
+      const enumArg = isRubricEnumType(param.dataType, catalog);
       if (composition && objectArg) {
         if (!isInstanceRef(value) || !String(value.$instance || '').trim()) {
           return `${label}: choose a named instance for ${argLabel}.`;
+        }
+      } else if (enumArg) {
+        if (value === null || value === undefined || value === '') {
+          return `${label}: enter an enum constant name for ${argLabel}.`;
+        }
+      } else if (isLocalDateType(param.dataType)) {
+        if (!isIsoLocalDate(value)) {
+          return `${label}: enter ${argLabel} as yyyy-MM-dd.`;
         }
       } else if (value === null || value === undefined || value === '') {
         return `${label}: enter a value for ${argLabel}.`;
@@ -312,10 +341,40 @@ export function validateTestcaseForDryRun(tc, catalog) {
     }
     if (composition && assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
       const field = catalog.fieldsById.get(assertion.fieldId);
-      if (field && isRubricClassType(field.dataType, catalog)) {
+      if (field && isOrdinaryRubricClassType(field.dataType, catalog)) {
         const instance = readInstanceExpected(assertion.expectedValue);
         if (!instance?.trim()) {
           return 'Each object field assertion must choose a named instance.';
+        }
+      }
+      if (field && isRubricEnumType(field.dataType, catalog)) {
+        const raw = assertion.expectedValue;
+        let blank = raw == null || String(raw).trim() === '';
+        if (!blank) {
+          try {
+            const parsed = JSON.parse(raw);
+            blank = parsed === null || parsed === ''
+              || (typeof parsed === 'string' && !parsed.trim());
+          } catch {
+            blank = !String(raw).trim();
+          }
+        }
+        if (blank) {
+          return 'Each enum field assertion must enter a constant name.';
+        }
+      }
+    }
+    if (assertion.assertionKind === 'FIELD_STATE' && assertion.fieldId) {
+      const field = catalog.fieldsById.get(assertion.fieldId);
+      if (field && isLocalDateType(field.dataType)) {
+        let dateValue = assertion.expectedValue;
+        try {
+          dateValue = JSON.parse(assertion.expectedValue);
+        } catch {
+          // keep the raw text
+        }
+        if (!isIsoLocalDate(dateValue)) {
+          return 'Each date field assertion must be yyyy-MM-dd.';
         }
       }
     }
@@ -360,6 +419,24 @@ export function coreTypeName(typeName) {
   }
   const dot = trimmed.lastIndexOf('.');
   return dot < 0 ? trimmed : trimmed.slice(dot + 1);
+}
+
+const ISO_LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function isLocalDateType(typeName) {
+  return coreTypeName(typeName) === 'LocalDate';
+}
+
+export function isIsoLocalDate(value) {
+  if (typeof value !== 'string' || !ISO_LOCAL_DATE.test(value)) return false;
+  const [, yearText, monthText, dayText] = value.match(ISO_LOCAL_DATE);
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
 }
 
 export function isArrayOrListType(typeName) {
@@ -614,9 +691,30 @@ export function buildMemberCatalog(
     });
   });
 
+  const enumClassNames = new Set();
+  classes.forEach((cls) => {
+    if (!cls.name) return;
+    if (declaringTypeKey(cls.declaringTypeId, declaringTypeOptions) === 'enum') {
+      enumClassNames.add(cls.name);
+    }
+  });
+
+  const classNameById = new Map();
+  const concreteClasses = [];
+  classes.forEach((cls) => {
+    if (!cls?.id || !cls.name) return;
+    classNameById.set(cls.id, cls.name);
+    if (isConcreteRubricClass(cls, declaringTypeOptions)) {
+      concreteClasses.push({ id: cls.id, name: cls.name });
+    }
+  });
+
   return {
     classNames,
+    enumClassNames,
     classIdByName,
+    classNameById,
+    concreteClasses,
     childrenByParentId,
     noArgClassIds,
     constructors,
@@ -633,8 +731,19 @@ export function isRubricClassType(typeName, catalog) {
   return Boolean(core && catalog.classNames.has(core));
 }
 
+/** Rubric ENUM type names — constant-name literals, not named instances. */
+export function isRubricEnumType(typeName, catalog) {
+  const core = coreTypeName(typeName);
+  return Boolean(core && catalog?.enumClassNames?.has(core));
+}
+
+/** Ordinary (non-enum) rubric class — requires Named instance / equals(). */
+export function isOrdinaryRubricClassType(typeName, catalog) {
+  return isRubricClassType(typeName, catalog) && !isRubricEnumType(typeName, catalog);
+}
+
 export function hasRubricClassArgument(parameters, catalog) {
-  return (parameters || []).some((param) => isRubricClassType(param.dataType, catalog));
+  return (parameters || []).some((param) => isOrdinaryRubricClassType(param.dataType, catalog));
 }
 
 export function unitMemberBlockedReason(target, catalog) {
@@ -696,11 +805,182 @@ export function applyUnitTarget(step, key, catalog) {
   };
 }
 
+export const IMPLICIT_DEFAULT_PREFIX = 'default:';
+
+export function implicitDefaultConstructorKey(classId) {
+  return `${IMPLICIT_DEFAULT_PREFIX}${classId}`;
+}
+
+export function isImplicitDefaultConstructor(step) {
+  return step?.invocationKind === 'CONSTRUCTOR' && !step.constructorId && Boolean(step.dispatchClassId);
+}
+
+export function implicitDefaultConstructorOptions(catalog) {
+  return (catalog?.concreteClasses || []).filter((cls) => !catalog.noArgClassIds?.has(cls.id));
+}
+
+export function constructorClassName(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.className || null;
+  }
+  return catalog.classNameById?.get(step.dispatchClassId) || null;
+}
+
+export function constructorClassId(step, catalog) {
+  if (!step || step.invocationKind !== 'CONSTRUCTOR') return null;
+  if (step.constructorId) {
+    return catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+  }
+  return step.dispatchClassId || null;
+}
+
 export function stepParameters(step, catalog) {
   if (step?.invocationKind === 'CONSTRUCTOR') {
+    if (isImplicitDefaultConstructor(step)) return [];
     return catalog.constructorsById.get(step.constructorId)?.parameters || [];
   }
   return catalog.methodsById.get(step.methodId)?.parameters || [];
+}
+
+function escapeRegex(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function isSyntheticParameterName(name) {
+  return !name?.trim() || /^arg\d+$/i.test(name.trim());
+}
+
+function splitParamList(segment) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i];
+    if (char === '<') depth += 1;
+    else if (char === '>') depth = Math.max(0, depth - 1);
+    else if (char === ',' && depth === 0) {
+      parts.push(segment.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(segment.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function nameFromParamDeclaration(decl) {
+  const trimmed = decl.replace(/\.\.\./g, ' ').trim();
+  if (!trimmed) return null;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const last = tokens[tokens.length - 1];
+  return last.replace(/\[\]$/g, '');
+}
+
+function parseParameterNamesFromParamSegment(segment, expectedCount) {
+  const names = splitParamList(segment).map(nameFromParamDeclaration).filter(Boolean);
+  return names.length === expectedCount ? names : null;
+}
+
+function sourceTexts(referenceSources) {
+  return (referenceSources || [])
+    .map((entry) => (typeof entry === 'string' ? entry : entry?.source))
+    .filter((text) => text && text.trim());
+}
+
+function findConstructorParamNames(source, className, expectedCount) {
+  const pattern = new RegExp(`\\b${escapeRegex(className)}\\s*\\(([^)]*)\\)`, 'g');
+  let match = pattern.exec(source);
+  while (match) {
+    const names = parseParameterNamesFromParamSegment(match[1], expectedCount);
+    if (names) return names;
+    match = pattern.exec(source);
+  }
+  return null;
+}
+
+function findMethodParamNames(source, className, methodName, expectedCount) {
+  const patterns = [
+    new RegExp(`\\b${escapeRegex(className)}\\s*\\.\\s*${escapeRegex(methodName)}\\s*\\(([^)]*)\\)`, 'g'),
+    new RegExp(`\\b${escapeRegex(methodName)}\\s*\\(([^)]*)\\)`, 'g'),
+  ];
+  for (const pattern of patterns) {
+    let match = pattern.exec(source);
+    while (match) {
+      const names = parseParameterNamesFromParamSegment(match[1], expectedCount);
+      if (names) return names;
+      match = pattern.exec(source);
+    }
+  }
+  return null;
+}
+
+export function parameterNamesFromReference(referenceSources, className, invocationKind, methodName, expectedCount) {
+  if (!className || !expectedCount) return null;
+  for (const source of sourceTexts(referenceSources)) {
+    const names = invocationKind === 'CONSTRUCTOR'
+      ? findConstructorParamNames(source, className, expectedCount)
+      : findMethodParamNames(source, className, methodName, expectedCount);
+    if (names) return names;
+  }
+  for (const entry of referenceSources || []) {
+    if (typeof entry === 'object' && entry?.className === className && entry?.source?.trim()) {
+      const names = invocationKind === 'CONSTRUCTOR'
+        ? findConstructorParamNames(entry.source, className, expectedCount)
+        : findMethodParamNames(entry.source, className, methodName, expectedCount);
+      if (names) return names;
+    }
+  }
+  return null;
+}
+
+export function parametersForDisplay(rawParameters, context = {}) {
+  const params = rawParameters || [];
+  if (!params.length) return params;
+  if (!params.some((param) => isSyntheticParameterName(param.name))) {
+    return params;
+  }
+  const parsed = parameterNamesFromReference(
+    context.referenceSources,
+    context.className,
+    context.invocationKind,
+    context.methodName,
+    params.length,
+  );
+  if (!parsed) return params;
+  return params.map((param, index) => (
+    isSyntheticParameterName(param.name) && parsed[index]
+      ? { ...param, name: parsed[index] }
+      : param
+  ));
+}
+
+export function displayStepParameters(step, catalog, referenceSources = []) {
+  const raw = stepParameters(step, catalog);
+  if (step?.invocationKind === 'CONSTRUCTOR') {
+    const ctor = catalog.constructorsById.get(step.constructorId);
+    return parametersForDisplay(raw, {
+      referenceSources,
+      className: ctor?.className,
+      invocationKind: 'CONSTRUCTOR',
+      methodName: null,
+    });
+  }
+  const method = catalog.methodsById.get(step.methodId);
+  return parametersForDisplay(raw, {
+    referenceSources,
+    className: method?.className,
+    invocationKind: 'METHOD',
+    methodName: method?.name,
+  });
+}
+
+export function parameterFieldLabel(param, index) {
+  const type = param.dataType || '?';
+  if (param.name && !isSyntheticParameterName(param.name)) {
+    return `${param.name}: ${type}`;
+  }
+  return `${type} (parameter ${index + 1})`;
 }
 
 export function isObjectReturnStep(step, catalog) {
@@ -708,13 +988,13 @@ export function isObjectReturnStep(step, catalog) {
   if (step.invocationKind === 'CONSTRUCTOR') return Boolean(step.constructorId);
   const method = catalog.methodsById.get(step.methodId);
   if (!method || isVoidReturn(method.returnType)) return false;
-  return isRubricClassType(method.returnType, catalog);
+  return isOrdinaryRubricClassType(method.returnType, catalog);
 }
 
 export function resultClassName(step, catalog) {
   if (!step) return null;
   if (step.invocationKind === 'CONSTRUCTOR') {
-    return catalog.constructorsById.get(step.constructorId)?.className || null;
+    return constructorClassName(step, catalog);
   }
   const method = catalog.methodsById.get(step.methodId);
   return method ? coreTypeName(method.returnType) : null;
@@ -733,12 +1013,12 @@ export function classIdForClassName(className, catalog) {
 function fieldOwnerClassIdsForStep(step, catalog) {
   if (!step) return [];
   if (step.invocationKind === 'CONSTRUCTOR') {
-    const classId = catalog.constructorsById.get(step.constructorId)?.classId ?? null;
+    const classId = constructorClassId(step, catalog);
     return classId ? [classId] : [];
   }
   const method = catalog.methodsById.get(step.methodId);
   if (!method) return [];
-  if (isRubricClassType(method.returnType, catalog) && !isVoidReturn(method.returnType)) {
+  if (isOrdinaryRubricClassType(method.returnType, catalog) && !isVoidReturn(method.returnType)) {
     const returnName = coreTypeName(method.returnType);
     const rootId = classIdForClassName(returnName, catalog);
     if (!rootId) return [];
@@ -779,13 +1059,12 @@ export function namedInstancesBefore(steps, catalog, index) {
     const name = step.instanceName?.trim();
     if (!name || used.has(name)) return;
     if (step.invocationKind === 'CONSTRUCTOR') {
-      const ctor = catalog.constructorsById.get(step.constructorId);
       used.add(name);
-      named.push({ name, className: ctor?.className || '' });
+      named.push({ name, className: constructorClassName(step, catalog) || '' });
       return;
     }
     const method = catalog.methodsById.get(step.methodId);
-    if (method?.isStatic && isRubricClassType(method.returnType, catalog)) {
+    if (method?.isStatic && isOrdinaryRubricClassType(method.returnType, catalog)) {
       used.add(name);
       named.push({ name, className: coreTypeName(method.returnType) });
     }
@@ -799,7 +1078,7 @@ export function compositionNameRole(step, catalog) {
   const method = catalog.methodsById.get(step.methodId);
   if (!method) return null;
   if (method.isStatic) {
-    return isRubricClassType(method.returnType, catalog) ? 'product' : null;
+    return isOrdinaryRubricClassType(method.returnType, catalog) ? 'product' : null;
   }
   return 'receiver';
 }

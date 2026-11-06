@@ -46,6 +46,12 @@ class BurstLimitExemptionsTest {
     }
 
     @Test
+    void currentTermMailPost_isExempt() {
+        assertTrue(BurstLimitExemptions.isExempt("/api/lecturer/terms/mail", "POST"));
+        assertFalse(BurstLimitExemptions.isExempt("/api/lecturer/terms/mail", "GET"));
+    }
+
+    @Test
     void ordinaryUpload_isNotExempt() {
         assertFalse(BurstLimitExemptions.isExempt("/api/submissions/upload", "POST"));
     }

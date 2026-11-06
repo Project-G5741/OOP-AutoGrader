@@ -82,6 +82,15 @@ export async function readFriendlyApiError(response, context = 'read') {
   }
 
   if (
+    context === 'upload'
+    && response.status === 429
+    && response.headers?.get?.('X-Daily-Submission-Limit') === '1'
+    && backendMessage
+  ) {
+    return backendMessage;
+  }
+
+  if (
     (response.status === 400
       || response.status === 404
       || response.status === 413

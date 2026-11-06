@@ -90,7 +90,7 @@ class DesktopPackBootstrapIntegrationTest {
                 TERM_ID,
                 "2026 — Quarter 1",
                 List.of(new DesktopPackLabEntry(
-                        new DesktopPackLabMeta(LAB_ID, "Bootstrap Lab", true, null, null),
+                        new DesktopPackLabMeta(LAB_ID, "Bootstrap Lab", true, null, null, null),
                         rubric)));
         byte[] innerJson = serializer.toJson(inner);
         DesktopPackManifest manifest = new DesktopPackManifest(

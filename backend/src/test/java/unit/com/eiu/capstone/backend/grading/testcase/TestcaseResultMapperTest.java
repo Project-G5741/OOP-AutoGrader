@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.DTO.TestcaseResultDTO;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
+import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.ComparisonMode;
+import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.SubmissionTestcaseResult;
 import com.eiu.capstone.backend.model.Testcase;
@@ -69,14 +71,32 @@ class TestcaseResultMapperTest {
 
         assertEquals(true, dto.getHidden());
         assertEquals("FAIL", dto.getResult());
-        assertEquals("input", dto.getInput());
+        assertEquals("", dto.getInput());
         assertEquals("expected", dto.getExpectedOutput());
         assertEquals("actual", dto.getActualOutput());
     }
 
     @Test
     void visibleTestcaseMapsDisplayColumns() {
-        TestcaseRubric rubric = visibleRubric(UUID.randomUUID(), "Visible case", false);
+        UUID invocationId = UUID.randomUUID();
+        InvocationRubric invocation = new InvocationRubric(
+                invocationId,
+                InvocationKind.METHOD,
+                null,
+                UUID.randomUUID(),
+                "Account",
+                "deposit",
+                List.of(),
+                "[50]",
+                null,
+                null,
+                List.of(),
+                null,
+                "account",
+                null,
+                null,
+                null);
+        TestcaseRubric rubric = visibleRubricWithInvocation(UUID.randomUUID(), "Visible case", false, invocation);
         SubmissionTestcaseResult submissionResult = resultFor(rubric.id(), TestcaseResultStatus.PASSED);
         submissionResult.setInputDisplay("account.deposit(50)");
         submissionResult.setExpectedDisplay("150");
@@ -96,7 +116,26 @@ class TestcaseResultMapperTest {
 
     @Test
     void ae6WrongTagOmittedOnExampleDto() throws Exception {
-        TestcaseRubric rubric = visibleRubric(UUID.randomUUID(), "Mis-tagged", false, OopPrincipleTag.Polymorphism);
+        UUID invocationId = UUID.randomUUID();
+        InvocationRubric invocation = new InvocationRubric(
+                invocationId,
+                InvocationKind.CONSTRUCTOR,
+                UUID.randomUUID(),
+                null,
+                "Person",
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null);
+        TestcaseRubric rubric = visibleRubricWithInvocation(
+                UUID.randomUUID(), "Mis-tagged", false, OopPrincipleTag.Polymorphism, invocation);
         SubmissionTestcaseResult submissionResult = resultFor(rubric.id(), TestcaseResultStatus.FAILED);
         submissionResult.setInputDisplay("new Person()");
         submissionResult.setExpectedDisplay("ok");
@@ -146,16 +185,32 @@ class TestcaseResultMapperTest {
     }
 
     private static TestcaseRubric visibleRubric(UUID id, String name, boolean hidden, OopPrincipleTag tag) {
+        return visibleRubricWithInvocation(id, name, hidden, tag, null);
+    }
+
+    private static TestcaseRubric visibleRubricWithInvocation(UUID id,
+                                                              String name,
+                                                              boolean hidden,
+                                                              InvocationRubric invocation) {
+        return visibleRubricWithInvocation(id, name, hidden, OopPrincipleTag.Unit, invocation);
+    }
+
+    private static TestcaseRubric visibleRubricWithInvocation(UUID id,
+                                                              String name,
+                                                              boolean hidden,
+                                                              OopPrincipleTag tag,
+                                                              InvocationRubric invocation) {
         AssertionRubric assertion = new AssertionRubric(
                 UUID.randomUUID(),
                 AssertionKind.RETURN_VALUE,
-                null,
+                invocation != null ? invocation.id() : null,
                 null,
                 null,
                 null,
                 "\"150\"",
                 ComparisonMode.EXACT,
                 0);
+        List<InvocationRubric> invocations = invocation != null ? List.of(invocation) : List.of();
         return new TestcaseRubric(
                 id,
                 name,
@@ -164,10 +219,10 @@ class TestcaseResultMapperTest {
                 1,
                 0,
                 hidden,
-                null,
+                invocation,
                 List.of(),
                 List.of(assertion),
-                List.of(),
+                invocations,
                 tag);
     }
 

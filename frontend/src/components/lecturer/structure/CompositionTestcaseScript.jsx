@@ -1,12 +1,17 @@
 import React from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
+import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
 import {
   allowedAssertionKinds,
   callAsOptionsForReceiver,
   compositionNameRole,
+  implicitDefaultConstructorKey,
+  implicitDefaultConstructorOptions,
+  isImplicitDefaultConstructor,
   defaultExpectedValue,
   emptyAssertion,
+  displayStepParameters,
   emptyInvocation,
   FIELD_CLASS,
   invocationForKindChange,
@@ -15,7 +20,6 @@ import {
   namedInstancesBefore,
   parseParamsArray,
   serializeParamsArray,
-  stepParameters,
 } from './testcaseAuthoring';
 
 function CompositionStepEditor({
@@ -28,9 +32,10 @@ function CompositionStepEditor({
   onRemove,
   onAssertionsChange,
   canRemove,
+  referenceSources = [],
 }) {
   const namedBefore = namedInstancesBefore(steps, catalog, index);
-  const parameters = stepParameters(step, catalog);
+  const parameters = displayStepParameters(step, catalog, referenceSources);
   const nameRole = compositionNameRole(step, catalog);
   const method = catalog.methodsById.get(step.methodId);
   const receiverOptions = method && !method.isStatic
@@ -75,9 +80,23 @@ function CompositionStepEditor({
             Constructor
             <select
               className={FIELD_CLASS}
-              value={step.constructorId || ''}
+              value={
+                step.constructorId
+                  || (isImplicitDefaultConstructor(step) ? implicitDefaultConstructorKey(step.dispatchClassId) : '')
+              }
               onChange={(e) => {
-                const constructorId = e.target.value || null;
+                const selected = e.target.value || '';
+                if (selected.startsWith('default:')) {
+                  onChange({
+                    ...step,
+                    constructorId: null,
+                    methodId: null,
+                    dispatchClassId: selected.slice('default:'.length),
+                    params: '[]',
+                  });
+                  return;
+                }
+                const constructorId = selected || null;
                 const ctor = catalog.constructorsById.get(constructorId);
                 onChange({
                   ...step,
@@ -88,6 +107,11 @@ function CompositionStepEditor({
               }}
             >
               <option value="">Select constructor</option>
+              {implicitDefaultConstructorOptions(catalog).map((cls) => (
+                <option key={implicitDefaultConstructorKey(cls.id)} value={implicitDefaultConstructorKey(cls.id)}>
+                  {`${cls.name}() — default`}
+                </option>
+              ))}
               {catalog.constructors.map((opt) => (
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
@@ -116,6 +140,20 @@ function CompositionStepEditor({
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
             </select>
+          </label>
+        )}
+
+        {step.invocationKind === 'METHOD' && step.methodId && (
+          <label className="block text-xs text-foreground-muted">
+            Repeat
+            <TestcaseRepeatCountInput
+              key={step.id}
+              repeatCount={step.repeatCount}
+              onChange={(repeatCount) => patchStep({ repeatCount })}
+            />
+            <span className="mt-0.5 block text-[10px] text-foreground-muted">
+              Invoke this method this many times in a row (min 1; very large values may time out at grade).
+            </span>
           </label>
         )}
 
@@ -235,7 +273,7 @@ function CompositionStepEditor({
   );
 }
 
-export default function CompositionTestcaseScript({ tc, catalog, onUpdate }) {
+export default function CompositionTestcaseScript({ tc, catalog, onUpdate, referenceSources = [] }) {
   const steps = tc.invocations || [];
   const assertions = tc.assertions || [];
 
@@ -284,6 +322,7 @@ export default function CompositionTestcaseScript({ tc, catalog, onUpdate }) {
             }}
             onAssertionsChange={(nextForStep) => replaceStepAssertions(step.id, nextForStep)}
             canRemove={steps.length > 1}
+            referenceSources={referenceSources}
           />
         ))}
         <button

@@ -4,6 +4,7 @@ import com.eiu.capstone.backend.security.*;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -81,6 +82,40 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void anonymousStudentRanking_is401Not403() throws Exception {
+        mockMvc.perform(get("/api/students/ranking/current"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void lecturerStudentRanking_is403() throws Exception {
+        mockMvc.perform(get("/api/students/ranking/current")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void studentLecturerRanking_is403() throws Exception {
+        mockMvc.perform(get("/api/lecturer/ranking/current")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerRanking_isNotDenied() throws Exception {
+        mockMvc.perform(get("/api/lecturer/ranking/current")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void studentRanking_isNotDenied() throws Exception {
+        mockMvc.perform(get("/api/students/ranking/current")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void anonymousMyHistory_is401Not403() throws Exception {
         mockMvc.perform(get("/api/submissions/my-history"))
                 .andExpect(status().isUnauthorized());
@@ -117,6 +152,16 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/submissions/my-history")
                         .param("access_token", rawToken(List.of(JwtRoleNames.STUDENT))))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminOnly_canOpenStudentAndLecturerPaths() throws Exception {
+        mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.ADMIN))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/lecturer/overview")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.ADMIN))))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -163,6 +208,32 @@ class SecurityAuthorizationTest {
     @Test
     void anonymousSolutionImport_is401() throws Exception {
         mockMvc.perform(post("/api/lecturer/labs/" + LAB_ID + "/solution-import"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void studentLabPrefix_is403() throws Exception {
+        mockMvc.perform(patch("/api/lecturer/labs/" + LAB_ID + "/prefix")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prefix\":\"Practice\"}")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerLabPrefix_isNotDenied() throws Exception {
+        mockMvc.perform(patch("/api/lecturer/labs/" + LAB_ID + "/prefix")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prefix\":\"Practice\"}")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousLabPrefix_is401() throws Exception {
+        mockMvc.perform(patch("/api/lecturer/labs/" + LAB_ID + "/prefix")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"prefix\":\"Practice\"}"))
                 .andExpect(status().isUnauthorized());
     }
 

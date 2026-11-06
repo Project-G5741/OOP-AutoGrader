@@ -53,7 +53,7 @@ class ClassStructureServiceDisclosureTest {
                 "PRIVATE",
                 "CLASS",
                 false,
-                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int")),
+                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int", false, false)),
                 List.of(),
                 List.of());
         ChallengeRubric challengeRubric = new ChallengeRubric(
@@ -84,7 +84,7 @@ class ClassStructureServiceDisclosureTest {
                 "PRIVATE",
                 "CLASS",
                 false,
-                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int")),
+                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int", false, false)),
                 List.of(),
                 List.of());
         ChallengeRubric challengeRubric = new ChallengeRubric(
@@ -124,7 +124,7 @@ class ClassStructureServiceDisclosureTest {
                 "PRIVATE",
                 "CLASS",
                 false,
-                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int")),
+                List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int", false, false)),
                 List.of(),
                 List.of());
         ChallengeRubric challengeRubric = new ChallengeRubric(
@@ -157,7 +157,7 @@ class ClassStructureServiceDisclosureTest {
                 "PUBLIC",
                 "CLASS",
                 false,
-                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String")),
+                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String", false, false)),
                 List.of(new MethodRubric(
                         methodId, "getName", "PUBLIC", "String", false, false, false, List.of())),
                 List.of(new ConstructorRubric(constructorId, "PUBLIC", true, List.of())));
@@ -202,7 +202,7 @@ class ClassStructureServiceDisclosureTest {
                 "PUBLIC",
                 "CLASS",
                 false,
-                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String")),
+                List.of(new FieldRubric(fieldId, "name", "PRIVATE", "String", false, false)),
                 List.of(),
                 List.of());
         ChallengeRubric challengeRubric = new ChallengeRubric(

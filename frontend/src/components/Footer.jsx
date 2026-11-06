@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Users } from 'lucide-react';
-import { fetchPresenceCount, leavePresence, PRESENCE_POLL_MS } from '../utils/presence';
+import { fetchPresenceCount, leavePresence } from '../utils/presence';
 import { formatNumber } from '../utils/formatters';
 
 const FOOTER_LABEL = 'Object-Oriented Programming';
 
 function ActiveUsersCount() {
   const [count, setCount] = useState(null);
+  const location = useLocation();
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
       try {
         const next = await fetchPresenceCount();
         if (!cancelled && typeof next === 'number') {
@@ -23,22 +28,28 @@ function ActiveUsersCount() {
     };
 
     load();
-    const id = window.setInterval(load, PRESENCE_POLL_MS);
-    const onVisible = () => {
+
+    const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         load();
+      } else {
+        leavePresence();
       }
     };
+    const onFocus = () => load();
     const onPageHide = () => leavePresence();
-    document.addEventListener('visibilitychange', onVisible);
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', onPageHide);
+
     return () => {
       cancelled = true;
-      window.clearInterval(id);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('pagehide', onPageHide);
     };
-  }, []);
+  }, [location.pathname, location.search]);
 
   if (count === null) {
     return null;

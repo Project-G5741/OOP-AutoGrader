@@ -1,11 +1,15 @@
-import React, { useMemo } from 'react';
-import { CalendarClock, Eye, EyeOff, FileInput, Loader2 } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { CalendarClock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import DatePicker from '../../ui/DatePicker';
 import Switch from '../../ui/Switch';
 import { Badge } from '../../ui/badge';
-import { Separator } from '../../ui/separator';
-import SolutionImportPanel from './SolutionImportPanel';
+import SolutionImportPanel, {
+  schedulingPrimaryBtnClass,
+  schedulingSecondaryBtnClass,
+} from './SolutionImportPanel';
+
+const colPad = (compact) => (compact ? 'px-4 py-4' : 'px-5 py-5');
 
 function SectionHeader({ icon: Icon, title }) {
   return (
@@ -13,9 +17,7 @@ function SectionHeader({ icon: Icon, title }) {
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary">
         <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
       </div>
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      </div>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
     </div>
   );
 }
@@ -25,17 +27,30 @@ export default function LabSchedulingPanel({
   compact = false,
   savedStudentVisible,
   savedDeadlineDate,
+  savedLabPrefix = 'Official',
   studentVisible,
   deadlineDate,
   studentAccessSaving,
   deadlineSaving,
+  prefixSaving = false,
+  structureLoading = false,
   onStudentVisibleChange,
   onDeadlineChange,
-  onSaveStudentAccess,
-  onSaveDeadline,
-  onClearDeadline,
+  onSaveScheduling,
+  onImportKindChange,
   onSolutionImport,
 }) {
+  const [importActions, setImportActions] = useState({
+    hasSelection: false,
+    importing: false,
+    clearSelection: () => {},
+    handleImport: () => {},
+  });
+
+  const handleImportActionsChange = useCallback((next) => {
+    setImportActions(next);
+  }, []);
+
   const accessStatus = useMemo(() => {
     if (!savedStudentVisible) {
       return { label: 'Hidden', variant: 'destructive' };
@@ -52,10 +67,17 @@ export default function LabSchedulingPanel({
 
   const studentAccessDirty = studentVisible !== savedStudentVisible;
   const deadlineDirty = (deadlineDate || '') !== (savedDeadlineDate ? String(savedDeadlineDate).slice(0, 10) : '');
+  const schedulingDirty = studentAccessDirty || deadlineDirty;
+  const schedulingSaving = studentAccessSaving || deadlineSaving;
 
   const shellClass = compact
     ? 'overflow-hidden rounded-xl border border-border bg-surface'
     : '!p-0 overflow-hidden';
+
+  const panelDisabled = schedulingSaving || prefixSaving || structureLoading;
+  const importBusy = importActions.importing;
+  const pad = colPad(compact);
+  const AccessIcon = studentVisible ? Eye : EyeOff;
 
   return (
     <Card className={shellClass}>
@@ -76,90 +98,86 @@ export default function LabSchedulingPanel({
         </div>
       )}
 
-      <div className="grid gap-0 lg:grid-cols-3">
-        <section className={`space-y-7 px-5 py-6 lg:border-r lg:border-border ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
-          <SectionHeader
-            icon={savedStudentVisible ? Eye : EyeOff}
-            title="Student access"
-          />
+      <div className={`grid gap-4 lg:grid-cols-2 lg:items-stretch ${pad}`}>
+        <section className={`flex min-h-0 flex-col gap-5 lg:border-r lg:border-border lg:pr-5 ${compact ? '' : 'lg:pr-6'}`}>
+          <div className="shrink-0 space-y-3">
+            <SectionHeader icon={AccessIcon} title="Student access" />
+            <div className="rounded-xl border border-border bg-surface-secondary/40 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm font-medium text-foreground">Visible to students</p>
+                <Switch
+                  id="student-visible-toggle"
+                  checked={studentVisible}
+                  disabled={schedulingSaving}
+                  onChange={onStudentVisibleChange}
+                  aria-label="Visible to students"
+                />
+              </div>
+            </div>
+          </div>
 
-          <div className="rounded-xl border border-border bg-surface-secondary/40 p-5">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-medium text-foreground">Visible to students</p>
-              <Switch
-                id="student-visible-toggle"
-                checked={studentVisible}
-                disabled={studentAccessSaving}
-                onChange={onStudentVisibleChange}
-                aria-label="Visible to students"
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <SectionHeader icon={CalendarClock} title="Submission deadline" />
+            <div className="flex flex-col gap-2">
+              <label htmlFor="deadline-date" className="text-sm font-medium text-foreground">
+                Deadline date:
+              </label>
+              <DatePicker
+                id="deadline-date"
+                value={deadlineDate}
+                disabled={schedulingSaving}
+                placeholder="No deadline"
+                onChange={onDeadlineChange}
+                className="w-full min-w-0"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-4">
+          <div className="flex shrink-0 justify-end pt-1">
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={studentAccessSaving || !studentAccessDirty}
-              onClick={onSaveStudentAccess}
+              className={schedulingPrimaryBtnClass}
+              disabled={panelDisabled || !schedulingDirty}
+              onClick={onSaveScheduling}
             >
-              {studentAccessSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save access
+              {schedulingSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
             </button>
           </div>
         </section>
 
-        <section className={`space-y-7 px-5 py-6 lg:border-r lg:border-border ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
-          <SectionHeader
-            icon={CalendarClock}
-            title="Submission deadline"
-          />
-
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-3 py-1">
-            <label htmlFor="deadline-date" className="shrink-0 text-sm font-medium text-foreground">
-              Deadline date:
-            </label>
-            <DatePicker
-              id="deadline-date"
-              value={deadlineDate}
-              disabled={deadlineSaving}
-              placeholder="No deadline"
-              onChange={onDeadlineChange}
-              className="min-w-[10rem] max-w-xs flex-1"
+        <section className={`flex min-h-0 flex-col ${compact ? 'lg:pl-0' : 'lg:pl-1'}`}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SolutionImportPanel
+              actionBar="external"
+              disabled={panelDisabled}
+              savedLabPrefix={savedLabPrefix}
+              onImportActionsChange={handleImportActionsChange}
+              onImportKindChange={onImportKindChange}
+              onImport={onSolutionImport}
             />
           </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 pt-3">
             <button
               type="button"
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deadlineSaving || !deadlineDate}
-              onClick={onClearDeadline}
+              className={schedulingSecondaryBtnClass}
+              disabled={panelDisabled || importBusy || !importActions.hasSelection}
+              onClick={importActions.clearSelection}
             >
-              Clear deadline
+              Clear
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={deadlineSaving || !deadlineDirty}
-              onClick={onSaveDeadline}
+              className={schedulingPrimaryBtnClass}
+              disabled={panelDisabled || importBusy || !importActions.hasSelection}
+              onClick={importActions.handleImport}
             >
-              {deadlineSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save deadline
+              {importBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+              Import solution
             </button>
           </div>
         </section>
-
-        <section className={`space-y-7 px-5 py-6 ${compact ? '' : 'space-y-8 px-6 py-7'}`}>
-          <SectionHeader icon={FileInput} title="Solution import" />
-          <SolutionImportPanel
-            disabled={studentAccessSaving || deadlineSaving}
-            onImport={onSolutionImport}
-          />
-        </section>
       </div>
-
-      {!compact && <Separator />}
     </Card>
   );
 }

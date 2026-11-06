@@ -12,11 +12,14 @@ import {
   GitMerge,
 } from 'lucide-react';
 import DropZone from '../ui/DropZone';
+import DangerAlert from '../ui/DangerAlert';
 import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
+import LabPrefixBadge from '../ui/LabPrefixBadge';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
 import { formatMmdRelationType, firstCompileErrorLine, formatStudentTestcaseMessage } from '../../utils/formatters';
+import { classListHasCompileError } from '../../utils/compileErrors';
 import {
   consolidateStudentClassMembers,
   consolidateStudentMmdAttributes,
@@ -203,11 +206,20 @@ export default function StudentUI({
   sessionChallengeBundles = {},
   sessionOverallScore = null,
   error = null,
+  dailySubmissionQuota = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
   const [expandedClassName, setExpandedClassName] = useState(null);
   const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
+  const [now, setNow] = useState(() => new Date());
+
+  const dailyLimit = dailySubmissionQuota?.dailyLimit ?? 30;
+  const usedToday = dailySubmissionQuota?.usedToday ?? 0;
+  const canSubmitToday = dailySubmissionQuota?.canSubmit !== false;
+  const uploadBlockedReason = canSubmitToday
+    ? null
+    : `You have reached today's submission limit (${usedToday}/${dailyLimit}). You can submit again after midnight (Vietnam time).`;
 
   // Reset expanded test case khi đổi challenge
   useEffect(() => {
@@ -216,7 +228,16 @@ export default function StudentUI({
     setHiddenTestcasesPage(0);
   }, [selectedChallengeId]);
 
-  const currentBundle = selectedChallengeId ? sessionChallengeBundles[selectedChallengeId] : null;
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const currentBundle = selectedChallengeId
+    ? (sessionChallengeBundles[selectedChallengeId]
+      ?? sessionChallengeBundles[String(selectedChallengeId)]
+      ?? null)
+    : null;
   const effectiveClassNormalizationNotice =
     classNormalizationNotice
     ?? currentBundle?.normalizationNotice
@@ -336,6 +357,7 @@ export default function StudentUI({
         labs={labs}
         selectedLabId={selectedLabId}
         onSelectLab={onLabChange}
+        now={now}
       />
       <SidebarInset>
         <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2">
@@ -347,31 +369,55 @@ export default function StudentUI({
                 Enrolled Quarter: <span className="font-medium text-foreground">{quarterName}</span>
               </p>
             ) : null}
-            <p className="truncate text-sm font-semibold text-foreground">
-              {selectedLab?.name ?? 'Select a lab'}
-            </p>
+            <div className="min-w-0">
+              {selectedLab ? (
+                <div className="flex justify-end">
+                  <LabPrefixBadge prefix={selectedLab.prefix} />
+                </div>
+              ) : null}
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedLab?.name ?? 'Select a lab'}
+              </p>
+            </div>
             {selectedLab?.deadlineDate && (
               <p className="truncate text-xs text-foreground-muted">
-                {formatLabDeadlineMeta(selectedLab)}
+                {formatLabDeadlineMeta(selectedLab, { now })}
               </p>
             )}
           </div>
           <StudentNotificationBell
             labs={labs}
             labSummariesById={labSummariesById}
+            now={now}
           />
         </header>
 
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
         {/* Upload box */}
         <div>
+          {dailySubmissionQuota != null && (
+            <div
+              className={`mb-3 rounded-lg border px-4 py-3 text-sm ${
+                canSubmitToday
+                  ? 'border-border bg-surface-secondary text-foreground-secondary'
+                  : 'border-warning/40 bg-warning-bg text-warning-text'
+              }`}
+            >
+              {canSubmitToday
+                ? `Submissions today: ${usedToday} / ${dailyLimit} (all labs, resets at midnight Vietnam time).`
+                : uploadBlockedReason}
+            </div>
+          )}
           <DropZone
             title="Drop your project files here"
             buttonText="Select Project"
             labId={selectedLabId}
+            labPrefix={selectedLab?.prefix}
             attemptNumber={nextAttemptNumber}
             authToken={getAccessToken()}
             onUploadComplete={onUploadComplete}
+            uploadDisabled={!canSubmitToday}
+            uploadDisabledReason={uploadBlockedReason}
           />
         </div>
 
@@ -419,15 +465,6 @@ export default function StudentUI({
 
         {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex min-h-0 flex-col gap-4 lg:min-h-[560px] lg:flex-row">
-          {isRefreshingResults && (
-            <div
-              className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/60"
-              aria-busy="true"
-              aria-label="Refreshing results"
-            >
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
           {/* Challenges sidebar - Từ backend */}
           <div className="w-full lg:w-[30%] flex-shrink-0 bg-surface rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-border">
@@ -446,7 +483,8 @@ export default function StudentUI({
               ) : (
                 challenges.map((ch) => {
                   const chHasScore = resultsRevealed && hasSessionChallengeScore(sessionChallengeScores, ch.id);
-                  const bundle = sessionChallengeBundles[ch.id];
+                  const bundle = sessionChallengeBundles[ch.id]
+                    ?? sessionChallengeBundles[String(ch.id)];
                   const bundleTotal = bundle?.scores?.total;
                   const chScore = chHasScore
                     ? (bundleTotal != null
@@ -516,10 +554,14 @@ export default function StudentUI({
               </div>
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — spinner only while detail trees are loading or refreshing */}
             <div className="flex-1 overflow-auto p-5">
-              {isLoadingDetails ? (
-                <div className="flex items-center justify-center h-48">
+              {isLoadingDetails || isRefreshingResults ? (
+                <div
+                  className="flex items-center justify-center h-48"
+                  aria-busy="true"
+                  aria-label="Loading challenge details"
+                >
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
@@ -623,6 +665,10 @@ export default function StudentUI({
                     <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
                       {effectiveClassNormalizationNotice}
                     </div>
+                  )}
+
+                  {classListHasCompileError(classData) && (
+                    <DangerAlert className="mb-4">Compilation Error</DangerAlert>
                   )}
 
                   {classData.length > 0 ? (

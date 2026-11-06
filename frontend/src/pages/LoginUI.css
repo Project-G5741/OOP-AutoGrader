@@ -154,6 +154,20 @@
   z-index: 2;
 }
 
+.login-back {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+
 .login-card-wrapper {
   position: relative;
   z-index: 1;
@@ -468,6 +482,11 @@
   .theme-toggle {
     top: 1rem;
     right: 1rem;
+  }
+
+  .login-back {
+    top: 1rem;
+    left: 1rem;
   }
 
   .login-card-wrapper {

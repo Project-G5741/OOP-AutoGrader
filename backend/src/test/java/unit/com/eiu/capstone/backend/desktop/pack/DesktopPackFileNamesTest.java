@@ -85,7 +85,7 @@ class DesktopPackFileNamesTest {
                 TERM_ID,
                 "2026 — Quarter 1",
                 List.of(new DesktopPackLabEntry(
-                        new DesktopPackLabMeta(LAB_ID, labName, true, null, null),
+                        new DesktopPackLabMeta(LAB_ID, labName, true, null, null, null),
                         new LabRubricSnapshot(LAB_ID, Map.of()))));
     }
 
@@ -106,7 +106,7 @@ class DesktopPackFileNamesTest {
                 TERM_ID,
                 termLabel,
                 List.of(new DesktopPackLabEntry(
-                        new DesktopPackLabMeta(LAB_ID, "Bootstrap Lab", true, null, null),
+                        new DesktopPackLabMeta(LAB_ID, "Bootstrap Lab", true, null, null, null),
                         new LabRubricSnapshot(LAB_ID, Map.of()))));
     }
 

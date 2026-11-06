@@ -51,6 +51,7 @@ You can also run them separately:
 
 - `VITE_GOOGLE_CLIENT_ID` — Google OAuth client ID
 - `VITE_API_URL` — backend URL (default `http://localhost:8002`)
+- `VITE_MAINTENANCE_MODE` — web lock (`true` shows `MaintenancePage` for guests and students and clears student-only sessions; lecturers sign in at `/staff`, not from a button on the maintenance page). Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at build; Vercel needs a Redeploy after a change. Desktop builds ignore it.
 
 **Backend** (`backend/.env`, loaded by `application.yml`):
 
@@ -226,8 +227,8 @@ Swagger UI: `http://localhost:8002/swagger-ui/index.html`
 When `POST /api/submissions/{labId}/{attemptNumber}/upload` is called:
 
 ```
-1. JWT email → `requireUploadAccess` (one query, cached 30s on success; warmed by `GET /api/labs`)
-2. LabRubricCache.get(lab) starts in parallel with compile on `rubricOverlapExecutor` → immutable rubric snapshot (cached 30 min)
+1. JWT email → `requireUploadAccess` (one query, cached 10s on success; warmed by `GET /api/labs`)
+2. LabRubricCache.get(lab) starts in parallel with compile on `rubricOverlapExecutor` → immutable rubric snapshot (cached 2 min, max 8 labs)
 3. SubmissionStorageService.processUpload(irn, requestId, files)
 4. Assign lab_submission.id in memory (path attempt unused)
 5. GradingService.gradeSubmission(...) compute + lab_result assemble
@@ -334,7 +335,7 @@ erDiagram
 
 ### 6.3 JPA configuration
 
-- Connection pool: HikariCP (max 10 connections; `keepalive-time=120000`; pgjdbc `socketTimeout=30` + `tcpKeepAlive=true` for Neon suspend fail-fast)
+- Connection pool: HikariCP (max 5 by default; sleep-friendly idle floor 0, `idle-timeout=10s`, Hikari keepalive off, `tcpKeepAlive=false`; pgjdbc `socketTimeout=30`). Always-on hosts may override via `HIKARI_*` for a warm pool.
 - `spring.jpa.open-in-view=false` — no lazy-loading outside transactions
 - Batch inserts/updates enabled for performance
 - UUID primary keys on most entities
@@ -381,6 +382,7 @@ erDiagram
 
 - Unique key: `(user_id, lab_id, attempt_number)` on `lab_submission`
 - Each upload **inserts a new attempt** (`MAX(attempt_number)+1`). The URL `{attemptNumber}` is not used to overwrite a prior row
+- Cloud deploys keep every **on-time** score row. Full ticks stay on the **latest attempt before the deadline** and **that lab’s highest on-time attempt** (`SubmissionRetentionService` after upload + startup backfill + nightly scheduler). Older on-time attempts stay score-only (details and disk sidecars removed). Late attempts are deleted. `student_lab_progress.highest_score` / `best_submission_id` stay the on-time best. Desktop practice disables retention (`app.submission.retention.enabled=false`)
 - `attemptsCount` / upload `totalSubmissions` is the assigned attempt number (equal to `COUNT` after a successful `MAX+1` insert)
 - Element results UPSERT by (submission, rubric element) natural keys for that new submission
 
@@ -390,13 +392,13 @@ erDiagram
 
 | Cache | TTL | Invalidation |
 |-------|-----|--------------|
-| `LabRubricCache` | 30 min | `invalidateLab` on rubric save; `invalidateAll` after OT schema wipe (`TestcaseSchemaMigrator`) or TTL |
+| `LabRubricCache` | 2 min (max 8) | `invalidateLab` on rubric save; `invalidateAll` after OT schema wipe (`TestcaseSchemaMigrator`); scheduled sweep + TTL |
 | `MasterDataCache` | 60 min | TTL |
 | `LecturerOverviewCache` | 90 sec | On upload |
 | `LabStatisticsCache` | 120 sec | On upload for that lab |
 | `AnalyticsDashboardCache` | 180 sec | TTL |
 
-Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=4`, CPU-capped). MMD uses `pillarExecutor`. Lecturer dry-run acquires one isolated worker JVM (host slot of 1). Student upload does not. See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
+Compile uses `compileExecutor` (`app.compile.parallelism=2`, CPU-capped). Grading uses `gradingExecutor` (`app.grading.parallelism=2`, CPU-capped). MMD uses `pillarExecutor`. Lecturer dry-run and OT upload acquire one isolated worker JVM (host slot of 1; default close-on-release). See [GRADING_WORKFLOWS.md §14](./GRADING_WORKFLOWS.md#14-wall-clock-cost-and-time-complexity) for which stages dominate upload latency.
 
 ---
 
@@ -404,8 +406,8 @@ Compile uses `compileExecutor` (`app.compile.parallelism=4`, CPU-capped). Gradin
 
 | Tier | Platform | Notes |
 |------|----------|-------|
-| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend |
-| Backend | **Render** (Docker) | Multi-stage `Dockerfile`; API `JAVA_OPTS` default `-Xmx256m`; needs JDK; practice zip packaging in `backend/DEPLOY_RENDER.md` |
+| Frontend | **Vercel** | Static build from `frontend/dist`; `VITE_API_URL` points to Render backend; `VITE_MAINTENANCE_MODE` locks the SPA until the next rebuild |
+| Backend | **Render** (Docker) | Multi-stage `Dockerfile`; API `JAVA_OPTS` default `-Xmx192m` + G1 periodic; needs JDK; practice zip packaging in `backend/DEPLOY_RENDER.md` |
 | Database | **Neon PostgreSQL** | Use pooler hostname (`-pooler`) for JVM |
 
 CORS allows `https://oop-autograder.vercel.app`. Password-reset emails pick the request `Origin` when it matches an allowed frontend.

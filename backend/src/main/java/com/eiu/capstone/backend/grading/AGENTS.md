@@ -1,0 +1,164 @@
+# Grading Engine
+
+## Purpose
+
+Grade lab submissions: Java `.class` reflection and MMD diagram comparison on student upload, plus operational testcase checks when the challenge has authored rows. Produce per-element results, pillar scores, and an upload-time `lab_result` bundle for the student UI.
+
+## Ownership
+
+| File | Role |
+|---|---|
+| `GradingService.java` | Thin orchestrator: parallel per-challenge grading, `lab_result` assembly (persist is `UploadPersistService`) |
+| `grading/pipeline/GradingPipeline.java` | Staged pipeline: class+MMD per challenge, then lab-wide OT via `completeOperationalTestcasesLabWide` |
+| `grading/pipeline/ClassReflectionGrader.java` | `.class` pillar: class shells are binary (all shell attributes match or 0%), including an optional Extends/Implements declared-clause check from the class's inheritance/realization row; when the shell fails, fields/methods/constructors score 0%; otherwise members are all-or-nothing (every graded attribute must match); leftover snapshot `"partial"` labels display as fail and are not rewritten; explicit no-arg constructors are not treated as compiler-default unless the rubric `isDefault` flag is set |
+| `grading/pipeline/HeritageShellMatcher.java` | Shared declared-clause Extends/Implements predicate for the class grader and Class-tab shell display |
+| `grading/pipeline/MmdPillarGrader.java` | MMD pillar |
+| `grading/pipeline/TestcaseGrader.java` | Operational testcase orchestrator |
+| `grading/testcase/kernel/` | Spring-free coerce/compare types shipped on the thin worker JAR |
+| `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
+| `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR locally, env allowlist, stderr cap, respawn without releasing the host slot; resolves jar path with Docker then local Maven fallbacks when configured path is missing |
+| `grading/testcase/WorkerSessionFactory.java` | `app.grading.sandbox.enabled` — local `WorkerProcessClient` or `RemoteWorkerSessionClient` |
+| `grading/testcase/RemoteWorkerSessionClient.java` | Tar submission root, `POST /sessions` to sandbox-runner |
+| `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON, chunked line reads) or `HttpWorkerTransport` (remote REST invoke) |
+| `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
+| `grading/testcase/WorkerSessionHandle.java` | Worker JVM session; respawn keeps the host slot |
+| `grading/testcase/SharedLocalWorkerCache.java` | Optional idle local worker reuse (`app.grading.worker-idle-ttl-ms`, default 0 = close on release); sandbox never cached |
+| `grading/testcase/worker/WorkerClassReflector.java` | One-shot `--reflect` class parse in the worker JVM (keeps student types out of API Metaspace) |
+| `grading/rubric/DryRunChallengeCatalogCache.java` | One Neon load per challenge caches validate membership + assemble maps (60s); cleared on rubric invalidate |
+| `grading/rubric/RubricMemberMaps.java` | Lookup maps built from challenge members for OT rubric assembly |
+| `grading/testcase/InvocationRunner.java` | IPC facade: send one NDJSON request; no student `Class.forName` in the API |
+| `grading/testcase/AssertionEvaluator.java` | Per-kind assertion evaluation (RETURN_VALUE including object checks, FIELD_STATE, STDOUT, EXCEPTION) |
+| `grading/testcase/TestcaseDisplayFormatter.java` | Primary I/O card display strings + lazy expanded assertion formatting |
+| `grading/testcase/PrimaryAssertionSelector.java` | Primary assertion: kind priority, or first-failing / last-run step for scenarios |
+| `grading/testcase/TestcaseResultMapper.java` | Map rubric + persisted results to student-facing `TestcaseResultDTO` |
+| `grading/scoring/PillarScoreAggregator.java` | Pillar, challenge (mean of applicable pillars), and lab percentages; two-decimal rounding is always down |
+| `grading/scoring/PartialCreditEvaluator.java` | `binaryAccuracy` for Class-tab members and MMD elements; `accuracy()` matching-attribute ratio for MMD class presence vs type |
+| `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles; overload accepts `DisclosureMode` (student upload = STUDENT; lecturer bulk = LECTURER) |
+| `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
+| `GradingResultStore.java` | Short read/write transactions for submission result tables |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
+| `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `getAll` batches misses via `loadForLabs`; `invalidateAll()` after OT schema wipe |
+| `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
+| `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
+| `grading/mmd/MmdTokenizer.java` | Character-level tokenizer for Mermaid `classDiagram` source |
+| `grading/mmd/MmdAstParser.java` | Builds diagram AST; enforces `classDiagram` header |
+| `grading/mmd/MmdAstToParsedMapper.java` | Maps AST to `ParsedMmdDiagram` for comparison |
+| `grading/mmd/MmdRelationLineParser.java` | Relationship line parsing (arrows, cardinality, lollipop, two-way) |
+| `grading/mmd/MmdRelationTypes.java` | Relation arrow table and canonical type names |
+| `grading/mmd/ast/MmdNamespaceNode.java` | Namespace block AST node |
+| `MmdComparisonService.java` | Compare parsed MMD against rubric; resolves simple and namespace-qualified class names via `ParsedMmdDiagram.classByName` |
+| `DTO/MmdResponseDTO.java` | `/mmd` and `lab_result` MMD payload: `{ classes, parseError }` |
+| `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
+| `grading/rubric/RubricParameterMaps.java` | Group rubric parameters by constructor/method id for assembler, lab load, and lecturer save validation |
+| `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
+| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local worker via `SharedLocalWorkerCache` (default close-on-release) |
+
+## Local Contracts
+
+### Pipeline position
+
+```
+SubmissionController
+  → StudentTermAccessService.requireUploadAccess()  (one query; 10s success cache; warmed by GET /api/labs)
+  → LabRubricCache.get(lab)                         (overlaps compile)
+  → SubmissionStorageService.processUpload()
+  → assign lab_submission.id in memory
+      → GradingService.gradeSubmission()   (compute + assemble only)
+          → When any challenge has OT: parallel `gradeClassAndMmd()` per folder, then `workerJvmSlot` + `SharedLocalWorkerCache.borrow`, then one lab-wide `completeOperationalTestcasesLabWide` (`TestcaseGrader.gradeLab` / one `batch` IPC)
+              → Otherwise `gradeChallenge()` per folder: ClassReflectionGrader → MmdPillarGrader (no worker)
+          → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
+              → skip MMD/testcase trees when pillar not applicable
+  → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
+      → persistExecutor after that statement: GradingResultJdbcWriter detail UPSERT
+  → compile/package/mmd sidecars off-thread
+  → snapshot PlagiarismSignals (request thread)
+  → PlagiarismService.inspectUpload(submission, signals)  (persistExecutor; failures swallowed)
+  → MmdPersistenceHook.onUploadComplete()
+  → SubmissionStorageService.deleteFolder() (finally, off-thread)
+```
+
+### Scoring
+
+- **Pillar percentage** = weighted mean of member accuracies (`PillarScoreAggregator.pillarPercentage`); class shells use `class_entity.weight`
+- **Challenge percentage** = weighted mean of applicable pillars using `challenge.class_weight`, `challenge.mmd_weight`, and `challenge.testcase_weight`. Declaration applies when `has_class`; MMD when `has_mmd`; OT when rubric rows exist. Skip `ClassReflectionGrader.grade` / use `notApplicable()` when `has_class` is false. A challenge with OT rows and no compiled `.class` files records each testcase as `FAILED` (`No .java files were submitted, so this testcase was not run.`) and does not open the worker. Declaration may be off; MMD-only upload still grades the MMD pillar.
+- **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
+- **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
+- **Operational testcases** pass only when every assertion passes (binary per testcase; there is no per-testcase weight)
+- Student upload / bulk grade run lab-wide OT (`gradeLab`) and acquire `workerJvmSlot` when any OT challenge has `classFileCount > 0`; lecturer dry-run uses `gradeSingle` with the same slot + shared warm cache
+- No compiled classes short-circuit every testcase on that challenge to `FAILED` before invoke. Compile errors short-circuit only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
+
+### Operational testcase grading
+
+- Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
+- UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps. A constructor step may omit `constructor_id` and set `dispatch_class_id` to a challenge class; the worker then builds that object with the same hidden-receiver rule and stores no structure-editor constructor
+- Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
+- Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
+- `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
+- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback
+- IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
+- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (list of scenarios; each item may carry its own `classesDir` for lab-wide OT). `compare` is not used. Upload/bulk: one lab-wide `batch` round-trip; dry-run: one-item batch
+- In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1
+- Whole-scenario execution timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget per batch item; on hang the worker stops that batch slice and halts; the API respawns and continues remaining items
+- Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
+- Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step
+- Constructor stdout is not evaluated (save already 422s it)
+- After a METHOD that returns a student-loader object, static factories register `instanceName` as the product. Instance methods do not overwrite the named receiver with the return (no distinct return-name column this ship)
+- Assertions bind to `assertion.invocationId()` (legacy one-step may omit the id). Omitted/unrun steps evaluate as not executed (`FAILED`)
+- Constructor steps: **FIELD_STATE** and **EXCEPTION** only (no RETURN_VALUE). Object field maps (`$objectCheck: FIELDS`) and type-only checks are rejected on save and fail on grade; use FIELD_STATE. Composition method returns may use `{ "$objectCheck": "EQUALS", "$instance": "name" }` in RETURN_VALUE `expected_value` (evaluated from worker `equalsNamed`, including a name that already holds this same instance)
+- Scenario primary **expected/actual** is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step. **Input** lists every authored step (newline-separated)
+- Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
+- Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
+- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (default close-on-release; optional positive idle TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
+- Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
+- Exception matching: exception class simple name only (not message)
+- Value types v1: primitives, `String`, null, arrays of primitives, `LocalDate` as `yyyy-MM-dd`; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
+
+### Result persistence
+
+Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.persistUpload` (PostgreSQL: one CTE statement with `lab_submission` insert `MAX+1` and `student_lab_progress` UPSERT; **`desktop` profile:** `H2GradingResultJdbcWriter` uses transactional JDBC without `unnest`/`gen_random_uuid()`). Borrow the connection with `DataSourceUtils` (never `dataSource.getConnection()`). Member, relation, testcase, and assertion rows UPSERT on `persistExecutor` after that statement succeeds via `GradingResultJdbcWriter.upsertDetails` — **one DataSource borrow and one explicit transaction** for the whole detail set (`GradingResultJdbcWriterSupport.withTransaction`; PostgreSQL `ON CONFLICT`; H2 `MERGE` / batch). Empty detail payloads no-op without a borrow. Mid-batch failure rolls back that attempt’s detail writes only; upload scores stay committed. `GET /class`, `/mmd`, and `/testcases` wait on `SubmissionDetailPersistGate` (60s). Re-upload does not `loadExisting`; UPSERT updates in place.
+
+| Entity | Stores |
+|---|---|
+| `SubmissionChallengeResult` | Per-challenge score (0–100) plus optional `mmd_outcomes` JSONB (versioned MMD member flags for revisit GET `/mmd`) |
+| `SubmissionFieldResult` / `Method` / `Constructor` / `Relation` | Element match outcomes |
+| `SubmissionTestcaseResult` | Testcase rollup + primary `input_display` / `expected_display` / `actual_display` |
+| `SubmissionTestcaseAssertionResult` | Per-assertion status, `actual_value` JSONB, feedback |
+
+### Upload `lab_result` bundle
+
+Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operational I/O cards; hidden rows omit display strings; no type tags on student payloads), `scores: { class, mmd, testcase, total }`, and `scoreApplicability`. Upload assemble maps `ChallengeRubric` + snapshot + correct ids (`ClassStructureService.buildClassDataFromRubric` / `buildMmdDataFromRubric`); it does not reload class/member/relation rows from Neon. When `mmdApplicable` or `testcaseApplicable` is false, that tree is empty (`mmd.classes: []` or `testcases: []`) and the corresponding applicability flag is false. GET `/class` `/mmd` `/testcases` use the same mappers after `SubmissionDetailPersistGate.await` (`LabRubricCache.get(labId)` + `challengeById`). Student GET `/testcases` returns persisted OT results when present; otherwise `[]` (pre-ship attempts). Student GET and upload `lab_result` pass `DisclosureMode.STUDENT` (generic placeholders when snapshot missing); lecturer drawer passes `DisclosureMode.LECTURER`. Revisit reads use `GET /api/labs/{labId}/challenges/{challengeId}/testcases` with the same payload shape.
+
+## Work Guidance
+
+- Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
+- Upload `lab_result` assemble and student GET Class/MMD/Testcase tabs must not call `loadChallengeStructures`; lecturer structure GET still uses the JPA bundle load
+- Do not grade source `.java` files directly; compilation must succeed first
+- Inheritance and realization (`class_relation`) also feed the Java class shell via declared superclass/interfaces; other relation kinds stay MMD-only. Java grades a set Extends/Implements pair even when `has_mmd=false`
+- **MMD member syntax:** Mermaid `$` (static) and `*` (abstract) suffixes on fields/methods; leading `static` keyword; **fields and parameters must be `name: datatype`** (spacing around `:` ignored); other field/param shapes still parse for identity but grade as incorrect (`invalidDeclarationFormat`); package visibility `~`; colon member form (`ClassName : +name: type`) equivalent to block members; `class Name["Label"]` uses `Name` as the identifier; method return types accept UML colon (`method(): Type`) and Mermaid space (`method() Type`) as equivalent; glued returns (`method()Type`) are a parse error; omitted return after `()` is `void`; classifiers may sit between `)` and the return type (`method()*: Type`, `method()$ Type`); `List~T~` and `List<T>` compare equivalently via `MmdTypeEquivalence`
+- **Enum constants:** fields on an `ENUM` class are scored by name only. A stored type or scope is ignored, so bulk grade and desktop practice packs grade constants without a structure re-save. Blank `field_declaration.data_type` and `scope` are also allowed (`PartialCreditEvaluator.matchesWhenSpecified`). Inside an `<<enum>>` / `<<enumerate>>` / `<<enumeration>>` block, a bare identifier (optional visibility, optional trailing comma) is a valid constant, not `invalidDeclarationFormat`
+- **MMD parser pipeline:** `MmdParser` delegates to `grading/mmd/` tokenizer + AST + mapper; substantive diagrams require a `classDiagram` header line; `namespace { ... }` blocks flatten contained classes under simple names; `ParsedMmdDiagram.classByName` includes qualified aliases (`Company.Employee`)
+- **MMD cosmetic directives:** `note`, `note for`, `direction`, `style`, `classDef`, and `cssClass` lines parse as ignored directives (no grading impact)
+- **MMD relations:** optional Mermaid labels after ` : ` (e.g. `A o--> B : wraps`); optional quoted cardinality on each endpoint (parsed, not graded); aggregation arrows include `o-->` / `--o>` (diamond-side class is relation source); realization/implementation arrows `..|>`, `<|..`, and lollipop `()--` / `--()` are equivalent (implementor → interface); solid undirected `--` canonicalizes to `association` (same as `-->` / `<--`); dashed link `..` canonicalizes to `dashed_link`; two-way `<|--|>` canonicalizes to `bidirectional_inheritance`; UI displays canonical realization as **implementation**
+- **MMD comparison** resolves class names by simple or qualified key; undirected relation kinds (`dashed_link`, bidirectional variants) match either endpoint order; legacy master-data labels containing `link` (but not dashed) normalize to `association`; `<<Abstract>>` diagram stereotype satisfies rubric `CLASS` declaring type; `<<enum>>`, `<<enumerate>>`, and `<<enumeration>>` satisfy rubric `ENUM` declaring type
+- **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
+- **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it; **`final` is not graded on MMD** (Declaration Test only)
+- **Declaration field comparison** (reflection + MMD when type/scope specified) checks rubric `is_static` / `is_final` on `field_declaration` for Java; MMD fields honor required **static** via `$` suffix on the member name/type (`mmdModifierMatches`); **`final` is not graded on MMD** (diagram has no final marker)
+- **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
+- Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save). Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API
+- Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
+- Mixed javac fills `ChallengeGradingContext.failedClassNames` and `compileErrorsByClassName`; `compileError` is catastrophic I/O/setup only
+- Operator-run SQL migrations live in `docs/sql/` (no Flyway)
+- With `app.grading.timing-log=true` (on in local `application.properties`), print aligned `[timing]` blocks via `TimingLog`: per challenge class+MMD; `Lab OT (lab-wide batch)`; grade submission (`load existing`, `compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `assemble`, `total`); upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = snapshot+schedule, `total`); off-thread `Plagiarism inspect`
+
+## Verification
+
+- Tests under `backend/src/test/java/unit/com/eiu/capstone/backend/grading/`: `PillarScoreAggregatorTest`, `PartialCreditEvaluatorTest`, `TestcaseGraderTest`, `TestcaseResultMapperTest`, `InvocationRunnerTest`, `IsolatedWorkerAeTest`, `WorkerJarIsolationTest`, `WorkerProcessClientTest`, `WorkerInvokeEngineTest`, `GradingServiceTest`, `LabResultAssemblerTest`, `TestcaseRubricAssemblerTest`, `MmdParserTest`, `MmdComparisonServiceTest`, `MmdPillarGraderTest`, `MmdTokenizerTest`, `MmdAstParserHeaderTest`, `MmdRelationParseTest`, `MmdMemberParseTest`, `MmdMiscDirectiveTest`, `MmdReferenceDocMatrixTest`, `ClassReflectionGraderTest`, `ReflectionClassParserTest`
+- Manual: upload lab folder; confirm Class/MMD/OT in `lab_result` when OT rows exist; `scoreApplicability.testcase` true; hidden rows omit I/O in `/testcases`
+
+## Child DOX Index
+
+| Path | Scope |
+|---|---|
+| `testcase/kernel/AGENTS.md` | Spring-free coerce/compare types on the worker JAR |
+| `testcase/worker/AGENTS.md` | Isolated worker process entry |

@@ -1,5 +1,5 @@
-import { useTheme } from '../context/ThemeContext';
-import { Moon, Sun, LogOut, User, Home, Clock, Lock } from 'lucide-react';
+import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
@@ -14,11 +14,15 @@ export default function Header({
   hideUserMenu = false,
   hideHome = false,
   hideHistory = false,
+  hideRanking = false,
+  hideSectionLinks = false,
   hideChangePassword = false,
+  showStudentArea = false,
+  showLecturerArea = false,
   headerAddon = null,
+  headerBeforeUserMenu = null,
   headerUserSlot = null,
 }) {
-  const { isDark, toggleTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState(false);
   const menuRef = useRef(null);
   const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
@@ -66,26 +70,9 @@ export default function Header({
               {user.fullName}
             </span>
           ))}
-          <button
-            onClick={onLogout}
-            className="hidden items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:flex"
-            type="button"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
-          <button
-            onClick={toggleTheme}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-surface-secondary sm:h-auto sm:w-auto sm:min-h-11 sm:min-w-[120px] sm:justify-between sm:px-3 sm:py-2"
-            type="button"
-          >
-            <span className="flex items-center gap-2">
-              {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              <span className="hidden sm:inline">{isDark ? 'Dark' : 'Light'}</span>
-            </span>
-          </button>
+          <ThemeToggle />
 
+          {headerBeforeUserMenu}
           {!hideUserMenu && (
             <div ref={menuRef} className="relative">
               <button
@@ -125,14 +112,29 @@ export default function Header({
                     </div>
                   </div>
                   <div className="space-y-2 p-3">
-                    {!hideHome && (
+                    {!hideSectionLinks && !hideHome && (
                     <button onClick={() => handleMenu('home')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Home className="h-4 w-4" /> Home
                     </button>
                     )}
-                    {!hideHistory && (
+                    {!hideSectionLinks && !hideHistory && (
                     <button onClick={() => handleMenu('history')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
                       <Clock className="h-4 w-4" /> History
+                    </button>
+                    )}
+                    {!hideSectionLinks && !hideRanking && (
+                    <button onClick={() => handleMenu('ranking')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <Trophy className="h-4 w-4" /> Ranking
+                    </button>
+                    )}
+                    {showStudentArea && (
+                    <button onClick={() => handleMenu('studentArea')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <GraduationCap className="h-4 w-4" /> Student area
+                    </button>
+                    )}
+                    {showLecturerArea && (
+                    <button onClick={() => handleMenu('lecturerArea')} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary">
+                      <Presentation className="h-4 w-4" /> Lecturer area
                     </button>
                     )}
                     {showChangePassword && (
@@ -140,6 +142,16 @@ export default function Header({
                       <Lock className="h-4 w-4" /> Change Password
                     </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(false);
+                        onLogout?.();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground transition hover:bg-surface-tertiary"
+                    >
+                      <LogOut className="h-4 w-4" /> Logout
+                    </button>
                   </div>
                 </div>
               )}

@@ -600,11 +600,11 @@ For each testcase:
 
 Each dry-run or student-upload OT batch:
 
-1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot when any challenge has OT; dry-run always acquires. Local path borrows from `SharedLocalWorkerCache` (60s idle TTL) after the slot; sandbox sessions are never cached.
+1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot when any challenge has OT; dry-run always acquires. Class `--reflect` also acquires the same slot. Local path borrows from `SharedLocalWorkerCache` (default close-on-release / `worker-idle-ttl-ms=0`; optional positive TTL) after the slot; sandbox sessions are never cached.
 2. Sends one NDJSON `batch` for all runnable OT in the grade call (lab-wide for upload/bulk; one item for dry-run). Each item may carry its own `classesDir`. The worker runs items on a CPU-capped pool with a per-item platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **5s**) per batch item as **execution** wall-clock; the API transport wait adds 30s return slack. On outer hang the API tree-kills and respawns without releasing the host slot.
 
-At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run callers wait for that slot on the HTTP thread (`worker_slot_wait_ms`). Class-tab grading still uses `Class.forName(..., initialize=false)` in the API. Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
+At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab parse prefers worker `--reflect` (in-process fallback if the JAR is missing or reflect fails). Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
 Operator wipe SQL is `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`. `TestcaseSchemaMigrator` applies it on startup when leftover types/columns remain, then `LabRubricCache.invalidateAll()`.
 
@@ -777,7 +777,7 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 
 Enable `app.grading.timing-log=true` to print `[timing]` blocks for upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism` = signal snapshot + schedule, `total`), off-thread `Plagiarism inspect`, per-challenge compile (`javac`), per-challenge grade (`parse`, `class`, `mmd`, `testcase`), and grade submission (`compute`, `worker_slot_wait_ms`, `worker_spawn_ms`, `worker_respawn_count`, `assemble`). The ranking below is **request-thread wall-clock** — what the student waits on before scores appear.
 
-Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases across the lab, *W* in-worker OT pool (`min(T, CPUs)`), *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Upload/bulk/dry-run with OT wait on `workerJvmSlot` (`worker_slot_wait_ms`); local warm reuse keeps `worker_spawn_ms` near 0 within the 60s idle TTL.
+Symbols: *C* challenges, *K* compile workers (`min(app.compile.parallelism, CPUs)`), *P* grading workers (`min(app.grading.parallelism, CPUs)`), *T* operational testcases across the lab, *W* in-worker OT pool (`min(T, CPUs)`), *τ* invoke timeout (5s), *E* rubric elements, *L* MMD character length, *R*/*D* rubric vs diagram relations, *A* other fingerprints in the lab, *U* other students, *F* hashed `.java`/`.mmd` files, *B* hashed bytes. Upload/bulk/dry-run with OT and Class `--reflect` wait on `workerJvmSlot` (`worker_slot_wait_ms`); local warm reuse is opt-in via positive `worker-idle-ttl-ms` (default 0 = close on release).
 
 | Rank | Stage | Typical dominance | Work | Request-thread wall |
 |------|-------|-------------------|------|---------------------|

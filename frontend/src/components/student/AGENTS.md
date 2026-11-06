@@ -9,13 +9,16 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | File | Role |
 |---|---|
 | `StudentHistoryPage.jsx` | Expandable history table; live `my-history` / `my-labs` APIs |
-| `StudentUI.jsx` | Student lab upload + result tabs; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
+| `StudentUI.jsx` | Student lab upload + result tabs; selected-lab header shows an Official or Practice badge; daily submission quota banner (`GET /api/students/daily-submission-quota`, web only) above DropZone; Operation Test when `scoreApplicability.testcase` is true (upload `lab_result` or revisit `/testcases`) |
 | `StudentLabSidebar.jsx` | Left lab list (`Sidebar` + `Item`); selects `labId` for upload and results |
 | `StudentNotificationBell.jsx` | Bell + dropdown; unread items show a red dot on the row and on the bell; click a list item to mark that notification read (sessionStorage `oop-student-notif-read`); opening the bell alone does not mark read. Loads `GET /api/feedback/replies` (skipped in desktop) as `Re: Bug Report` / `Re: Contribution`. On `pagehide` (and logout via `App.jsx`) calls `DELETE /api/feedback/replies` for shown reply ids so those feedback rows are hard-deleted |
-| `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) fox; sprite sheets in `frontend/public/mascots/`; mounted top-right in `AppShell` header on submit dashboard and history; `coverEyes` shows the **bashful** reaction (paws over eyes) with a short squash animation |
+| `StudentFoxMascot.jsx` | [page-mascot](https://koboyo.com/page-mascot) header mascot. Sprite sheets in `frontend/public/mascots/`. `mascotId` selects fox (starter) or a purchased bear, panda, penguin, bunny, or cat. `coverEyes` shows the **bashful** reaction with a short squash animation. The header button pets it (daily mission, 4 pets) |
+| `studentMascots.js` | Sheet paths and display names for fox, bear, panda, penguin, bunny, and cat |
+| `MascotShop.jsx` | Shop dialog from the header points button or the account menu. Purchase confirms, then `POST /api/students/mascots/{id}/purchase`. Owned mascots are worn with `POST .../equip` |
+| `StudentStreakFlame.jsx` | Compact three-layer streak flame (`.u379`, styles in `StudentStreakFlame.css`) beside the mascot. Icon only, no plate. Grey until today's three missions are done, then the colored flame. Click opens daily missions. No separate Done button. `prefers-reduced-motion` draws one still flame and skips the count roll |
 | `DesktopRubricPackImport.jsx` | Desktop header control: file picker → `POST /api/desktop/packs/import`; same-name lab conflict modal (`confirmReplace`); term import clears lab packs on disk; after success a blocking **Okay**-only dialog relaunches via `restartPracticeApp` (`practice-restart`; no submit until reopen finishes); friendly errors via `apiError` context `import` |
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
-| `StudentOfflinePracticeDownload.jsx` | Web submit dashboard: hands practice zip to the browser download manager via `GET /desktop-practice-bundle?access_token=` (no `fetch`/`blob`; not rendered in desktop build) |
+| `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (Uiverse-style progress; theme `--primary` / `--success`; `GET /desktop-practice-bundle` via `apiFetch` + blob save; **Done** only after the zip body is received; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 
 ## Local Contracts
@@ -48,15 +51,15 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 - `attemptNumber` — next unused attempt from backend `totalSubmissions + 1` after each upload (server still assigns `MAX+1` if the client number is stale)
 - `authToken` — from `user.accessToken`
 
-Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast.
+Successful upload shows a fixed **Toast** (`Grading complete. Your score: N/100`) from `StudentDashboard.jsx`, same pattern as Solution Management save toast. When any challenge in the upload `lab_result` has a Java compile failure, a second error **Toast** (`Compilation Error`) stacks with the score toast, and the Declaration Test tab shows a matching **DangerAlert** banner (per-class javac lines stay under each class card).
 
-After upload, `StudentDashboard` uses the upload payload for stats, challenge scores, and Class/MMD/Operation Test tabs. It does not refetch `GET /challenges` or `GET /stats` for that lab. Switching labs uses the `GET /api/labs` cache. History view loads class/mmd/testcases via read endpoints when no cached bundle exists.
+After upload, `StudentDashboard` uses the upload payload for stats and challenge scores. Student `lab_result` is scores-only (thin); Class/MMD/OT trees load via `GET .../class|mmd|testcases` for **all** scored challenges in one post-upload prefetch (single overlay spinner). Challenge clicks then read the in-memory cache. A bundle stays “thin” until each applicable pillar has its tree. Switching labs uses the `GET /api/labs` cache. History view loads class/mmd/testcases via read endpoints when no cached bundle exists.
 
 - **MMD parse errors:** `/mmd` and `lab_result.mmd` use `{ classes, parseError }`. `StudentUI` shows a warning banner when `parseError` is set.
 
 ### Lab list layout (`StudentUI.jsx`)
 
-- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, urgency badge). Countdown hints stay on the main header, not the sidebar. Expired labs show the **Expired** badge only.
+- Left rail: `StudentLabSidebar` — shadcn `Sidebar` + `Item` rows (name, `due {date}` only, countdown badge). The badge shows on the deadline calendar day and the two Vietnam days before it, counting the deadline day through 23:59:59: deadline 22/10 is **3 days** on 20/10, **2 days** on 21/10, **1 day** on 22/10. Chip color steps amber (3) → solid amber (2) → red (1) via `Badge` variants `deadline-3` / `deadline-2` / `deadline-1`. The same count is on the main header (`due {date} · N day(s) left`) and in the notification bell (`N days until deadline`, or due today on the deadline date). Expired labs show the **Expired** badge only.
 - Right: `SidebarInset` — selected-lab header (includes **Enrolled Quarter:** `{quarterName}` when the parent passes a current-quarter label), notification bell, DropZone, stats, challenges/results. The full-page spinner waits only for labs; Challenges and stats come from that same `GET /api/labs` payload (a small Challenges spinner remains only if the list was omitted and a follow-up fetch is needed).
 - Mobile: `SidebarTrigger` opens the lab list as an overlay; selecting a lab closes it
 - Desktop: `SidebarTrigger` clips the lab rail closed (fixed inner width + slide); click again to expand
@@ -89,10 +92,10 @@ After upload, `StudentDashboard` uses the upload payload for stats, challenge sc
 
 ## Verification
 
-- Manual: log in as student, toggle history view, open profile modal
+- Manual: log in as student, use the Home / History / Ranking bar (same control as the lecturer nav), open the account menu for Change Password and Logout
 - Out-of-term active students see History only (Home hidden) plus the amber warning banner above **Submission History**; inactive students cannot log in
 - Upload: pick a lab from the left list, drop challenge folder, confirm API response
-- Offline practice: web — **Download practice folder** (browser-native download of prebuilt runtime-only zip; lecturers distribute packs); desktop — **Import rubric pack** then **Okay** (app closes and relaunches); see `docs/DESKTOP_STUDENT_DIST.md`
+- Offline practice: web — **Practice folder** on the student NavBar (browser-native download of prebuilt runtime-only zip); desktop — **Import rubric pack** then **Okay** (app closes and relaunches); see `docs/DESKTOP_STUDENT_DIST.md`
 
 ## Child DOX Index
 

@@ -5,10 +5,12 @@ import {
   FIELD_CLASS,
   isArrayOrListType,
   isInstanceRef,
-  isRubricClassType,
+  isLocalDateType,
+  isOrdinaryRubricClassType,
   namedInstanceMatchesParamType,
   parseParamsArray,
   parseScalarInput,
+  parameterFieldLabel,
   serializeParamsArray,
 } from './testcaseAuthoring';
 
@@ -35,10 +37,12 @@ export default function TestcaseParamFields({
   return (
     <div className="space-y-2">
       {parameters.map((param, index) => {
-        const label = param.name ? `${param.name}: ${param.dataType || '?'}` : (param.dataType || `arg ${index + 1}`);
+        const label = parameterFieldLabel(param, index);
         const value = values[index];
-        const objectArray = isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);
-        const objectArg = !isArrayOrListType(param.dataType) && isRubricClassType(param.dataType, catalog);
+        const objectArray = isArrayOrListType(param.dataType)
+          && isOrdinaryRubricClassType(param.dataType, catalog);
+        const objectArg = !isArrayOrListType(param.dataType)
+          && isOrdinaryRubricClassType(param.dataType, catalog);
 
         if (objectArray) {
           return (
@@ -87,7 +91,11 @@ export default function TestcaseParamFields({
               className={`${FIELD_CLASS} font-mono`}
               value={displayScalar(value)}
               onChange={(e) => setValue(index, parseScalarInput(e.target.value))}
-              placeholder={isArrayOrListType(param.dataType) ? '[1, 2]' : 'value'}
+              placeholder={
+                isLocalDateType(param.dataType)
+                  ? 'yyyy-MM-dd'
+                  : (isArrayOrListType(param.dataType) ? '[1, 2]' : 'value')
+              }
             />
           </label>
         );

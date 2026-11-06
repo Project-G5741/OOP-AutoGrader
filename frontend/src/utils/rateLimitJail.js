@@ -57,6 +57,9 @@ export function enterRateLimitJail(response) {
   if (IS_DESKTOP_APP || !response || response.status !== 429) {
     return false;
   }
+  if (response.headers?.get?.('X-Daily-Submission-Limit') === '1') {
+    return false;
+  }
   if (typeof window === 'undefined') {
     return false;
   }

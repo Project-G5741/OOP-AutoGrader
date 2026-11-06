@@ -118,4 +118,47 @@ class TestcaseRubricAssemblerTest {
         assertEquals(ctorStepId, rubric.invocation().id());
         assertEquals(methodStepId, rubric.assertions().get(0).invocationId());
     }
+
+    @Test
+    void assemble_implicitDefaultConstructor_usesClassNameAndEmptyParams() {
+        UUID challengeId = UUID.randomUUID();
+        UUID teaClassId = UUID.randomUUID();
+        UUID stepId = UUID.randomUUID();
+        ClassEntity tea = new ClassEntity();
+        tea.setId(teaClassId);
+        tea.setName("MocCauTea");
+        when(testcaseRubricService.dryRunMemberMaps(any(), any())).thenReturn(RubricMemberMaps.fromEntities(
+                List.of(tea), List.of(), List.of(), List.of(), List.of(), List.of()));
+
+        InvocationStructureDTO construct = new InvocationStructureDTO(
+                stepId,
+                InvocationKind.CONSTRUCTOR,
+                null,
+                null,
+                "[1]",
+                null,
+                "[]",
+                "cup",
+                teaClassId);
+        TestcaseStructureDTO dto = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "default-ctor",
+                TestcaseType.COMPOSITION,
+                null,
+                1,
+                0,
+                false,
+                construct,
+                List.of(),
+                List.of(),
+                List.of(construct),
+                null);
+
+        InvocationRubric step = assembler.assemble(challengeId, dto).invocations().get(0);
+        assertNull(step.constructorId());
+        assertEquals("MocCauTea", step.className());
+        assertEquals(List.of(), step.parameterTypes());
+        assertEquals("[]", step.paramsJson());
+        assertEquals(teaClassId, step.dispatchClassId());
+    }
 }

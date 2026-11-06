@@ -18,25 +18,21 @@ import {
   ItemTitle,
 } from '../ui/item';
 import { Badge } from '../ui/badge';
-import { formatLabDeadlineMeta } from '../../theme/statusClasses';
+import { deadlineCountdownBadge, deadlineDaysLeft, formatLabDeadlineMeta } from '../../theme/statusClasses';
 
-function urgencyBadge(urgencyState) {
-  switch (urgencyState) {
-    case 'WARNING':
-      return { variant: 'warning', label: '3 days' };
-    case 'URGENT':
-      return { variant: 'destructive', label: '1 day' };
-    case 'EXPIRED':
-      return { variant: 'secondary', label: 'Expired' };
-    default:
-      return null;
+function labBadge(lab, now) {
+  const daysLeft = deadlineDaysLeft(lab.deadlineDate, now);
+  if (daysLeft === 0 || lab.urgencyState === 'EXPIRED') {
+    return { variant: 'secondary', label: 'Expired' };
   }
+  return deadlineCountdownBadge(daysLeft);
 }
 
 export default function StudentLabSidebar({
   labs = [],
   selectedLabId = null,
   onSelectLab = () => {},
+  now = new Date(),
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -65,7 +61,7 @@ export default function StudentLabSidebar({
               <ItemGroup>
                 {labs.map((lab) => {
                   const selected = String(lab.id) === String(selectedLabId);
-                  const badge = urgencyBadge(lab.urgencyState);
+                  const badge = labBadge(lab, now);
                   return (
                     <Item
                       key={lab.id}

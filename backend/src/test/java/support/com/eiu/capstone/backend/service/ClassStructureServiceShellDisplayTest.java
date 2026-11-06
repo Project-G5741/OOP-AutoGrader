@@ -509,7 +509,7 @@ class ClassStructureServiceShellDisplayTest {
         "PUBLIC",
         "CLASS",
         false,
-        List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int")),
+        List.of(new FieldRubric(fieldId, "age", "PRIVATE", "int", false, false)),
         List.of(),
         List.of());
     ChallengeRubric challengeRubric = new ChallengeRubric(

@@ -9,6 +9,7 @@ export default function SortableTableHeader({
   onSort,
   className = '',
   stopRowClick = false,
+  before = null,
   after = null,
   sortName,
 }) {
@@ -16,7 +17,10 @@ export default function SortableTableHeader({
   if (!sortable) {
     return (
       <th className={`${className} whitespace-nowrap align-middle`}>
-        <span className="inline-flex h-4 items-center leading-4 whitespace-nowrap">
+        {before}
+        <span className={typeof label === 'string'
+          ? 'inline-flex h-4 items-center leading-4 whitespace-nowrap'
+          : 'inline-flex flex-col items-center gap-0.5 whitespace-normal text-center'}>
           {label}
           {after}
         </span>
@@ -39,13 +43,16 @@ export default function SortableTableHeader({
 
   return (
     <th className={`${className} whitespace-nowrap align-middle`} aria-sort={ariaSort}>
+      {before}
       <button
         type="button"
         onClick={handleClick}
         aria-label={ariaLabel}
         className="inline-flex min-w-max flex-nowrap items-center gap-1 whitespace-nowrap rounded-md px-0.5 py-0.5 text-left font-inherit transition-colors hover:text-foreground"
       >
-        <span className="inline-flex h-4 items-center leading-4 whitespace-nowrap">
+        <span className={typeof label === 'string'
+          ? 'inline-flex h-4 items-center leading-4 whitespace-nowrap'
+          : 'inline-flex flex-col items-center gap-0.5 whitespace-normal text-center'}>
           {label}
           {after}
         </span>

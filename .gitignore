@@ -4,3 +4,25 @@ dist/
 frontend/dist-desktop/
 .cursor/vendor/
 /Submission/
+.env
+/tmp-*.json
+
+# Secrets and local config (never commit)
+.env.*
+!.env.example
+!.env.*.example
+!.env.desktop
+*.env
+*.pem
+*.p12
+*.jks
+*.keystore
+*.key
+!backend/src/main/resources/desktop-pack-public.key
+*private*.key
+service-account*.json
+*credentials*.json
+.cursor/mcp.local.json
+.supabase/
+supabase/.temp/
+supabase/.branches/

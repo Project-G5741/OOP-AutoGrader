@@ -25,7 +25,7 @@ function decodeJwtPayload(token) {
   }
 }
 
-export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage }) {
+export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage, onBack }) {
   const irnInputRef = useRef(null);
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
@@ -200,6 +200,11 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
       <div className="login-bg">
         <LoginBackground />
         <ThemeToggle className="theme-toggle" />
+        {onBack && (
+          <button type="button" className="login-back" onClick={onBack}>
+            Back
+          </button>
+        )}
 
         <div className="login-card-wrapper">
           <div className="logo-title">

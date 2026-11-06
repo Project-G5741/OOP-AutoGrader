@@ -49,6 +49,37 @@ class JwtAuthHelperTest {
     }
 
     @Test
+    void isStudentOnly_admin_false() {
+        assertFalse(new JwtUserPrincipal("a@eiu.edu.vn", "T1", List.of("ADMIN")).isStudentOnly());
+        assertFalse(new JwtUserPrincipal("a@eiu.edu.vn", "T1", List.of("ADMIN", "STUDENT")).isStudentOnly());
+    }
+
+    @Test
+    void resolveStudentScope_adminOnlyDefaultsToSelfAndCanReadAnother() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = activeUser(userId);
+        JwtUserPrincipal principal = new JwtUserPrincipal("admin@eiu.edu.vn", "T1", List.of("ADMIN"));
+        when(userAccountRepository.findByEmail("admin@eiu.edu.vn")).thenReturn(Optional.of(user));
+
+        assertEquals(userId, jwtAuthHelper.resolveStudentScope(principal, null));
+        UUID other = UUID.randomUUID();
+        assertEquals(other, jwtAuthHelper.resolveStudentScope(principal, other));
+    }
+
+    @Test
+    void resolveDisclosureMode_adminUsesLecturerModeForAnotherStudent() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = activeUser(userId);
+        JwtUserPrincipal principal = new JwtUserPrincipal("admin@eiu.edu.vn", "T1", List.of("ADMIN"));
+        when(userAccountRepository.findByEmail("admin@eiu.edu.vn")).thenReturn(Optional.of(user));
+
+        assertEquals(com.eiu.capstone.backend.service.DisclosureMode.STUDENT,
+                jwtAuthHelper.resolveDisclosureMode(principal, userId));
+        assertEquals(com.eiu.capstone.backend.service.DisclosureMode.LECTURER,
+                jwtAuthHelper.resolveDisclosureMode(principal, UUID.randomUUID()));
+    }
+
+    @Test
     void hasRole_teacherAlias_isLecturer() {
         JwtUserPrincipal principal = new JwtUserPrincipal("t@eiu.edu.vn", "T1", List.of("TEACHER"));
         assertTrue(principal.hasRole(JwtRoleNames.LECTURER));

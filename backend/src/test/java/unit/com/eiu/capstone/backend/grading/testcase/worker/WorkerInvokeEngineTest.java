@@ -293,6 +293,52 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void scenarioEnumConstantLiteralArgResolves() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Event.java", """
+                        public enum Event {
+                            BIRTHDAY, WEDDING
+                        }
+                        """,
+                "Cake.java", """
+                        public class Cake {
+                            private Event type;
+                            public Cake(Event type) { this.type = type; }
+                            public Event getType() { return type; }
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Cake", List.of("Event"), "[\"BIRTHDAY\"]", "cake")), List.of("type"));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText(), steps.get(0).toString());
+        assertEquals("\"BIRTHDAY\"", steps.get(0).get("fieldSnapshotsJson").get("type").asText());
+    }
+
+    @Test
+    void scenarioUnknownEnumConstantFails() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Event.java", """
+                        public enum Event { BIRTHDAY }
+                        """,
+                "Cake.java", """
+                        public class Cake {
+                            public Cake(Event type) {}
+                        }
+                        """));
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(
+                constructorStep("Cake", List.of("Event"), "[\"NOPE\"]", "cake")), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("ERROR", steps.get(0).get("kind").asText());
+        assertTrue(steps.get(0).get("errorMessage").asText().contains("No enum constant"));
+    }
+
+    @Test
     void scenarioStopsLaterStepsAfterFirstThrew() throws Exception {
         Path dir = compileSources(Map.of(
                 "Boom.java", """
@@ -596,6 +642,71 @@ class WorkerInvokeEngineTest {
         spec.put("instanceName", instanceName);
         spec.put("dispatchClassName", dispatchClassName);
         return spec;
+    }
+
+    @Test
+    void compositionImplicitDefault_prefersNoArgThenShortestConstructor() throws Exception {
+        WorkerIpc.ScenarioStepSpec car = new WorkerIpc.ScenarioStepSpec(
+                "CONSTRUCTOR",
+                "Car",
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                null,
+                "car",
+                null,
+                1,
+                WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT);
+        SerializedInvocationOutcome carResult = engine.scenario(classesDir, List.of(car), List.of("speed"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, carResult.kind(), carResult.errorMessage());
+        assertEquals("0", carResult.steps().get(0).fieldSnapshotsJson().get("speed"));
+
+        Path dir = compileSources(Map.of(
+                "Tea.java", """
+                        public class Tea {
+                            private String name;
+                            public Tea() { this.name = "plain"; }
+                            public Tea(String name) { this.name = name; }
+                        }
+                        """));
+        WorkerIpc.ScenarioStepSpec tea = new WorkerIpc.ScenarioStepSpec(
+                "CONSTRUCTOR",
+                "Tea",
+                null,
+                List.of(),
+                "[]",
+                null,
+                null,
+                null,
+                "cup",
+                null,
+                1,
+                WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT);
+        SerializedInvocationOutcome teaResult = engine.scenario(dir, List.of(tea), List.of("name"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, teaResult.kind(), teaResult.errorMessage());
+        assertEquals("\"plain\"", teaResult.steps().get(0).fieldSnapshotsJson().get("name"));
+    }
+
+    @Test
+    void scenario_hiddenReceiverMethodRepeat_runsOnSameInstance() {
+        WorkerIpc.ScenarioStepSpec step = new WorkerIpc.ScenarioStepSpec(
+                "METHOD",
+                "Car",
+                "accelerate",
+                List.of(),
+                "[]",
+                "Car",
+                List.of("int", "String"),
+                "[2020,\"X\"]",
+                null,
+                null,
+                100);
+        SerializedInvocationOutcome result = engine.scenario(classesDir, List.of(step), List.of("speed"), 65536);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, result.kind());
+        assertEquals(1, result.steps().size());
+        assertEquals("500", result.steps().get(0).fieldSnapshotsJson().get("speed"));
     }
 
     @Test

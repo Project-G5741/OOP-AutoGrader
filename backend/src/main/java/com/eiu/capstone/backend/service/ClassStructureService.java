@@ -1,0 +1,1648 @@
+package com.eiu.capstone.backend.service;
+
+import com.eiu.capstone.backend.DTO.*;
+import com.eiu.capstone.backend.grading.SubmissionDetailPersistGate;
+import com.eiu.capstone.backend.grading.pipeline.HeritageShellMatcher;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
+import com.eiu.capstone.backend.grading.rubric.FieldRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.RelationRubric;
+import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassShellEntry;
+import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
+import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
+import com.eiu.capstone.backend.grading.MmdComparisonService;
+import com.eiu.capstone.backend.grading.MmdGradingOutcome;
+import com.eiu.capstone.backend.grading.MmdOutcomesCodec;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ChallengeSnapshot;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassConstructorEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassFieldEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.ClassMethodEntry;
+import com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdRelationEntry;
+import com.eiu.capstone.backend.model.Challenge;
+import com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta;
+import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
+import com.eiu.capstone.backend.model.*;
+import com.eiu.capstone.backend.repository.*;
+import com.eiu.capstone.backend.utility.TimingLog;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
+import java.util.Locale;
+import java.util.stream.Collectors;
+
+@Service
+public class ClassStructureService {
+
+    private final ChallengeRepository challengeRepository;
+    private final ClassEntityRepository classEntityRepository;
+    private final FieldRepository fieldRepository;
+    private final MethodRepository methodRepository;
+    private final ConstructorRepository constructorRepository;
+    private final ParameterRepository parameterRepository;
+    private final ClassRelationRepository classRelationRepository;
+    private final SubmissionResolutionService submissionResolutionService;
+    private final SubmissionResultLoader submissionResultLoader;
+    private final SubmissionChallengeResultRepository submissionChallengeResultRepository;
+    private final MasterDataCache masterDataCache;
+    private final SubmissionCompileErrorStore compileErrorStore;
+    private final SubmissionPackageNormalizationStore packageNormalizationStore;
+    private final SubmissionMmdMetaStore submissionMmdMetaStore;
+    private final ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore;
+    private final LabRubricCache labRubricCache;
+    private final SubmissionTestcaseResultRepository submissionTestcaseResultRepository;
+    private final TestcaseResultMapper testcaseResultMapper;
+    private final SubmissionDetailPersistGate detailPersistGate;
+    private final boolean timingLog;
+
+    public ClassStructureService(ChallengeRepository challengeRepository,
+                                  ClassEntityRepository classEntityRepository,
+                                  FieldRepository fieldRepository,
+                                  MethodRepository methodRepository,
+                                  ConstructorRepository constructorRepository,
+                                  ParameterRepository parameterRepository,
+                                  ClassRelationRepository classRelationRepository,
+                                  SubmissionResolutionService submissionResolutionService,
+                                  SubmissionResultLoader submissionResultLoader,
+                                  SubmissionChallengeResultRepository submissionChallengeResultRepository,
+                                  MasterDataCache masterDataCache,
+                                  SubmissionCompileErrorStore compileErrorStore,
+                                  SubmissionPackageNormalizationStore packageNormalizationStore,
+                                  SubmissionMmdMetaStore submissionMmdMetaStore,
+                                  ParsedSubmissionSnapshotStore parsedSubmissionSnapshotStore,
+                                  LabRubricCache labRubricCache,
+                                  SubmissionTestcaseResultRepository submissionTestcaseResultRepository,
+                                  TestcaseResultMapper testcaseResultMapper,
+                                  SubmissionDetailPersistGate detailPersistGate,
+                                  @Value("${app.grading.timing-log:false}") boolean timingLog) {
+        this.challengeRepository = challengeRepository;
+        this.classEntityRepository = classEntityRepository;
+        this.fieldRepository = fieldRepository;
+        this.methodRepository = methodRepository;
+        this.constructorRepository = constructorRepository;
+        this.parameterRepository = parameterRepository;
+        this.classRelationRepository = classRelationRepository;
+        this.submissionResolutionService = submissionResolutionService;
+        this.submissionResultLoader = submissionResultLoader;
+        this.submissionChallengeResultRepository = submissionChallengeResultRepository;
+        this.masterDataCache = masterDataCache;
+        this.compileErrorStore = compileErrorStore;
+        this.packageNormalizationStore = packageNormalizationStore;
+        this.submissionMmdMetaStore = submissionMmdMetaStore;
+        this.parsedSubmissionSnapshotStore = parsedSubmissionSnapshotStore;
+        this.labRubricCache = labRubricCache;
+        this.submissionTestcaseResultRepository = submissionTestcaseResultRepository;
+        this.testcaseResultMapper = testcaseResultMapper;
+        this.detailPersistGate = detailPersistGate;
+        this.timingLog = timingLog;
+    }
+
+    /**
+     * Loads rubric structure for many challenges in batched queries (one round-trip per entity type).
+     */
+    public LabChallengeStructureBundle loadChallengeStructures(Collection<UUID> challengeIds) {
+        if (challengeIds == null || challengeIds.isEmpty()) {
+            return emptyStructureBundle();
+        }
+
+        List<Challenge> challenges = challengeRepository.findAllById(challengeIds);
+        if (challenges.isEmpty()) {
+            return emptyStructureBundle();
+        }
+
+        List<ClassEntity> classes = classEntityRepository.findByChallengeInWithAttributes(challenges);
+        if (classes.isEmpty()) {
+            return new LabChallengeStructureBundle(
+                    masterDataCache.get(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of());
+        }
+
+        List<Field> allFields = fieldRepository.findByClassEntityInWithDeclaration(classes);
+        List<Method> allMethods = methodRepository.findByClassEntityInWithDeclaration(classes);
+        List<Constructor> allConstructors = constructorRepository.findByClassEntityInWithDeclaration(classes);
+        List<ClassRelation> allRelations = classRelationRepository.findByClassEntityInWithEndpoints(classes);
+        List<Parameter> constructorParams = allConstructors.isEmpty()
+                ? List.of()
+                : parameterRepository.findByConstructorEntityIn(allConstructors);
+        List<Parameter> methodParams = allMethods.isEmpty()
+                ? List.of()
+                : parameterRepository.findByMethodIn(allMethods);
+
+        Map<UUID, List<ClassEntity>> classesByChallengeId = classes.stream()
+                .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
+        Map<UUID, List<Field>> fieldsByClassId = allFields.stream()
+                .collect(Collectors.groupingBy(f -> f.getClassEntity().getId()));
+        Map<UUID, List<Method>> methodsByClassId = allMethods.stream()
+                .collect(Collectors.groupingBy(m -> m.getClassEntity().getId()));
+        Map<UUID, List<Constructor>> constructorsByClassId = allConstructors.stream()
+                .collect(Collectors.groupingBy(c -> c.getClassEntity().getId()));
+        Map<UUID, List<Parameter>> paramsByConstructorId = constructorParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
+        Map<UUID, List<Parameter>> paramsByMethodId = methodParams.stream()
+                .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
+        Map<UUID, List<ClassRelation>> relationsBySourceClassId = allRelations.stream()
+                .collect(Collectors.groupingBy(r -> r.getClassEntity().getId()));
+
+        return new LabChallengeStructureBundle(
+                masterDataCache.get(),
+                classesByChallengeId,
+                fieldsByClassId,
+                methodsByClassId,
+                constructorsByClassId,
+                paramsByConstructorId,
+                paramsByMethodId,
+                relationsBySourceClassId);
+    }
+
+    private static LabChallengeStructureBundle emptyStructureBundle() {
+        return new LabChallengeStructureBundle(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of());
+    }
+
+    public MmdResponseDTO getMmdData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId,
+                                     DisclosureMode disclosureMode) {
+        long start = System.currentTimeMillis();
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
+        if (resolvedSubmissionId == null) {
+            return new MmdResponseDTO(List.of(), null);
+        }
+        detailPersistGate.await(resolvedSubmissionId);
+        MmdResponseDTO result = buildMmdResponseForSubmission(
+                labId, resolvedSubmissionId, challengeId, null, null, disclosureMode);
+        TimingLog.line(timingLog, "Read MMD", System.currentTimeMillis() - start);
+        return result;
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdResponseForSubmission(labId, submissionId, challengeId, null, null, DisclosureMode.LECTURER);
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId,
+                                                        UUID submissionId,
+                                                        UUID challengeId,
+                                                        MmdGradingOutcome mmdOutcome,
+                                                        Boolean mmdSubmittedOverride) {
+        return buildMmdResponseForSubmission(
+                labId, submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
+    }
+
+    public MmdResponseDTO buildMmdResponseForSubmission(UUID labId,
+                                                        UUID submissionId,
+                                                        UUID challengeId,
+                                                        MmdGradingOutcome mmdOutcome,
+                                                        Boolean mmdSubmittedOverride,
+                                                        DisclosureMode disclosureMode) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
+            return new MmdResponseDTO(List.of(), null);
+        }
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        MmdGradingOutcome effectiveOutcome = mmdOutcome;
+        if (effectiveOutcome == null && submissionChallengeResultRepository != null) {
+            effectiveOutcome = MmdOutcomesCodec.fromJson(
+                    submissionChallengeResultRepository
+                            .findMmdOutcomesBySubmissionIdAndChallengeId(submissionId, challengeId)
+                            .orElse(null));
+        }
+        List<MmdClassDTO> classes = buildMmdDataFromRubric(
+                challengeRubric,
+                correctIds,
+                effectiveOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot,
+                disclosureMode);
+        String parseError = mmdMeta != null ? mmdMeta.parseError : null;
+        return new MmdResponseDTO(classes, parseError);
+    }
+
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildMmdDataForSubmission(labId, submissionId, challengeId, null, null, DisclosureMode.LECTURER);
+    }
+
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId,
+                                                      UUID submissionId,
+                                                      UUID challengeId,
+                                                      MmdGradingOutcome mmdOutcome,
+                                                      Boolean mmdSubmittedOverride) {
+        return buildMmdDataForSubmission(
+                labId, submissionId, challengeId, mmdOutcome, mmdSubmittedOverride, DisclosureMode.LECTURER);
+    }
+
+    public List<MmdClassDTO> buildMmdDataForSubmission(UUID labId,
+                                                      UUID submissionId,
+                                                      UUID challengeId,
+                                                      MmdGradingOutcome mmdOutcome,
+                                                      Boolean mmdSubmittedOverride,
+                                                      DisclosureMode disclosureMode) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
+            return List.of();
+        }
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeMmdMeta mmdMeta = submissionMmdMetaStore.get(submissionId, challengeId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        return buildMmdDataFromRubric(
+                challengeRubric,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot,
+                disclosureMode);
+    }
+
+    public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
+                                          UUID challengeId,
+                                          SubmissionCorrectIds correctIds,
+                                          MmdGradingOutcome mmdOutcome,
+                                          Boolean mmdSubmittedOverride,
+                                          ChallengeMmdMeta mmdMeta,
+                                          UUID submissionId) {
+        return buildMmdData(
+                structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, null, DisclosureMode.LECTURER);
+    }
+
+    public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
+                                          UUID challengeId,
+                                          SubmissionCorrectIds correctIds,
+                                          MmdGradingOutcome mmdOutcome,
+                                          Boolean mmdSubmittedOverride,
+                                          ChallengeMmdMeta mmdMeta,
+                                          UUID submissionId,
+                                          ChallengeSnapshot snapshot) {
+        return buildMmdData(
+                structure, challengeId, correctIds, mmdOutcome, mmdSubmittedOverride, mmdMeta, submissionId, snapshot, DisclosureMode.LECTURER);
+    }
+
+    public List<MmdClassDTO> buildMmdData(LabChallengeStructureBundle structure,
+                                          UUID challengeId,
+                                          SubmissionCorrectIds correctIds,
+                                          MmdGradingOutcome mmdOutcome,
+                                          Boolean mmdSubmittedOverride,
+                                          ChallengeMmdMeta mmdMeta,
+                                          UUID submissionId,
+                                          ChallengeSnapshot snapshot,
+                                          DisclosureMode disclosureMode) {
+        List<ClassEntity> classes = structure.classesForChallenge(challengeId);
+        if (classes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Integer, String> masterData = structure.masterData();
+        ChallengeMmdMeta effectiveMeta = mmdMeta != null ? mmdMeta : new ChallengeMmdMeta();
+        boolean effectiveMmdSubmitted = mmdSubmittedOverride != null
+                ? mmdSubmittedOverride
+                : resolveEffectiveMmdSubmitted(submissionId, effectiveMeta, correctIds);
+
+        ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot = snapshot != null ? snapshot.mmdSnapshot : null;
+
+        List<MmdClassDTO> result = new ArrayList<>();
+        for (ClassEntity classEntity : classes) {
+            UUID classId = classEntity.getId();
+            String classIdStr = classId.toString();
+            boolean stereotypeOk;
+            if (mmdOutcome != null) {
+                stereotypeOk = mmdOutcome.isClassPresent(classId) && mmdOutcome.isClassCorrect(classId);
+            } else {
+                stereotypeOk = effectiveMeta.classStereotypeCorrect.getOrDefault(classIdStr, false);
+                if (!stereotypeOk && effectiveMmdSubmitted && effectiveMeta.classStereotypeCorrect.isEmpty()) {
+                    stereotypeOk = classHasMergedCorrectMember(
+                            classId,
+                            structure.fieldsByClassId(),
+                            structure.methodsByClassId(),
+                            structure.constructorsByClassId(),
+                            correctIds);
+                }
+            }
+
+            List<MmdAttributeDTO> attributes = new ArrayList<>();
+            String rubricStereotype = "<<" + resolveClassTypeLabel(classEntity, masterData).toLowerCase() + ">>";
+            String stereotypeDisplay = mmdSnapshot != null
+                    ? mmdSnapshot.stereotypes.get(classIdStr)
+                    : null;
+            attributes.add(new MmdAttributeDTO(
+                    resolveStereotypeDisplay(disclosureMode, stereotypeDisplay, rubricStereotype),
+                    "stereotype",
+                    stereotypeOk,
+                    stereotypeOk ? null : (effectiveMmdSubmitted ? StudentDisplayMessages.CLASS_MISSING_FROM_DIAGRAM : StudentDisplayMessages.MISSING_MMD_FILE)));
+
+            structure.fieldsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(field -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isFieldCorrect(field.getId())
+                        : correctIds.fieldIds().contains(field.getId());
+                String rubricName = formatFieldName(field);
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(field.getId().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "field", rubricName, mmdSnapshot, field.getId()));
+            });
+
+            structure.constructorsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(constructor -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isConstructorCorrect(constructor.getId())
+                        : correctIds.constructorIds().contains(constructor.getId());
+                String rubricName = formatConstructorName(constructor,
+                        structure.paramsByConstructorId().getOrDefault(constructor.getId(), List.of()));
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(constructor.getId().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "constructor", rubricName, mmdSnapshot, constructor.getId()));
+            });
+
+            structure.methodsByClassId().getOrDefault(classEntity.getId(), List.of()).forEach(method -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isMethodCorrect(method.getId())
+                        : correctIds.methodIds().contains(method.getId());
+                String rubricName = formatMethodName(method,
+                        structure.paramsByMethodId().getOrDefault(method.getId(), List.of()));
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(method.getId().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "method", rubricName, mmdSnapshot, method.getId()));
+            });
+
+            List<MmdRelationDTO> relations = structure.relationsBySourceClassId()
+                    .getOrDefault(classEntity.getId(), List.of()).stream()
+                    .map(relation -> {
+                        boolean ok = mmdOutcome != null
+                                ? mmdOutcome.isRelationCorrect(relation.getId())
+                                : correctIds.relationIds().contains(relation.getId());
+                        String error = ok
+                                ? null
+                                : effectiveMeta.relationErrors.getOrDefault(
+                                        relation.getId().toString(),
+                                        effectiveMmdSubmitted ? "Relation mismatch" : "Missing relationship");
+                        MmdRelationEntry relationEntry = mmdSnapshot != null
+                                ? mmdSnapshot.relations.get(relation.getId().toString())
+                                : null;
+                        return buildMmdRelation(
+                                disclosureMode,
+                                ok,
+                                error,
+                                effectiveMmdSubmitted,
+                                relationEntry,
+                                relation.getClassEntity().getName(),
+                                relation.getTargetClassEntity().getName(),
+                                MmdComparisonService.displayRelationTypeName(relation.getRelationType().getName()));
+                    })
+                    .toList();
+
+            result.add(new MmdClassDTO(classEntity.getName(), attributes, relations));
+        }
+        return result;
+    }
+
+    /**
+     * MMD meta is stored in ephemeral {@code SUBMISSION_BASE_DIR/_mmd_meta}. When that file is
+     * missing (deploy wipe, submissions graded before meta existed), infer submission from persisted
+     * grading results so the MMD tab does not show "Missing MMD file" for every class.
+     */
+    private boolean resolveEffectiveMmdSubmitted(UUID submissionId,
+                                                 ChallengeMmdMeta mmdMeta,
+                                                 SubmissionCorrectIds correctIds) {
+        if (mmdMeta.mmdSubmitted) {
+            return true;
+        }
+        if (mmdMeta.parseError != null && !mmdMeta.parseError.isBlank()) {
+            return true;
+        }
+        if (!mmdMeta.relationErrors.isEmpty()) {
+            return true;
+        }
+        if (!mmdMeta.classStereotypeCorrect.isEmpty()) {
+            return mmdMeta.mmdSubmitted;
+        }
+        if (!correctIds.fieldIds().isEmpty()
+                || !correctIds.methodIds().isEmpty()
+                || !correctIds.constructorIds().isEmpty()
+                || !correctIds.relationIds().isEmpty()) {
+            return true;
+        }
+        return submissionResultLoader.hasAnyResults(submissionId);
+    }
+
+    private static boolean classHasMergedCorrectMember(
+            UUID classId,
+            Map<UUID, List<Field>> fieldsByClass,
+            Map<UUID, List<Method>> methodsByClass,
+            Map<UUID, List<Constructor>> constructorsByClass,
+            SubmissionCorrectIds correctIds) {
+        return fieldsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(f -> correctIds.fieldIds().contains(f.getId()))
+                || methodsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(m -> correctIds.methodIds().contains(m.getId()))
+                || constructorsByClass.getOrDefault(classId, List.of()).stream()
+                .anyMatch(c -> correctIds.constructorIds().contains(c.getId()));
+    }
+
+    private String resolveClassTypeLabel(ClassEntity classEntity, Map<Integer, String> masterData) {
+        String declaringType = resolveMasterDataLabel(classEntity.getDeclaringType(), masterData);
+        return "-".equals(declaringType) ? "CLASS" : declaringType;
+    }
+
+    private String formatFieldName(Field field) {
+        return formatFieldLabel(field.getName(), field.getFieldDeclaration().getDataType());
+    }
+
+    private String formatFieldName(FieldRubric field) {
+        return formatFieldLabel(field.name(), field.dataType());
+    }
+
+    private static String formatFieldLabel(String name, String dataType) {
+        if (dataType == null || dataType.isBlank()) {
+            return name;
+        }
+        return name + ": " + dataType;
+    }
+
+    private String formatConstructorName(String className, ConstructorRubric constructor) {
+        return className + "(" + String.join(", ", constructor.parameterTypes()) + ")";
+    }
+
+    private String formatMethodName(MethodRubric method) {
+        return method.name() + "(" + String.join(", ", method.parameterTypes()) + "): " + method.returnType();
+    }
+
+    private static boolean classHasMergedCorrectMember(ClassRubric classRubric, SubmissionCorrectIds correctIds) {
+        return classRubric.fields().stream().anyMatch(field -> correctIds.fieldIds().contains(field.id()))
+                || classRubric.methods().stream().anyMatch(method -> correctIds.methodIds().contains(method.id()))
+                || classRubric.constructors().stream()
+                        .anyMatch(constructor -> correctIds.constructorIds().contains(constructor.id()));
+    }
+
+    private String formatConstructorName(Constructor constructor, List<Parameter> params) {
+        String paramList = params.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
+                .map(Parameter::getName)
+                .collect(Collectors.joining(", "));
+        return constructor.getName() + "(" + paramList + ")";
+    }
+
+    private String formatMethodName(Method method, List<Parameter> params) {
+        String paramList = params.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
+                .map(Parameter::getName)
+                .collect(Collectors.joining(", "));
+        return method.getName() + "(" + paramList + "): " + method.getMethodDeclaration().getReturnType();
+    }
+
+    private String resolveStereotypeDisplay(DisclosureMode disclosureMode,
+                                             String snapshotStereotype,
+                                             String rubricStereotype) {
+        if (snapshotStereotype != null) {
+            return snapshotStereotype;
+        }
+        // Missing stereotype: same student-facing label for lecturer drawers and student dashboard.
+        return StudentDisplayMessages.REQUIRED_DIAGRAM_ELEMENT;
+    }
+
+    private String resolveMmdAttributeError(DisclosureMode disclosureMode,
+                                            boolean ok,
+                                            boolean hasSnapshotEntry,
+                                            String attributeType,
+                                            String lecturerDetail) {
+        if (ok) {
+            return null;
+        }
+        if (disclosureMode == DisclosureMode.STUDENT) {
+            return hasSnapshotEntry
+                    ? StudentDisplayMessages.mmdWrongLabel(attributeType)
+                    : StudentDisplayMessages.mmdMissingLabel(attributeType);
+        }
+        // Lecturer: keep expected/captured detail under the generic name line.
+        return lecturerDetail;
+    }
+
+    private MmdAttributeDTO buildFailedOrOkMmdAttribute(DisclosureMode disclosureMode,
+                                                        boolean ok,
+                                                        boolean hasSnapshotEntry,
+                                                        String attributeType,
+                                                        String rubricName,
+                                                        ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot,
+                                                        UUID elementId) {
+        String captured = mmdSnapshot != null && elementId != null
+                ? mmdSnapshot.attributes.get(elementId.toString())
+                : null;
+        if (ok) {
+            String name = captured != null ? captured : rubricName;
+            return new MmdAttributeDTO(name, attributeType, true, null);
+        }
+        String name = hasSnapshotEntry
+                ? StudentDisplayMessages.mmdWrongLabel(attributeType)
+                : StudentDisplayMessages.mmdMissingLabel(attributeType);
+        String lecturerDetail = hasSnapshotEntry && captured != null
+                ? captured + " (expected " + rubricName + ")"
+                : rubricName;
+        return new MmdAttributeDTO(
+                name,
+                attributeType,
+                false,
+                resolveMmdAttributeError(disclosureMode, false, hasSnapshotEntry, attributeType, lecturerDetail));
+    }
+
+    private MmdRelationDTO buildMmdRelation(DisclosureMode disclosureMode,
+                                            boolean ok,
+                                            String error,
+                                            boolean effectiveMmdSubmitted,
+                                            MmdRelationEntry relationEntry,
+                                            String rubricFrom,
+                                            String rubricTo,
+                                            String rubricType) {
+        if (disclosureMode == DisclosureMode.STUDENT && relationEntry == null) {
+            String studentError = ok
+                    ? null
+                    : (effectiveMmdSubmitted
+                            ? StudentDisplayMessages.RELATIONSHIP_MISMATCH
+                            : StudentDisplayMessages.REQUIRED_RELATIONSHIP);
+            return new MmdRelationDTO(
+                    StudentDisplayMessages.PLACEHOLDER,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    ok,
+                    studentError);
+        }
+        String from = relationEntry != null ? relationEntry.from : rubricFrom;
+        String to = relationEntry != null ? relationEntry.to : rubricTo;
+        String relType = relationEntry != null ? relationEntry.relType : rubricType;
+        return new MmdRelationDTO(from, to, relType, ok, error);
+    }
+
+    private ClassFieldDetailDTO buildClassFieldDetail(DisclosureMode disclosureMode,
+                                                      ClassFieldEntry entry,
+                                                      MemberGrade grade,
+                                                      String rubricName,
+                                                      String rubricScope,
+                                                      String rubricDataType) {
+        if (entry == null) {
+            // Snapshot wipe / legacy: correct members fall back to rubric labels (same as MMD).
+            if (grade.ok()) {
+                return new ClassFieldDetailDTO(rubricName, rubricScope, rubricDataType, true, false);
+            }
+            return new ClassFieldDetailDTO(
+                    StudentDisplayMessages.MISSING_VARIABLE,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    false,
+                    grade.partial());
+        }
+        if (grade.ok()) {
+            return new ClassFieldDetailDTO(entry.name, entry.scope, entry.dataType, true, false);
+        }
+        // Wrong member: same generic label as student dashboard (Grading + Dashboard drawers).
+        return new ClassFieldDetailDTO(
+                StudentDisplayMessages.WRONG_VARIABLE,
+                grade.partial() ? StudentDisplayMessages.WRONG_SCOPE_OR_MODIFIER : StudentDisplayMessages.PLACEHOLDER,
+                StudentDisplayMessages.PLACEHOLDER,
+                false,
+                grade.partial());
+    }
+
+    private ClassConstructorDetailDTO buildClassConstructorDetail(DisclosureMode disclosureMode,
+                                                                  ClassConstructorEntry entry,
+                                                                  MemberGrade grade,
+                                                                  String rubricName,
+                                                                  String rubricScope,
+                                                                  String rubricParams) {
+        if (entry == null) {
+            if (grade.ok()) {
+                return new ClassConstructorDetailDTO(rubricName, rubricScope, rubricParams, true, false);
+            }
+            return new ClassConstructorDetailDTO(
+                    StudentDisplayMessages.MISSING_CONSTRUCTOR,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    false,
+                    grade.partial());
+        }
+        if (grade.ok()) {
+            return new ClassConstructorDetailDTO(entry.name, entry.scope, entry.params, true, false);
+        }
+        return new ClassConstructorDetailDTO(
+                StudentDisplayMessages.WRONG_CONSTRUCTOR,
+                grade.partial() ? StudentDisplayMessages.WRONG_SCOPE_OR_MODIFIER : StudentDisplayMessages.PLACEHOLDER,
+                StudentDisplayMessages.PLACEHOLDER,
+                false,
+                grade.partial());
+    }
+
+    private ClassMethodDetailDTO buildClassMethodDetail(DisclosureMode disclosureMode,
+                                                      ClassMethodEntry entry,
+                                                      MemberGrade grade,
+                                                      String rubricName,
+                                                      String rubricScope,
+                                                      String rubricReturnType) {
+        if (entry == null) {
+            if (grade.ok()) {
+                return new ClassMethodDetailDTO(rubricName, rubricScope, rubricReturnType, true, false);
+            }
+            return new ClassMethodDetailDTO(
+                    StudentDisplayMessages.MISSING_METHOD,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    StudentDisplayMessages.PLACEHOLDER,
+                    false,
+                    grade.partial());
+        }
+        if (grade.ok()) {
+            return new ClassMethodDetailDTO(
+                    entry.name,
+                    formatMethodModifiers(entry.scope, entry.isStatic, entry.isAbstract, entry.isFinal),
+                    entry.returnType,
+                    true,
+                    false);
+        }
+        return new ClassMethodDetailDTO(
+                StudentDisplayMessages.WRONG_METHOD,
+                grade.partial() ? StudentDisplayMessages.WRONG_SCOPE_OR_MODIFIER : StudentDisplayMessages.PLACEHOLDER,
+                StudentDisplayMessages.PLACEHOLDER,
+                false,
+                grade.partial());
+    }
+
+    /** Powers the "Class" tab for the student's latest attempt. */
+    public ClassTabResponse getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId,
+                                         DisclosureMode disclosureMode) {
+        long start = System.currentTimeMillis();
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
+        if (resolvedSubmissionId == null) {
+            return new ClassTabResponse(List.of(), null);
+        }
+        detailPersistGate.await(resolvedSubmissionId);
+        List<ClassDetailDTO> result = buildClassDataForSubmission(
+                labId, resolvedSubmissionId, challengeId, disclosureMode);
+        String notice = packageNormalizationStore.get(resolvedSubmissionId, challengeId);
+        TimingLog.line(timingLog, "Read class", System.currentTimeMillis() - start);
+        return new ClassTabResponse(result, notice);
+    }
+
+    public ClassTabResponse getClassData(UUID labId, UUID challengeId, UUID studentId, UUID submissionId) {
+        return getClassData(labId, challengeId, studentId, submissionId, DisclosureMode.LECTURER);
+    }
+
+    /**
+     * Student revisit GET for the Operation Test tab. Returns persisted OT results when the
+     * submission was graded with operational tests; empty when the rubric has no OT or the
+     * attempt predates OT grading (no persisted rows).
+     */
+    public List<TestcaseResultDTO> getTestcaseData(UUID labId,
+                                                   UUID challengeId,
+                                                   UUID studentId,
+                                                   UUID submissionId) {
+        return getTestcaseData(labId, challengeId, studentId, submissionId, DisclosureMode.STUDENT);
+    }
+
+    public List<TestcaseResultDTO> getTestcaseData(UUID labId,
+                                                   UUID challengeId,
+                                                   UUID studentId,
+                                                   UUID submissionId,
+                                                   DisclosureMode disclosureMode) {
+        long start = System.currentTimeMillis();
+        UUID resolvedSubmissionId = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
+        if (resolvedSubmissionId == null) {
+            return List.of();
+        }
+        detailPersistGate.await(resolvedSubmissionId);
+        List<TestcaseResultDTO> result = buildTestcaseDataForSubmission(
+                labId, resolvedSubmissionId, challengeId, disclosureMode);
+        TimingLog.line(timingLog, "Read testcases", System.currentTimeMillis() - start);
+        return result;
+    }
+
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
+                                                                  UUID submissionId,
+                                                                  UUID challengeId) {
+        return buildTestcaseDataForSubmission(labId, submissionId, challengeId, DisclosureMode.LECTURER);
+    }
+
+    public List<TestcaseResultDTO> buildTestcaseDataForSubmission(UUID labId,
+                                                                  UUID submissionId,
+                                                                  UUID challengeId,
+                                                                  DisclosureMode disclosureMode) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null || challengeRubric.testcases().isEmpty()) {
+            return List.of();
+        }
+        List<SubmissionTestcaseResult> persisted =
+                submissionTestcaseResultRepository.findBySubmission_IdWithTestcase(submissionId);
+        if (persisted.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, SubmissionTestcaseResult> resultsByTestcaseId = persisted.stream()
+                .filter(row -> row.getTestcase() != null
+                        && row.getTestcase().getChallenge() != null
+                        && challengeId.equals(row.getTestcase().getChallenge().getId()))
+                .collect(Collectors.toMap(
+                        row -> row.getTestcase().getId(),
+                        row -> row,
+                        (left, right) -> left));
+        if (resultsByTestcaseId.isEmpty()) {
+            return List.of();
+        }
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
+        return testcaseResultMapper.mapChallengeTestcases(
+                challengeRubric.testcases(), resultsByTestcaseId, mode);
+    }
+
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId, UUID submissionId, UUID challengeId) {
+        return buildClassDataForSubmission(labId, submissionId, challengeId, DisclosureMode.LECTURER);
+    }
+
+    public List<ClassDetailDTO> buildClassDataForSubmission(UUID labId,
+                                                            UUID submissionId,
+                                                            UUID challengeId,
+                                                            DisclosureMode disclosureMode) {
+        ChallengeRubric challengeRubric = challengeRubricFromCache(labId, challengeId);
+        if (challengeRubric == null) {
+            return List.of();
+        }
+        SubmissionCorrectIds correctIds = submissionResultLoader.loadCorrectIds(submissionId);
+        ChallengeCompileErrors compileErrors = compileErrorStore.get(submissionId, challengeId);
+        ChallengeSnapshot snapshot = parsedSubmissionSnapshotStore.get(submissionId, challengeId);
+        return buildClassDataFromRubric(challengeRubric, correctIds, compileErrors, snapshot, disclosureMode);
+    }
+
+    private ChallengeRubric challengeRubricFromCache(UUID labId, UUID challengeId) {
+        if (labId == null || challengeId == null) {
+            return null;
+        }
+        return labRubricCache.get(labId).challengeById(challengeId).orElse(null);
+    }
+
+    public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
+                                               UUID challengeId,
+                                               SubmissionCorrectIds correctIds,
+                                               ChallengeCompileErrors compileErrors,
+                                               ChallengeSnapshot snapshot) {
+        return buildClassData(structure, challengeId, correctIds, compileErrors, snapshot, DisclosureMode.LECTURER);
+    }
+
+    public List<ClassDetailDTO> buildClassData(LabChallengeStructureBundle structure,
+                                               UUID challengeId,
+                                               SubmissionCorrectIds correctIds,
+                                               ChallengeCompileErrors compileErrors,
+                                               ChallengeSnapshot snapshot,
+                                               DisclosureMode disclosureMode) {
+        List<ClassEntity> classes = structure.classesForChallenge(challengeId);
+        if (classes.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Integer, String> masterData = structure.masterData();
+        ParsedSubmissionSnapshot.ClassSnapshot classSnapshot = snapshot != null ? snapshot.classSnapshot : null;
+        List<ClassDetailDTO> result = new ArrayList<>();
+        for (ClassEntity ce : classes) {
+            ClassShellEntry shellEntry = classSnapshot != null
+                    ? classSnapshot.shells.get(ce.getId().toString())
+                    : null;
+            String shellStatus = shellEntry != null
+                    ? resolveShellStatus(ce, shellEntry, masterData, structure, challengeId)
+                    : null;
+            String displayName = formatClassDisplayName(ce);
+            String cardError = classCardError(compileErrors, ce.getName(), displayName);
+            boolean membersGated = cardError != null || "error".equals(shellStatus);
+
+            List<ClassFieldDetailDTO> fields = structure.fieldsByClassId().getOrDefault(ce.getId(), List.of()).stream()
+                    .map(f -> {
+                        ClassFieldEntry entry = classSnapshot != null
+                                ? classSnapshot.fields.get(f.getId().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveFieldGrade(
+                                        classSnapshot, f, entry, masterData, correctIds, ce.getDeclaringType()));
+                        return buildClassFieldDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                f.getName(),
+                                resolveMasterDataLabel(f.getFieldDeclaration().getScope(), masterData),
+                                f.getFieldDeclaration().getDataType());
+                    })
+                    .toList();
+
+            List<ClassConstructorDetailDTO> constructors = structure.constructorsByClassId()
+                    .getOrDefault(ce.getId(), List.of()).stream()
+                    .map(c -> {
+                        ClassConstructorEntry entry = classSnapshot != null
+                                ? classSnapshot.constructors.get(c.getId().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveConstructorGrade(
+                                        classSnapshot,
+                                        c,
+                                        entry,
+                                        structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()),
+                                        masterData,
+                                        correctIds));
+                        return buildClassConstructorDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                c.getName(),
+                                resolveMasterDataLabel(c.getConstructorDeclaration().getScope(), masterData),
+                                formatParams(structure.paramsByConstructorId().getOrDefault(c.getId(), List.of()), true));
+                    })
+                    .toList();
+
+            List<ClassMethodDetailDTO> methods = structure.methodsByClassId().getOrDefault(ce.getId(), List.of()).stream()
+                    .map(m -> {
+                        ClassMethodEntry entry = classSnapshot != null
+                                ? classSnapshot.methods.get(m.getId().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveMethodGrade(classSnapshot, m, entry, masterData, correctIds));
+                        MethodDeclaration declaration = m.getMethodDeclaration();
+                        return buildClassMethodDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                m.getName(),
+                                formatMethodModifiers(
+                                        resolveMasterDataLabel(declaration.getScope(), masterData),
+                                        declaration.isStatic(),
+                                        declaration.isAbstract(),
+                                        declaration.isFinal()),
+                                declaration.getReturnType());
+                    })
+                    .toList();
+
+            String displayType = shellEntry != null
+                    ? formatStudentClassType(shellEntry)
+                    : resolveClassType(ce, masterData);
+            String cardStatus;
+            if (cardError != null) {
+                cardStatus = "error";
+            } else if (shellEntry != null) {
+                cardStatus = resolveClassCardStatus(shellStatus, fields, constructors, methods);
+            } else {
+                cardStatus = resolveMemberStatus(fields, constructors, methods);
+            }
+
+            result.add(new ClassDetailDTO(
+                    displayName,
+                    displayType,
+                    cardStatus,
+                    cardError,
+                    fields, constructors, methods));
+        }
+        return result;
+    }
+
+    /**
+     * Upload {@code lab_result} Class tab from the in-memory rubric (no Neon structure reload).
+     */
+    public List<ClassDetailDTO> buildClassDataFromRubric(ChallengeRubric challengeRubric,
+                                                         SubmissionCorrectIds correctIds,
+                                                         ChallengeCompileErrors compileErrors,
+                                                         ChallengeSnapshot snapshot) {
+        return buildClassDataFromRubric(challengeRubric, correctIds, compileErrors, snapshot, DisclosureMode.LECTURER);
+    }
+
+    public List<ClassDetailDTO> buildClassDataFromRubric(ChallengeRubric challengeRubric,
+                                                         SubmissionCorrectIds correctIds,
+                                                         ChallengeCompileErrors compileErrors,
+                                                         ChallengeSnapshot snapshot,
+                                                         DisclosureMode disclosureMode) {
+        if (challengeRubric == null || challengeRubric.classes().isEmpty()) {
+            return List.of();
+        }
+
+        ParsedSubmissionSnapshot.ClassSnapshot classSnapshot = snapshot != null ? snapshot.classSnapshot : null;
+        List<ClassDetailDTO> result = new ArrayList<>();
+        for (ClassRubric classRubric : challengeRubric.classes()) {
+            ClassShellEntry shellEntry = classSnapshot != null
+                    ? classSnapshot.shells.get(classRubric.id().toString())
+                    : null;
+            String shellStatus = shellEntry != null
+                    ? resolveShellStatus(classRubric, shellEntry, challengeRubric)
+                    : null;
+            String cardError = classCardError(
+                    compileErrors, classRubric.name(), classRubric.qualifiedName());
+            boolean membersGated = cardError != null || "error".equals(shellStatus);
+
+            List<ClassFieldDetailDTO> fields = classRubric.fields().stream()
+                    .map(field -> {
+                        ClassFieldEntry entry = classSnapshot != null
+                                ? classSnapshot.fields.get(field.id().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveFieldGrade(
+                                        classSnapshot, field, entry, correctIds, classRubric.declaringType()));
+                        return buildClassFieldDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                field.name(),
+                                field.scope(),
+                                field.dataType());
+                    })
+                    .toList();
+
+            List<ClassConstructorDetailDTO> constructors = classRubric.constructors().stream()
+                    .map(constructor -> {
+                        ClassConstructorEntry entry = classSnapshot != null
+                                ? classSnapshot.constructors.get(constructor.id().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveConstructorGrade(classSnapshot, constructor, entry, correctIds));
+                        return buildClassConstructorDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                classRubric.name(),
+                                constructor.scope(),
+                                String.join(", ", constructor.parameterTypes()));
+                    })
+                    .toList();
+
+            List<ClassMethodDetailDTO> methods = classRubric.methods().stream()
+                    .map(method -> {
+                        ClassMethodEntry entry = classSnapshot != null
+                                ? classSnapshot.methods.get(method.id().toString())
+                                : null;
+                        MemberGrade memberGrade = gateMemberGrade(
+                                membersGated,
+                                resolveMethodGrade(classSnapshot, method, entry, correctIds));
+                        return buildClassMethodDetail(
+                                disclosureMode,
+                                entry,
+                                memberGrade,
+                                method.name(),
+                                formatMethodModifiers(
+                                        method.scope(),
+                                        method.isStatic(),
+                                        method.isAbstract(),
+                                        method.isFinal()),
+                                method.returnType());
+                    })
+                    .toList();
+
+            String displayType = shellEntry != null
+                    ? formatStudentClassType(shellEntry)
+                    : resolveClassType(classRubric);
+            String cardStatus;
+            if (cardError != null) {
+                cardStatus = "error";
+            } else if (shellEntry != null) {
+                cardStatus = resolveClassCardStatus(shellStatus, fields, constructors, methods);
+            } else {
+                cardStatus = resolveMemberStatus(fields, constructors, methods);
+            }
+
+            result.add(new ClassDetailDTO(
+                    classRubric.qualifiedName(),
+                    displayType,
+                    cardStatus,
+                    cardError,
+                    fields, constructors, methods));
+        }
+        return result;
+    }
+
+    /**
+     * Upload {@code lab_result} MMD tab from the in-memory rubric (no Neon structure reload).
+     */
+    public List<MmdClassDTO> buildMmdDataFromRubric(ChallengeRubric challengeRubric,
+                                                    SubmissionCorrectIds correctIds,
+                                                    MmdGradingOutcome mmdOutcome,
+                                                    Boolean mmdSubmittedOverride,
+                                                    ChallengeMmdMeta mmdMeta,
+                                                    UUID submissionId,
+                                                    ChallengeSnapshot snapshot) {
+        return buildMmdDataFromRubric(
+                challengeRubric,
+                correctIds,
+                mmdOutcome,
+                mmdSubmittedOverride,
+                mmdMeta,
+                submissionId,
+                snapshot,
+                DisclosureMode.LECTURER);
+    }
+
+    public List<MmdClassDTO> buildMmdDataFromRubric(ChallengeRubric challengeRubric,
+                                                    SubmissionCorrectIds correctIds,
+                                                    MmdGradingOutcome mmdOutcome,
+                                                    Boolean mmdSubmittedOverride,
+                                                    ChallengeMmdMeta mmdMeta,
+                                                    UUID submissionId,
+                                                    ChallengeSnapshot snapshot,
+                                                    DisclosureMode disclosureMode) {
+        if (challengeRubric == null || challengeRubric.classes().isEmpty()) {
+            return List.of();
+        }
+
+        ChallengeMmdMeta effectiveMeta = mmdMeta != null ? mmdMeta : new ChallengeMmdMeta();
+        boolean effectiveMmdSubmitted = mmdSubmittedOverride != null
+                ? mmdSubmittedOverride
+                : resolveEffectiveMmdSubmitted(submissionId, effectiveMeta, correctIds);
+
+        ParsedSubmissionSnapshot.MmdSnapshot mmdSnapshot = snapshot != null ? snapshot.mmdSnapshot : null;
+        Map<UUID, List<RelationRubric>> relationsBySourceClassId = challengeRubric.relations().stream()
+                .collect(Collectors.groupingBy(RelationRubric::sourceClassId));
+
+        List<MmdClassDTO> result = new ArrayList<>();
+        for (ClassRubric classRubric : challengeRubric.classes()) {
+            UUID classId = classRubric.id();
+            String classIdStr = classId.toString();
+            boolean stereotypeOk;
+            if (mmdOutcome != null) {
+                stereotypeOk = mmdOutcome.isClassPresent(classId) && mmdOutcome.isClassCorrect(classId);
+            } else {
+                stereotypeOk = effectiveMeta.classStereotypeCorrect.getOrDefault(classIdStr, false);
+                if (!stereotypeOk && effectiveMmdSubmitted && effectiveMeta.classStereotypeCorrect.isEmpty()) {
+                    stereotypeOk = classHasMergedCorrectMember(classRubric, correctIds);
+                }
+            }
+
+            List<MmdAttributeDTO> attributes = new ArrayList<>();
+            String rubricStereotype = "<<" + resolveClassTypeLabel(classRubric).toLowerCase(Locale.ROOT) + ">>";
+            String stereotypeDisplay = mmdSnapshot != null
+                    ? mmdSnapshot.stereotypes.get(classIdStr)
+                    : null;
+            attributes.add(new MmdAttributeDTO(
+                    resolveStereotypeDisplay(disclosureMode, stereotypeDisplay, rubricStereotype),
+                    "stereotype",
+                    stereotypeOk,
+                    stereotypeOk ? null : (effectiveMmdSubmitted ? StudentDisplayMessages.CLASS_MISSING_FROM_DIAGRAM : StudentDisplayMessages.MISSING_MMD_FILE)));
+
+            classRubric.fields().forEach(field -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isFieldCorrect(field.id())
+                        : correctIds.fieldIds().contains(field.id());
+                String rubricName = formatFieldName(field);
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(field.id().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "field", rubricName, mmdSnapshot, field.id()));
+            });
+
+            classRubric.constructors().forEach(constructor -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isConstructorCorrect(constructor.id())
+                        : correctIds.constructorIds().contains(constructor.id());
+                String rubricName = formatConstructorName(classRubric.name(), constructor);
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(constructor.id().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "constructor", rubricName, mmdSnapshot, constructor.id()));
+            });
+
+            classRubric.methods().forEach(method -> {
+                boolean ok = mmdOutcome != null
+                        ? mmdOutcome.isMethodCorrect(method.id())
+                        : correctIds.methodIds().contains(method.id());
+                String rubricName = formatMethodName(method);
+                boolean hasSnapshotEntry = mmdSnapshot != null
+                        && mmdSnapshot.attributes.containsKey(method.id().toString());
+                attributes.add(buildFailedOrOkMmdAttribute(
+                        disclosureMode, ok, hasSnapshotEntry, "method", rubricName, mmdSnapshot, method.id()));
+            });
+
+            List<MmdRelationDTO> relations = relationsBySourceClassId.getOrDefault(classId, List.of()).stream()
+                    .map(relation -> {
+                        boolean ok = mmdOutcome != null
+                                ? mmdOutcome.isRelationCorrect(relation.id())
+                                : correctIds.relationIds().contains(relation.id());
+                        String error = ok
+                                ? null
+                                : effectiveMeta.relationErrors.getOrDefault(
+                                        relation.id().toString(),
+                                        effectiveMmdSubmitted ? "Relation mismatch" : "Missing relationship");
+                        MmdRelationEntry relationEntry = mmdSnapshot != null
+                                ? mmdSnapshot.relations.get(relation.id().toString())
+                                : null;
+                        return buildMmdRelation(
+                                disclosureMode,
+                                ok,
+                                error,
+                                effectiveMmdSubmitted,
+                                relationEntry,
+                                relation.sourceClassName(),
+                                relation.targetClassName(),
+                                MmdComparisonService.displayRelationTypeName(relation.relationTypeName()));
+                    })
+                    .toList();
+
+            result.add(new MmdClassDTO(classRubric.name(), attributes, relations));
+        }
+        return result;
+    }
+
+    private static String classCardError(ChallengeCompileErrors compileErrors, String... names) {
+        if (compileErrors == null || compileErrors.isEmpty()) {
+            return null;
+        }
+        String message = compileErrors.messageForClass(names);
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        return CompileErrorMessage.summarize(message);
+    }
+
+    private String formatClassDisplayName(ClassEntity classEntity) {
+        if (classEntity.getOuterClass() == null) {
+            return classEntity.getName();
+        }
+        return classEntity.getOuterClass().getName() + "." + classEntity.getName();
+    }
+
+    private String resolveClassType(ClassEntity ce, Map<Integer, String> masterData) {
+        String declaringType = resolveClassTypeLabel(ce, masterData);
+        return ce.isAbstract() ? "ABSTRACT " + declaringType : declaringType;
+    }
+
+    private String resolveClassType(ClassRubric classRubric) {
+        String declaringType = resolveClassTypeLabel(classRubric);
+        return classRubric.isAbstract() ? "ABSTRACT " + declaringType : declaringType;
+    }
+
+    private String resolveClassTypeLabel(ClassRubric classRubric) {
+        String declaringType = classRubric.declaringType();
+        if (declaringType == null || declaringType.isBlank() || "-".equals(declaringType.trim())) {
+            return "CLASS";
+        }
+        return declaringType;
+    }
+
+    private String formatStudentClassType(ClassShellEntry entry) {
+        String declaringType = normalizeDeclaringType(entry.declaringType);
+        String label = declaringType != null ? declaringType.toUpperCase(Locale.ROOT) : "CLASS";
+        if (entry.isAbstract && !"interface".equals(declaringType) && !"enum".equals(declaringType)) {
+            return "ABSTRACT " + label;
+        }
+        return label;
+    }
+
+    private String resolveShellStatus(ClassEntity ce,
+                                      ClassShellEntry entry,
+                                      Map<Integer, String> masterData,
+                                      LabChallengeStructureBundle structure,
+                                      UUID challengeId) {
+        if (entry == null) {
+            return "error";
+        }
+        return buildShellChecks(ce, entry, masterData, structure, challengeId).stream().allMatch(Boolean::booleanValue)
+                ? "success"
+                : "error";
+    }
+
+    private String resolveShellStatus(ClassRubric classRubric, ClassShellEntry entry, ChallengeRubric challengeRubric) {
+        if (entry == null) {
+            return "error";
+        }
+        return buildShellChecks(classRubric, entry, challengeRubric).stream().allMatch(Boolean::booleanValue)
+                ? "success"
+                : "error";
+    }
+
+    private List<Boolean> buildShellChecks(ClassRubric classRubric, ClassShellEntry entry, ChallengeRubric challengeRubric) {
+        List<Boolean> checks = new ArrayList<>();
+        checks.add(PartialCreditEvaluator.matches(classRubric.scope(), entry.scope).get(0));
+        checks.add(PartialCreditEvaluator.matches(
+                resolveClassTypeLabel(classRubric), entry.declaringType).get(0));
+        checks.add(classRubric.isAbstract() == entry.isAbstract);
+        if (classRubric.isNested()) {
+            checks.add(classRubric.isStatic() == entry.isStatic);
+        }
+        addHeritageShellCheck(
+                checks,
+                classRubric.id(),
+                entry,
+                challengeRubric.relations(),
+                challengeRubric.classes());
+        return checks;
+    }
+
+    private List<Boolean> buildShellChecks(ClassEntity ce,
+                                           ClassShellEntry entry,
+                                           Map<Integer, String> masterData,
+                                           LabChallengeStructureBundle structure,
+                                           UUID challengeId) {
+        List<Boolean> checks = new ArrayList<>();
+        checks.add(PartialCreditEvaluator.matches(
+                resolveMasterDataLabel(ce.getScope(), masterData), entry.scope).get(0));
+        checks.add(PartialCreditEvaluator.matches(
+                resolveClassTypeLabel(ce, masterData), entry.declaringType).get(0));
+        checks.add(ce.isAbstract() == entry.isAbstract);
+        if (ce.getOuterClass() != null) {
+            checks.add(ce.isStatic() == entry.isStatic);
+        }
+        addHeritageShellCheck(
+                checks,
+                ce.getId(),
+                entry,
+                toRelationRubrics(structure.relationsBySourceClassId().getOrDefault(ce.getId(), List.of())),
+                toClassRubrics(structure.classesForChallenge(challengeId)));
+        return checks;
+    }
+
+    private void addHeritageShellCheck(List<Boolean> checks,
+                                       UUID sourceClassId,
+                                       ClassShellEntry entry,
+                                       List<RelationRubric> relations,
+                                       List<ClassRubric> classes) {
+        if (entry.superclassSimpleName == null && entry.interfaceSimpleNames == null) {
+            return;
+        }
+        List<String> interfaces = entry.interfaceSimpleNames != null ? entry.interfaceSimpleNames : List.of();
+        checks.add(HeritageShellMatcher.heritageMatchesOrSkipped(
+                sourceClassId,
+                entry.superclassSimpleName,
+                interfaces,
+                relations,
+                classes));
+    }
+
+    private List<RelationRubric> toRelationRubrics(List<ClassRelation> relations) {
+        if (relations == null || relations.isEmpty()) {
+            return List.of();
+        }
+        List<RelationRubric> rubrics = new ArrayList<>(relations.size());
+        for (ClassRelation relation : relations) {
+            ClassEntity source = relation.getClassEntity();
+            ClassEntity target = relation.getTargetClassEntity();
+            rubrics.add(new RelationRubric(
+                    relation.getId(),
+                    source != null ? source.getId() : null,
+                    source != null ? source.getName() : null,
+                    target != null ? target.getId() : null,
+                    target != null ? target.getName() : null,
+                    relation.getRelationType() != null ? relation.getRelationType().getName() : ""));
+        }
+        return rubrics;
+    }
+
+    private List<ClassRubric> toClassRubrics(List<ClassEntity> classes) {
+        if (classes == null || classes.isEmpty()) {
+            return List.of();
+        }
+        List<ClassRubric> rubrics = new ArrayList<>(classes.size());
+        for (ClassEntity classEntity : classes) {
+            String outerName = classEntity.getOuterClass() != null ? classEntity.getOuterClass().getName() : null;
+            rubrics.add(new ClassRubric(
+                    classEntity.getId(),
+                    classEntity.getName(),
+                    outerName,
+                    "public",
+                    "CLASS",
+                    false,
+                    false,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    1));
+        }
+        return rubrics;
+    }
+
+    private String resolveClassCardStatus(String shellStatus,
+                                          List<ClassFieldDetailDTO> fields,
+                                          List<ClassConstructorDetailDTO> constructors,
+                                          List<ClassMethodDetailDTO> methods) {
+        if ("error".equals(shellStatus)) {
+            return "error";
+        }
+        if (fields.isEmpty() && constructors.isEmpty() && methods.isEmpty()) {
+            return "success";
+        }
+        return resolveMemberStatus(fields, constructors, methods);
+    }
+
+    private MemberGrade gateMemberGrade(boolean membersGated, MemberGrade memberGrade) {
+        return membersGated ? FAILED_MEMBER_GRADE : memberGrade;
+    }
+
+    private MemberGrade resolveFieldGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           Field field,
+                                           ClassFieldEntry entry,
+                                           Map<Integer, String> masterData,
+                                           SubmissionCorrectIds correctIds,
+                                           MasterData declaringType) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.fieldGrades.get(field.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeFieldAccuracy(
+                    field, entry, masterData, declaringType == null ? null : declaringType.getName()));
+        }
+        return new MemberGrade(correctIds.fieldIds().contains(field.getId()), false);
+    }
+
+    private MemberGrade resolveFieldGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           FieldRubric field,
+                                           ClassFieldEntry entry,
+                                           SubmissionCorrectIds correctIds,
+                                           String declaringType) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.fieldGrades.get(field.id().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeFieldAccuracy(field, entry, declaringType));
+        }
+        return new MemberGrade(correctIds.fieldIds().contains(field.id()), false);
+    }
+
+    private MemberGrade resolveMethodGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           Method method,
+                                           ClassMethodEntry entry,
+                                           Map<Integer, String> masterData,
+                                           SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.methodGrades.get(method.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeMethodAccuracy(method, entry, masterData));
+        }
+        return new MemberGrade(correctIds.methodIds().contains(method.getId()), false);
+    }
+
+    private MemberGrade resolveMethodGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                           MethodRubric method,
+                                           ClassMethodEntry entry,
+                                           SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.methodGrades.get(method.id().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeMethodAccuracy(method, entry));
+        }
+        return new MemberGrade(correctIds.methodIds().contains(method.id()), false);
+    }
+
+    private MemberGrade resolveConstructorGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                                Constructor constructor,
+                                                ClassConstructorEntry entry,
+                                                List<Parameter> rubricParams,
+                                                Map<Integer, String> masterData,
+                                                SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.constructorGrades.get(constructor.getId().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeConstructorAccuracy(constructor, entry, rubricParams, masterData));
+        }
+        return new MemberGrade(correctIds.constructorIds().contains(constructor.getId()), false);
+    }
+
+    private MemberGrade resolveConstructorGrade(ParsedSubmissionSnapshot.ClassSnapshot classSnapshot,
+                                                ConstructorRubric constructor,
+                                                ClassConstructorEntry entry,
+                                                SubmissionCorrectIds correctIds) {
+        String gradeLabel = classSnapshot != null
+                ? classSnapshot.constructorGrades.get(constructor.id().toString())
+                : null;
+        if (gradeLabel != null) {
+            return resolveMemberGradeFromLabel(gradeLabel);
+        }
+        if (entry != null) {
+            return memberGradeFromAccuracy(computeConstructorAccuracy(constructor, entry));
+        }
+        return new MemberGrade(correctIds.constructorIds().contains(constructor.id()), false);
+    }
+
+    private double computeFieldAccuracy(Field field,
+                                        ClassFieldEntry entry,
+                                        Map<Integer, String> masterData,
+                                        String declaringType) {
+        if (EnumDeclaringTypes.isEnum(declaringType)) {
+            return 1.0;
+        }
+        FieldDeclaration declaration = field.getFieldDeclaration();
+        String scope = declaration.getScope() == null
+                ? null
+                : resolveMasterDataLabel(declaration.getScope(), masterData);
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matchesWhenSpecified(scope, entry.scope)
+                        && PartialCreditEvaluator.matchesWhenSpecified(declaration.getDataType(), entry.dataType)
+                        && declaration.isStatic() == entry.isStatic
+                        && declaration.isFinal() == entry.isFinal);
+    }
+
+    private double computeFieldAccuracy(FieldRubric field, ClassFieldEntry entry, String declaringType) {
+        if (EnumDeclaringTypes.isEnum(declaringType)) {
+            return 1.0;
+        }
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matchesWhenSpecified(field.scope(), entry.scope)
+                        && PartialCreditEvaluator.matchesWhenSpecified(field.dataType(), entry.dataType)
+                        && field.isStatic() == entry.isStatic
+                        && field.isFinal() == entry.isFinal);
+    }
+
+    private double computeMethodAccuracy(Method method, ClassMethodEntry entry, Map<Integer, String> masterData) {
+        MethodDeclaration declaration = method.getMethodDeclaration();
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(
+                        resolveMasterDataLabel(declaration.getScope(), masterData), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(declaration.getReturnType(), entry.returnType).get(0)
+                        && declaration.isStatic() == entry.isStatic
+                        && declaration.isAbstract() == entry.isAbstract
+                        && declaration.isFinal() == entry.isFinal);
+    }
+
+    private double computeMethodAccuracy(MethodRubric method, ClassMethodEntry entry) {
+        return PartialCreditEvaluator.binaryAccuracy(
+                PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0)
+                        && PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0)
+                        && method.isStatic() == entry.isStatic
+                        && method.isAbstract() == entry.isAbstract
+                        && method.isFinal() == entry.isFinal);
+    }
+
+    private double computeConstructorAccuracy(Constructor constructor,
+                                              ClassConstructorEntry entry,
+                                              List<Parameter> rubricParams,
+                                              Map<Integer, String> masterData) {
+        List<String> expectedParams = rubricParams.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
+                .map(Parameter::getDataType)
+                .toList();
+        List<String> actualParams = parseSnapshotParamTypes(entry.params);
+        boolean defaultMatches = !constructor.getConstructorDeclaration().isDefault()
+                || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, expectedParams)
+                        && PartialCreditEvaluator.matches(
+                                resolveMasterDataLabel(constructor.getConstructorDeclaration().getScope(), masterData),
+                                entry.scope).get(0)
+                        && defaultMatches);
+    }
+
+    private double computeConstructorAccuracy(ConstructorRubric constructor, ClassConstructorEntry entry) {
+        List<String> actualParams = parseSnapshotParamTypes(entry.params);
+        boolean defaultMatches = !constructor.isDefault()
+                || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
+        return PartialCreditEvaluator.binaryAccuracy(
+                sameParamTypes(actualParams, constructor.parameterTypes())
+                        && PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0)
+                        && defaultMatches);
+    }
+
+    private List<String> parseSnapshotParamTypes(String params) {
+        if (params == null || params.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(params.split(","))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .toList();
+    }
+
+    private boolean sameParamTypes(List<String> actual, List<String> expected) {
+        if (actual.size() != expected.size()) {
+            return false;
+        }
+        for (int i = 0; i < actual.size(); i++) {
+            if (!equalsIgnoreCase(actual.get(i), expected.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private MemberGrade memberGradeFromAccuracy(double accuracy) {
+        return new MemberGrade(accuracy >= 1.0, false);
+    }
+
+    private MemberGrade resolveMemberGradeFromLabel(String gradeLabel) {
+        return switch (gradeLabel) {
+            case "pass" -> new MemberGrade(true, false);
+            default -> new MemberGrade(false, false);
+        };
+    }
+
+    private boolean equalsIgnoreCase(String a, String b) {
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        return a.trim().equalsIgnoreCase(b.trim());
+    }
+
+    private record MemberGrade(boolean ok, boolean partial) {}
+
+    private static final MemberGrade FAILED_MEMBER_GRADE = new MemberGrade(false, false);
+
+    private String normalizeDeclaringType(String value) {
+        return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String resolveMasterDataLabel(MasterData masterData, Map<Integer, String> valueMap) {
+        if (masterData == null) {
+            return "-";
+        }
+        Integer id = masterData.getId();
+        if (id == null) {
+            return masterData.getName() != null ? masterData.getName() : "-";
+        }
+        return valueMap.getOrDefault(id, masterData.getName() != null ? masterData.getName() : "-");
+    }
+
+    private String resolveMemberStatus(List<ClassFieldDetailDTO> fields,
+                                       List<ClassConstructorDetailDTO> constructors,
+                                       List<ClassMethodDetailDTO> methods) {
+        long total = fields.size() + constructors.size() + methods.size();
+        if (total == 0) {
+            return "info";
+        }
+
+        long pass = fields.stream().filter(ClassFieldDetailDTO::ok).count()
+                + constructors.stream().filter(ClassConstructorDetailDTO::ok).count()
+                + methods.stream().filter(ClassMethodDetailDTO::ok).count();
+        boolean anyPartial = fields.stream().anyMatch(ClassFieldDetailDTO::partial)
+                || constructors.stream().anyMatch(ClassConstructorDetailDTO::partial)
+                || methods.stream().anyMatch(ClassMethodDetailDTO::partial);
+        long fail = fields.stream().filter(f -> !f.ok() && !f.partial()).count()
+                + constructors.stream().filter(c -> !c.ok() && !c.partial()).count()
+                + methods.stream().filter(m -> !m.ok() && !m.partial()).count();
+
+        if (pass == total) {
+            return "success";
+        }
+        if (fail == total) {
+            return "error";
+        }
+        if (anyPartial || pass > 0) {
+            return "warning";
+        }
+        return "error";
+    }
+
+    private String formatParams(List<Parameter> params, boolean includeType) {
+        return params.stream()
+                .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
+                .map(p -> includeType ? (p.getDataType() + " " + p.getName()) : p.getName())
+                .collect(Collectors.joining(", "));
+    }
+
+    static String formatMethodModifiers(String scope, boolean isStatic, boolean isAbstract, boolean isFinal) {
+        StringBuilder sb = new StringBuilder();
+        if (scope != null && !scope.isBlank() && !"-".equals(scope)) {
+            sb.append(scope.trim().toLowerCase(Locale.ROOT));
+        }
+        if (isStatic) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("static");
+        }
+        if (isAbstract) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("abstract");
+        }
+        if (isFinal) {
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append("final");
+        }
+        return !sb.isEmpty() ? sb.toString() : "-";
+    }
+}

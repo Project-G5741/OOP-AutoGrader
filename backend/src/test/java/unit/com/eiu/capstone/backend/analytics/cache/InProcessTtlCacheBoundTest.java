@@ -162,6 +162,7 @@ class InProcessTtlCacheBoundTest {
                 0L,
                 0L,
                 0L,
+                0L,
                 java.math.BigDecimal.ZERO,
                 java.math.BigDecimal.ZERO,
                 java.util.List.of());

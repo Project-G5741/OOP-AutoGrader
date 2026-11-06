@@ -1,7 +1,6 @@
 import { authHeaders, clearSessionAndRedirectToLogin } from './authHeaders';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-export const PRESENCE_POLL_MS = 10_000;
 
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
@@ -9,6 +8,9 @@ const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
  * @returns {Promise<number|null>} active count, or null on soft failure.
  * When a Bearer token was sent and the API returns 401, clears session and
  * redirects to login (forced logout after access revoke).
+ *
+ * Called on mount, route change, window focus, and tab visible — not on a timer —
+ * so idle clients do not keep a serverless API awake.
  */
 export async function fetchPresenceCount() {
   if (IS_DESKTOP_APP) {

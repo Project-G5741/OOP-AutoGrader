@@ -1,0 +1,35 @@
+# Testcase kernel
+
+## Purpose
+
+Spring-free JSON coerce and value compare used by both the API scoring path and the isolated worker JAR.
+
+## Ownership
+
+| File | Role |
+|---|---|
+| `JsonValueCoercer.java` | Coerce rubric JSON to Java values; encode values to JSON |
+| `ValueComparator.java` | Compare actual vs expected with `ComparisonMode` |
+| `JavaTypeResolver.java` | Map rubric type names to `Class` objects |
+
+## Local Contracts
+
+- No Spring types. This package is packaged into `backend-1.0.0-worker.jar`.
+- Student `URLClassLoader` URLs must not include this package.
+- API code may wrap `JsonValueCoercer` with a `@Component` subclass in `grading.testcase`.
+- `JavaTypeResolver.resolve(String)` accepts v1 scalars, wrappers, `String`, `LocalDate` (`yyyy-MM-dd`), and arrays of the scalar types. Other names throw `Unsupported type in v1`.
+- `resolve(String, ClassLoader)` / `resolveAll(types, loader)` load rubric class names such as `Engine` (and arrays of those) via `loadStudentClass`.
+- `loadStudentClass` accepts binary (`Outer$Inner`), dotted nested (`Outer.Inner`), and unambiguous simple nested names (`Inner` when exactly one `*$Inner.class` is on a directory `URLClassLoader`).
+- `JsonValueCoercer.coerceParams` resolves JSON objects `{"$instance":"<name>"}` through a `Function<String,Object>` supplied by the worker engine. With a student/reference `ClassLoader`, ENUM-typed params coerce a non-blank JSON string via `Enum.valueOf`. Without a loader, ENUM type hints coerce textual expected values to the constant name string (assertion compare). `LocalDate` / `java.time.LocalDate` params and expecteds parse a canonical `yyyy-MM-dd` string (`LocalDate.parse`, and the text must equal `LocalDate.toString()`). JSON `null` stays null. `toJson(LocalDate)` writes that ISO string. Other params stay scalars. Do not JSON-encode live objects.
+
+## Work Guidance
+
+Keep types here free of harness, JPA, and Spring so the thin worker JAR stays self-contained.
+
+## Verification
+
+`WorkerJarIsolationTest` scans this package for Spring descriptors.
+
+## Child DOX Index
+
+No child docs.

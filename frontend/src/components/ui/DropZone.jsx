@@ -5,6 +5,7 @@ import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { apiFetch } from '../../utils/apiFetch';
 import { getAccessToken } from '../../utils/authRoutes';
 import { useToast } from './Toast';
+import { normalizeLabPrefix } from './LabPrefixBadge';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -16,6 +17,9 @@ export default function DropZone({
   labId,
   attemptNumber,
   authToken,
+  uploadDisabled = false,
+  uploadDisabledReason = null,
+  labPrefix = 'Official',
 }) {
   const showToast = useToast();
   const inputRef = useRef(null);
@@ -77,7 +81,51 @@ export default function DropZone({
     }
   };
 
+  const isMidtermLab = normalizeLabPrefix(labPrefix) === 'Midterm';
+
+  const isValidMidtermFolderStructure = (entries) => {
+    const filePaths = entries.map(({ relativePath }) => relativePath);
+    if (filePaths.length === 0) {
+      return false;
+    }
+
+    const rootFolder = filePaths
+      .map((path) => path.split('/').filter(Boolean)[0])
+      .find(Boolean);
+
+    if (!rootFolder) {
+      return false;
+    }
+
+    const rootPattern = /^(\d+)_([a-z0-9_\s]+)(_.*)?$/i;
+    if (!rootPattern.test(rootFolder)) {
+      return false;
+    }
+
+    const challengePattern = /^challenge[_-]?\d+$/i;
+    return filePaths.every((path) => {
+      const segments = path.split('/').filter(Boolean);
+      if (segments.length < 2 || segments[0] !== rootFolder) {
+        return false;
+      }
+      if (segments[1] === '.git') {
+        return true;
+      }
+      if (challengePattern.test(segments[1])) {
+        return false;
+      }
+      if (segments.length !== 2) {
+        return false;
+      }
+      const lower = segments[1].toLowerCase();
+      return lower.endsWith('.java') || lower.endsWith('.mmd');
+    });
+  };
+
   const isValidFolderStructure = (entries) => {
+    if (isMidtermLab) {
+      return isValidMidtermFolderStructure(entries);
+    }
     const filePaths = entries.map(({ relativePath }) => relativePath);
     if (filePaths.length === 0) {
       return false;
@@ -107,6 +155,12 @@ export default function DropZone({
   };
 
   const handleFiles = (entries) => {
+    if (uploadDisabled) {
+      const message = uploadDisabledReason || 'Upload is not available right now.';
+      setUploadError(message);
+      showToast({ message, type: 'error' });
+      return;
+    }
     const relevant = entries.filter(({ relativePath }) => {
       const lower = relativePath.toLowerCase();
       const segments = relativePath.split('/').filter(Boolean);
@@ -114,12 +168,20 @@ export default function DropZone({
     });
 
     if (relevant.length === 0) {
-      setUploadError('Please drop a valid project folder with .mmd/.java files inside challenge folders.');
+      setUploadError(
+        isMidtermLab
+          ? 'Please drop a valid project folder with .java and .mmd files directly under IRN_YourName.'
+          : 'Please drop a valid project folder with .mmd/.java files inside challenge folders.',
+      );
       return;
     }
 
     if (!isValidFolderStructure(relevant)) {
-      setUploadError("Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with challenge folders named 'challenge_1'.");
+      setUploadError(
+        isMidtermLab
+          ? "Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with .java and .mmd files inside (no challenge_n folders)."
+          : "Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with challenge folders named 'challenge_1'.",
+      );
       return;
     }
 
@@ -199,11 +261,23 @@ export default function DropZone({
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p className="text-xs leading-relaxed">
             <span className="font-semibold">Folder format:</span>{' '}
-            <span className="font-mono">IRN_YourName</span>
-            {' / '}
-            (<span className="font-mono">challenge_1</span>, <span className="font-mono">challenge_2</span>, …)
-            {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each;
-            include the project <span className="font-mono">.git</span> folder if you have one)
+            {isMidtermLab ? (
+              <>
+                <span className="font-mono">IRN_YourName</span>
+                {' / '}
+                <span className="font-mono">*.java</span> and <span className="font-mono">*.mmd</span> directly
+                (no <span className="font-mono">challenge_n</span> folders; include{' '}
+                <span className="font-mono">.git</span> if you have one)
+              </>
+            ) : (
+              <>
+                <span className="font-mono">IRN_YourName</span>
+                {' / '}
+                (<span className="font-mono">challenge_1</span>, <span className="font-mono">challenge_2</span>, …)
+                {' '}(<span className="font-mono">.java</span> and <span className="font-mono">.mmd</span> inside each;
+                include the project <span className="font-mono">.git</span> folder if you have one)
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -222,12 +296,14 @@ export default function DropZone({
         transition-all
         duration-200
         ${
-          isDragging
+          isDragging && !uploadDisabled
             ? "bg-primary-light dark:border-primary-text"
             : ""
         }
+        ${uploadDisabled ? 'opacity-60' : ''}
       `}
       onDragOver={(e) => {
+        if (uploadDisabled) return;
         e.preventDefault();
         setIsDragging(true);
       }}
@@ -238,6 +314,7 @@ export default function DropZone({
       onDrop={(e) => {
         e.preventDefault();
         setIsDragging(false);
+        if (uploadDisabled) return;
 
         if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
           handleDropItems(e.dataTransfer.items);
@@ -265,8 +342,16 @@ export default function DropZone({
 
         <Button
           className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white"
-          onClick={() => inputRef.current?.click()}
-          disabled={isUploading}
+          onClick={() => {
+            if (uploadDisabled) {
+              const message = uploadDisabledReason || 'Upload is not available right now.';
+              setUploadError(message);
+              showToast({ message, type: 'error' });
+              return;
+            }
+            inputRef.current?.click();
+          }}
+          disabled={isUploading || uploadDisabled}
         >
           {isUploading && (
             <span

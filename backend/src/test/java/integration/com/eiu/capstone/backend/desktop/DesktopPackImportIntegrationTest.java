@@ -264,7 +264,7 @@ class DesktopPackImportIntegrationTest {
                 termId,
                 termLabel,
                 List.of(new DesktopPackLabEntry(
-                        new DesktopPackLabMeta(labId, labName, true, null, null),
+                        new DesktopPackLabMeta(labId, labName, true, null, null, null),
                         rubric)));
         byte[] innerJson = SERIALIZER.toJson(inner);
         DesktopPackManifest manifest = new DesktopPackManifest(

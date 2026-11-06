@@ -28,8 +28,9 @@ Copy `frontend/.env.example` to `frontend/.env`:
 |---|---|
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
+| `VITE_MAINTENANCE_MODE` | Web-only lock. `true` / `1` / `yes` / `on` shows `MaintenancePage` for guests and students, and **clears student-only sessions** (token + presence). No login button on that page. Lecturers sign in at **`/staff`**. Student URLs redirect to the lecturer dashboard. Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at **build** time — change on Vercel then **Redeploy**. Desktop (`VITE_APP_MODE=desktop`) ignores this flag. |
 
-**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses `quitPracticeApp` (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`). Web submit dashboard only: **Download practice folder** (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses `quitPracticeApp` (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`). Web student shell: **Practice folder** on the NavBar (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
 
 ### Run
 
@@ -45,7 +46,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Expired JWT (`exp` in the past) clears storage and counts as logged out; revoked sessions still hard-cut on presence/API **401**
 - Web entry (`main.jsx`) must not statically import `App.desktop.jsx` — that module’s top-level session seed would overwrite a real JWT with `desktop-local` on every reload
 - `user.inCurrentTerm` missing or not `false` counts as enrolled (`isInCurrentTerm` in `authRoutes.js`); student dashboard updates the stored flag via `patchStoredUser`
-- Role gate in `App.jsx`: `RequireRole` + URL routes; lecturer-first default dashboard; dual-role users reach student routes by URL. Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
+- Role gate in `App.jsx`: `RequireRole` + URL routes; Admin and lecturer land on the lecturer dashboard. Admin and dual-role users reach student routes (Admin uses the account-menu Student area). Wrong-role **URLs** redirect to the default dashboard. Gated **API** 403 goes to `/no-access` (session kept). 401 clears the session and returns to login. Burst-guard **429** goes to `/rate-limited` (session kept; auto-return after cool-down)
 - `GoogleOAuthProvider` wraps the app in `App.jsx`
 
 ### API integration
@@ -64,6 +65,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css`, `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
 - Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
+- `ThemeToggle.jsx` — circular sun/moon checkbox control (`ThemeToggle.css`, token vars `--surface`, `--text-muted`, `--primary-text`); used in `Header` and auth/maintenance pages
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
 - Dark mode in `src/index.css`: `html` / `html.dark` set `color-scheme` so native controls (Flatpickr month `<select>`, file pickers) match the theme; drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
@@ -86,7 +88,8 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | Lecturer dashboard overview, lab statistics, submissions | Live API (`/api/lecturer/overview`, `/api/labs/{id}/statistics`, `/api/labs/{id}/submissions`) |
 | Reports page | Live API (`/api/analytics/dashboard`) |
 | Student history and stats | Live API via `StudentHistoryPage` (`my-history`, `my-labs`) |
-| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`) |
+| Weekly ranking | Live API (`GET /api/students/ranking/current`, lecturer `GET /api/lecturer/bootstrap/ranking`) |
+| Term management | Live API (`TermManagement.jsx` → `/api/lecturer/terms`, `GET /{id}/roster`, `GET /{id}/desktop-pack` download for offline student practice, Excel import by IRN or email; unmatched rows via **Details**; roster **Suspend** / **Restore** via `/api/users/{id}/suspend` and `/unsuspend`; **Email quarter** via `POST /mail` to the current quarter) |
 | Submission management (lecturer) | Live API (`SolutionManagement.jsx` → `/api/lecturer/labs`, testcase endpoints under `.../challenges/{id}/testcases`) |
 
 ## Work Guidance
@@ -98,12 +101,13 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: adjust copy in `src/config/apiErrorMessages.js`; mapping in `src/utils/apiError.js` (`readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`). Never surface raw backend `message`/`error`/`detail` except for contexts in `BACKEND_MESSAGE_CONTEXTS` (and download 403/404/503). **429** → rate-limit jail, not toast-only busy. Context `import` (desktop pack): backend message for 400/409/413/422; network → `DESKTOP_IMPORT_NETWORK`. Context `solution-import` (lecturer folder): backend message for 400/404/409/413/422; network → `FRIENDLY.SERVER_BUSY`.
-- Default `Footer` (AppShell) polls `GET /api/presence/count` every 10s with the session JWT when present; Logout/`pagehide` send `DELETE /api/presence/leave` so the count drops; count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login. Presence paths are excluded from the server burst budget.
+- Default `Footer` (AppShell) calls `GET /api/presence/count` on mount, route change, window focus, and tab visible (no interval timer — idle tabs do not wake a serverless API). Hidden tab / `pagehide` / logout send `DELETE /api/presence/leave`. Count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login; other `apiFetch` **401** paths still hard-cut. Idle open tabs may show signed-in UI until the next presence probe or API call. Presence paths are excluded from the server burst budget.
 - Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
-- `AppShell` `headerAddon` renders at the far-right of `Header` (after the account menu). Student submit dashboard and history routes use it for the fox mascot.
+- Student header, right to left: equipped mascot (`headerAddon`), account menu, mascot shop, streak flame (`headerBeforeUserMenu`). Logout is the last item in the account menu, under Change Password. Home, History, and Ranking use the lecturer nav bar on the next row, aligned to the start, with no hamburger. The avatar menu keeps Change Password and Logout. Out-of-term students see History only. Desktop omits Ranking.
 - Signed-in web `AppShell` mounts a Feedback FAB (`fixed` bottom-right `z-[90]`, under modals/toast). Login and desktop (`VITE_APP_MODE === 'desktop'`) do not show it. Form: `frontend/src/components/feedback/`.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
+- Student detail GETs (`/class`, `/mmd`, `/testcases`) and lab `/stats` omit `studentId` when `user.id` is missing (desktop `DESKTOP_USER`); the API resolves the local student from the JWT principal. Do not gate those fetches on client `studentId` — thin `lab_result` after upload relies on the sidecar GETs
 
 ## Verification
 
@@ -120,3 +124,4 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `src/components/lecturer/AGENTS.md` | Lecturer grading dashboard widgets |
 | `src/components/student/AGENTS.md` | Student history, profile, upload inputs, Operation Test tab when OT applies |
 | `src/components/feedback/AGENTS.md` | Viewport Feedback FAB and submit form |
+| `src/components/ranking/AGENTS.md` | Shared weekly ranking table (`RankingBoard`) |

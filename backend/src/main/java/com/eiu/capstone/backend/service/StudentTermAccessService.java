@@ -1,0 +1,235 @@
+package com.eiu.capstone.backend.service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.eiu.capstone.backend.DTO.TermAccessDTO;
+import com.eiu.capstone.backend.analytics.cache.InProcessTtlCache;
+import com.eiu.capstone.backend.desktop.DesktopLocalUserService;
+import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Role;
+import com.eiu.capstone.backend.model.Term;
+import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.security.JwtRoleNames;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
+
+@Service
+public class StudentTermAccessService {
+
+    public record UploadAccess(UserAccount user, Lab lab) {}
+
+    private final TermService termService;
+    private final LabDeadlineHelper labDeadlineHelper;
+    private final UserAccountRepository userAccountRepository;
+    private final InProcessTtlCache<String, UploadAccess> accessCache;
+    private final DesktopLocalUserService desktopLocalUserService;
+
+    public StudentTermAccessService(TermService termService,
+                                    LabDeadlineHelper labDeadlineHelper,
+                                    UserAccountRepository userAccountRepository,
+                                    @Value("${app.upload.access-cache-ttl-seconds:30}") long accessCacheTtlSeconds,
+                                    @Value("${app.upload.access-cache-max-size:4096}") int accessCacheMaxSize,
+                                    @Autowired(required = false) DesktopLocalUserService desktopLocalUserService) {
+        this.termService = termService;
+        this.labDeadlineHelper = labDeadlineHelper;
+        this.userAccountRepository = userAccountRepository;
+        this.accessCache = accessCacheTtlSeconds > 0
+                ? new InProcessTtlCache<>(accessCacheTtlSeconds, Math.max(accessCacheMaxSize, 1))
+                : null;
+        this.desktopLocalUserService = desktopLocalUserService;
+    }
+
+    private boolean isDesktopMode() {
+        return desktopLocalUserService != null;
+    }
+
+    public boolean isInCurrentTerm(UserAccount user) {
+        if (isDesktopMode()) {
+            return user != null && user.getIsActive();
+        }
+        if (user == null || !user.getIsActive()) {
+            return false;
+        }
+        if (hasAdminRole(user) && termService.findCurrentTerm().isPresent()) {
+            return true;
+        }
+        return termService.isInCurrentTerm(user.getId());
+    }
+
+    /** Enrollment flag plus the current quarter label when the student may submit. */
+    public TermAccessDTO termAccessFor(UserAccount user) {
+        boolean enrolled = isInCurrentTerm(user);
+        String quarterName = enrolled ? termService.currentTermLabel().orElse(null) : null;
+        return new TermAccessDTO(enrolled, quarterName);
+    }
+
+    /** Label of the current quarter when this student may use the submit dashboard. */
+    public String enrolledQuarterName(UserAccount user) {
+        return termAccessFor(user).quarterName();
+    }
+
+    public void requireCanSubmit(UserAccount user, Lab lab) {
+        requireStudentLabAccess(user, lab);
+    }
+
+    /**
+     * Upload-path access: one Neon round-trip for user + lab + term + enrollment.
+     * Successful checks are cached briefly. GET /api/labs remembers visible labs after
+     * enrollment is proven, and student GET challenges/stats reuse this method, so the
+     * first upload after opening the dashboard can skip that round-trip.
+     */
+    public UploadAccess requireUploadAccess(String email, UUID labId) {
+        if (isDesktopMode()) {
+            return desktopLocalUserService.requireUploadAccess(labId);
+        }
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
+        }
+        if (labId == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
+        }
+        String cacheKey = email.trim().toLowerCase() + '\0' + labId;
+        if (accessCache != null) {
+            UploadAccess hit = accessCache.getIfPresent(cacheKey);
+            if (hit != null && hit.user() != null && hit.user().getIsActive()) {
+                requireLabOpenForStudent(hit.lab());
+                return hit;
+            }
+        }
+        List<Object[]> rows = userAccountRepository.findUploadAccess(email, labId);
+        if (rows == null || rows.isEmpty() || rows.get(0) == null || rows.get(0)[0] == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown user");
+        }
+        Object[] row = rows.get(0);
+        UserAccount user = (UserAccount) row[0];
+        Lab lab = row.length > 1 ? (Lab) row[1] : null;
+        Term term = row.length > 2 ? (Term) row[2] : null;
+        long enrollmentCount = row.length > 3 && row[3] instanceof Number number
+                ? number.longValue()
+                : 0L;
+
+        if (!user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        }
+        if (lab == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found");
+        }
+        if (term != null && lab.getTerm() == null) {
+            lab.setTerm(term);
+        }
+        if (lab.getTerm() == null || !lab.getTerm().isCurrent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "This lab is not in the current quarter");
+        }
+        if (enrollmentCount < 1 && !hasAdminRole(user)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "You are not enrolled in the current quarter");
+        }
+        requireLabOpenForStudent(lab);
+        UploadAccess access = new UploadAccess(user, lab);
+        rememberSuccessfulAccess(email, labId, access);
+        return access;
+    }
+
+    /**
+     * Dashboard already proved enrollment for these labs. Remember them so the first
+     * upload can skip the Neon access round-trip. Deadline openness is still checked
+     * with {@code Instant.now()} on the next {@link #requireUploadAccess} hit.
+     */
+    public void rememberSuccessfulAccess(UserAccount user, Lab lab) {
+        if (user == null || !user.getIsActive() || lab == null || lab.getId() == null) {
+            return;
+        }
+        rememberSuccessfulAccess(user.getEmail(), lab.getId(), new UploadAccess(user, lab));
+    }
+
+    private void rememberSuccessfulAccess(String email, UUID labId, UploadAccess access) {
+        if (accessCache == null || access == null || labId == null) {
+            return;
+        }
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        String cacheKey = email.trim().toLowerCase() + '\0' + labId;
+        accessCache.put(cacheKey, access);
+    }
+
+    public void sweepExpired() {
+        if (accessCache != null) {
+            accessCache.sweepExpired();
+        }
+    }
+
+    public int accessCacheSizeForTests() {
+        return accessCache == null ? 0 : accessCache.size();
+    }
+
+    public void requireStudentLabAccess(UserAccount user, Lab lab) {
+        if (isDesktopMode()) {
+            if (user == null || !user.getIsActive() || lab == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+            }
+            return;
+        }
+        if (user == null || !user.getIsActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is inactive");
+        }
+        Term current = termService.findCurrentTerm()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "No current quarter is set"));
+        if (!hasAdminRole(user) && !termService.isEnrolled(user.getId(), current.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "You are not enrolled in the current quarter");
+        }
+        if (lab == null || lab.getTerm() == null || !current.getId().equals(lab.getTerm().getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "This lab is not in the current quarter");
+        }
+        requireLabOpenForStudent(lab);
+    }
+
+    private boolean hasAdminRole(UserAccount user) {
+        if (user == null) {
+            return false;
+        }
+        try {
+            if (roleSetHasAdmin(user.getRoles())) {
+                return true;
+            }
+        } catch (RuntimeException ignored) {
+            // Upload access loads the user without roles.
+        }
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return false;
+        }
+        return userAccountRepository.findByEmail(user.getEmail())
+                .map(loaded -> roleSetHasAdmin(loaded.getRoles()))
+                .orElse(false);
+    }
+
+    private static boolean roleSetHasAdmin(java.util.Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return false;
+        }
+        return roles.stream().anyMatch(role -> role.getName() != null
+                && JwtRoleNames.ADMIN.equalsIgnoreCase(role.getName().trim()));
+    }
+
+    public void requireLabOpenForStudent(Lab lab) {
+        if (isDesktopMode()) {
+            return;
+        }
+        if (!labDeadlineHelper.isOpenForStudentSubmission(
+                lab.isStudentVisible(), lab.getReleaseDate(), Instant.now())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "This lab is not available for submission yet");
+        }
+    }
+}

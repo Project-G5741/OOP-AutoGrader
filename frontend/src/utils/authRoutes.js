@@ -8,10 +8,13 @@ export const ROUTES = {
   lecturerReport: '/lecturer-report',
   lecturerFeedback: '/lecturer-feedback',
   lecturerTerms: '/lecturer-terms',
+  lecturerRanking: '/lecturer-ranking',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
+  studentRanking: '/student-ranking',
   noAccess: '/no-access',
   rateLimited: '/rate-limited',
+  staffLogin: '/staff',
 };
 
 const ACCESS_TOKEN_KEY = 'accessToken';
@@ -109,7 +112,7 @@ export function isInCurrentTerm(value) {
 }
 
 export function defaultDashboardPath(roles = [], inCurrentTerm = true) {
-  if (hasRole(roles, 'LECTURER')) return ROUTES.lecturerDashboard;
+  if (hasRole(roles, 'ADMIN') || hasRole(roles, 'LECTURER')) return ROUTES.lecturerDashboard;
   if (hasRole(roles, 'STUDENT')) {
     return isInCurrentTerm(inCurrentTerm) ? ROUTES.studentDashboard : ROUTES.studentHistory;
   }
@@ -151,6 +154,7 @@ export function patchStoredUser(partial) {
 export const LECTURER_NAV_TO_ROUTE = {
   dashboard: ROUTES.lecturerDashboard,
   score: ROUTES.lecturerGrading,
+  ranking: ROUTES.lecturerRanking,
   grading: ROUTES.lecturerBulkGrading,
   users: ROUTES.lecturerUsers,
   projects: ROUTES.lecturerSolution,

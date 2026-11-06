@@ -48,7 +48,8 @@ class UploadPersistServiceTest {
         persistService = new UploadPersistService(
                 jdbcWriter,
                 gradingResultStore,
-                parsedSubmissionSnapshotStore);
+                parsedSubmissionSnapshotStore,
+                null);
     }
 
     @Test

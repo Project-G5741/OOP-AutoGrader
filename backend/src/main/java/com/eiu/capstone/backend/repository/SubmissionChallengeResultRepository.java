@@ -1,0 +1,60 @@
+package com.eiu.capstone.backend.repository;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import com.eiu.capstone.backend.model.Challenge;
+import com.eiu.capstone.backend.model.LabSubmission;
+import com.eiu.capstone.backend.model.SubmissionChallengeResult;
+
+public interface SubmissionChallengeResultRepository extends JpaRepository<SubmissionChallengeResult, UUID> {
+
+    List<SubmissionChallengeResult> findBySubmission(LabSubmission submission);
+
+    Optional<SubmissionChallengeResult> findBySubmissionAndChallenge(LabSubmission submission, Challenge challenge);
+
+    void deleteBySubmission(LabSubmission submission);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_challenge_result
+            WHERE submission_id IN (SELECT id FROM lab_submission WHERE user_id = :userId)
+            """, nativeQuery = true)
+    void deleteByUserId(@Param("userId") UUID userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM submission_challenge_result
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void deleteBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE submission_challenge_result
+            SET mmd_outcomes = NULL
+            WHERE submission_id IN (:submissionIds)
+            """, nativeQuery = true)
+    void clearMmdOutcomesBySubmissionIds(@Param("submissionIds") Collection<UUID> submissionIds);
+
+    @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id = :submissionId")
+    List<SubmissionChallengeResult> findBySubmission_IdWithChallenge(@Param("submissionId") UUID submissionId);
+
+    @Query("SELECT r FROM SubmissionChallengeResult r JOIN FETCH r.challenge WHERE r.submission.id IN :submissionIds")
+    List<SubmissionChallengeResult> findBySubmission_IdInWithChallenge(@Param("submissionIds") List<UUID> submissionIds);
+
+    @Query("""
+            SELECT r.mmdOutcomes FROM SubmissionChallengeResult r
+            WHERE r.submission.id = :submissionId AND r.challenge.id = :challengeId
+            """)
+    Optional<String> findMmdOutcomesBySubmissionIdAndChallengeId(
+            @Param("submissionId") UUID submissionId,
+            @Param("challengeId") UUID challengeId);
+}

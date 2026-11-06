@@ -4,6 +4,7 @@ import ModalOverlay from './ui/ModalOverlay';
 const ROLE_OPTIONS = [
   { value: 'STUDENT', label: 'STUDENT' },
   { value: 'LECTURER', label: 'LECTURER' },
+  { value: 'ADMIN', label: 'ADMIN' },
 ];
 
 const inputClass = (hasError) =>
@@ -28,12 +29,17 @@ export default function UserModal({
   onFieldChange,
   onFieldBlur,
   onRoleToggle,
+  canAssignAdmin = false,
 }) {
   if (!modal) return null;
 
   const roles = form.roles || [];
   const hasLecturer = roles.includes('LECTURER');
-  const hasStudentOnly = roles.includes('STUDENT') && !hasLecturer;
+  const hasAdmin = roles.includes('ADMIN');
+  const hasStudentOnly = roles.includes('STUDENT') && !hasLecturer && !hasAdmin;
+  const roleOptions = canAssignAdmin
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN');
 
   return (
     <ModalOverlay onBackdropClick={isDeleting ? undefined : onClose}>
@@ -127,7 +133,7 @@ export default function UserModal({
               <div>
                 <label className="block text-sm font-medium text-foreground-secondary mb-2">Roles</label>
                 <div className="flex flex-wrap gap-4">
-                  {ROLE_OPTIONS.map(({ value, label }) => (
+                  {roleOptions.map(({ value, label }) => (
                     <label key={value} className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
                       <input
                         type="checkbox"
@@ -138,6 +144,12 @@ export default function UserModal({
                       {label}
                     </label>
                   ))}
+                  {!canAssignAdmin && hasAdmin && (
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground-muted">
+                      <input type="checkbox" checked disabled className="rounded border-border" />
+                      ADMIN
+                    </label>
+                  )}
                 </div>
                 {fieldErrors.roles ? (
                   <p className="mt-1.5 text-xs text-error">{fieldErrors.roles}</p>
@@ -161,7 +173,7 @@ export default function UserModal({
                 </div>
               )}
 
-              {hasLecturer && (
+              {(hasLecturer || hasAdmin) && (
                 <div>
                   <label className="block text-sm font-medium text-foreground-secondary mb-1.5">Lecturer IRN</label>
                   <input
