@@ -23,7 +23,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - IPC stdout is UTF-8 NDJSON; one request line in, one response line out (up to `WorkerIpc.MAX_LINE_BYTES`, 4MiB for lab-wide OT). The API `ProcessWorkerTransport` reads lines in chunks (not one byte at a time).
 - Worker JAR must not contain `org.springframework` types.
 - Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios; each item may carry its own `classesDir` for lab-wide OT; pool size capped by CPUs / `batchParallelism`; each item gets its own student `URLClassLoader` and named-instance registry). `compare` is unused.
-- `System.setOut` capture in `executeStep` is serialized on a process-global lock so parallel batch items cannot interleave capture/restore (desktop caps `ot-batch-parallelism` at 2).
+- `System.setOut` capture in `executeStep` routes each thread to its own `BoundedStdout` (one delegating stream). A timed-out item that ignores interrupt never releases its thread-local, and must not hold a monitor later invokes need. Desktop still caps `ot-batch-parallelism` at 2.
 - `scenario` looks up a method on `dispatchClassName` when set, then `invoke`s it on the named receiver so dynamic dispatch runs. Without dispatch, keep concrete-class `getDeclaredMethod` lookup.
 - Class load uses `JavaTypeResolver.loadStudentClass` so nested types resolve from binary, dotted, or unambiguous simple nested names.
 - Params may include `{"$instance":"<name>"}` or ENUM constant-name JSON strings (coerced with the student ClassLoader); live objects never round-trip as JSON.

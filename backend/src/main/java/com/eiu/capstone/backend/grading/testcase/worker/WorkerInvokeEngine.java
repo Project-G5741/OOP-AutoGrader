@@ -203,10 +203,82 @@ public final class WorkerInvokeEngine {
     }
 
     /**
-     * {@link System#setOut} is process-global. Parallel batch items must not interleave
-     * capture/restore or student code can corrupt stdout and crash the worker JVM.
+     * {@link System#setOut} is process-global. Each invoke publishes its own
+     * {@link BoundedStdout} on a thread-local so parallel batch items do not share a buffer.
+     * A timed-out call that ignores interrupt never reaches {@code finally}; a monitor held
+     * across that call would block every later invoke in the same JVM (Surefire).
      */
-    private static final Object SYSTEM_OUT_LOCK = new Object();
+    private static final ThreadLocal<BoundedStdout> CAPTURED_STDOUT = new ThreadLocal<>();
+    private static final Object STDOUT_INSTALL_LOCK = new Object();
+    private static volatile java.io.PrintStream originalStdout;
+    private static volatile java.io.PrintStream delegatingStdout;
+    private static int activeStdoutCaptures;
+
+    private static final class DelegatingStdout extends java.io.OutputStream {
+        @Override
+        public void write(int b) {
+            BoundedStdout captured = CAPTURED_STDOUT.get();
+            if (captured != null) {
+                captured.write(b);
+                return;
+            }
+            java.io.PrintStream fallback = originalStdout;
+            if (fallback != null) {
+                fallback.write(b);
+            }
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            BoundedStdout captured = CAPTURED_STDOUT.get();
+            if (captured != null) {
+                captured.write(b, off, len);
+                return;
+            }
+            java.io.PrintStream fallback = originalStdout;
+            if (fallback != null) {
+                fallback.write(b, off, len);
+            }
+        }
+
+        @Override
+        public void flush() {
+            if (CAPTURED_STDOUT.get() != null) {
+                return;
+            }
+            java.io.PrintStream fallback = originalStdout;
+            if (fallback != null) {
+                fallback.flush();
+            }
+        }
+    }
+
+    private static void beginStdoutCapture(BoundedStdout stdout) {
+        synchronized (STDOUT_INSTALL_LOCK) {
+            if (delegatingStdout == null) {
+                delegatingStdout = new java.io.PrintStream(new DelegatingStdout(), true);
+            }
+            if (System.out != delegatingStdout) {
+                originalStdout = System.out;
+                System.setOut(delegatingStdout);
+            }
+            activeStdoutCaptures++;
+        }
+        CAPTURED_STDOUT.set(stdout);
+    }
+
+    private static void endStdoutCapture() {
+        CAPTURED_STDOUT.remove();
+        synchronized (STDOUT_INSTALL_LOCK) {
+            if (activeStdoutCaptures > 0) {
+                activeStdoutCaptures--;
+            }
+            if (activeStdoutCaptures == 0 && originalStdout != null) {
+                System.setOut(originalStdout);
+                originalStdout = null;
+            }
+        }
+    }
 
     private SerializedInvocationOutcome executeStep(URLClassLoader loader,
                                                     WorkerIpc.ScenarioStepSpec spec,
@@ -226,46 +298,42 @@ public final class WorkerInvokeEngine {
         Thread.currentThread().setContextClassLoader(loader);
         BoundedStdout stdout = new BoundedStdout(stdoutCap);
         Object receiver = null;
+        boolean capturing = false;
         try {
             Class<?> clazz = findClass(loader, spec.className());
             List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
             Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
-            synchronized (SYSTEM_OUT_LOCK) {
-                java.io.PrintStream originalOut = System.out;
-                try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
-                    System.setOut(captured);
-                    try {
-                        if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                            Object instance = spec.implicitDefaultConstructor()
-                                    ? instantiateHiddenReceiver(loader, clazz)
-                                    : findConstructor(clazz, parameterTypes, loader).newInstance(args);
-                            ObjectFacts facts = describeObject(loader, instance, registry);
-                            register(registry, spec.instanceName(), instance);
-                            return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
-                        }
-                        Method method = resolveMethod(loader, spec, clazz, parameterTypes);
-                        if (!Modifier.isStatic(method.getModifiers())) {
-                            receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
-                        }
-                        int repeats = effectiveRepeatCount(spec);
-                        Object returnValue = null;
-                        for (int iteration = 0; iteration < repeats; iteration++) {
-                            returnValue = method.invoke(receiver, args);
-                        }
-                        ObjectFacts facts = describeObject(loader, returnValue, registry);
-                        maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
-                        return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
-                    } finally {
-                        System.setOut(originalOut);
-                    }
-                }
+            beginStdoutCapture(stdout);
+            capturing = true;
+            if (kind(spec) == InvocationKind.CONSTRUCTOR) {
+                Object instance = spec.implicitDefaultConstructor()
+                        ? instantiateHiddenReceiver(loader, clazz)
+                        : findConstructor(clazz, parameterTypes, loader).newInstance(args);
+                ObjectFacts facts = describeObject(loader, instance, registry);
+                register(registry, spec.instanceName(), instance);
+                return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
             }
+            Method method = resolveMethod(loader, spec, clazz, parameterTypes);
+            if (!Modifier.isStatic(method.getModifiers())) {
+                receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
+            }
+            int repeats = effectiveRepeatCount(spec);
+            Object returnValue = null;
+            for (int iteration = 0; iteration < repeats; iteration++) {
+                returnValue = method.invoke(receiver, args);
+            }
+            ObjectFacts facts = describeObject(loader, returnValue, registry);
+            maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
+            return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             return threw(receiver, cause, stdout, snapshotFieldNames, registry);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
+            if (capturing) {
+                endStdoutCapture();
+            }
             Thread.currentThread().setContextClassLoader(previous);
         }
     }
