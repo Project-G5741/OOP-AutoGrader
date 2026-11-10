@@ -55,6 +55,7 @@ class DesktopProfileContextTest {
 
     @Test
     void streakAndShopTables_areDroppedAfterStartup() {
+        assertNotNull(context.getBean(DesktopStreakSchemaCleanupMigrator.class));
         Integer streakTables = jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)

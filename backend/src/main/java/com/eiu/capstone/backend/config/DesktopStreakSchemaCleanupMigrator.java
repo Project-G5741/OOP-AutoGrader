@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.config;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -10,8 +11,10 @@ import jakarta.annotation.PostConstruct;
  * Offline practice does not run streak/missions/shop. Hibernate {@code ddl-auto: update}
  * may still create empty {@code student_daily_streak} / {@code student_mascot_purchase}
  * from shared entities; drop them after schema update so leftover installs lose that state.
+ * {@code @Lazy(false)} is required because desktop enables {@code spring.main.lazy-initialization}.
  */
 @Component
+@Lazy(false)
 @Profile("desktop")
 public class DesktopStreakSchemaCleanupMigrator {
 
