@@ -202,6 +202,12 @@ public final class WorkerInvokeEngine {
                 List.copyOf(outcomes));
     }
 
+    /**
+     * {@link System#setOut} is process-global. Parallel batch items must not interleave
+     * capture/restore or student code can corrupt stdout and crash the worker JVM.
+     */
+    private static final Object SYSTEM_OUT_LOCK = new Object();
+
     private SerializedInvocationOutcome executeStep(URLClassLoader loader,
                                                     WorkerIpc.ScenarioStepSpec spec,
                                                     List<String> snapshotFieldNames,
@@ -219,34 +225,40 @@ public final class WorkerInvokeEngine {
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(loader);
         BoundedStdout stdout = new BoundedStdout(stdoutCap);
-        java.io.PrintStream originalOut = System.out;
         Object receiver = null;
         try {
             Class<?> clazz = findClass(loader, spec.className());
             List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
             Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
-            try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
-                System.setOut(captured);
-                if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                    Object instance = spec.implicitDefaultConstructor()
-                            ? instantiateHiddenReceiver(loader, clazz)
-                            : findConstructor(clazz, parameterTypes, loader).newInstance(args);
-                    ObjectFacts facts = describeObject(loader, instance, registry);
-                    register(registry, spec.instanceName(), instance);
-                    return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
+            synchronized (SYSTEM_OUT_LOCK) {
+                java.io.PrintStream originalOut = System.out;
+                try (java.io.PrintStream captured = new java.io.PrintStream(stdout, true)) {
+                    System.setOut(captured);
+                    try {
+                        if (kind(spec) == InvocationKind.CONSTRUCTOR) {
+                            Object instance = spec.implicitDefaultConstructor()
+                                    ? instantiateHiddenReceiver(loader, clazz)
+                                    : findConstructor(clazz, parameterTypes, loader).newInstance(args);
+                            ObjectFacts facts = describeObject(loader, instance, registry);
+                            register(registry, spec.instanceName(), instance);
+                            return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
+                        }
+                        Method method = resolveMethod(loader, spec, clazz, parameterTypes);
+                        if (!Modifier.isStatic(method.getModifiers())) {
+                            receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
+                        }
+                        int repeats = effectiveRepeatCount(spec);
+                        Object returnValue = null;
+                        for (int iteration = 0; iteration < repeats; iteration++) {
+                            returnValue = method.invoke(receiver, args);
+                        }
+                        ObjectFacts facts = describeObject(loader, returnValue, registry);
+                        maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
+                        return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
+                    } finally {
+                        System.setOut(originalOut);
+                    }
                 }
-                Method method = resolveMethod(loader, spec, clazz, parameterTypes);
-                if (!Modifier.isStatic(method.getModifiers())) {
-                    receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
-                }
-                int repeats = effectiveRepeatCount(spec);
-                Object returnValue = null;
-                for (int iteration = 0; iteration < repeats; iteration++) {
-                    returnValue = method.invoke(receiver, args);
-                }
-                ObjectFacts facts = describeObject(loader, returnValue, registry);
-                maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
-                return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
             }
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -254,7 +266,6 @@ public final class WorkerInvokeEngine {
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
-            System.setOut(originalOut);
             Thread.currentThread().setContextClassLoader(previous);
         }
     }
