@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,6 +19,7 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 import jakarta.persistence.EntityManager;
 
 @Service
+@Profile("!desktop")
 public class StudentStreakService {
 
     private final StudentStreakRepository repository;

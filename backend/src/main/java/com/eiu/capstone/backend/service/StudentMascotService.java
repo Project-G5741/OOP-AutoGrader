@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import com.eiu.capstone.backend.repository.StudentMascotPurchaseRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
+@Profile("!desktop")
 public class StudentMascotService {
 
     private final StudentStreakService streakService;
