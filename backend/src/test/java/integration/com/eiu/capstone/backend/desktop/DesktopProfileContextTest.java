@@ -18,6 +18,7 @@ import com.eiu.capstone.backend.config.DesktopStreakSchemaCleanupMigrator;
 import com.eiu.capstone.backend.controller.StudentMascotController;
 import com.eiu.capstone.backend.controller.StudentStreakController;
 import com.eiu.capstone.backend.desktop.DesktopPlagiarismService;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.plagiarism.PlagiarismService;
 import com.eiu.capstone.backend.service.StudentMascotService;
 import com.eiu.capstone.backend.service.StudentStreakService;
@@ -41,6 +42,9 @@ class DesktopProfileContextTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private WorkerSessionFactory workerSessionFactory;
+
     @Test
     void contextLoads_withDesktopProfile() {
         assertNotNull(context.getBean(DesktopSecurityConfig.class));
@@ -51,6 +55,11 @@ class DesktopProfileContextTest {
         assertFalse(context.getBeanNamesForType(StudentMascotController.class).length > 0);
         assertFalse(context.getBeanNamesForType(StudentStreakService.class).length > 0);
         assertFalse(context.getBeanNamesForType(StudentMascotService.class).length > 0);
+    }
+
+    @Test
+    void desktopProfile_forcesLocalWorkerNotSandbox() {
+        assertFalse(workerSessionFactory.isSandboxEnabled());
     }
 
     @Test

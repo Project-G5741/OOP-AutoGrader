@@ -139,7 +139,7 @@ Grading tuning properties (`application.properties`):
 |---|---|---|
 | `app.grading.parallelism` | `2` (`APP_GRADING_PARALLELISM`) | Max concurrent challenge workers during grading (capped at CPU count) |
 | `app.compile.parallelism` | `2` (`APP_COMPILE_PARALLELISM`) | Max concurrent per-challenge compile workers during upload (capped at CPU count) |
-| `app.grading.testcase-invoke-timeout-seconds` | `5` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
+| `app.grading.testcase-invoke-timeout-seconds` | `3` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
 | `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`). Local Maven: `target/backend-1.0.0-worker.jar`. Docker/Render image sets `/app/worker.jar`; if the configured path is missing, `WorkerProcessClient` falls back to `/app/worker.jar` then the local Maven path (so a Render env copied from local `target/...` still works). |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
 | `app.grading.worker-idle-ttl-ms` | `0` | Local worker park TTL; `0` closes on release (no warm reuse). Positive values reuse one idle handle. |

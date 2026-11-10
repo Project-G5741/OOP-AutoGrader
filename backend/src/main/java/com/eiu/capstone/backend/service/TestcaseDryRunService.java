@@ -66,7 +66,7 @@ public class TestcaseDryRunService {
                                  WorkerSessionFactory workerSessionFactory,
                                  SharedLocalWorkerCache sharedLocalWorkerCache,
                                  DryRunCompileCache dryRunCompileCache,
-                                 @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds) {
+                                 @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:3}") int invokeTimeoutSeconds) {
         this.testcaseRubricAssembler = testcaseRubricAssembler;
         this.javaCompilerService = javaCompilerService;
         this.testcaseGrader = testcaseGrader;

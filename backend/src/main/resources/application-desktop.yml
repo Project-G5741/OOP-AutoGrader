@@ -57,6 +57,9 @@ app:
   storage:
     submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
   grading:
+    # Offline practice never uses the remote container sandbox (local worker.jar only).
+    sandbox:
+      enabled: false
     worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
     worker-java: ${DESKTOP_WORKER_JAVA:java}
     # Local practice machine: larger worker heap + CPU-capped OT pool (Render stays at 64m / free-tier limits)
