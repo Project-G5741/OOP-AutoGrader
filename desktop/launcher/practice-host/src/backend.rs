@@ -57,7 +57,12 @@ impl Backend {
         .stderr(Stdio::null())
         .env("APP_DESKTOP_HOME", install_dir)
         .env("SPRING_PROFILES_ACTIVE", "desktop")
-        .env("DESKTOP_WORKER_JAVA", &java_exe);
+        .env("DESKTOP_WORKER_JAVA", &java_exe)
+        // Never inherit a cloud SANDBOX_* env into offline practice (local worker.jar only).
+        .env("SANDBOX_ENABLED", "false")
+        .env("APP_GRADING_SANDBOX_ENABLED", "false")
+        .env("SANDBOX_RUNNER_URL", "")
+        .env("SANDBOX_RUNNER_TOKEN", "");
 
         #[cfg(windows)]
         {

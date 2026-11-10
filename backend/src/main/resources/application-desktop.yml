@@ -57,12 +57,16 @@ app:
   storage:
     submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
   grading:
+    # Offline practice never uses the remote container sandbox (local worker.jar only).
+    sandbox:
+      enabled: false
     worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
     worker-java: ${DESKTOP_WORKER_JAVA:java}
-    # Local practice machine: larger worker heap + CPU-capped OT pool (Render stays at 64m / free-tier limits)
+    # Local practice machine: larger worker heap; OT pool capped at 2 to avoid Midterm-size
+    # parallel URLClassLoader OOMs (0 = all CPUs). Render stays at 64m / free-tier CPU count.
     worker-xmx: 512m
     worker-max-metaspace: 256m
-    ot-batch-parallelism: 0
+    ot-batch-parallelism: 2
     parallelism: 8
     timing-log: false
   compile:

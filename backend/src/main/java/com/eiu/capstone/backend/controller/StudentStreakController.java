@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.controller;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +15,7 @@ import com.eiu.capstone.backend.service.StudentStreakService;
 
 @RestController
 @RequestMapping("/api/students/streak")
+@Profile("!desktop")
 public class StudentStreakController {
 
     private final JwtAuthHelper jwtAuthHelper;

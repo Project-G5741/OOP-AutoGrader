@@ -102,7 +102,7 @@ public class GradingService {
                           @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
                           WorkerSessionFactory workerSessionFactory,
                           SharedLocalWorkerCache sharedLocalWorkerCache,
-                          @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds,
+                          @Value("${app.grading.testcase-invoke-timeout-seconds:3}") int invokeTimeoutSeconds,
                           @Value("${app.grading.ot-batch-parallelism:0}") int otBatchParallelism,
                           @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;

@@ -18,6 +18,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/worker/` | Isolated worker `main`; IPC streams retained before `System.setOut` |
 | `grading/testcase/WorkerProcessClient.java` | Spawn thin worker JAR locally, env allowlist, stderr cap, respawn without releasing the host slot; resolves jar path with Docker then local Maven fallbacks when configured path is missing |
 | `grading/testcase/WorkerSessionFactory.java` | `app.grading.sandbox.enabled` — local `WorkerProcessClient` or `RemoteWorkerSessionClient` |
+| `grading/testcase/LocalWorkerInfraErrors.java` | Student-facing local worker IPC/spawn fallback (`Operational test worker unavailable`) |
+| `grading/testcase/SandboxInfraErrors.java` | Student-facing remote sandbox fallback (`Sandbox runner unavailable`) |
 | `grading/testcase/RemoteWorkerSessionClient.java` | Tar submission root, `POST /sessions` to sandbox-runner |
 | `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON, chunked line reads) or `HttpWorkerTransport` (remote REST invoke) |
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
@@ -94,11 +96,11 @@ SubmissionController
 - Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
 - Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 5) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
-- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 3) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
+- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback. Local IPC/spawn fallbacks use `LocalWorkerInfraErrors.STUDENT_MESSAGE`; remote sandbox failures use `SandboxInfraErrors.STUDENT_MESSAGE`. Desktop profile forces sandbox off (`application-desktop.yml` + practice host/bat clear `SANDBOX_*`)
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
 - IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (list of scenarios; each item may carry its own `classesDir` for lab-wide OT). `compare` is not used. Upload/bulk: one lab-wide `batch` round-trip; dry-run: one-item batch
-- In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1
+- In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default; desktop profile sets **2** to avoid Midterm-size parallel ClassLoader OOMs). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1
 - Whole-scenario execution timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget per batch item; on hang the worker stops that batch slice and halts; the API respawns and continues remaining items
 - Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
 - Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step

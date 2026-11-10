@@ -892,6 +892,17 @@ class WorkerInvokeEngineTest {
         SerializedInvocationOutcome result = engine.batch(hangDir, List.of(hang, ok), 1, 65536);
         assertEquals(1, result.batch().size());
         assertEquals(SerializedInvocationOutcome.KIND_TIMED_OUT, result.batch().get(0).kind());
+
+        // The spinner ignores interrupt and used to keep the process-global stdout lock,
+        // so every later invoke in this JVM blocked forever.
+        SerializedInvocationOutcome after = engine.invoke(
+                hangDir,
+                new WorkerIpc.InvokeSpec(
+                        "METHOD", "Ok", "value", List.of(), "[]", null, List.of(), null),
+                List.of(),
+                WorkerIpc.DEFAULT_STDOUT_CAP);
+        assertEquals(SerializedInvocationOutcome.KIND_NORMAL, after.kind(), after.errorMessage());
+        assertEquals("7", after.returnValueJson());
     }
 
     private Path compileSources(Map<String, String> sources) throws Exception {

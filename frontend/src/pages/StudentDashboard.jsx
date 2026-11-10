@@ -290,6 +290,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [showToast]);
 
   const refreshStreak = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     try {
       const response = await apiFetch(`${API_BASE}/api/students/streak`, {
         headers: authHeaders(),
@@ -306,6 +307,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [refreshStreak]);
 
   const petFox = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     const goal = streakSnapshot.current?.petGoal ?? 4;
     if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
     try {
@@ -324,6 +326,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [applyStreak, showToast]);
 
   const restoreStreak = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     setRestoringStreak(true);
     try {
       const response = await apiFetch(`${API_BASE}/api/students/streak/restore`, {
@@ -1116,7 +1119,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
-    } else if (cmd === 'mascotShop') {
+    } else if (cmd === 'mascotShop' && !IS_DESKTOP_APP) {
       setShowMascotShop(true);
     }
   };
@@ -1160,7 +1163,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
-        headerBeforeUserMenu={
+        headerBeforeUserMenu={!IS_DESKTOP_APP ? (
           <div className="flex shrink-0 items-center gap-1">
             <StudentStreakFlame
               streak={streak?.streak ?? 0}
@@ -1187,8 +1190,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               <span className="tabular-nums">{formatNumber(streak?.points ?? 0)}</span>
             </button>
           </div>
-        }
-        headerAddon={
+        ) : null}
+        headerAddon={IS_DESKTOP_APP ? (
+          <div className="-my-1 shrink-0">
+            <StudentFoxMascot size={56} mascotId="fox" />
+          </div>
+        ) : (
           <button
             type="button"
             className="-my-1 shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -1197,7 +1204,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           >
             <StudentFoxMascot size={56} coverEyes={foxCoverEyes} mascotId={streak?.equipped || 'fox'} />
           </button>
-        }
+        )}
       >
         <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
           {labsError && (
@@ -1249,11 +1256,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         </div>
       </AppShell>
 
-      <MascotShop
-        open={showMascotShop}
-        onClose={() => setShowMascotShop(false)}
-        onUpdated={applyShop}
-      />
+      {!IS_DESKTOP_APP && (
+        <MascotShop
+          open={showMascotShop}
+          onClose={() => setShowMascotShop(false)}
+          onUpdated={applyShop}
+        />
+      )}
 
       {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal

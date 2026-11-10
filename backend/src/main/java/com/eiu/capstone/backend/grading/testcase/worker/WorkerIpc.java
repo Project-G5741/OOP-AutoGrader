@@ -54,7 +54,7 @@ public final class WorkerIpc {
                 case OP_BATCH -> ENGINE.batch(
                         classesDir,
                         request.items(),
-                        request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 5,
+                        request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 3,
                         stdoutCap,
                         request.batchParallelism());
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");

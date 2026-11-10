@@ -112,6 +112,7 @@ public class SubmissionController {
                                  PlagiarismService plagiarismService,
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
+                                 @Autowired(required = false)
                                  StudentStreakService studentStreakService,
                                  @Autowired(required = false)
                                  StudentDailySubmissionQuotaService dailySubmissionQuotaService,
@@ -248,10 +249,12 @@ public class SubmissionController {
             StudentLabProgress progress = persisted.progress();
             int assignedAttempt = submission.getAttemptNumber();
             long persistMs = System.currentTimeMillis() - persistStart;
-            try {
-                studentStreakService.recordSubmission(userAccount.getId());
-            } catch (RuntimeException streakError) {
-                System.out.printf("streak submit record failed user=%s%n", userAccount.getId());
+            if (studentStreakService != null) {
+                try {
+                    studentStreakService.recordSubmission(userAccount.getId());
+                } catch (RuntimeException streakError) {
+                    System.out.printf("streak submit record failed user=%s%n", userAccount.getId());
+                }
             }
 
             UUID persistedId = submission.getId();
