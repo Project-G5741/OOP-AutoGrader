@@ -61,17 +61,17 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ### Theme
 
-- **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — `navy`, `gold`, `primary`, `secondary`, `success`, `error`, `warning`, `info`, `purple`, surfaces, charts). Follows a 60-30-10 Corporate EdTech hierarchy (60% neutral architectural surfaces, 30% Institutional Navy `#1E3A5F`/`#23456E` + Teal `#0D9488`, 10% Cobalt CTA + Gold/semantic highlights; Purple ≤ 10% AI-only)
+- **Edit colors in config files:** `src/theme/presets/*.js` registered in `src/theme/tokens.js` (`light` / Classic Slate, `sand` / Sand, `evergreen` / Evergreen, `dark` / Midnight, `graphite` / Graphite, `scarlet` / Scarlet — `navy`, `on-navy`, `gold`, `primary`, `on-primary`, `secondary`, `success`, `error`, `warning`, `info`, `purple`, `shadow`, surfaces, charts). Follows a 60-30-10 Corporate EdTech hierarchy (60% neutral architectural surfaces, 30% structural brand + Teal, 10% action CTA + Gold/semantic highlights; Purple ≤ 10% AI-only)
 - **App naming + in-app logo:** `src/theme/brand.js` — graduation cap icon via `AppLogo` (`src/components/ui/AppLogo.jsx`)
 - **Tab favicon:** drop an image into `public/brand/` (`.png`, `.svg`, `.webp`, …). Optional `logo.<ext>` takes priority (`png` > `svg` > `webp` > …); otherwise newest file wins. Mid-session drops need `npm run theme:sync` (or restart dev).
-- **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css` (both `--<token>` hex and `--<token>-rgb` channels so Tailwind `/opacity` modifiers work), `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
+- **`npm run theme:sync`** (also runs before `dev` / `build`) validates identical token keys across all presets in `src/theme/presets/*.js`, regenerates `src/theme/tokens.generated.css` (`:root`, `:root.dark:not([data-theme])`, and `:root[data-theme="<id>"]` with `color-scheme`, `--<token>` hex, and `--<token>-rgb` channels), `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
 - Tailwind semantic classes (`bg-navy`, `bg-primary`, `text-success`, `bg-surface`, …) map to `--*-rgb` CSS variables (`rgb(var(--*-rgb) / <alpha-value>)`) — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
 - **Design bans:** zero CSS/Tailwind gradients (`linear-gradient`, `radial-gradient`, `conic-gradient`, `bg-gradient-*`) anywhere in `src/`, and zero nested bordered cards ("no card-inside-card" — use flush dividers, borderless tints, or `border-l-4` strips inside cards)
-- `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
-- `ThemeToggle.jsx` — circular sun/moon checkbox control (`ThemeToggle.css`, token vars `--surface`, `--border`, `--primary-text`); used in `Header` and auth/maintenance pages
+- `ThemeContext` — OS default (`dark`/`light`) on first visit, `localStorage` key `oop-theme`, sets `data-theme="<id>"` and `.dark` whenever `colorScheme === 'dark'` synchronously before mount; single `ThemeProvider` in `main.jsx`
+- `ThemeToggle.jsx` — 40px circular trigger matching the header avatar button in the existing slot that fans out 3 enlarged 52px theme orbs per page along a tight radial arc (`r=86`, `ThemeToggle.css` + Framer Motion spring, unique icon & `orbColor` per preset) with mouse-wheel, clickable page pill (`1/2`, `2/2`), and `ArrowLeft`/`ArrowRight`/`PageUp`/`PageDown`/`Escape`/outside-click support; used in `Header` and auth/maintenance pages
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
-- Dark mode & 3D helpers in `src/index.css`: `html` / `html.dark` set `color-scheme` so native controls match the theme; `.dark` uses calibrated `#0B1220`/`#111A2E`/`#2A3956` surfaces/borders + `.shadow-stage-1/2/3` shadows alongside `.perspective-1000` / `.preserve-3d` and `@media (prefers-reduced-motion: reduce)` guards
+- Dark mode & 3D helpers in `src/index.css`: `color-scheme` is emitted per theme in `tokens.generated.css`; `.dark` scales `.shadow-stage-1/2/3` via `--shadow-rgb` alongside `.perspective-1000` / `.preserve-3d` and `@media (prefers-reduced-motion: reduce)` guards
 - Grading status helpers: `src/theme/statusClasses.js`
 - Design reference: `docs/design/color-theory-light-dark-theme.md` and `design-system/oop-autograder/MASTER.md`
 
