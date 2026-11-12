@@ -376,13 +376,17 @@ public class GradingService {
                 String mmdOutcomesJson = cc.mmdApplicable && cc.mmdResult != null
                         ? MmdOutcomesCodec.toJson(cc.mmdResult.outcome())
                         : null;
-                result.challengeResults.add(buildChallengeResult(
+                SubmissionChallengeResult challengeRow = buildChallengeResult(
                         existing.challengeResults,
                         submission,
                         cc.pendingChallenge.challengeId(),
                         cc.pendingChallenge.correct(),
                         challengeScore,
-                        mmdOutcomesJson));
+                        mmdOutcomesJson);
+                challengeRow.setMmdScore(cc.mmdApplicable ? zeroPillar(cc.mmdPillarPct) : null);
+                challengeRow.setDeclarationScore(cc.classApplicable ? zeroPillar(cc.classPillarPct) : null);
+                challengeRow.setOperationalScore(cc.testcaseApplicable ? zeroPillar(cc.testcasePillarPct) : null);
+                result.challengeResults.add(challengeRow);
             }
             if (cc.challengeNumber != null && cc.percentage != null) {
                 percentagesByChallengeNumber.put(cc.challengeNumber, cc.percentage);
@@ -422,7 +426,15 @@ public class GradingService {
         }
 
         result.overallScore = PillarScoreAggregator.weightedLabPercentage(overallChallengeScores);
+        LabPillarScores pillars = LabPillarScores.rollup(rubric, result.pillarScoresByChallengeNumber);
+        result.mmdScore = pillars.mmdScore();
+        result.declarationScore = pillars.declarationScore();
+        result.operationalScore = pillars.operationalScore();
         return result;
+    }
+
+    private static BigDecimal zeroPillar(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private ChallengeComputation gradeChallengeFolder(
@@ -720,6 +732,9 @@ public class GradingService {
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
+        public BigDecimal mmdScore;
+        public BigDecimal declarationScore;
+        public BigDecimal operationalScore;
         public Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
         public Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
         public Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;

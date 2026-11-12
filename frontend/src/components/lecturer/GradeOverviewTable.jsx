@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { formatNumber, formatText } from '../../utils/formatters';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import LabPrefixBadge from '../ui/LabPrefixBadge';
+import { PILLAR_EXPORT_COLUMNS, formatPillarScore } from './pillarScoreColumns';
 import PlagiarismDangerMark, {
   labHasPlagiarism,
   studentLabHasPlagiarism,
@@ -131,12 +132,21 @@ export default function GradeOverviewTable({
                     stopRowClick
                     className={`${HEADER_CLASS} w-[100px] text-center`}
                   />
+                  {PILLAR_EXPORT_COLUMNS.map((column) => (
+                    <SortableTableHeader
+                      key={column.key}
+                      label={column.label}
+                      before={HEADER_SPACER}
+                      sortable={false}
+                      className={`${HEADER_CLASS} text-center`}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {loading || rows.length === 0 ? (
                   <tr>
-                    <td colSpan={3}>{emptyOrLoading}</td>
+                    <td colSpan={6}>{emptyOrLoading}</td>
                   </tr>
                 ) : (
                   rows.map((student) => {
@@ -154,6 +164,11 @@ export default function GradeOverviewTable({
                         <td className={`${CELL_CLASS} w-[100px] text-center font-semibold tabular-nums`}>
                           {formatNumber(student.totalScore)}
                         </td>
+                        {PILLAR_EXPORT_COLUMNS.map((column) => (
+                          <td key={column.key} className={`${CELL_CLASS} text-center font-medium tabular-nums`}>
+                            {formatPillarScore(student[column.key])}
+                          </td>
+                        ))}
                       </tr>
                     );
                   })

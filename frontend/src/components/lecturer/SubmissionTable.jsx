@@ -4,6 +4,7 @@ import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
+import { PILLAR_EXPORT_COLUMNS, formatPillarScore } from './pillarScoreColumns';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -70,6 +71,7 @@ const ROSTER_COLUMNS = [
   { key: 'studentName', label: 'Student' },
   { key: 'studentCode', label: 'ID' },
   { key: 'score', label: 'Score' },
+  ...PILLAR_EXPORT_COLUMNS.map((column) => ({ ...column, sortable: false })),
   { key: 'attempt', label: 'Attempt', labelKey: 'attemptLabel' },
   { key: 'submittedAt', label: 'Submitted At' },
 ];
@@ -106,6 +108,7 @@ export default function SubmissionTable({
                 activeField={sortState?.field}
                 direction={sortState?.direction}
                 onSort={onSort}
+                sortable={col.sortable !== false}
                 className={HEADER_CLASS}
               />
             ))}
@@ -116,7 +119,7 @@ export default function SubmissionTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-sm text-foreground-secondary">
+              <td colSpan={10} className="px-4 py-10 text-center text-sm text-foreground-secondary">
                 No student data found
               </td>
             </tr>
@@ -134,6 +137,11 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentName)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentCode)}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{formatNumber(submission.score)}</td>
+                  {PILLAR_EXPORT_COLUMNS.map((column) => (
+                    <td key={column.key} className="px-4 py-3 text-center text-sm font-medium tabular-nums text-foreground">
+                      {formatPillarScore(submission[column.key])}
+                    </td>
+                  ))}
                   <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
                   <td className="px-4 py-3 align-middle">

@@ -13,7 +13,10 @@ public record ChallengeStudentRowDTO(
         boolean hasSubmission,
         UUID submissionId,
         boolean plagiarismFlagged,
-        String plagiarismRole) {
+        String plagiarismRole,
+        BigDecimal mmdScore,
+        BigDecimal declarationScore,
+        BigDecimal operationalScore) {
 
     public ChallengeStudentRowDTO(UUID studentId,
                                   String studentName,
@@ -24,7 +27,7 @@ public record ChallengeStudentRowDTO(
                                   boolean hasSubmission,
                                   UUID submissionId) {
         this(studentId, studentName, studentCode, score, attempts, submittedAt,
-                hasSubmission, submissionId, false, null);
+                hasSubmission, submissionId, false, null, null, null, null);
     }
 
     public ChallengeStudentRowDTO(UUID studentId,
@@ -37,6 +40,6 @@ public record ChallengeStudentRowDTO(
                                   UUID submissionId,
                                   boolean plagiarismFlagged) {
         this(studentId, studentName, studentCode, score, attempts, submittedAt,
-                hasSubmission, submissionId, plagiarismFlagged, null);
+                hasSubmission, submissionId, plagiarismFlagged, null, null, null, null);
     }
 }

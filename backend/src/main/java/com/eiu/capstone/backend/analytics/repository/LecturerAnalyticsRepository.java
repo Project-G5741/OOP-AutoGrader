@@ -782,10 +782,14 @@ public class LecturerAnalyticsRepository {
                        COALESCE(ob.attempt_number, 0),
                        ob.submitted_at,
                        (p.best_submission_id IS NOT NULL) AS best_submission,
-                       COALESCE(ob.id, p.best_submission_id) AS submission_id
+                       COALESCE(ob.id, p.best_submission_id) AS submission_id,
+                       pillar_sub.mmd_score,
+                       pillar_sub.declaration_score,
+                       pillar_sub.operational_score
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN student_lab_progress p ON p.user_id = u.id AND p.lab_id = l.id
                 LEFT JOIN on_time_best ob ON ob.user_id = u.id
+                LEFT JOIN lab_submission pillar_sub ON pillar_sub.id = COALESCE(ob.id, p.best_submission_id)
                 INNER JOIN qualifying_best qb ON qb.user_id = u.id
                 WHERE 1=1
                 """ + searchClause + keysetClause + """
@@ -857,7 +861,11 @@ public class LecturerAnalyticsRepository {
                        COALESCE(challenge_attempts.attempt_count, 0),
                        challenge_latest.submitted_at,
                        true AS has_submission,
-                       challenge_latest.id AS submission_id
+                       challenge_latest.id AS submission_id,
+                       challenge_pillar.mmd_score,
+                       challenge_pillar.declaration_score,
+                       challenge_pillar.operational_score,
+                       challenge_pillar.submission_id AS pillar_submission_id
                 """ + ROSTER_STUDENT_BASE + """
                 LEFT JOIN LATERAL (
                     SELECT MAX(scr.score) AS best_score
@@ -884,6 +892,20 @@ public class LecturerAnalyticsRepository {
                       AND\s""" + LAB_DEADLINE_SUBMISSION_FILTER.replace("s.", "s2.") + """
                       AND\s""" + CHALLENGE_GRADED_SUBMISSION_EXISTS + """
                 ) challenge_attempts ON true
+                LEFT JOIN LATERAL (
+                    SELECT s.id AS submission_id,
+                           scr.mmd_score,
+                           scr.declaration_score,
+                           scr.operational_score
+                    FROM lab_submission s
+                    JOIN submission_challenge_result scr
+                        ON scr.submission_id = s.id AND scr.challenge_id = :challengeId
+                    WHERE s.user_id = u.id AND s.lab_id = l.id
+                      AND\s""" + LAB_DEADLINE_SUBMISSION_FILTER + """
+                      AND\s""" + challengeGradedSubmissionExists("s") + """
+                    ORDER BY scr.score DESC NULLS LAST, s.submitted_at DESC, s.attempt_number DESC
+                    LIMIT 1
+                ) challenge_pillar ON true
                 ORDER BY %s
                 LIMIT :pageSize OFFSET :offset
                 """.formatted(formatChallengeOrderBy(sortColumn, sortDirection));
@@ -1122,6 +1144,24 @@ public class LecturerAnalyticsRepository {
         return sortColumn + " " + sortDirection + ", full_name ASC";
     }
 
+    public List<Object[]> findLabPillarApplicability(List<UUID> labIds) {
+        if (labIds == null || labIds.isEmpty()) {
+            return List.of();
+        }
+        String sql = """
+                SELECT c.lab_id,
+                       BOOL_OR(c.has_mmd),
+                       BOOL_OR(c.has_class),
+                       BOOL_OR(EXISTS (SELECT 1 FROM testcase t WHERE t.challenge_id = c.id))
+                FROM challenge c
+                WHERE c.lab_id IN (:labIds)
+                GROUP BY c.lab_id
+                """;
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("labIds", labIds);
+        return query.getResultList();
+    }
+
     public List<Object[]> findLabScoresForStudents(List<UUID> studentIds) {
         return findLabScoresForStudents(studentIds, null);
     }
@@ -1132,34 +1172,37 @@ public class LecturerAnalyticsRepository {
         }
         String termFilter = termId == null ? "" : " AND l.term_id = :termId ";
         String sql = """
-                SELECT user_id, lab_id, MAX(score) AS score
+                SELECT user_id, lab_id, score, submission_id, mmd_score, declaration_score, operational_score
                 FROM (
-                    SELECT s.user_id, s.lab_id, s.score
+                    SELECT DISTINCT ON (s.user_id, s.lab_id)
+                           s.user_id, s.lab_id, s.score, s.id AS submission_id,
+                           s.mmd_score, s.declaration_score, s.operational_score
                     FROM lab_submission s
                     JOIN lab l ON l.id = s.lab_id
                     WHERE s.user_id IN (:studentIds)
                     """ + termFilter + """
                       AND (l.deadline_date IS NULL
                            OR s.submitted_at <= ((CAST(l.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                    UNION ALL
-                    SELECT p.user_id, p.lab_id, p.highest_score
-                    FROM student_lab_progress p
-                    JOIN lab l ON l.id = p.lab_id
-                    WHERE p.user_id IN (:studentIds)
-                      AND p.best_submission_id IS NOT NULL
-                      AND NOT EXISTS (
-                          SELECT 1
-                          FROM lab_submission s_ontime
-                          JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
-                          WHERE s_ontime.user_id = p.user_id
-                            AND s_ontime.lab_id = p.lab_id
-                            AND (l_ontime.deadline_date IS NULL
-                                 OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                      )
-                    """ + termFilter + """
-                ) q
-                GROUP BY user_id, lab_id
-                """;
+                    ORDER BY s.user_id, s.lab_id, s.score DESC NULLS LAST, s.submitted_at DESC, s.attempt_number DESC
+                ) on_time
+                UNION ALL
+                SELECT p.user_id, p.lab_id, p.highest_score, p.best_submission_id,
+                       bs.mmd_score, bs.declaration_score, bs.operational_score
+                FROM student_lab_progress p
+                JOIN lab l ON l.id = p.lab_id
+                LEFT JOIN lab_submission bs ON bs.id = p.best_submission_id
+                WHERE p.user_id IN (:studentIds)
+                  AND p.best_submission_id IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM lab_submission s_ontime
+                      JOIN lab l_ontime ON l_ontime.id = s_ontime.lab_id
+                      WHERE s_ontime.user_id = p.user_id
+                        AND s_ontime.lab_id = p.lab_id
+                        AND (l_ontime.deadline_date IS NULL
+                             OR s_ontime.submitted_at <= ((CAST(l_ontime.deadline_date AS timestamp) + TIME '23:59:59') AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+                  )
+                """ + termFilter;
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("studentIds", studentIds);
         if (termId != null) {

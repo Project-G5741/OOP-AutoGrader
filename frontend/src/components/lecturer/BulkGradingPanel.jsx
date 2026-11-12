@@ -18,6 +18,7 @@ import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/wi
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
 import ExportMenu from './ExportMenu';
 import { exportDataset } from './exportRoster';
+import { PILLAR_EXPORT_COLUMNS, formatPillarScore, pillarExportFields, pillarsForResultsTab } from './pillarScoreColumns';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
@@ -189,6 +190,9 @@ export default function BulkGradingPanel({ labs = [] }) {
       Score: row.error
         ? '—'
         : formatNumber(scoreForResultsTab(row, resultsTab, labChallenges)),
+      ...(row.error
+        ? pillarExportFields(null)
+        : pillarExportFields(pillarsForResultsTab(row, resultsTab, labChallenges))),
       Plagiarism: row.error ? '—' : (row.plagiarismLabel || '—'),
       Error: row.error || '',
     }));
@@ -582,6 +586,9 @@ export default function BulkGradingPanel({ labs = [] }) {
                   <th className="px-4 py-3 font-semibold">Student</th>
                   <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold">Score</th>
+                  {PILLAR_EXPORT_COLUMNS.map((column) => (
+                    <th key={column.key} className="px-4 py-3 text-center font-semibold whitespace-nowrap">{column.label}</th>
+                  ))}
                   <th className="px-4 py-3 font-semibold">Plagiarism</th>
                   <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
@@ -589,6 +596,7 @@ export default function BulkGradingPanel({ labs = [] }) {
               <tbody>
                 {pagedRows.map((row) => {
                   const displayScore = scoreForResultsTab(row, resultsTab, labChallenges);
+                  const pillarScores = pillarsForResultsTab(row, resultsTab, labChallenges);
                   const canOpenSubmission = !row.error && row.payload;
                   const openSubmission = () => {
                     if (canOpenSubmission) setDrawerStudent(row.payload);
@@ -606,6 +614,11 @@ export default function BulkGradingPanel({ labs = [] }) {
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {row.error ? '—' : formatNumber(displayScore)}
                       </td>
+                      {PILLAR_EXPORT_COLUMNS.map((column) => (
+                        <td key={column.key} className="px-4 py-3 text-center font-medium tabular-nums text-foreground">
+                          {row.error ? '—' : formatPillarScore(pillarScores[column.key])}
+                        </td>
+                      ))}
                       <td className="px-4 py-3 text-foreground-secondary">
                         {row.error ? '—' : (row.plagiarismLabel || '—')}
                       </td>

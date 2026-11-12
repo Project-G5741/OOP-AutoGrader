@@ -43,6 +43,18 @@ public class LabSubmission {
     @Column(name = "score", nullable = false, precision = 6, scale = 2)
     private BigDecimal score = BigDecimal.ZERO;
 
+    /** Null when MMD does not apply, or the attempt predates pillar columns. */
+    @Column(name = "mmd_score", precision = 6, scale = 2)
+    private BigDecimal mmdScore;
+
+    /** Null when Declaration does not apply, or the attempt predates pillar columns. */
+    @Column(name = "declaration_score", precision = 6, scale = 2)
+    private BigDecimal declarationScore;
+
+    /** Null when Operational Testcase does not apply, or the attempt predates pillar columns. */
+    @Column(name = "operational_score", precision = 6, scale = 2)
+    private BigDecimal operationalScore;
+
     @Column(name = "submitted_at", nullable = false)
     private OffsetDateTime submittedAt;
 
@@ -79,6 +91,15 @@ public class LabSubmission {
 
     public BigDecimal getScore() { return score; }
     public void setScore(BigDecimal score) { this.score = score; }
+
+    public BigDecimal getMmdScore() { return mmdScore; }
+    public void setMmdScore(BigDecimal mmdScore) { this.mmdScore = mmdScore; }
+
+    public BigDecimal getDeclarationScore() { return declarationScore; }
+    public void setDeclarationScore(BigDecimal declarationScore) { this.declarationScore = declarationScore; }
+
+    public BigDecimal getOperationalScore() { return operationalScore; }
+    public void setOperationalScore(BigDecimal operationalScore) { this.operationalScore = operationalScore; }
 
     public OffsetDateTime getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(OffsetDateTime submittedAt) { this.submittedAt = submittedAt; }

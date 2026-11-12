@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.eiu.capstone.backend.grading.GradingOutcome;
 import com.eiu.capstone.backend.grading.GradingResultJdbcWriter;
+import com.eiu.capstone.backend.grading.LabPillarScores;
 import com.eiu.capstone.backend.grading.GradingResultJdbcWriter.UploadWriteResult;
 import com.eiu.capstone.backend.grading.GradingResultStore;
 import com.eiu.capstone.backend.model.LabSubmission;
@@ -63,7 +64,11 @@ public class UploadPersistService {
                 score,
                 submission.getSubmittedAt(),
                 challengeRows,
-                submission.getDesktopPackVersion());
+                submission.getDesktopPackVersion(),
+                new LabPillarScores(
+                        outcome.computed().mmdScore,
+                        outcome.computed().declarationScore,
+                        outcome.computed().operationalScore));
         submission.setAttemptNumber(written.attemptNumber());
         parsedSubmissionSnapshotStore.save(submission.getId(), outcome.computed().snapshotsByChallengeId);
         StudentLabProgress progress = new StudentLabProgress();

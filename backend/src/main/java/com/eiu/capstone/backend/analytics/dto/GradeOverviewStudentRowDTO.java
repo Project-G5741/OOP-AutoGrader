@@ -9,5 +9,8 @@ public record GradeOverviewStudentRowDTO(
         String studentName,
         String irn,
         BigDecimal totalScore,
+        BigDecimal mmdScore,
+        BigDecimal declarationScore,
+        BigDecimal operationalScore,
         List<BigDecimal> labScores) {
 }
