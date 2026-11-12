@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 import com.eiu.capstone.backend.analytics.repository.LecturerAnalyticsRepository;
+import com.eiu.capstone.backend.analytics.service.AttemptPillarLoader;
 import com.eiu.capstone.backend.analytics.service.LecturerAnalyticsService;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
@@ -52,7 +53,8 @@ class LecturerAnalyticsServiceLabStatisticsTest {
                 labStatisticsCache,
                 plagiarismService,
                 termService,
-                labRepository);
+                labRepository,
+                mock(AttemptPillarLoader.class));
 
         when(labStatisticsCache.get(eq(labId), any())).thenAnswer(invocation -> {
             LabStatisticsCache.Loader loader = invocation.getArgument(1);

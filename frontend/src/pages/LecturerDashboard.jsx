@@ -20,6 +20,7 @@ import PlagiarismInvestigationDrawer from '../components/lecturer/PlagiarismInve
 import GradeDistributionChart from '../components/lecturer/GradeDistributionChart';
 import BulkGradingPanel from '../components/lecturer/BulkGradingPanel';
 import { exportGradeOverview, exportRosterRows } from '../components/lecturer/exportRoster';
+import { pillarExportFields } from '../components/lecturer/pillarScoreColumns';
 import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/PlagiarismDangerMark';
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
@@ -780,6 +781,7 @@ export default function LecturerDashboard({ user, onLogout }) {
       'Student ID': r.studentCode ?? '',
       Attempts: r.attempt ?? 0,
       'Lab Score': r.score != null ? formatNumber(r.score) : 'Not Submitted',
+      ...pillarExportFields(r, { blank: formatNumber(null) }),
       'Last Submitted': r.submittedAt ?? '—',
     }));
     const labName = selectedLab?.name ?? selectedLabId;

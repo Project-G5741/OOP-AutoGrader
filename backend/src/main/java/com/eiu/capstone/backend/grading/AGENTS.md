@@ -122,7 +122,8 @@ Challenge scores UPSERT on the upload thread inside `GradingResultJdbcWriter.per
 
 | Entity | Stores |
 |---|---|
-| `SubmissionChallengeResult` | Per-challenge score (0–100) plus optional `mmd_outcomes` JSONB (versioned MMD member flags for revisit GET `/mmd`) |
+| `SubmissionChallengeResult` | Per-challenge score (0–100), optional `mmd_score` / `declaration_score` / `operational_score` (null when that pillar does not apply), plus optional `mmd_outcomes` JSONB (versioned MMD member flags for revisit GET `/mmd`) |
+| `lab_submission` | Same three lab-level pillar percentages beside `score` (weighted mean of applicable challenges; a missing challenge counts as 0). Lecturer score tables read the highest on-time attempt |
 | `SubmissionFieldResult` / `Method` / `Constructor` / `Relation` | Element match outcomes |
 | `SubmissionTestcaseResult` | Testcase rollup + primary `input_display` / `expected_display` / `actual_display` |
 | `SubmissionTestcaseAssertionResult` | Per-assertion status, `actual_value` JSONB, feedback |

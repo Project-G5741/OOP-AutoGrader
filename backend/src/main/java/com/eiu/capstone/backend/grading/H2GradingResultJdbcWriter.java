@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -47,12 +48,14 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                                            BigDecimal score,
                                            OffsetDateTime submittedAt,
                                            List<SubmissionChallengeResult> challengeRows,
-                                           String desktopPackVersion) {
+                                           String desktopPackVersion,
+                                           LabPillarScores pillarScores) {
         IllegalStateException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
                 return persistUploadOnce(
-                        submissionId, userId, labId, score, submittedAt, challengeRows, desktopPackVersion);
+                        submissionId, userId, labId, score, submittedAt, challengeRows, desktopPackVersion,
+                        pillarScores);
             } catch (IllegalStateException e) {
                 if (attempt == 0 && isUniqueViolation(e)) {
                     last = e;
@@ -70,7 +73,8 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                                                 BigDecimal score,
                                                 OffsetDateTime submittedAt,
                                                 List<SubmissionChallengeResult> challengeRows,
-                                                String desktopPackVersion) {
+                                                String desktopPackVersion,
+                                                LabPillarScores pillarScores) {
         BigDecimal persistedScore = score == null ? BigDecimal.ZERO : score;
         UploadWriteResult[] result = new UploadWriteResult[1];
         withConnection(dataSource, "Failed to persist upload", connection -> {
@@ -79,7 +83,7 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             try {
                 int attemptNumber = nextAttemptNumber(connection, userId, labId);
                 insertSubmission(connection, submissionId, userId, labId, attemptNumber, persistedScore, submittedAt,
-                        desktopPackVersion);
+                        desktopPackVersion, pillarScores);
                 insertChallengeResults(connection, submissionId, challengeRows);
                 OffsetDateTime lastSubmittedAt =
                         upsertProgress(connection, userId, labId, submissionId, persistedScore, attemptNumber,
@@ -118,10 +122,13 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                                          int attemptNumber,
                                          BigDecimal score,
                                          OffsetDateTime submittedAt,
-                                         String desktopPackVersion) throws SQLException {
+                                         String desktopPackVersion,
+                                         LabPillarScores pillarScores) throws SQLException {
         String sql = """
-                INSERT INTO lab_submission (id, user_id, lab_id, attempt_number, score, submitted_at, desktop_pack_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO lab_submission (
+                    id, user_id, lab_id, attempt_number, score, submitted_at, desktop_pack_version,
+                    mmd_score, declaration_score, operational_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setObject(1, submissionId);
@@ -131,7 +138,18 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             statement.setBigDecimal(5, score);
             statement.setObject(6, submittedAt);
             statement.setString(7, desktopPackVersion);
+            setNullableNumeric(statement, 8, pillarScores == null ? null : pillarScores.mmdScore());
+            setNullableNumeric(statement, 9, pillarScores == null ? null : pillarScores.declarationScore());
+            setNullableNumeric(statement, 10, pillarScores == null ? null : pillarScores.operationalScore());
             statement.executeUpdate();
+        }
+    }
+
+    private static void setNullableNumeric(PreparedStatement statement, int index, BigDecimal value) throws SQLException {
+        if (value == null) {
+            statement.setNull(index, Types.NUMERIC);
+        } else {
+            statement.setBigDecimal(index, value);
         }
     }
 
@@ -142,8 +160,10 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
             return;
         }
         String sql = """
-                INSERT INTO submission_challenge_result (id, submission_id, challenge_id, is_correct, score, mmd_outcomes)
-                VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))
+                INSERT INTO submission_challenge_result (
+                    id, submission_id, challenge_id, is_correct, score, mmd_outcomes,
+                    mmd_score, declaration_score, operational_score)
+                VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             for (SubmissionChallengeResult row : challengeRows) {
@@ -154,6 +174,9 @@ public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
                 statement.setBigDecimal(5, row.getScore() == null ? BigDecimal.ZERO : row.getScore());
                 // CAST AS JSON: plain setString on a JSON column stores a JSON *string* (double-encoded).
                 statement.setString(6, row.getMmdOutcomes());
+                setNullableNumeric(statement, 7, row.getMmdScore());
+                setNullableNumeric(statement, 8, row.getDeclarationScore());
+                setNullableNumeric(statement, 9, row.getOperationalScore());
                 statement.addBatch();
             }
             statement.executeBatch();

@@ -48,6 +48,16 @@ public class SubmissionChallengeResult {
     @Column(name = "score", nullable = false, precision = 6, scale = 2)
     private BigDecimal score = BigDecimal.ZERO;
 
+    /** Null when that pillar does not apply to the challenge. */
+    @Column(name = "mmd_score", precision = 6, scale = 2)
+    private BigDecimal mmdScore;
+
+    @Column(name = "declaration_score", precision = 6, scale = 2)
+    private BigDecimal declarationScore;
+
+    @Column(name = "operational_score", precision = 6, scale = 2)
+    private BigDecimal operationalScore;
+
     /** Versioned MMD member outcomes JSON; null when MMD not applicable or legacy row. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "mmd_outcomes")
@@ -68,6 +78,15 @@ public class SubmissionChallengeResult {
 
     public BigDecimal getScore() { return score; }
     public void setScore(BigDecimal score) { this.score = score == null ? BigDecimal.ZERO : score; }
+
+    public BigDecimal getMmdScore() { return mmdScore; }
+    public void setMmdScore(BigDecimal mmdScore) { this.mmdScore = mmdScore; }
+
+    public BigDecimal getDeclarationScore() { return declarationScore; }
+    public void setDeclarationScore(BigDecimal declarationScore) { this.declarationScore = declarationScore; }
+
+    public BigDecimal getOperationalScore() { return operationalScore; }
+    public void setOperationalScore(BigDecimal operationalScore) { this.operationalScore = operationalScore; }
 
     public String getMmdOutcomes() { return mmdOutcomes; }
     public void setMmdOutcomes(String mmdOutcomes) { this.mmdOutcomes = mmdOutcomes; }
