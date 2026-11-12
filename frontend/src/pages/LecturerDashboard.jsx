@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, FileText, FolderKanban, Users, RefreshCw, ChevronRight, Search } from 'lucide-react';
+import { RefreshCw, ChevronRight, Search } from 'lucide-react';
+import { ChartBar, FolderOpen, UsersThree, WarningCircle } from '@phosphor-icons/react';
 import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
@@ -817,29 +818,37 @@ export default function LecturerDashboard({ user, onLogout }) {
       id: 'students',
       title: 'Total Students',
       value: formatNumber(overview.totalStudents),
-      icon: <Users className="h-5 w-5 text-chart-amber" />,
-      accent: 'bg-warning-bg text-warning-text',
+      rawValue: typeof overview.totalStudents === 'number' ? overview.totalStudents : null,
+      formatter: formatNumber,
+      icon: <UsersThree weight="duotone" className="h-6 w-6" aria-hidden="true" />,
+      iconSurface: 'bg-navy-light text-navy dark:text-foreground',
     },
     {
       id: 'average',
       title: 'Average Score',
       value: formatNumber(overview.averageScore),
-      icon: <BarChart3 className="h-5 w-5 text-chart-green" />,
-      accent: 'bg-success-bg text-success-text',
+      rawValue: typeof overview.averageScore === 'number' ? overview.averageScore : null,
+      formatter: formatNumber,
+      icon: <ChartBar weight="duotone" className="h-6 w-6" aria-hidden="true" />,
+      iconSurface: 'bg-success-bg text-success-text',
     },
     {
       id: 'labs',
       title: 'Total Labs',
       value: formatNumber(overview.totalLabs),
-      icon: <FolderKanban className="h-5 w-5 text-primary" />,
-      accent: 'bg-primary-light text-primary ',
+      rawValue: typeof overview.totalLabs === 'number' ? overview.totalLabs : null,
+      formatter: formatNumber,
+      icon: <FolderOpen weight="duotone" className="h-6 w-6" aria-hidden="true" />,
+      iconSurface: 'bg-secondary-light text-secondary-text',
     },
     {
       id: 'atRisk',
       title: 'At-Risk Students',
       value: formatNumber(overview.atRiskStudents),
-      icon: <FileText className="h-5 w-5 text-chart-blue" />,
-      accent: 'bg-primary-light text-primary-text',
+      rawValue: typeof overview.atRiskStudents === 'number' ? overview.atRiskStudents : null,
+      formatter: formatNumber,
+      icon: <WarningCircle weight="duotone" className="h-6 w-6" aria-hidden="true" />,
+      iconSurface: 'bg-gold-bg text-gold-text',
     },
   ], [overview]);
 
@@ -907,13 +916,13 @@ export default function LecturerDashboard({ user, onLogout }) {
               }
             >
               <div className="grid min-w-0 gap-6 lg:grid-cols-[0.28fr_minmax(0,1fr)]">
-                <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
+                <div className="rounded-2xl border border-border bg-surface p-5 shadow-stage-1 transition-colors">
                   <div className="mb-3">
                     <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
                       Select Lab Assignment
                     </h3>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {labs.length === 0 ? (
                       <p className="text-sm text-foreground-muted text-center py-4">No labs available</p>
                     ) : (
@@ -922,14 +931,14 @@ export default function LecturerDashboard({ user, onLogout }) {
                           key={lab.id}
                           type="button"
                           onClick={() => handleLabChange(lab.id)}
-                          className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition flex items-center justify-between gap-3 ${
+                          className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition ${
                             selectedLabId === lab.id
-                              ? 'border-primary bg-primary-light text-primary-text'
-                              : 'border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-primary-light'
+                              ? 'bg-primary-light font-semibold text-primary-text ring-1 ring-inset ring-primary/35'
+                              : 'text-foreground-secondary hover:bg-surface-secondary hover:text-foreground'
                           }`}
                         >
                           <div className="inline-flex min-w-0 items-center leading-4">
-                            <span className="truncate font-medium">{formatText(lab.name)}</span>
+                            <span className="truncate">{formatText(lab.name)}</span>
                             <PlagiarismDangerMark show={labHasPlagiarism(lab.id, flaggedLabIds)} />
                           </div>
                           {selectedLabId === lab.id && (
@@ -941,7 +950,7 @@ export default function LecturerDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="min-w-0 rounded-3xl border border-border bg-surface p-4 shadow-sm transition-colors">
+                <div className="min-w-0 rounded-2xl border border-border bg-surface p-5 shadow-stage-1 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <h3 className="inline-flex h-5 min-w-0 items-center leading-5 text-base font-semibold text-foreground">

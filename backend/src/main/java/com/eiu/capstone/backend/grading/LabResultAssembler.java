@@ -68,6 +68,26 @@ public class LabResultAssembler {
             Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
             Map<UUID, String> normalizationNoticesByChallengeId,
             DisclosureMode disclosureMode) {
+        DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
+        // Student upload: scores + applicability only (detail trees via GET). Lecturer bulk keeps full trees.
+        return assemble(
+                submissionId,
+                rubric,
+                computed,
+                compileErrorsByChallengeId,
+                normalizationNoticesByChallengeId,
+                mode,
+                mode == DisclosureMode.STUDENT);
+    }
+
+    public Map<String, ChallengeDetailBundleDTO> assemble(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingService.GradingComputationResult computed,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId,
+            DisclosureMode disclosureMode,
+            boolean thinTrees) {
 
         DisclosureMode mode = disclosureMode != null ? disclosureMode : DisclosureMode.STUDENT;
 
@@ -89,9 +109,6 @@ public class LabResultAssembler {
                         result -> result,
                         (left, right) -> left,
                         LinkedHashMap::new));
-
-        // Student upload: scores + applicability only (detail trees via GET). Lecturer bulk keeps full trees.
-        boolean thinTrees = mode == DisclosureMode.STUDENT;
 
         Map<String, ChallengeDetailBundleDTO> labResult = new LinkedHashMap<>();
         for (ChallengeRubric challengeRubric : challengeRubrics) {

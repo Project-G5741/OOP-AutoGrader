@@ -10,14 +10,26 @@
 
 export const theme = {
   light: {
-    // Primary (blue)
+    // Brand Navy (Corporate EdTech structural anchor — 30% structural tier)
+    navy: '#1E3A5F',
+    'navy-hover': '#162C47',
+    'navy-light': '#E8EEF5',
+    'navy-text': '#162C47',
+
+    // Academic Gold (Honors, Top-1 ranking, streaks — selective highlight)
+    gold: '#D97706',
+    'gold-hover': '#B45309',
+    'gold-bg': '#FEF3C7',
+    'gold-text': '#92400E',
+
+    // Primary (Interactive Cobalt — 10% action CTA)
     primary: '#2563EB',
     'primary-hover': '#1D4ED8',
     'primary-active': '#1E40AF',
     'primary-light': '#DBEAFE',
     'primary-text': '#1E3A8A',
 
-    // Secondary (teal)
+    // Secondary (Supporting Teal — active progress, MMD modeling)
     secondary: '#0D9488',
     'secondary-hover': '#0F766E',
     'secondary-light': '#CCFBF1',
@@ -46,7 +58,7 @@ export const theme = {
     'info-bg': '#E0F2FE',
     'info-text': '#075985',
 
-    // Surfaces & text
+    // Surfaces & text (60% clean architectural neutrals)
     background: '#F8FAFC',
     surface: '#FFFFFF',
     'surface-secondary': '#F1F5F9',
@@ -58,10 +70,10 @@ export const theme = {
     'text-muted': '#64748B',
     'text-disabled': '#94A3B8',
 
-    // Accent purple (limited use)
-    purple: '#8B5CF6',
+    // Accent purple (strictly ≤ 10% for AI insights / reports)
+    purple: '#7C3AED',
     'purple-light': '#EDE9FE',
-    'purple-text': '#6D28D9',
+    'purple-text': '#5B21B6',
 
     // Chart palette
     'chart-blue': '#2563EB',
@@ -70,61 +82,74 @@ export const theme = {
     'chart-amber': '#D97706',
     'chart-red': '#DC2626',
     'chart-cyan': '#0891B2',
-    'chart-purple': '#8B5CF6',
+    'chart-purple': '#7C3AED',
     'chart-slate': '#64748B',
   },
 
   dark: {
-    // Deeper blue — less neon glare on dark surfaces (buttons, logo, links)
-    primary: '#1E40AF',
-    'primary-hover': '#1D4ED8',
-    'primary-active': '#1E3A8A',
-    'primary-light': '#172554',
-    'primary-text': '#7BA7D4',
+    // Brand Navy (elevated slate-navy anchor)
+    navy: '#23456E',
+    'navy-hover': '#2B5385',
+    'navy-light': '#162840',
+    'navy-text': '#C7D9EE',
 
-    secondary: '#2DD4BF',
-    'secondary-hover': '#5EEAD4',
-    'secondary-light': '#134E4A',
-    'secondary-text': '#99F6E4',
+    // Academic Gold
+    gold: '#F59E0B',
+    'gold-hover': '#D97706',
+    'gold-bg': '#422006',
+    'gold-text': '#FDE68A',
 
-    success: '#4ADE80',
-    'success-hover': '#86EFAC',
-    'success-bg': '#14532D',
-    'success-text': '#BBF7D0',
-    'success-panel': '#1A472A',
-    'success-panel-text': '#A8D5BA',
+    // Interactive Cobalt (accessible on #111A2E and >= 5.1:1 with white button text)
+    primary: '#2563EB',
+    'primary-hover': '#3B82F6',
+    'primary-active': '#1D4ED8',
+    'primary-light': '#172B4D',
+    'primary-text': '#93C5FD',
 
-    error: '#F87171',
-    'error-hover': '#FCA5A5',
-    'error-bg': '#450A0A',
+    secondary: '#0D9488',
+    'secondary-hover': '#14B8A6',
+    'secondary-light': '#113A3A',
+    'secondary-text': '#5EEAD4',
+
+    success: '#16A34A',
+    'success-hover': '#22C55E',
+    'success-bg': '#143E29',
+    'success-text': '#86EFAC',
+    'success-panel': '#17422B',
+    'success-panel-text': '#A7F3D0',
+
+    error: '#EF4444',
+    'error-hover': '#DC2626',
+    'error-bg': '#451419',
     'error-text': '#FECACA',
 
-    warning: '#FBBF24',
-    'warning-hover': '#FCD34D',
-    'warning-bg': '#451A03',
+    warning: '#D97706',
+    'warning-hover': '#F59E0B',
+    'warning-bg': '#422408',
     'warning-text': '#FDE68A',
 
-    info: '#38BDF8',
-    'info-hover': '#7DD3FC',
-    'info-bg': '#0C4A6E',
+    info: '#0284C7',
+    'info-hover': '#38BDF8',
+    'info-bg': '#0C3757',
     'info-text': '#BAE6FD',
 
-    background: '#0F172A',
-    surface: '#111827',
-    'surface-secondary': '#1E293B',
-    'surface-tertiary': '#334155',
-    border: '#0F172A',
-    'border-subtle': '#0F172A',
+    // Layered dark surfaces & crisp structural borders (no invisible borders)
+    background: '#0B1220',
+    surface: '#111A2E',
+    'surface-secondary': '#18243C',
+    'surface-tertiary': '#22304C',
+    border: '#2A3956',
+    'border-subtle': '#1E2D47',
     'text-primary': '#F8FAFC',
     'text-secondary': '#CBD5E1',
     'text-muted': '#94A3B8',
     'text-disabled': '#64748B',
 
-    purple: '#A78BFA',
-    'purple-light': '#312E81',
+    purple: '#8B5CF6',
+    'purple-light': '#2E1E59',
     'purple-text': '#DDD6FE',
 
-    'chart-blue': '#4B8FCC',
+    'chart-blue': '#60A5FA',
     'chart-teal': '#2DD4BF',
     'chart-green': '#4ADE80',
     'chart-amber': '#FBBF24',

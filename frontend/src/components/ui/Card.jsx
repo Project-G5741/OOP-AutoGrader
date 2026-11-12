@@ -1,7 +1,7 @@
-export default function Card({ children, className = ""}) {
-    return (
-        <div className={`bg-surface rounded-xl p-6 shadow-sm dark:shadow-none border border-border dark:border-transparent transition-colors ${className}`}>
-            {children}
-        </div>
-    );
+export default function Card({ children, className = "" }) {
+  return (
+    <div className={`bg-surface rounded-2xl p-6 shadow-stage-1 border border-border transition-colors ${className}`}>
+      {children}
+    </div>
+  );
 }

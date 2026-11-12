@@ -2,7 +2,7 @@ import { brand } from '../../theme/brand';
 
 const VARIANTS = {
   header: {
-    box: 'flex h-10 w-10 items-center justify-center rounded-xl bg-primary',
+    box: 'flex h-10 w-10 items-center justify-center rounded-xl bg-navy text-white shadow-stage-1 ring-1 ring-primary/25 transition-transform duration-200 hover:-translate-y-0.5',
     icon: 'h-5 w-5 text-white',
   },
   login: {
@@ -11,7 +11,7 @@ const VARIANTS = {
   },
   inline: {
     box: '',
-    icon: 'h-5 w-5',
+    icon: 'h-5 w-5 text-navy dark:text-primary-text',
   },
 };
 

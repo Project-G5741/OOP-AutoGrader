@@ -21,7 +21,7 @@ export default function Progress({
     >
       <div
         className={cn(
-          'h-full rounded-full transition-[width] duration-300 ease-out',
+          'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
           barClassName,
         )}
         style={{ width: `${percent}%` }}

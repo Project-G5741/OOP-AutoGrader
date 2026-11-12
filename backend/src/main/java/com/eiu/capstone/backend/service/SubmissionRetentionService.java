@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 
 @Service
@@ -36,6 +37,15 @@ public class SubmissionRetentionService {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /**
+     * Late uploads outside the lab deadline are omitted from lecturer metrics and
+     * pruned immediately when retention is active, so callers should not depend on
+     * follow-up detail reads from the database.
+     */
+    public boolean willPruneLateUpload(LabSubmission submission) {
+        return enabled && submission != null && !SubmissionRetentionKeepers.countsForLecturer(submission);
     }
 
     /**

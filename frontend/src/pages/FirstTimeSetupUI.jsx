@@ -1,9 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Eye, EyeOff, Lock, CreditCard, CheckCircle2 } from 'lucide-react';
 import PasswordStrengthField from '../components/ui/PasswordStrengthField';
-import Footer from '../components/Footer';
 import AppLogo from '../components/ui/AppLogo';
-import { brand } from '../theme/brand';
+import LoginBackground from '../components/ui/LoginBackground';
 import ThemeToggle from '../components/ThemeToggle';
 import { getFirstTimeSetupErrors, isFormValid } from '../utils/validation';
 import { readFriendlyAuthError, toFriendlyError } from '../utils/apiError';
@@ -110,45 +109,29 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background p-6 transition-colors">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6 transition-colors">
+      <LoginBackground />
       <ThemeToggle className="absolute top-6 right-6 z-10" />
 
-      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" />
-
       <div className="relative w-full max-w-md z-10">
-        <div className="text-center mb-4 opacity-60">
-          <div className="inline-flex items-center gap-2 text-white">
-            <AppLogo variant="inline" />
-            <span className="text-sm font-medium">{brand.loginTitle}</span>
-          </div>
-        </div>
-
-        <div className="bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden">
-          <div className="bg-primary px-6 py-5">
+        <div className="bg-surface rounded-2xl shadow-stage-3 border border-border overflow-hidden">
+          <div className="bg-navy px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-xl">
-                <CheckCircle2 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="text-white font-semibold text-lg leading-tight">Complete Your Profile</h2>
-                <p className="text-white/70 text-xs mt-0.5">First-time setup — takes less than a minute</p>
-              </div>
+              <AppLogo variant="inline" className="text-white" />
+              <h2 className="text-white font-semibold text-base leading-tight">Complete Setup</h2>
             </div>
           </div>
 
           {!done ? (
-            <form ref={formRef} onSubmit={handleSubmit} onKeyDown={wrapFormTab} className="px-6 py-6 space-y-4">
-              <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-secondary rounded-lg border border-border">
+            <form ref={formRef} onSubmit={handleSubmit} onKeyDown={wrapFormTab} className="px-6 py-5 space-y-3.5">
+              <div className="flex items-center gap-2.5 px-3 py-2 bg-surface-secondary rounded-lg border border-border">
                 <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                <div className="min-w-0">
-                  <p className="text-xs text-foreground-muted leading-none mb-0.5">Signed in as</p>
-                  <p className="text-sm text-foreground font-medium truncate">{profile?.email || '—'}</p>
-                </div>
+                <p className="text-sm text-foreground font-medium truncate min-w-0">{profile?.email || '—'}</p>
               </div>
 
               <div>
@@ -224,15 +207,13 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
               <div className="inline-flex items-center justify-center w-16 h-16 bg-success-bg rounded-2xl mb-4">
                 <CheckCircle2 className="w-8 h-8 text-success" />
               </div>
-              <h3 className="text-foreground font-semibold text-xl mb-2">All set!</h3>
-              <p className="text-foreground-muted text-sm mb-6">Your profile is complete. You can now access the Lab Management System.</p>
+              <h3 className="text-foreground font-semibold text-lg mb-1">All set!</h3>
+              <p className="text-foreground-muted text-sm mb-5">Opening your dashboard…</p>
               <div className="flex justify-center gap-2">
-                <button onClick={() => onClose?.()} className="px-6 py-2.5 bg-surface-secondary rounded-lg text-sm text-foreground">Close</button>
+                <button onClick={() => onClose?.()} className="px-6 py-2 bg-surface-secondary rounded-lg text-sm text-foreground">Close</button>
               </div>
             </div>
           )}
-
-          {!done && <Footer variant="compact" />}
         </div>
       </div>
     </div>

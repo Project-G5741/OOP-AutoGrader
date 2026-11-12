@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy } from 'lucide-react';
 
 const navItems = [
@@ -13,7 +14,7 @@ const navItems = [
   { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
 ];
 
-function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '' }) {
+function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '', pillId = 'desktop-nav-pill' }) {
   const isActive = active === id;
   return (
     <button
@@ -21,22 +22,24 @@ function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWid
       onClick={() => onClick(id)}
       onMouseEnter={() => onPrefetch?.(id)}
       onFocus={() => onPrefetch?.(id)}
-      className={`relative flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
-        fullWidth ? 'w-full gap-3 rounded-xl px-4 py-3' : ''
+      className={`relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm transition-colors min-h-11 shrink-0 cursor-pointer ${
+        fullWidth ? 'w-full gap-3 px-4 py-3' : ''
       } ${
         isActive
-          ? 'bg-primary text-white shadow-sm'
-          : [
-              'text-foreground-secondary hover:bg-surface-secondary',
-              'overflow-hidden',
-              'after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-0',
-              "after:bg-primary after:content-[''] after:transition-[width] after:duration-200 after:ease-out",
-              'hover:after:w-full focus-visible:after:w-full',
-            ].join(' ')
+          ? 'text-white'
+          : 'text-foreground-secondary hover:bg-surface-secondary hover:text-foreground'
       } ${className}`}
     >
-      <Icon className="h-4 w-4 shrink-0" />
-      <span className="font-medium">{label}</span>
+      {isActive && (
+        <motion.span
+          layoutId={pillId}
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+          className="absolute inset-0 rounded-xl bg-navy shadow-stage-1 dark:bg-primary"
+          aria-hidden="true"
+        />
+      )}
+      <Icon className="relative z-[1] h-4 w-4 shrink-0" />
+      <span className="relative z-[1] font-semibold">{label}</span>
     </button>
   );
 }
@@ -70,7 +73,7 @@ export default function NavBar({
   const rowAlign = align === 'start' ? 'justify-start' : 'justify-end';
 
   return (
-    <div className="relative w-full min-w-0 rounded-2xl border border-border bg-surface px-3 py-3 sm:px-6">
+    <div className="relative w-full min-w-0 rounded-2xl border border-border bg-surface px-3 py-2.5 shadow-stage-1 sm:px-5">
       {collapse && (
       <div className="flex items-center justify-between gap-3 lg:hidden">
         <button
@@ -79,7 +82,7 @@ export default function NavBar({
           aria-controls="dashboard-nav-menu"
           aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           onClick={() => setMenuOpen((open) => !open)}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-secondary text-foreground transition-colors hover:bg-surface-tertiary cursor-pointer"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-secondary text-foreground transition-colors hover:bg-surface-tertiary cursor-pointer"
         >
           {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -113,6 +116,7 @@ export default function NavBar({
                   active={active}
                   onClick={handleNavigate}
                   onPrefetch={onPrefetch}
+                  pillId="mobile-nav-pill"
                   fullWidth
                 />
               ))}

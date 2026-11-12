@@ -30,11 +30,11 @@ Lab names are at most **50 characters** and cannot contain Windows-illegal chara
 
 Legacy UUID names (`{uuid}.term.agpack`, `{uuid}.lab.agpack`) and older aliases (`term.agpack`, `term-{uuid}.agpack`) are **not** loaded. Invalid packs show a specific rejection reason (not a generic busy message).
 
-**UI import** materializes the pack into the local DB and writes `data/desktop-pack-fingerprint.txt`, then shows a blocking **Okay** dialog. Clicking **Okay** posts `practice-restart`: the host stops the local backend, relaunches the EXE, and exits so the new window loads a settled labs view — do not submit until that reopen finishes. Logout / window **X** still quit without relaunch (`practice-quit`). **Manual** `rubric/` copy still needs fingerprint clear + restart so bootstrap can import. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
+**UI import** materializes the pack into the local DB and writes `data/desktop-pack-fingerprint.txt`, then shows a blocking **Okay** dialog. Clicking **Okay** posts `practice-restart`: the host stops the local backend, relaunches the EXE, and exits so the new window loads a settled labs view — do not submit until that reopen finishes. **Exit** / window **X** still quit without relaunch (`practice-quit`). **Manual** `rubric/` copy still needs fingerprint clear + restart so bootstrap can import. If you delete **all** pack files from `rubric/` and restart, local labs and practice DB rows are wiped (sidebar empty; not-ready banner).
 
 If multiple quarter packs are present (manual copies), newest-by-mtime wins. UI term import still removes sibling quarter packs.
 
-In the practice EXE, **Logout** closes the window and stops the local backend (same as the window **X**). Cloud/web Logout is unchanged.
+In the practice EXE, the header shows an **Exit** button (no profile/account menu) that closes the window and stops the local backend (same as the window **X**). Ranking, shop, streak, deadline text/badges, and the notification bell are omitted. Cloud/web Logout is unchanged.
 
 ## Lecturer: publish packs
 

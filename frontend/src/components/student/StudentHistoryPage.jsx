@@ -1,10 +1,18 @@
 // src/components/student/StudentHistoryPage.jsx
 import { Fragment, useState, useEffect, useCallback } from 'react';
-import { 
-  History, TrendingUp, Award, Clock, ChevronDown, ChevronUp, 
+import {
+  ChevronDown, ChevronUp,
   CheckCircle2, XCircle, RefreshCw, AlertTriangle
 } from 'lucide-react';
+import {
+  BookOpenText,
+  ChartLineUp,
+  ClockCounterClockwise,
+  Medal,
+  Stack,
+} from '@phosphor-icons/react';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import { StageCard3D, StaggerGroup, StaggerItem, AnimatedCounter, EmptyState } from '../ui/MotionPrimitives';
 import { formatNumber } from '../../utils/formatters';
 import { buildServerSortParam, toggleSortState } from '../../utils/sort';
 import { isInCurrentTerm } from '../../utils/authRoutes';
@@ -282,33 +290,37 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
   };
 
   const statCards = [
-    { 
-      label: 'Labs Attempted', 
+    {
+      label: 'Labs Attempted',
+      rawValue: stats.labsAttempted ?? 0,
       displayValue: formatStatValue(stats.labsAttempted ?? 0),
-      icon: <Award className="w-4 h-4" />,
-      tone: 'text-primary', 
-      bg: 'bg-primary-light' 
+      icon: <BookOpenText size={20} weight="duotone" aria-hidden="true" />,
+      tone: 'text-navy-text dark:text-primary-text',
+      bg: 'bg-navy-light dark:bg-primary-light',
     },
-    { 
-      label: 'Total Submissions', 
+    {
+      label: 'Total Submissions',
+      rawValue: stats.totalSubmissions ?? 0,
       displayValue: formatStatValue(stats.totalSubmissions ?? 0),
-      icon: <Clock className="w-4 h-4" />,
-      tone: 'text-info', 
-      bg: 'bg-info-bg' 
+      icon: <Stack size={20} weight="duotone" aria-hidden="true" />,
+      tone: 'text-secondary-text',
+      bg: 'bg-secondary-light',
     },
-    { 
-      label: 'Average Score', 
+    {
+      label: 'Average Score',
+      rawValue: stats.averageScore,
       displayValue: formatStatValue(stats.averageScore),
-      icon: <TrendingUp className="w-4 h-4" />,
-      tone: 'text-success', 
-      bg: 'bg-success-bg' 
+      icon: <ChartLineUp size={20} weight="duotone" aria-hidden="true" />,
+      tone: 'text-success-text',
+      bg: 'bg-success-bg',
     },
-    { 
-      label: 'Best Score', 
+    {
+      label: 'Best Score',
+      rawValue: stats.bestScore,
       displayValue: formatStatValue(stats.bestScore),
-      icon: <Award className="w-4 h-4" />,
-      tone: 'text-warning', 
-      bg: 'bg-warning-bg' 
+      icon: <Medal size={20} weight="duotone" aria-hidden="true" />,
+      tone: 'text-gold-text',
+      bg: 'bg-gold-bg',
     },
   ];
 
@@ -341,17 +353,17 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       {/* ===== Header ===== */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-white">
-            <History className="h-5 w-5" />
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-navy text-white shadow-stage-1">
+            <ClockCounterClockwise size={22} weight="duotone" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Submission History</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Submission History</h1>
           </div>
         </div>
         <button
           type="button"
           onClick={handleRefresh}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border transition-colors hover:bg-surface-secondary"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-border bg-surface transition-colors hover:bg-surface-secondary"
           title="Refresh"
         >
           <RefreshCw className={`w-4 h-4 text-foreground-muted ${isPageBusy ? 'animate-spin' : ''}`} />
@@ -359,28 +371,34 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
       </div>
 
       {/* ===== Stats Cards ===== */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StaggerGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {initialLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="rounded-3xl border border-border bg-surface p-5 animate-pulse">
+            <div key={index} className="rounded-2xl border border-border bg-surface p-5 animate-pulse">
               <div className="h-4 w-24 rounded bg-surface-tertiary" />
               <div className="mt-4 h-9 w-16 rounded bg-surface-tertiary" />
             </div>
           ))
         ) : (
           statCards.map((card) => (
-            <div key={card.label} className="rounded-3xl border border-border bg-surface p-5">
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-foreground-muted">{card.label}</p>
-                <div className={`rounded-2xl p-3 ${card.bg}`}>
-                  {card.icon}
+            <StaggerItem key={card.label} className="h-full">
+              <StageCard3D className="h-full flex flex-col justify-between p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-muted">{card.label}</p>
+                  <div className={`rounded-xl p-2.5 ${card.bg} ${card.tone}`}>
+                    {card.icon}
+                  </div>
                 </div>
-              </div>
-              <p className={`mt-4 text-2xl font-semibold sm:text-3xl ${card.tone}`}>{card.displayValue}</p>
-            </div>
+                <p className={`mt-4 text-2xl font-bold tabular-nums sm:text-3xl ${card.tone}`}>
+                  {typeof card.rawValue === 'number'
+                    ? <AnimatedCounter value={Math.floor(card.rawValue)} formatter={formatNumber} />
+                    : card.displayValue}
+                </p>
+              </StageCard3D>
+            </StaggerItem>
           ))
         )}
-      </div>
+      </StaggerGroup>
 
       {/* ===== Labs Summary Sidebar + Submissions Table ===== */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
@@ -401,12 +419,12 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         ) : (
           <>
         {/* Labs Summary */}
-        <section className="rounded-3xl border border-border bg-surface p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-muted">
+        <section className="rounded-2xl border border-border bg-surface p-6 shadow-stage-1">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">
             Performance by Lab
           </h2>
           {labsSummary.length === 0 ? (
-            <p className="mt-6 text-sm text-foreground-disabled text-center">No labs attempted yet</p>
+            <EmptyState compact title="No labs attempted yet" description="Submit a lab folder to track progress over the quarter." />
           ) : (
             <div className="mt-6 space-y-2">
               {labsSummary.map((lab) => {
@@ -462,28 +480,26 @@ export default function StudentHistoryPage({ user, onLogout, onNavigate, inCurre
         </section>
 
         {/* Submissions Table */}
-        <section className="relative rounded-3xl border border-border bg-surface p-6 overflow-hidden">
+        <section className="relative rounded-2xl border border-border bg-surface p-6 shadow-stage-1 overflow-hidden">
           {tableLoading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-surface/80">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-surface/80">
               <RefreshCw className="h-6 w-6 animate-spin text-foreground-muted" />
             </div>
           )}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground-muted">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">
                 All Submissions
               </h2>
             </div>
           </div>
 
           {submissions.length === 0 ? (
-            <div className="py-12 text-center text-foreground-disabled">
-              <p>No submissions found</p>
-            </div>
+            <EmptyState compact title="No submissions found" description="Try another lab filter or upload your first submission." />
           ) : (
-            <div className="overflow-x-auto rounded-3xl border border-border">
+            <div className="-mx-6 overflow-x-auto border-t border-border-subtle">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <thead className="bg-surface-secondary bg-surface-secondary text-foreground-muted">
+                <thead className="bg-surface-secondary text-foreground-muted">
                   <tr>
                     <SortableTableHeader label="Lab" field="labName" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />
                     <SortableTableHeader label="Attempt" field="attempt" activeField={historySort.field} direction={historySort.direction} onSort={handleHistorySort} className="px-4 py-3" stopRowClick />

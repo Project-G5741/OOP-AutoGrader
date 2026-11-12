@@ -222,6 +222,27 @@ class LabResultAssemblerTest {
         assertEquals(false, bundle.getScoreApplicability().get("testcase"));
     }
 
+    @Test
+    void studentFullTreeModeIncludesTestcasesWhenThinTreesDisabled() {
+        UUID challengeId = UUID.randomUUID();
+        ChallengeRubric challenge = challengeWithClassAndTestcase(challengeId);
+        FailOnLoadClassStructureService structureService = new FailOnLoadClassStructureService();
+        LabResultAssembler assembler = new LabResultAssembler(structureService, new RecordingTestcaseMapper());
+
+        Map<String, ChallengeDetailBundleDTO> labResult = assembler.assemble(
+                UUID.randomUUID(),
+                new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge)),
+                computed(challengeId, true, true, true),
+                Map.of(),
+                Map.of(),
+                DisclosureMode.STUDENT,
+                false);
+
+        ChallengeDetailBundleDTO bundle = labResult.get("challenge_1");
+        assertEquals(2, bundle.getTestcases().size());
+        assertEquals(1, structureService.mmdBuilds);
+    }
+
     private static GradingService.GradingComputationResult computed(
             UUID challengeId,
             boolean mmdApplicable,

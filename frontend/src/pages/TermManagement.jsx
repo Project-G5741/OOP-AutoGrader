@@ -835,7 +835,7 @@ export default function TermManagement() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[0.34fr_1fr]">
-        <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-stage-1">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
             Academic quarters
           </h3>
@@ -882,16 +882,16 @@ export default function TermManagement() {
           ) : filteredTerms.length === 0 ? (
             <p className="py-6 text-center text-sm text-foreground-muted">No quarters match your search</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {filteredTerms.map((term) => (
                 <button
                   key={term.id}
                   type="button"
                   onClick={() => handleSelectTerm(term.id)}
-                  className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition ${
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-left text-sm transition ${
                     String(selectedTermId) === String(term.id)
-                      ? 'border-primary bg-primary-light text-primary-text'
-                      : 'border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-primary-light'
+                      ? 'bg-primary-light font-semibold text-primary-text ring-1 ring-inset ring-primary/35'
+                      : 'text-foreground-secondary hover:bg-surface-secondary hover:text-foreground'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -909,7 +909,7 @@ export default function TermManagement() {
           )}
         </div>
 
-        <div className="rounded-3xl border border-border bg-surface p-4 shadow-sm">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-stage-1">
           {selectedTerm ? (
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1029,7 +1029,7 @@ export default function TermManagement() {
                 </section>
               )}
 
-              <div className="mb-4 rounded-xl border border-border p-3">
+              <section className="mb-5 border-t border-border-subtle pt-5">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
                   Add students
                 </p>
@@ -1079,7 +1079,7 @@ export default function TermManagement() {
                             className="w-full rounded-lg border border-border bg-surface-secondary py-2 pl-9 pr-3 text-sm text-foreground placeholder-foreground-disabled focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                         </div>
-                        <div className="max-h-40 flex-1 overflow-y-auto rounded-lg border border-border bg-surface-secondary">
+                        <div className="max-h-40 flex-1 overflow-y-auto rounded-xl bg-surface-secondary">
                           {filteredAvailable.length === 0 ? (
                             <p className="px-3 py-4 text-sm text-foreground-muted">No students match your search.</p>
                           ) : (
@@ -1125,11 +1125,14 @@ export default function TermManagement() {
                     )}
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <div className="border-b border-border px-4 py-3">
-                  <div className="relative max-w-xs">
+              <section className="border-t border-border-subtle pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground-muted">
+                    Enrolled roster
+                  </p>
+                  <div className="relative w-full max-w-xs">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted" />
                     <input
                       type="text"
@@ -1140,6 +1143,7 @@ export default function TermManagement() {
                     />
                   </div>
                 </div>
+                <div className="-mx-5 mt-3 overflow-x-auto border-t border-border-subtle">
                 <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="border-b border-border text-left text-sm text-foreground-secondary">
@@ -1205,7 +1209,8 @@ export default function TermManagement() {
                     )}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </section>
             </>
           ) : (
             <p className="py-10 text-center text-sm text-foreground-muted">Select a quarter to manage students.</p>

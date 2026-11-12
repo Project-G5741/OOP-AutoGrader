@@ -197,10 +197,14 @@ function detailCachesReady(challengeId, bundle, classCache, mmdCache, testcaseCa
   const applicability = bundle?.scoreApplicability ?? bundle?.score_applicability ?? {};
   const classes = classCache[key] ?? [];
   const mmdClasses = mmdCache[key]?.classes ?? [];
+  const testcases = testcaseCache[key] ?? [];
   if (applicability.class !== false && classes.length === 0) {
     return false;
   }
   if (applicability.mmd === true && mmdClasses.length === 0) {
+    return false;
+  }
+  if (applicability.testcase === true && testcases.length === 0) {
     return false;
   }
   return true;
@@ -599,30 +603,47 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         ? mergeTestcaseBundle(key, testcaseJson, labResultCacheRef)
         : [];
 
+      const inlineBundle = labResultCacheRef.current[key];
+      const existingBundle = inlineBundle ? applyChallengeBundle(inlineBundle) : null;
+      const resolvedClassData = classRes.ok && (parsedClass.classData.length > 0 || !existingBundle?.classData?.length)
+        ? parsedClass.classData
+        : (existingBundle?.classData?.length ? existingBundle.classData : parsedClass.classData);
+      const resolvedClassNotice = classRes.ok && (parsedClass.normalizationNotice != null || existingBundle?.normalizationNotice == null)
+        ? parsedClass.normalizationNotice
+        : (existingBundle?.normalizationNotice ?? parsedClass.normalizationNotice);
+      const resolvedMmd = mmdRes.ok && (parsedMmd.classes.length > 0 || parsedMmd.parseError != null || !existingBundle?.mmdData?.length)
+        ? parsedMmd
+        : (existingBundle?.mmdData?.length
+          ? { classes: existingBundle.mmdData, parseError: existingBundle.mmdParseError }
+          : parsedMmd);
+      const resolvedTestcases = testcaseRes.ok && (mappedTestcases.length > 0 || !existingBundle?.testCases?.length)
+        ? mappedTestcases
+        : (existingBundle?.testCases?.length ? existingBundle.testCases : mappedTestcases);
+
       // Only cache successful responses — never poison the cache with !ok empties.
-      if (classRes.ok) {
-        classDataCacheRef.current[key] = parsedClass.classData;
-        classNoticeCacheRef.current[key] = parsedClass.normalizationNotice;
+      if (classRes.ok || resolvedClassData.length > 0) {
+        classDataCacheRef.current[key] = resolvedClassData;
+        classNoticeCacheRef.current[key] = resolvedClassNotice;
       } else {
         delete classDataCacheRef.current[key];
         delete classNoticeCacheRef.current[key];
       }
-      if (mmdRes.ok) {
-        mmdDataCacheRef.current[key] = parsedMmd;
+      if (mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null) {
+        mmdDataCacheRef.current[key] = resolvedMmd;
       } else {
         delete mmdDataCacheRef.current[key];
       }
-      if (testcaseRes.ok) {
-        testcaseDataCacheRef.current[key] = mappedTestcases;
+      if (testcaseRes.ok || resolvedTestcases.length > 0) {
+        testcaseDataCacheRef.current[key] = resolvedTestcases;
       } else {
         delete testcaseDataCacheRef.current[key];
       }
       if (applyToUi) {
-        setClassData(classRes.ok ? parsedClass.classData : []);
-        setClassNormalizationNotice(classRes.ok ? parsedClass.normalizationNotice : null);
-        setMmdData(mmdRes.ok ? parsedMmd.classes : []);
-        setMmdParseError(mmdRes.ok ? parsedMmd.parseError : null);
-        setTestCases(testcaseRes.ok ? mappedTestcases : []);
+        setClassData(classRes.ok || resolvedClassData.length > 0 ? resolvedClassData : []);
+        setClassNormalizationNotice(classRes.ok || resolvedClassData.length > 0 ? resolvedClassNotice : null);
+        setMmdData(mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null ? resolvedMmd.classes : []);
+        setMmdParseError(mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null ? resolvedMmd.parseError : null);
+        setTestCases(testcaseRes.ok || resolvedTestcases.length > 0 ? resolvedTestcases : []);
       }
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
@@ -654,6 +675,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [fetchChallengeDetails]);
 
   const fetchLabSummaries = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     const token = getAccessToken();
     if (!token) {
       setLabSummariesById({});
@@ -707,7 +729,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-    if (!showHistory && !showRanking && inCurrentTerm) {
+    if (!IS_DESKTOP_APP && !showHistory && !showRanking && inCurrentTerm) {
       fetchLabSummaries();
     }
   }, [fetchLabSummaries, inCurrentTerm, showHistory, showRanking]);
@@ -1041,25 +1063,27 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setIsRefreshingResults(true);
     setIsLoadingDetails(false);
     try {
-      const needsSidecar = Object.values(indexedLabResult).some((bundle) => isThinChallengeBundle(bundle));
-      if (needsSidecar) {
-        await prefetchAllChallengeDetails(selectedLabId, challenges, {
+      for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
+        if (!bundle || isThinChallengeBundle(bundle)) continue;
+        const key = challengeCacheKey(challengeId);
+        const applied = applyChallengeBundle(bundle);
+        classDataCacheRef.current[key] = applied.classData;
+        classNoticeCacheRef.current[key] = applied.normalizationNotice;
+        mmdDataCacheRef.current[key] = {
+          classes: applied.mmdData,
+          parseError: applied.mmdParseError,
+        };
+        testcaseDataCacheRef.current[key] = applied.testCases;
+      }
+      const thinChallenges = (challenges ?? []).filter((ch) => {
+        const key = challengeCacheKey(ch?.id);
+        return key && hasSessionChallengeScore(challengeScores, ch?.id) && isThinChallengeBundle(indexedLabResult[key]);
+      });
+      if (thinChallenges.length > 0) {
+        await prefetchAllChallengeDetails(selectedLabId, thinChallenges, {
           submissionId,
           challengeScores,
         });
-      } else {
-        for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
-          if (!bundle || isThinChallengeBundle(bundle)) continue;
-          const key = challengeCacheKey(challengeId);
-          const applied = applyChallengeBundle(bundle);
-          classDataCacheRef.current[key] = applied.classData;
-          classNoticeCacheRef.current[key] = applied.normalizationNotice;
-          mmdDataCacheRef.current[key] = {
-            classes: applied.mmdData,
-            parseError: applied.mmdParseError,
-          };
-          testcaseDataCacheRef.current[key] = applied.testCases;
-        }
       }
       if (
         selectedChallengeId

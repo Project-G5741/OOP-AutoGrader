@@ -2,18 +2,12 @@
   min-height: 100vh;
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 70% 55% at 75% 45%, color-mix(in srgb, var(--warning-bg) 55%, transparent), transparent 62%),
-    radial-gradient(ellipse 50% 45% at 12% 80%, color-mix(in srgb, var(--primary-light) 70%, transparent), transparent 58%),
-    var(--background);
+  background: var(--background);
   color: var(--text-primary);
 }
 
 .dark .mnt {
-  background:
-    radial-gradient(ellipse 70% 55% at 75% 45%, color-mix(in srgb, var(--warning-bg) 40%, transparent), transparent 62%),
-    radial-gradient(ellipse 50% 45% at 12% 80%, color-mix(in srgb, var(--primary-light) 50%, transparent), transparent 58%),
-    var(--background);
+  background: var(--background);
 }
 
 .mnt-toggle {
@@ -95,30 +89,36 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  perspective: 1100px;
   animation: mnt-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
 }
 
 .mnt-art-glow {
   position: absolute;
-  width: min(88%, 420px);
+  width: min(92%, 440px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--surface) 90%, transparent) 0%,
-    transparent 72%
-  );
-  filter: blur(8px);
+  border: 2px dashed color-mix(in srgb, var(--primary) 35%, transparent);
+  background: var(--navy-light);
+  animation: mnt-orbit-spin 36s linear infinite;
 }
 
 .mnt-art img {
   position: relative;
-  width: min(100%, 520px);
+  width: min(100%, 480px);
   height: auto;
-  border-radius: 2rem;
+  border-radius: 1.75rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 26px 52px -16px rgba(15, 23, 42, 0.22);
+  transform: rotateY(-5deg) rotateX(2deg);
   animation: mnt-float 5.5s ease-in-out infinite;
   user-select: none;
   pointer-events: none;
+}
+
+@keyframes mnt-orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes mnt-float {
@@ -183,7 +183,9 @@
 @media (prefers-reduced-motion: reduce) {
   .mnt-copy,
   .mnt-art,
+  .mnt-art-glow,
   .mnt-art img {
     animation: none;
+    transform: none;
   }
 }

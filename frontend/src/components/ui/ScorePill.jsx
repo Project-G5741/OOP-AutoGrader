@@ -1,3 +1,5 @@
+import { CheckCircle, WarningCircle, XCircle } from '@phosphor-icons/react';
+
 export function ScorePill({ ok, total, pct, size = 'sm' }) {
   const color = pct >= 80
     ? 'bg-success-bg text-success-text'
@@ -5,12 +7,16 @@ export function ScorePill({ ok, total, pct, size = 'sm' }) {
       ? 'bg-warning-bg text-warning-text'
       : 'bg-error-bg text-error-text';
 
+  const Icon = pct >= 80 ? CheckCircle : pct >= 60 ? WarningCircle : XCircle;
+  const iconSize = size === 'md' ? 16 : 13;
+
   const sizeClass = size === 'md'
     ? 'px-3 py-1 text-sm'
     : 'px-2.5 py-0.5 text-xs';
 
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full font-semibold ${sizeClass} ${color}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full font-semibold tabular-nums ${sizeClass} ${color}`}>
+      <Icon size={iconSize} weight="duotone" aria-hidden="true" />
       {ok}/{total} · {pct}%
     </span>
   );

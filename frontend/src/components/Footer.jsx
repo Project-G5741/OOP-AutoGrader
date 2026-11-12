@@ -82,8 +82,10 @@ export default function Footer({ variant = 'default' }) {
   }
   if (variant === 'login') {
     return (
-      <div className="mt-5 text-center text-[0.95rem] text-foreground-muted">
-        {FOOTER_LABEL}
+      <div className="mt-6 flex items-center justify-center gap-4 text-center text-sm text-foreground-muted">
+        <span className="h-px w-14 bg-border sm:w-20" aria-hidden="true" />
+        <span>{FOOTER_LABEL}</span>
+        <span className="h-px w-14 bg-border sm:w-20" aria-hidden="true" />
       </div>
     );
   }

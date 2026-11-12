@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Eye, FlaskConical, Upload } from 'lucide-react';
+import { Eye, FlaskConical } from 'lucide-react';
 import Combobox from '../ui/Combobox';
 import Progress from '../ui/Progress';
+import LottieAnimation from '../ui/LottieAnimation';
+import { GradingActivityVisual } from '../ui/MotionPrimitives';
+import uploadCloudData from '../../assets/lottie/upload-cloud.json';
 import {
   challengeCountForLab,
   modeMatchesLab,
@@ -338,104 +341,108 @@ export default function BulkGradingPanel({ labs = [] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex min-w-[14rem] flex-col gap-1.5 text-sm">
-          <span className="font-semibold tracking-tight text-foreground">Lab</span>
-          <Combobox
-            aria-label="Lab"
-            value={labId}
-            disabled={grading}
-            placeholder="Select lab…"
-            icon={FlaskConical}
-            options={labs.map((lab) => ({
-              value: String(lab.id),
-              label: lab.name || lab.labName || String(lab.id),
-            }))}
-            onChange={(next) => {
-              setLabId(next);
-              setRows([]);
-              setGradedCount(0);
-              setResultsTab('overview');
-            }}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-foreground">Mode</span>
-          <div className="inline-flex overflow-hidden rounded-lg border border-border">
-            {['LAB', 'EXAM'].map((m) => (
-              <button
-                key={m}
-                type="button"
-                disabled={grading}
-                onClick={() => {
-                  setMode(m);
-                  setParseResult(null);
-                  setRows([]);
-                  setResultsTab('overview');
-                }}
-                className={`px-4 py-2 text-sm font-medium ${
-                  mode === m
-                    ? 'bg-primary text-white'
-                    : 'bg-surface text-foreground-secondary hover:bg-surface-secondary'
-                }`}
-              >
-                {m === 'LAB' ? 'Lab' : 'Exam'}
-              </button>
-            ))}
+      <div className="space-y-5 rounded-2xl border border-border bg-surface p-5 shadow-stage-1">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex min-w-[14rem] flex-col gap-1.5 text-sm">
+            <span className="font-semibold tracking-tight text-foreground">Lab</span>
+            <Combobox
+              aria-label="Lab"
+              value={labId}
+              disabled={grading}
+              placeholder="Select lab…"
+              icon={FlaskConical}
+              options={labs.map((lab) => ({
+                value: String(lab.id),
+                label: lab.name || lab.labName || String(lab.id),
+              }))}
+              onChange={(next) => {
+                setLabId(next);
+                setRows([]);
+                setGradedCount(0);
+                setResultsTab('overview');
+              }}
+            />
           </div>
+
+          <div className="flex flex-col gap-1.5 text-sm">
+            <span className="font-semibold tracking-tight text-foreground">Mode</span>
+            <div className="inline-flex overflow-hidden rounded-xl bg-surface-secondary p-1">
+              {['LAB', 'EXAM'].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={grading}
+                  onClick={() => {
+                    setMode(m);
+                    setParseResult(null);
+                    setRows([]);
+                    setResultsTab('overview');
+                  }}
+                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
+                    mode === m
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-foreground-secondary hover:text-foreground'
+                  }`}
+                >
+                  {m === 'LAB' ? 'Lab' : 'Exam'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedLab && (
+            <p className="pb-2 text-xs font-medium text-foreground-muted">
+              Challenges: {challengeCount}
+            </p>
+          )}
         </div>
 
-        {selectedLab && (
-          <p className="text-xs text-foreground-muted pb-2">
-            Challenges: {challengeCount}
+        {modeBlockMessage && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            {modeBlockMessage}
           </p>
         )}
-      </div>
 
-      {modeBlockMessage && (
-        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-text">
-          {modeBlockMessage}
-        </p>
-      )}
-
-      <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-          isDragging ? 'border-primary bg-primary/5' : 'border-border bg-surface-secondary'
-        }`}
-      >
-        <Upload className="mx-auto mb-3 h-8 w-8 text-primary" />
-        <p className="text-sm font-medium text-foreground">Drop Main folder here</p>
-        <p className="mt-1 text-xs text-foreground-muted">
-          {mode === 'EXAM'
-            ? 'Main → IRN_Name → .java / .mmd'
-            : 'Main → IRN_Name → challenge_n → .java / .mmd'}
-        </p>
-        <button
-          type="button"
-          disabled={grading || !modeOk}
-          onClick={() => inputRef.current?.click()}
-          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
+            isDragging ? 'border-primary bg-primary-light' : 'border-border bg-surface-secondary/70'
+          }`}
         >
-          Select folder
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          // @ts-expect-error webkitdirectory
-          webkitdirectory=""
-          directory=""
-          multiple
-          onChange={(e) => handleInputFiles(e.target.files || [])}
-        />
+          <div className="mx-auto mb-2 h-16 w-16">
+            <LottieAnimation animationData={uploadCloudData} className="h-full w-full" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Drop Main folder here</p>
+          <p className="mt-1 font-mono text-xs text-foreground-muted">
+            {mode === 'EXAM'
+              ? 'Main → IRN_Name → .java / .mmd'
+              : 'Main → IRN_Name → challenge_n → .java / .mmd'}
+          </p>
+          <button
+            type="button"
+            disabled={grading || !modeOk}
+            onClick={() => inputRef.current?.click()}
+            className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+          >
+            Select folder
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            // @ts-expect-error webkitdirectory
+            webkitdirectory=""
+            directory=""
+            multiple
+            onChange={(e) => handleInputFiles(e.target.files || [])}
+          />
+        </div>
       </div>
 
       {parseResult && (
-        <div className="space-y-3 rounded-xl border border-border bg-surface p-4">
+        <div className="space-y-3 rounded-2xl border border-border bg-surface p-5 shadow-stage-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-foreground">Parsed: {folderLabel}</p>
@@ -506,14 +513,14 @@ export default function BulkGradingPanel({ labs = [] }) {
 
       {grading && (
         <div
-          className="space-y-4 rounded-xl border border-border bg-surface p-6"
+          className="space-y-4 rounded-2xl border border-border bg-surface p-6 shadow-stage-1"
           aria-busy="true"
           aria-live="polite"
         >
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="font-medium text-foreground">{gradingProgressLabel}</span>
-              <span className="tabular-nums text-foreground-muted">{gradingPercent}%</span>
+              <span className="font-semibold text-foreground">{gradingProgressLabel}</span>
+              <span className="font-mono tabular-nums text-foreground-muted">{gradingPercent}%</span>
             </div>
             <Progress
               value={gradedCount}
@@ -522,55 +529,53 @@ export default function BulkGradingPanel({ labs = [] }) {
               barClassName={gradingBarClass}
             />
           </div>
-          <div className="flex flex-col items-center justify-center gap-3 py-8">
-            <div
-              className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"
-              role="status"
-              aria-label="Grading in progress"
-            />
-            <p className="text-sm text-foreground-muted">Grading submissions…</p>
-          </div>
+          <GradingActivityVisual
+            title="Grading submissions…"
+            subtitle="Compiling student folders, verifying MMD diagrams, and running isolated testcases"
+          />
         </div>
       )}
 
       {!grading && rows.length > 0 && (
-        <div className="space-y-3">
-          {gradeError && <p className="text-sm text-error">{gradeError}</p>}
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-stage-1">
+          <div className="space-y-3 px-5 pt-5">
+            {gradeError && <p className="text-sm text-error">{gradeError}</p>}
 
-          {gradingStoppedEarly && (
-            <p className="text-sm text-foreground-muted">
-              Grading stopped — showing {rows.length} of {gradingTotal} students.
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
-            {labChallenges.length > 0 ? (
-              <div className="flex min-w-0 flex-wrap gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setResultsTab('overview')}
-                  className={resultsTabClass(resultsTab === 'overview')}
-                >
-                  Overview
-                </button>
-                {labChallenges.map((challenge, index) => (
-                  <button
-                    key={challenge.id}
-                    type="button"
-                    onClick={() => setResultsTab(challenge.id)}
-                    className={resultsTabClass(String(resultsTab) === String(challenge.id))}
-                  >
-                    {challengeTabLabel(challenge, index)}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span className="text-sm font-medium text-foreground">Results</span>
+            {gradingStoppedEarly && (
+              <p className="text-sm text-foreground-muted">
+                Grading stopped — showing {rows.length} of {gradingTotal} students.
+              </p>
             )}
-            <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+              {labChallenges.length > 0 ? (
+                <div className="flex min-w-0 flex-wrap gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResultsTab('overview')}
+                    className={resultsTabClass(resultsTab === 'overview')}
+                  >
+                    Overview
+                  </button>
+                  {labChallenges.map((challenge, index) => (
+                    <button
+                      key={challenge.id}
+                      type="button"
+                      onClick={() => setResultsTab(challenge.id)}
+                      className={resultsTabClass(String(resultsTab) === String(challenge.id))}
+                    >
+                      {challengeTabLabel(challenge, index)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm font-semibold text-foreground">Results</span>
+              )}
+              <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+            </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+          <div className="mt-2 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-foreground-secondary">
@@ -624,32 +629,32 @@ export default function BulkGradingPanel({ labs = [] }) {
                 })}
               </tbody>
             </table>
-            {showResultsPagination && (
-              <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-foreground-secondary">
-                  Page {resultsPagination.page + 1} of {Math.max(resultsPagination.totalPages, 1)}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={resultsPagination.page <= 0}
-                    onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    disabled={resultsPagination.page >= resultsPagination.totalPages - 1}
-                    onClick={() => setResultsPage((p) => p + 1)}
-                    className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
+          {showResultsPagination && (
+            <div className="flex flex-col gap-3 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-foreground-secondary">
+                Page {resultsPagination.page + 1} of {Math.max(resultsPagination.totalPages, 1)}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={resultsPagination.page <= 0}
+                  onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={resultsPagination.page >= resultsPagination.totalPages - 1}
+                  onClick={() => setResultsPage((p) => p + 1)}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -2,7 +2,7 @@
 
 .u038 {
   --toggle-bg: var(--surface);
-  --toggle-border: var(--text-muted);
+  --toggle-border: var(--border);
   --toggle-icon: var(--primary-text);
 }
 

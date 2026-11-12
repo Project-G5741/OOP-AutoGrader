@@ -17,7 +17,9 @@ React 18 + Vite 7 SPA for the OOP AutoGrader: Google/IRN login, role-based dashb
 - React 18, Vite 7, Tailwind CSS 3 (`darkMode: 'class'`)
 - `react-router-dom` installed; `App.jsx` uses URL routes with role guards (`RequireRole`)
 - `@react-oauth/google` for Google sign-in
-- `lucide-react` for icons
+- Combined icons: `lucide-react` (compact controls, chevrons, action buttons) + `@phosphor-icons/react` Duotone/Fill (KPI wells, leaderboard podiums, notifications, report pillars)
+- Motion & vector animation: `framer-motion` (`MotionConfig reducedMotion="user"` in `main.jsx`) + `lottie-web/build/player/lottie_light` (CSP-safe offline JSON animations under `src/assets/lottie/`)
+- Offline fonts: bundled `@fontsource/plus-jakarta-sans` (400–800) + `@fontsource/jetbrains-mono` (400–600), zero external Google Fonts CDN calls
 - `flatpickr` for lecturer date fields (`DatePicker` in `src/components/ui/`)
 
 ### Environment
@@ -30,7 +32,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 | `VITE_API_URL` | Backend base URL (default `http://localhost:8002`; desktop build uses `http://127.0.0.1:18002` via `frontend/.env.desktop`) |
 | `VITE_MAINTENANCE_MODE` | Web-only lock. `true` / `1` / `yes` / `on` shows `MaintenancePage` for guests and students, and **clears student-only sessions** (token + presence). No login button on that page. Lecturers sign in at **`/staff`**. Student URLs redirect to the lecturer dashboard. Alias `NEXT_PUBLIC_MAINTENANCE_MODE`. Baked at **build** time — change on Vercel then **Redeploy**. Desktop (`VITE_APP_MODE=desktop`) ignores this flag. |
 
-**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, avatar menu omits **Change Password**, **Logout** uses `quitPracticeApp` (`utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`). Web student shell: **Practice folder** on the NavBar (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
+**Desktop offline bundle:** `npm run build:desktop` (`--mode desktop`) → `dist-desktop/` (copy into practice install `ui/dist-desktop/`). Entry `App.desktop.jsx`: synthetic student session, **Import rubric pack** in header (`DesktopRubricPackImport.jsx` — only `Rubric_{year}_Q{n}.agpack` / `Rubric_{name}.agpack`; shows Importing… while the API stages + eagerly materializes packs; after success a blocking **Okay**-only dialog posts `practice-restart` so the host closes and relaunches), `DesktopPracticeStatusBanner` waits for `bootstrapComplete` on `GET /api/desktop/status` then applies that settled state, header replaces the profile/account menu with a direct **Exit** button (`quitPracticeApp` in `utils/desktopQuit.js` → JSON-string `practice-quit` via `chrome.webview` / wry `window.ipc`; import uses `restartPracticeApp` → `practice-restart`), and omits deadline labels/badges and `StudentNotificationBell`. Web student shell: **Practice folder** on the NavBar (`StudentOfflinePracticeDownload.jsx`) — opens the prebuilt zip URL so the browser owns progress (`?access_token=`); lecturers distribute packs.
 
 ### Run
 
@@ -59,18 +61,19 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ### Theme
 
-- **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — primary, secondary, success, error, warning, surfaces, chart, etc.)
+- **Edit colors in one file:** `src/theme/tokens.js` (`theme.light` / `theme.dark` — `navy`, `gold`, `primary`, `secondary`, `success`, `error`, `warning`, `info`, `purple`, surfaces, charts). Follows a 60-30-10 Corporate EdTech hierarchy (60% neutral architectural surfaces, 30% Institutional Navy `#1E3A5F`/`#23456E` + Teal `#0D9488`, 10% Cobalt CTA + Gold/semantic highlights; Purple ≤ 10% AI-only)
 - **App naming + in-app logo:** `src/theme/brand.js` — graduation cap icon via `AppLogo` (`src/components/ui/AppLogo.jsx`)
 - **Tab favicon:** drop an image into `public/brand/` (`.png`, `.svg`, `.webp`, …). Optional `logo.<ext>` takes priority (`png` > `svg` > `webp` > …); otherwise newest file wins. Mid-session drops need `npm run theme:sync` (or restart dev).
-- **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css`, `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
-- Tailwind semantic classes (`bg-primary`, `text-success`, `bg-surface`, …) map to CSS variables — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
+- **`npm run theme:sync`** (also runs before `dev` / `build`) regenerates `src/theme/tokens.generated.css` (both `--<token>` hex and `--<token>-rgb` channels so Tailwind `/opacity` modifiers work), `src/theme/brand.assets.generated.js`, and the favicon block in `index.html`
+- Tailwind semantic classes (`bg-navy`, `bg-primary`, `text-success`, `bg-surface`, …) map to `--*-rgb` CSS variables (`rgb(var(--*-rgb) / <alpha-value>)`) — use these in components, never raw `blue-600` / `purple-*` / hex backgrounds
+- **Design bans:** zero CSS/Tailwind gradients (`linear-gradient`, `radial-gradient`, `conic-gradient`, `bg-gradient-*`) anywhere in `src/`, and zero nested bordered cards ("no card-inside-card" — use flush dividers, borderless tints, or `border-l-4` strips inside cards)
 - `ThemeContext` — OS default on first visit, `localStorage` key `oop-theme`, single `ThemeProvider` in `main.jsx`
-- `ThemeToggle.jsx` — circular sun/moon checkbox control (`ThemeToggle.css`, token vars `--surface`, `--text-muted`, `--primary-text`); used in `Header` and auth/maintenance pages
+- `ThemeToggle.jsx` — circular sun/moon checkbox control (`ThemeToggle.css`, token vars `--surface`, `--border`, `--primary-text`); used in `Header` and auth/maintenance pages
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
-- Dark mode in `src/index.css`: `html` / `html.dark` set `color-scheme` so native controls (Flatpickr month `<select>`, file pickers) match the theme; drop default shadows and outline borders on surface panels and buttons (inputs and table row dividers keep their edges)
+- Dark mode & 3D helpers in `src/index.css`: `html` / `html.dark` set `color-scheme` so native controls match the theme; `.dark` uses calibrated `#0B1220`/`#111A2E`/`#2A3956` surfaces/borders + `.shadow-stage-1/2/3` shadows alongside `.perspective-1000` / `.preserve-3d` and `@media (prefers-reduced-motion: reduce)` guards
 - Grading status helpers: `src/theme/statusClasses.js`
-- Design reference: `docs/design/color-theory-light-dark-theme.md`
+- Design reference: `docs/design/color-theory-light-dark-theme.md` and `design-system/oop-autograder/MASTER.md`
 
 ### Design intelligence (UI/UX Pro Max)
 
@@ -103,7 +106,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - API error bodies: adjust copy in `src/config/apiErrorMessages.js`; mapping in `src/utils/apiError.js` (`readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`). Never surface raw backend `message`/`error`/`detail` except for contexts in `BACKEND_MESSAGE_CONTEXTS` (and download 403/404/503). **429** → rate-limit jail, not toast-only busy. Context `import` (desktop pack): backend message for 400/409/413/422; network → `DESKTOP_IMPORT_NETWORK`. Context `solution-import` (lecturer folder): backend message for 400/404/409/413/422; network → `FRIENDLY.SERVER_BUSY`.
 - Default `Footer` (AppShell) calls `GET /api/presence/count` on mount, route change, window focus, and tab visible (no interval timer — idle tabs do not wake a serverless API). Hidden tab / `pagehide` / logout send `DELETE /api/presence/leave`. Count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login; other `apiFetch` **401** paths still hard-cut. Idle open tabs may show signed-in UI until the next presence probe or API call. Presence paths are excluded from the server burst budget.
 - Rate-limit jail: `RateLimitedPage` at `/rate-limited`; prior path in `sessionStorage` via `src/utils/rateLimitJail.js`; hold from `Retry-After` or 5s then return
-- Student header, right to left: equipped mascot (`headerAddon`), account menu, mascot shop, streak flame (`headerBeforeUserMenu`). Logout is the last item in the account menu, under Change Password. Home, History, and Ranking use the lecturer nav bar on the next row, aligned to the start, with no hamburger. The avatar menu keeps Change Password and Logout. Out-of-term students see History only. Desktop omits Ranking, streak flame, points/shop, and mission pets; it keeps the default fox with local `page-mascot` click reactions only.
+- Student header, right to left: equipped mascot (`headerAddon`), account menu (web) or direct **Exit** button (desktop), mascot shop, streak flame (`headerBeforeUserMenu`). On web, Logout is the last item in the account menu, under Change Password. Home, History, and Ranking use the lecturer nav bar on the next row, aligned to the start, with no hamburger. The avatar menu keeps Change Password and Logout. Out-of-term students see History only. Desktop omits the profile/account menu (shows **Exit** only), Ranking, streak flame, points/shop, mission pets, deadline labels/badges, and the notification bell; it keeps the default fox with local `page-mascot` click reactions only.
 - Signed-in web `AppShell` mounts a Feedback FAB (`fixed` bottom-right `z-[90]`, under modals/toast). Login and desktop (`VITE_APP_MODE === 'desktop'`) do not show it. Form: `frontend/src/components/feedback/`.
 - Post-upload refresh updates stats cards + challenges sidebar + class panel only (`isRefreshingResults`); lab selector and DropZone stay mounted
 - Class tab data is cached per challenge id in memory; switching back to a loaded challenge skips `/class`
