@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getThemePreset, isValidThemeId, themeMetaList } from '../theme/tokens';
 
 const STORAGE_KEY = 'oop-theme';
 const THEME_TRANSITION_MS = 36;
@@ -29,26 +30,33 @@ function readSystemDark() {
 function readStoredTheme() {
   if (typeof window === 'undefined') return null;
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') return stored;
-  return null;
+  return isValidThemeId(stored) ? stored : null;
 }
 
-function applyThemeClass(isDark) {
-  document.documentElement.classList.toggle('dark', isDark);
+function resolveInitialTheme() {
+  return readStoredTheme() ?? (readSystemDark() ? 'dark' : 'light');
 }
+
+function applyThemeAttributes(themeId) {
+  if (typeof document === 'undefined') return;
+  const preset = getThemePreset(themeId);
+  const root = document.documentElement;
+  root.dataset.theme = preset.id;
+  root.classList.toggle('dark', preset.colorScheme === 'dark');
+}
+
+// Apply synchronously before React mounts to prevent a flash of wrong theme.
+applyThemeAttributes(resolveInitialTheme());
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(() => {
-    const stored = readStoredTheme();
-    if (stored) return stored;
-    return readSystemDark() ? 'dark' : 'light';
-  });
+  const [theme, setThemeState] = useState(resolveInitialTheme);
 
-  const isDark = theme === 'dark';
+  const preset = getThemePreset(theme);
+  const isDark = preset.colorScheme === 'dark';
 
   useEffect(() => {
-    applyThemeClass(isDark);
-  }, [isDark]);
+    applyThemeAttributes(preset.id);
+  }, [preset.id]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -61,8 +69,8 @@ export function ThemeProvider({ children }) {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const setTheme = useCallback((next) => {
-    const value = next === 'dark' ? 'dark' : 'light';
+  const setTheme = useCallback((nextId) => {
+    const value = isValidThemeId(nextId) ? nextId : 'light';
     localStorage.setItem(STORAGE_KEY, value);
     enableThemeTransition();
     setThemeState(value);
@@ -72,8 +80,19 @@ export function ThemeProvider({ children }) {
     setTheme(isDark ? 'light' : 'dark');
   }, [isDark, setTheme]);
 
+  const themeMeta = themeMetaList.find((item) => item.id === preset.id) ?? themeMetaList[0];
+
   return (
-    <ThemeContext.Provider value={{ theme, isDark, setTheme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        theme: preset.id,
+        themeMeta,
+        themes: themeMetaList,
+        isDark,
+        setTheme,
+        toggleTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

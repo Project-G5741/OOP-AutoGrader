@@ -111,7 +111,7 @@ export default function FirstTimeSetupUI({ token, profile = {}, onClose, onCompl
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6 transition-colors">
       <LoginBackground />
-      <ThemeToggle className="absolute top-6 right-6 z-10" />
+      <ThemeToggle className="absolute top-6 right-6 z-30" />
 
       <div className="relative w-full max-w-md z-10">
         <div className="bg-surface rounded-2xl shadow-stage-3 border border-border overflow-hidden">

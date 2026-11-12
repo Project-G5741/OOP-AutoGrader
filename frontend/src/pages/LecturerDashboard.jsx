@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { RefreshCw, ChevronRight, Search } from 'lucide-react';
 import { ChartBar, FolderOpen, UsersThree, WarningCircle } from '@phosphor-icons/react';
-import { useTheme } from '../context/ThemeContext';
 import AppShell from '../components/layout/AppShell';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
 import DashboardSection from '../components/lecturer/DashboardSection';
@@ -109,7 +108,6 @@ async function fetchAllGradeOverview(sort = 'studentName,asc') {
 }
 
 export default function LecturerDashboard({ user, onLogout }) {
-  const { isDark } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const activeNav = LECTURER_ROUTE_TO_NAV[location.pathname] || 'dashboard';
@@ -872,7 +870,7 @@ export default function LecturerDashboard({ user, onLogout }) {
         : false;
 
   return (
-    <div className={isDark ? 'dark' : ''}>
+    <>
       <AppShell
         user={user}
         onLogout={onLogout}
@@ -1264,6 +1262,6 @@ export default function LecturerDashboard({ user, onLogout }) {
         hasClass={activeChallengeTab?.challenge?.hasClass}
         student={selectedChallengeStudent}
       />
-    </div>
+    </>
   );
 }

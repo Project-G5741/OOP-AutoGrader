@@ -22,6 +22,7 @@ export default {
           hover: cssVar('navy-hover'),
           light: cssVar('navy-light'),
           text: cssVar('navy-text'),
+          foreground: cssVar('on-navy'),
         },
         gold: {
           DEFAULT: cssVar('gold'),
@@ -35,6 +36,7 @@ export default {
           active: cssVar('primary-active'),
           light: cssVar('primary-light'),
           text: cssVar('primary-text'),
+          foreground: cssVar('on-primary'),
         },
         secondary: {
           DEFAULT: cssVar('secondary'),
@@ -115,9 +117,9 @@ export default {
         },
       },
       boxShadow: {
-        'stage-1': '0 2px 6px -1px rgba(15, 23, 42, 0.06), 0 1px 3px -1px rgba(15, 23, 42, 0.04)',
-        'stage-2': '0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 10px -4px rgba(15, 23, 42, 0.04)',
-        'stage-3': '0 22px 44px -12px rgba(15, 23, 42, 0.16), 0 8px 18px -6px rgba(15, 23, 42, 0.06)',
+        'stage-1': '0 2px 6px -1px rgb(var(--shadow-rgb) / 0.06), 0 1px 3px -1px rgb(var(--shadow-rgb) / 0.04)',
+        'stage-2': '0 10px 25px -5px rgb(var(--shadow-rgb) / 0.08), 0 4px 10px -4px rgb(var(--shadow-rgb) / 0.04)',
+        'stage-3': '0 22px 44px -12px rgb(var(--shadow-rgb) / 0.16), 0 8px 18px -6px rgb(var(--shadow-rgb) / 0.06)',
       },
       animation: {
         'toast-in': 'toast-in 0.3s ease-out forwards',

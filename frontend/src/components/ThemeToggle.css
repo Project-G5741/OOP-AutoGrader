@@ -1,64 +1,181 @@
-/* Scoped to .u038 — colors from src/theme/tokens.js via CSS variables. */
+/* Scoped to .u038 — colors from src/theme/tokens.js & presets/*.js via CSS variables. */
 
 .u038 {
   --toggle-bg: var(--surface);
   --toggle-border: var(--border);
-  --toggle-icon: var(--primary-text);
+  --toggle-accent: var(--primary);
 }
 
-.u038 .theme {
+.u038 .theme-trigger {
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   background-color: var(--toggle-bg);
-  border-radius: 100%;
+  color: var(--toggle-accent);
+  border-radius: 9999px;
   border: 1.5px solid var(--toggle-border);
   box-shadow: 2px 2px 0 var(--toggle-border);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-.u038 .input {
   cursor: pointer;
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  z-index: 10;
-  opacity: 0;
-  margin: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.u038 .icon {
-  position: absolute;
-  top: calc(50% - 8px);
-  left: calc(50% - 8px);
-  width: 16px;
-  height: 16px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.25s ease;
+.u038 .theme-trigger:hover {
+  border-color: var(--toggle-accent);
 }
 
-.u038 .icon.icon-moon {
-  fill: var(--toggle-icon);
-  opacity: 1;
+.u038 .theme-trigger:focus-visible {
+  outline: 2px solid var(--toggle-accent);
+  outline-offset: 2px;
 }
 
-.u038 .icon.icon-sun {
-  stroke: var(--toggle-icon);
-}
-
-.u038 .input:checked ~ .icon.icon-sun {
-  opacity: 1;
-}
-
-.u038 .input:checked ~ .icon.icon-moon {
-  opacity: 0;
-}
-
-.u038 .theme:active {
+.u038 .theme-trigger:active {
   box-shadow: 0 0 var(--toggle-border);
   transform: translate(2px, 2px);
+}
+
+.u038 .theme-trigger-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.u038 .theme-trigger-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background-color: var(--toggle-accent);
+  border: 2px solid var(--toggle-bg);
+  pointer-events: none;
+}
+
+.u038 .theme-arc-anchor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* 52x52 enlarged orb centered on the 40x40 trigger ((40 - 52) / 2 = -6px) */
+.u038 .theme-orb {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 52px;
+  height: 52px;
+  border-radius: 9999px;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+}
+
+.u038 .theme-orb:focus-visible {
+  outline: 2px solid var(--toggle-accent);
+  outline-offset: 2px;
+}
+
+.u038 .theme-orb-core {
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  border: 1.5px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.u038 .theme-orb-check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.u038 .theme-orb-label {
+  position: absolute;
+  right: 60px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 5px 11px;
+  border-radius: 9999px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.u038 .theme-orb:hover .theme-orb-label,
+.u038 .theme-orb:focus-visible .theme-orb-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Compact clickable group-switcher pill anchored right below the 3rd orb */
+.u038 .theme-page-pill {
+  position: absolute;
+  top: 138px;
+  right: -4px;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 6px 16px rgb(var(--shadow-rgb) / 0.22);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s ease;
+}
+
+.u038 .theme-page-pill:hover {
+  border-color: var(--primary);
+  background-color: var(--surface-secondary);
+}
+
+.u038 .theme-page-pill:active {
+  transform: scale(0.96);
+}
+
+.u038 .theme-page-pill:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.u038 .theme-page-count {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
 }

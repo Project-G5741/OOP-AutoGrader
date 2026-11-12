@@ -277,7 +277,7 @@
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
-  z-index: 2;
+  z-index: 30;
 }
 
 .login-back {
