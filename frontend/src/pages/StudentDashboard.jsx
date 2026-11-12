@@ -91,6 +91,11 @@ function mergeTestcaseBundle(challengeId, testcaseJson, cacheRef) {
   return mapped;
 }
 
+function bundleClassList(bundle) {
+  const classes = bundle?.class ?? bundle?.classData;
+  return Array.isArray(classes) ? classes : [];
+}
+
 function applyChallengeBundle(bundle) {
   if (!bundle) {
     return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
@@ -100,7 +105,7 @@ function applyChallengeBundle(bundle) {
     || bundle.score_applicability?.testcase === true
     || (Array.isArray(bundle.testcases) && bundle.testcases.length > 0);
   return {
-    classData: normalizeClassData(bundle.class ?? []),
+    classData: normalizeClassData(bundleClassList(bundle)),
     mmdData: mmd.classes,
     mmdParseError: mmd.parseError,
     testCases: testcaseApplicable ? mapOperationalTestcases(bundle.testcases) : [],
@@ -142,10 +147,11 @@ function applyCachedBundleToState(
 function indexLabResultByChallengeId(labResult, challenges) {
   if (!labResult) return {};
   const indexed = {};
-  for (const challenge of challenges) {
-    const challengeNumber = challenge.challengeNumber ?? challenge.challenge_number;
+  for (const challenge of challenges ?? []) {
+    const challengeNumber = challenge.challengeNumber ?? challenge.challenge_number ?? challenge.number;
     if (challengeNumber == null) continue;
-    const bundle = labResult[`challenge_${challengeNumber}`];
+    const bundle = labResult[`challenge_${challengeNumber}`]
+      ?? labResult[`challenge_${Number(challengeNumber)}`];
     if (bundle) {
       indexed[challengeCacheKey(challenge.id)] = bundle;
     }
@@ -166,7 +172,7 @@ function isThinChallengeBundle(bundle) {
   if (!bundle) {
     return true;
   }
-  const classes = bundle.class ?? [];
+  const classes = bundleClassList(bundle);
   const mmdClasses = bundle.mmd?.classes ?? (Array.isArray(bundle.mmd) ? bundle.mmd : []);
   const testcases = bundle.testcases ?? [];
   const applicability = bundle.scoreApplicability ?? bundle.score_applicability ?? {};
@@ -815,8 +821,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
 
     const selectedKey = challengeCacheKey(selectedChallengeId);
+    const inlineOnly = labSession?.persisted === false;
     const cachedBundle = labResultCacheRef.current[selectedKey];
-    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
+    if (cachedBundle && (inlineOnly || !isThinChallengeBundle(cachedBundle))) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -824,6 +831,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           setMmdParseError,
           setTestCases,
           setClassNormalizationNotice);
+      return;
+    }
+    if (inlineOnly) {
+      applyDetailCachesToState(selectedKey);
       return;
     }
 
@@ -914,8 +925,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
     const key = challengeCacheKey(challengeId);
+    const inlineOnly = sessionResultsByLab[selectedLabId]?.persisted === false;
     const cachedBundle = labResultCacheRef.current[key];
-    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
+    if (cachedBundle && (inlineOnly || !isThinChallengeBundle(cachedBundle))) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -923,6 +935,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           setMmdParseError,
           setTestCases,
           setClassNormalizationNotice);
+      return;
+    }
+    if (inlineOnly) {
+      applyDetailCachesToState(key);
       return;
     }
     if (detailCachesReady(
@@ -993,6 +1009,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const submissionId = uploadResponse?.submissionId ?? null;
 
     const labResult = uploadResponse?.lab_result ?? uploadResponse?.labResult ?? null;
+    const inlineOnly = uploadResponse?.persisted === false;
 
     const scoreToast = {
       message: score != null
@@ -1001,7 +1018,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       type: 'success',
     };
     void refreshStreak();
-    const indexedLabResult = indexLabResultByChallengeId(labResult, challenges);
+    const challengeList = (challenges && challenges.length > 0)
+      ? challenges
+      : (challengesByLabRef.current[selectedLabId] ?? []);
+    const indexedLabResult = indexLabResultByChallengeId(labResult, challengeList);
     const challengeScores = {
       ...normalizeChallengeScores(resultMap),
       ...challengeScoresFromBundles(indexedLabResult),
@@ -1037,6 +1057,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           : null,
         challengeScores,
         challengeBundles: indexedLabResult,
+        persisted: !inlineOnly,
       },
     }));
 
@@ -1064,7 +1085,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setIsLoadingDetails(false);
     try {
       for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
-        if (!bundle || isThinChallengeBundle(bundle)) continue;
+        if (!bundle || (!inlineOnly && isThinChallengeBundle(bundle))) continue;
         const key = challengeCacheKey(challengeId);
         const applied = applyChallengeBundle(bundle);
         classDataCacheRef.current[key] = applied.classData;
@@ -1075,7 +1096,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         };
         testcaseDataCacheRef.current[key] = applied.testCases;
       }
-      const thinChallenges = (challenges ?? []).filter((ch) => {
+      const thinChallenges = inlineOnly ? [] : (challengeList ?? []).filter((ch) => {
         const key = challengeCacheKey(ch?.id);
         return key && hasSessionChallengeScore(challengeScores, ch?.id) && isThinChallengeBundle(indexedLabResult[key]);
       });

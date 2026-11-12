@@ -384,7 +384,8 @@ public class SubmissionController {
                 attemptNumber,
                 attemptNumber,
                 latest,
-                gradingOutcome.labResult());
+                gradingOutcome.labResult(),
+                false);
     }
 
     private void scheduleSubmissionRetention(LabSubmission submission) {

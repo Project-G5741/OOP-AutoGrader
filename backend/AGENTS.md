@@ -164,7 +164,7 @@ Grading tuning properties (`application.properties`):
 | `app.analytics.lab-statistics-cache-ttl-seconds` | `30` | TTL for `/api/labs/{id}/statistics`; invalidated on upload for that lab |
 | `app.analytics.lab-statistics-cache-max-size` | `64` | Hard cap on lab-statistics cache entries |
 | `app.cache.sweep-interval-ms` | `30000` | Proactive sweep of expired in-process TTL cache entries (`InProcessTtlCacheSweeper`, includes `LabRubricCache`) |
-| `app.submission.daily-max-per-student` | `30` | Web/cloud only (`!desktop`): max persisted uploads per student per Vietnam calendar day (all labs); HTTP **429** + `X-Daily-Submission-Limit: 1` when exceeded; Admin test uploads unchanged (discarded before persist) |
+| `app.submission.daily-max-per-student` | `30` | Web/cloud only (`!desktop`): max persisted uploads per student per Vietnam calendar day (all labs); HTTP **429** + `X-Daily-Submission-Limit: 1` when exceeded; Admin test uploads unchanged (discarded before persist; response `persisted: false` plus full student `lab_result` trees) |
 | `app.submission.retention.enabled` | `true` (cloud); `false` on `desktop` profile | Strip extra on-time details and delete late rows after upload + nightly job |
 | `app.submission.retention.max-per-lab` | `1` | Nightly finder: extra on-time rows beyond the latest attempt that still have ticks (on-time highest keeps ticks in Java) |
 | `app.submission.retention.max-per-student` | `1` | Legacy alias for `max-per-lab` when the new key is unset |

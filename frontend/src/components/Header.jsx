@@ -4,6 +4,7 @@ import ThemeToggle from './ThemeToggle';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
+import { studentAreaWaitMs } from '../utils/studentAreaGate';
 
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
@@ -26,8 +27,26 @@ export default function Header({
 }) {
   const reducedMotion = useReducedMotion();
   const [openMenu, setOpenMenu] = useState(false);
+  const [studentAreaLocked, setStudentAreaLocked] = useState(
+    () => showStudentArea && studentAreaWaitMs() > 0,
+  );
   const menuRef = useRef(null);
   const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
+
+  useEffect(() => {
+    if (!showStudentArea) {
+      setStudentAreaLocked(false);
+      return undefined;
+    }
+    const wait = studentAreaWaitMs();
+    if (wait <= 0) {
+      setStudentAreaLocked(false);
+      return undefined;
+    }
+    setStudentAreaLocked(true);
+    const timer = setTimeout(() => setStudentAreaLocked(false), wait);
+    return () => clearTimeout(timer);
+  }, [showStudentArea]);
 
   useEffect(() => {
     if (IS_DESKTOP_APP || !openMenu) return undefined;
@@ -150,7 +169,16 @@ export default function Header({
                     </button>
                     )}
                     {showStudentArea && (
-                    <button onClick={() => handleMenu('studentArea')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary">
+                    <button
+                      type="button"
+                      disabled={studentAreaLocked}
+                      title={studentAreaLocked ? 'Available 5 seconds after sign-in' : undefined}
+                      onClick={() => {
+                        if (studentAreaLocked) return;
+                        handleMenu('studentArea');
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       <GraduationCap className="h-4 w-4 text-primary" /> Student area
                     </button>
                     )}

@@ -28,6 +28,7 @@ import TermManagement from './TermManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { hasRole, LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
+import { awaitStudentAreaAfterLogin } from '../utils/studentAreaGate';
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
@@ -854,7 +855,11 @@ export default function LecturerDashboard({ user, onLogout }) {
 
   const handleShellCommand = useCallback((cmd) => {
     if (cmd === 'home') navigate(ROUTES.lecturerDashboard);
-    else if (cmd === 'studentArea') navigate(ROUTES.studentDashboard);
+    else if (cmd === 'studentArea') {
+      void awaitStudentAreaAfterLogin().then((allowed) => {
+        if (allowed) navigate(ROUTES.studentDashboard);
+      });
+    }
     else if (cmd === 'changePassword' || cmd === 'editProfile') setShowProfile(true);
   }, [navigate]);
 
