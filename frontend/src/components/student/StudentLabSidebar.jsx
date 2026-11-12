@@ -20,6 +20,8 @@ import {
 import { Badge } from '../ui/badge';
 import { deadlineCountdownBadge, deadlineDaysLeft, formatLabDeadlineMeta } from '../../theme/statusClasses';
 
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
+
 function labBadge(lab, now) {
   const daysLeft = deadlineDaysLeft(lab.deadlineDate, now);
   if (daysLeft === 0 || lab.urgencyState === 'EXPIRED') {
@@ -61,7 +63,7 @@ export default function StudentLabSidebar({
               <ItemGroup>
                 {labs.map((lab) => {
                   const selected = String(lab.id) === String(selectedLabId);
-                  const badge = labBadge(lab, now);
+                  const badge = IS_DESKTOP_APP ? null : labBadge(lab, now);
                   return (
                     <Item
                       key={lab.id}
@@ -89,7 +91,9 @@ export default function StudentLabSidebar({
                         <ItemTitle className={selected ? 'text-primary-text' : undefined}>
                           {lab.name}
                         </ItemTitle>
-                        <ItemDescription>{formatLabDeadlineMeta(lab, { withUrgencyHint: false })}</ItemDescription>
+                        {!IS_DESKTOP_APP && (
+                          <ItemDescription>{formatLabDeadlineMeta(lab, { withUrgencyHint: false })}</ItemDescription>
+                        )}
                       </ItemContent>
                       {badge && (
                         <ItemActions>

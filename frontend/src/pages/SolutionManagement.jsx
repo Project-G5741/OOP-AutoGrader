@@ -960,7 +960,12 @@ export default function SolutionManagement() {
             />
           )}
 
-          <div className="flex flex-col gap-4 lg:flex-row">
+          <div className="relative flex flex-col gap-4 lg:flex-row">
+            {structureLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/80 backdrop-blur-[2px]">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            )}
             <StructureTree
               draft={draft}
               expandedChallenges={expandedChallenges}

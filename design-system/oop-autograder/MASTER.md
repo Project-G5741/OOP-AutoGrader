@@ -7,47 +7,33 @@
 ---
 
 **Project:** OOP AutoGrader
-**Generated:** 2026-09-09 21:44:46
-**Category:** Research Lab / University Department
+**Updated:** 2026-11-12
+**Category:** Corporate EdTech / Institutional OOP Assessment Platform
 
 ---
 
 ## Global Rules
 
-### Color Palette
+### 60-30-10 Color Hierarchy (`frontend/src/theme/tokens.js`)
 
-| Role | Hex | CSS Variable |
-|------|-----|--------------|
-| Primary | `#1E3A5F` | `--color-primary` |
-| On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#2563EB` | `--color-secondary` |
-| On Secondary | `#FFFFFF` | `--color-on-secondary` |
-| Accent/CTA | `#A16207` | `--color-accent` |
-| On Accent/CTA | `#FFFFFF` | `--color-on-accent` |
-| Background | `#F8FAFC` | `--color-background` |
-| Foreground | `#0F172A` | `--color-foreground` |
-| Card | `#FFFFFF` | `--color-card` |
-| Card Foreground | `#0F172A` | `--color-card-foreground` |
-| Muted | `#E9EEF5` | `--color-muted` |
-| Muted Foreground | `#475569` | `--color-muted-foreground` |
-| Border | `#CBD5E1` | `--color-border` |
-| Destructive | `#DC2626` | `--color-destructive` |
-| On Destructive | `#FFFFFF` | `--color-on-destructive` |
-| Ring | `#1E3A5F` | `--color-ring` |
+- **60% Neutral Architectural Surfaces:**
+  - Light: App `#F8FAFC`, Card `#FFFFFF`, Secondary `#F1F5F9`, Tertiary `#E2E8F0`, Border `#CBD5E1`, Subtle Border `#E2E8F0`, Foreground `#0F172A` / `#475569` / `#64748B`.
+  - Dark: App `#0B1220`, Card `#111A2E`, Secondary `#18243C`, Tertiary `#22304C`, Border `#2A3956`, Subtle Border `#1E2D47`, Foreground `#F8FAFC` / `#CBD5E1` / `#94A3B8`.
+- **30% Institutional Anchors:**
+  - Corporate Navy: `#1E3A5F` (`navy`, Light) / `#23456E` (`navy`, Dark); hover `#162C47` / `#2B5385`; soft wash `#E8EEF5` / `#162840`.
+  - Supporting Teal: `#0D9488` (Light & Dark); hover `#0F766E` / `#14B8A6`; wash `#CCFBF1` / `#113A3A`; text `#115E59` / `#5EEAD4`.
+- **10% Interactive & Selective Accents:**
+  - Interactive Cobalt (`primary`): `#2563EB` (`primary-hover` `#1D4ED8` Light / `#3B82F6` Dark; `primary-text` `#1E3A8A` Light / `#93C5FD` Dark).
+  - Academic Gold (`gold`): `#D97706` (Light) / `#F59E0B` (Dark), used selectively for Rank #1 trophies, honors, and daily streak flame (`StudentStreakFlame`).
+  - Semantic statuses: Success `#16A34A`, Warning `#D97706`, Error `#DC2626` (Light) / `#EF4444` (Dark), Info `#0284C7`.
+  - AI Accent Purple (`purple`): `#7C3AED` (Light) / `#8B5CF6` (Dark), strictly ≤ 10% (`ReportsPanel` AI insights & selected spark highlights).
 
-**Color Notes:** Institutional navy + research accent + serif headings
+**Color Rules:** Single source of truth is `frontend/src/theme/tokens.js` synced by `npm run theme:sync`. Never use raw Tailwind palette utilities (`bg-blue-*`, `bg-purple-*`, etc.).
 
-### Typography
+### Typography (Offline-Safe Bundled Fontsource)
 
-- **Heading Font:** EB Garamond
-- **Body Font:** Crimson Text
-- **Mood:** academic, old-school, university, research, serious, traditional
-- **Google Fonts:** [EB Garamond + Crimson Text](https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500;600;700;800&display=swap)
-
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=EB+Garamond:wght@400;500;600;700;800&display=swap');
-```
+- **UI Sans Font:** `Plus Jakarta Sans` (400, 500, 600, 700, 800 via `@fontsource/plus-jakarta-sans` — Vietnamese glyphs included, zero Google Fonts CDN).
+- **Code / IDs / Tabular Mono Font:** `JetBrains Mono` (400, 500, 600 via `@fontsource/jetbrains-mono`), paired with `tabular-nums` on scores, IRNs, counters, and deadlines.
 
 ### Spacing Variables
 
@@ -188,14 +174,15 @@
 - ❌ no publication filtering
 - ❌ cluttered visuals
 
-### Additional Forbidden Patterns
+### Anti-Patterns (Strictly Forbidden)
 
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have cursor:pointer
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio
-- ❌ **Instant state changes** — Always use transitions (150-300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for a11y
+- ❌ **CSS / Tailwind Gradients** — No `linear-gradient`, `radial-gradient`, `conic-gradient`, or Tailwind `bg-gradient-*` / `from-` / `via-` / `to-` utilities anywhere; use crisp flat colors, borders, shadows, and 3D perspective planes.
+- ❌ **Nested Bordered Cards ("no card-inside-card")** — Never wrap cards inside another bordered card (`DashboardSection`, `Reports`, `StudentRankingPage` stay borderless). Inside a card, use `border-t` / `divide-y` dividers, borderless `bg-surface-secondary` tints, or `border-l-4` accent strips.
+- ❌ **Emojis as icons** — Use SVG icons (`lucide-react` for crisp controls/actions + `@phosphor-icons/react` Duotone/Fill for KPI wells, podiums, alerts, and section anchors) plus bundled CSP-safe Lottie animations (`lottie_light`).
+- ❌ **Invisible dark-mode borders** — Always preserve calibrated `--border` (`#2A3956`) and `--shadow-stage-*` depth in `.dark`.
+- ❌ **Missing cursor:pointer / focus states** — All clickable controls need clear hover/focus rings (`outline-none focus-visible:ring-2`).
+- ❌ **Layout-shifting hovers & unguarded motion** — Respect `<MotionConfig reducedMotion="user">` and `@media (prefers-reduced-motion: reduce)`.
+- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio across Light and Dark surfaces.
 
 ---
 
@@ -203,13 +190,10 @@
 
 Before delivering any UI code, verify:
 
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from consistent icon set (Heroicons/Lucide)
-- [ ] `cursor-pointer` on all clickable elements
-- [ ] Hover states with smooth transitions (150-300ms)
-- [ ] Light mode: text contrast 4.5:1 minimum
-- [ ] Focus states visible for keyboard navigation
-- [ ] `prefers-reduced-motion` respected
-- [ ] Responsive: 375px, 768px, 1024px, 1440px
-- [ ] No content hidden behind fixed navbars
-- [ ] No horizontal scroll on mobile
+- [ ] Zero CSS/Tailwind gradients anywhere in `frontend/src/`
+- [ ] Zero nested bordered cards ("card-inside-card")
+- [ ] Single source of truth in `src/theme/tokens.js` + zero raw Tailwind palette classes
+- [ ] Bundled fonts & Lottie assets work 100% offline (`npm run build:desktop` verified)
+- [ ] Light & Dark themes preserve crisp borders (`#CBD5E1` / `#2A3956`) and stage shadows
+- [ ] `prefers-reduced-motion` freezes Lottie on calm frame and skips 3D spring motion
+- [ ] Responsive at `375px`, `768px`, `1024px`, `1440px` without horizontal overflow

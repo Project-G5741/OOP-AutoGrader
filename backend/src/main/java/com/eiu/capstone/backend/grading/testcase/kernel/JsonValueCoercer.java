@@ -62,7 +62,11 @@ public class JsonValueCoercer {
             }
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
-            return String.valueOf(value);
+            try {
+                return objectMapper.writeValueAsString(String.valueOf(value));
+            } catch (Exception ignored) {
+                return "null";
+            }
         }
     }
 

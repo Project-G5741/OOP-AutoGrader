@@ -9,19 +9,19 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | Student/lecturer code + password login, Google OAuth, forgot-password entry, JWT decode |
+| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane with `oop-stage.json` Lottie + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; zero nested borders, zero gradients) |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert`. Set Password uses `PasswordStrengthField` (strength meter + rule checks); submit still follows `getFirstTimeSetupErrors` (6–100 characters) |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
-| `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
-| `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
-| `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`) |
+| `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
+| `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
+| `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
-| `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
-| `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
-| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; Dribbble-style split layout with 3D graduation-cap hero (`/maintenance/maintenance-hero.jpg`); no sign-in button. Lecturers open `/staff` (not linked on the page) |
+| `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
+| `RateLimitedPage.jsx` | Burst-guard 429 jail: `StageCard3D` + animated SVG countdown progress ring, hold then return to prior location |
+| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; split architectural 3D hero (`/maintenance/maintenance-hero.jpg`, zero gradients); no sign-in button. Lecturers open `/staff` (not linked on the page) |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import, email current-quarter roster |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
@@ -90,7 +90,7 @@ Same bar and buttons as the lecturer shell, on its own row under the header. Stu
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build hides **Change Password** and omits Ranking from the nav. **Logout** is the last account-menu item, under Change Password. The student header shop button shows the point balance and opens the mascot shop.
+Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build replaces the profile/account menu with a direct **Exit** button and omits Ranking from the nav. On web, **Logout** is the last account-menu item, under Change Password, and the student header shop button shows the point balance and opens the mascot shop.
 
 ### API endpoints used from pages
 

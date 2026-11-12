@@ -49,10 +49,12 @@ export default function StudentRankingPage({ user, inCurrentTerm = true }) {
   }, []);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-xl border border-border bg-surface p-3 shadow-sm sm:p-4">
-      <h1 className="text-lg font-semibold text-foreground">Ranking</h1>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Ranking</h1>
+      </div>
       {!inCurrentTerm ? (
-        <p className="rounded-xl bg-warning-bg px-4 py-3 text-sm text-warning-text">
+        <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-4 py-3 text-sm text-warning-text">
           Ranking is for students enrolled in the current quarter.
         </p>
       ) : null}

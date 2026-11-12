@@ -10,25 +10,25 @@ const TESTS = {
 };
 
 const RULES = [
-  { id: 'len', label: '6+ characters' },
-  { id: 'up', label: 'An uppercase letter' },
-  { id: 'num', label: 'A number' },
-  { id: 'sym', label: 'A symbol' },
+  { id: 'len', label: '6+ chars' },
+  { id: 'up', label: 'Uppercase' },
+  { id: 'num', label: 'Number' },
+  { id: 'sym', label: 'Symbol' },
 ];
 
 const LEVELS = [
-  ['Type a password', 'var(--ux-line-2)'],
-  ['Weak', '#E5484D'],
-  ['Fair', '#F07A3E'],
-  ['Good', '#E8B417'],
-  ['Strong', 'var(--ux-mint)'],
+  ['—', 'var(--ux-line-2)'],
+  ['Weak', 'var(--error)'],
+  ['Fair', 'var(--warning)'],
+  ['Good', 'var(--gold)'],
+  ['Strong', 'var(--success)'],
 ];
 
 export default function PasswordStrengthField({
   value,
   onChange,
   onBlur,
-  placeholder = 'Create a password',
+  placeholder = '6+ characters',
   error = '',
 }) {
   const uid = useId();

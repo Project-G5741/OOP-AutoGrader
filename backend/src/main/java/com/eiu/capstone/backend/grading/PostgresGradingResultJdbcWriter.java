@@ -74,7 +74,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                     FROM lab l
                     WHERE l.id = ins.lab_id
                 ) q
-                ON CONFLICT ON CONSTRAINT student_lab_progress_user_lab_key
+                ON CONFLICT (user_id, lab_id)
                 DO UPDATE SET
                     last_submitted_at = EXCLUDED.last_submitted_at,
                     attempts_count = EXCLUDED.attempts_count,
@@ -205,7 +205,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 SELECT gen_random_uuid(), ?, x.challenge_id, x.is_correct, x.score, x.mmd_outcomes::jsonb
                 FROM unnest(?::uuid[], ?::boolean[], ?::numeric[], ?::text[])
                     AS x(challenge_id, is_correct, score, mmd_outcomes)
-                ON CONFLICT ON CONSTRAINT submission_challenge_result_key
+                ON CONFLICT (submission_id, challenge_id)
                 DO UPDATE SET
                     is_correct = EXCLUDED.is_correct,
                     score = EXCLUDED.score,
@@ -265,9 +265,9 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                 INSERT INTO %s (id, submission_id, %s, is_correct)
                 SELECT gen_random_uuid(), ?, x.element_id, x.is_correct
                 FROM unnest(?::uuid[], ?::boolean[]) AS x(element_id, is_correct)
-                ON CONFLICT ON CONSTRAINT %s
+                ON CONFLICT (submission_id, %s)
                 DO UPDATE SET is_correct = EXCLUDED.is_correct
-                """.formatted(table, elementColumn, constraint);
+                """.formatted(table, elementColumn, elementColumn);
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setObject(1, submissionId);
             statement.setArray(2, connection.createArrayOf("uuid", ids));
@@ -363,7 +363,7 @@ public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter 
                        CAST(x.actual_value AS jsonb), x.feedback, now()
                 FROM unnest(?::uuid[], ?::uuid[], ?::text[], ?::text[], ?::text[])
                     AS x(parent_id, assertion_id, result, actual_value, feedback)
-                ON CONFLICT ON CONSTRAINT submission_testcase_assertion_result_key
+                ON CONFLICT (submission_testcase_result_id, testcase_assertion_id)
                 DO UPDATE SET
                     result = EXCLUDED.result,
                     actual_value = EXCLUDED.actual_value,

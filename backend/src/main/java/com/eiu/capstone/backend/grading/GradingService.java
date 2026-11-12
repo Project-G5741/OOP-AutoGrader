@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ChallengePipelineResult;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ClassMmdPhaseResult;
@@ -198,6 +199,26 @@ public class GradingService {
                 computed.mmdMetaByChallengeId,
                 labResult,
                 computed);
+    }
+
+    public Map<String, ChallengeDetailBundleDTO> assembleStudentResult(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingOutcome outcome,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId,
+            boolean thinTrees) {
+        if (outcome == null || outcome.computed() == null) {
+            return outcome != null ? outcome.labResult() : Map.of();
+        }
+        return labResultAssembler.assemble(
+                submissionId,
+                rubric,
+                outcome.computed(),
+                compileErrorsByChallengeId,
+                normalizationNoticesByChallengeId,
+                DisclosureMode.STUDENT,
+                thinTrees);
     }
 
     private static ExistingResults emptyExistingResults() {

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
+import { BellRinging } from '@phosphor-icons/react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   buildFeedbackReplyNotifications,
   buildStudentNotifications,
@@ -37,6 +39,7 @@ export default function StudentNotificationBell({
   className = '',
 }) {
   const [open, setOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const [readIds, setReadIds] = useState(() => new Set(loadReadIds()));
   const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
@@ -122,19 +125,32 @@ export default function StudentNotificationBell({
         aria-label={hasUnread ? 'Notifications — new items' : 'Notifications'}
         aria-expanded={open}
         onClick={handleBellClick}
-        className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface-secondary text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-surface-secondary text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <Bell className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+        {hasUnread ? (
+          <BellRinging size={20} weight="duotone" className="text-gold" aria-hidden="true" />
+        ) : (
+          <Bell className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+        )}
         {hasUnread && (
-          <span
-            className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-surface-secondary"
-            aria-hidden
-          />
+          <span className="absolute right-2 top-2 flex h-2.5 w-2.5" aria-hidden="true">
+            {!reducedMotion && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error opacity-75" />
+            )}
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-error ring-2 ring-surface-secondary" />
+          </span>
         )}
       </button>
 
+      <AnimatePresence>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-xl border border-border bg-surface shadow-lg dark:shadow-none">
+        <motion.div
+          initial={reducedMotion ? false : { opacity: 0, y: 6, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reducedMotion ? undefined : { opacity: 0, y: 4, scale: 0.98 }}
+          transition={{ duration: 0.15 }}
+          className="absolute right-0 top-full z-30 mt-2 w-[min(100vw-2rem,22rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-stage-3"
+        >
           <div className="border-b border-border px-4 py-3">
             <p className="text-sm font-semibold text-foreground">Notifications</p>
             <p className="text-xs text-foreground-muted">
@@ -143,7 +159,7 @@ export default function StudentNotificationBell({
                 : 'All caught up'}
             </p>
           </div>
-          <ul className="max-h-72 overflow-y-auto p-2">
+          <ul className="max-h-72 overflow-y-auto p-2 space-y-1">
             {notifications.length === 0 ? (
               <li className="px-3 py-6 text-center text-sm text-foreground-muted">
                 No notifications right now.
@@ -157,7 +173,7 @@ export default function StudentNotificationBell({
                       type="button"
                       onClick={() => markOneRead(item.id)}
                       aria-pressed={read}
-                      className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : 'hover:opacity-90'}`}
+                      className={`w-full rounded-r-xl border-l-4 px-3 py-2.5 text-left transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${notificationSeverityClasses(item.severity)} ${read ? 'opacity-60' : 'hover:opacity-90'}`}
                     >
                       <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
@@ -177,8 +193,9 @@ export default function StudentNotificationBell({
               })
             )}
           </ul>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

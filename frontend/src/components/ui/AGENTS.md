@@ -22,12 +22,14 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
-| `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`, `deadline-3`, `deadline-2`, `deadline-1`) |
-| `LabPrefixBadge.jsx` | Official (`default`), Practice (`outline`), or Midterm (`secondary`) lab badge. Unknown or missing prefix displays as Official |
+| `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`, `navy`, `teal`, `gold`, `success`, `ai`, `deadline-3`, `deadline-2`, `deadline-1`) |
+| `LabPrefixBadge.jsx` | Official (`navy`), Practice (`teal`), or Midterm (`gold`) lab badge. Unknown or missing prefix displays as Official |
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
 | `PasswordStrengthField.jsx` | First-login password field with four-part strength meter, rule checks, and eye toggle (styles scoped to `.u036`) |
+| `LottieAnimation.jsx` | CSP-safe offline SVG Lottie wrapper (`lottie-web/build/player/lottie_light`) for `src/assets/lottie/*.json`; locks calm frame under `prefers-reduced-motion` |
+| `MotionPrimitives.jsx` | Perspective 3D & Framer Motion primitives: `StageCard3D`, `AnimatedEntrance`, `StaggerGroup`, `StaggerItem`, `AnimatedCounter`, `EmptyState`, `GradingActivityVisual` |
 
 ## Local Contracts
 
@@ -57,6 +59,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 ## Work Guidance
 
 - Keep primitives generic — no role-specific logic here
+- Single-level card rule ("no nested bordered cards"): `StageCard3D` and `Card` are top-level surfaces only; inner callouts/empty states/bars must use borderless `bg-surface-secondary` tints, flush dividers (`border-t`/`divide-y`), or left-accent strips (`border-l-4`)
 - Upload contract must stay aligned with `SubmissionStorageService` folder layout on the backend
 - New shared widgets belong in this folder, not in role-specific component folders
 

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Crown, Medal } from '@phosphor-icons/react';
 import { formatDateTime, formatNumber, formatText } from '../../utils/formatters';
 import { toggleSortState } from '../../utils/sort';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import { EmptyState } from '../ui/MotionPrimitives';
 
 const AVATAR_TONES = [
   'bg-primary-light text-primary-text',
@@ -75,12 +77,41 @@ function GiftChip({ points }) {
   );
 }
 
+function RankBadge({ rank }) {
+  const n = numeric(rank);
+  if (n === 1) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gold-bg px-2 py-0.5 text-xs font-bold tabular-nums text-gold-text">
+        <Crown size={14} weight="fill" aria-hidden="true" />
+        1
+      </span>
+    );
+  }
+  if (n === 2) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-navy-light px-2 py-0.5 text-xs font-bold tabular-nums text-navy-text dark:bg-primary-light dark:text-primary-text">
+        <Medal size={14} weight="duotone" aria-hidden="true" />
+        2
+      </span>
+    );
+  }
+  if (n === 3) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-secondary-light px-2 py-0.5 text-xs font-bold tabular-nums text-secondary-text">
+        <Medal size={14} weight="duotone" aria-hidden="true" />
+        3
+      </span>
+    );
+  }
+  return <span className="text-sm font-semibold tabular-nums text-foreground">{rank}</span>;
+}
+
 function RankingRow({ row, highlight = false }) {
   const name = formatText(row.fullName);
   return (
     <tr className={`border-t border-border-subtle ${highlight ? 'bg-primary-light' : 'bg-surface'}`}>
       <td className="h-11 px-3 align-middle">
-        <span className="text-sm font-semibold tabular-nums text-foreground">{row.rank}</span>
+        <RankBadge rank={row.rank} />
       </td>
       <td className="h-11 px-3 align-middle">
         <div className="flex min-w-0 items-center gap-2">
@@ -208,18 +239,18 @@ export default function RankingBoard({
   const handleSort = (field) => setSort((current) => toggleSortState(current, field));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-surface">
-      <p className="shrink-0 px-3 py-1 text-sm text-foreground-secondary">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-stage-1">
+      <p className="shrink-0 px-4 py-2.5 text-sm text-foreground-secondary border-b border-border-subtle">
         Week: {formatDateTime(weekStart)} – {formatDateTime(weekEnd)} (Vietnam). Live standing; gifts pay at Sunday 23:59:59.
       </p>
-      {error ? <p className="shrink-0 px-3 py-1 text-sm text-warning-text">{error}</p> : null}
+      {error ? <p className="shrink-0 px-4 py-2 text-sm text-warning-text">{error}</p> : null}
       <div className="shrink-0 overflow-x-auto">
         {loading ? (
-          <div className="flex min-h-[5rem] items-center justify-center">
+          <div className="flex min-h-[5rem] items-center justify-center py-6">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : list.length === 0 ? (
-          <p className="px-3 py-4 text-center text-sm text-foreground-muted">{emptyMessage}</p>
+          <EmptyState compact title="Leaderboard is warming up" description={emptyMessage} />
         ) : (
           <table className="w-full min-w-[44rem] table-fixed border-collapse">
             <ColumnWidths />
@@ -263,10 +294,10 @@ export default function RankingBoard({
         </div>
       ) : null}
       {!loading && viewer ? (
-        <div className="sticky bottom-0 shrink-0 border-t border-border bg-surface px-3 py-2">
-          <p className="mb-1 text-sm font-medium text-foreground">Your ranking</p>
+        <div className="sticky bottom-0 shrink-0 border-t border-border bg-surface-secondary/75 px-4 py-2.5">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground-muted">Your ranking</p>
           {myRow ? (
-            <div className="overflow-auto rounded-xl border border-border">
+            <div className="overflow-auto rounded-xl">
               <table className="w-full min-w-[44rem] table-fixed border-collapse">
                 <ColumnWidths />
                 <tbody>

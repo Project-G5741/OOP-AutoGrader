@@ -1,6 +1,10 @@
-import { Upload, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
+import { FolderOpen } from '@phosphor-icons/react';
 import { useRef, useState } from 'react';
 import Button from './Button';
+import LottieAnimation from './LottieAnimation';
+import uploadCloudData from '../../assets/lottie/upload-cloud.json';
+import gradingEngineData from '../../assets/lottie/grading-engine.json';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { apiFetch } from '../../utils/apiFetch';
 import { getAccessToken } from '../../utils/authRoutes';
@@ -256,8 +260,8 @@ export default function DropZone({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-border bg-info-bg px-4 py-3 text-sm text-info-text dark:border-surface-tertiary">
-        <div className="flex items-start gap-2">
+      <div className="rounded-r-xl border-l-4 border-info bg-info-bg px-4 py-2.5 text-sm text-info-text">
+        <div className="flex items-start gap-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p className="text-xs leading-relaxed">
             <span className="font-semibold">Folder format:</span>{' '}
@@ -283,25 +287,24 @@ export default function DropZone({
       </div>
 
       <div
-      className={`
-        bg-surface
-        rounded-xl
-        p-6
-        border
-        border-dashed
-        border-border
-        dark:border-surface-tertiary
-        shadow-sm
-        dark:shadow-none
-        transition-all
-        duration-200
-        ${
-          isDragging && !uploadDisabled
-            ? "bg-primary-light dark:border-primary-text"
-            : ""
-        }
-        ${uploadDisabled ? 'opacity-60' : ''}
-      `}
+        className={`
+          perspective-1000
+          bg-surface
+          rounded-2xl
+          p-6
+          border-2
+          border-dashed
+          border-border
+          shadow-stage-1
+          transition-all
+          duration-200
+          ${
+            isDragging && !uploadDisabled
+              ? "scale-[1.01] border-primary bg-primary-light/60 shadow-stage-2"
+              : "hover:border-primary/50 hover:shadow-stage-2"
+          }
+          ${uploadDisabled ? 'opacity-60' : ''}
+        `}
       onDragOver={(e) => {
         if (uploadDisabled) return;
         e.preventDefault();
@@ -321,17 +324,25 @@ export default function DropZone({
         }
       }}
     >
-      <div className="flex flex-col items-center justify-center py-8">
-        <div className="w-16 h-16 bg-primary-light rounded-full flex items-center justify-center mb-4">
-          <Upload className="w-8 h-8 text-primary" />
+      <div className="flex flex-col items-center justify-center py-7 text-center">
+        <div
+          className={`mb-3 flex h-24 w-24 items-center justify-center rounded-2xl transition-transform duration-200 ${
+            isDragging ? '-translate-y-1 scale-105 bg-primary-light' : 'bg-surface-secondary'
+          }`}
+        >
+          {isUploading ? (
+            <LottieAnimation animationData={gradingEngineData} className="h-20 w-20" />
+          ) : (
+            <LottieAnimation animationData={uploadCloudData} className="h-20 w-20" />
+          )}
         </div>
 
-        <h3 className="text-foreground mb-2">
-          {title}
+        <h3 className="text-base font-semibold text-foreground mb-1">
+          {isUploading ? 'Compiling & grading your submission…' : title}
         </h3>
 
         <p className="text-foreground-muted text-sm mb-4">
-          or click to upload
+          {isUploading ? 'Running declaration checks, MMD inspection & testcases' : 'Drag & drop project folder or select below'}
         </p>
 
         {uploadError && (
@@ -341,7 +352,7 @@ export default function DropZone({
         )}
 
         <Button
-          className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white"
+          className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white shadow-stage-1"
           onClick={() => {
             if (uploadDisabled) {
               const message = uploadDisabledReason || 'Upload is not available right now.';
@@ -353,13 +364,15 @@ export default function DropZone({
           }}
           disabled={isUploading || uploadDisabled}
         >
-          {isUploading && (
+          {isUploading ? (
             <span
               className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
               aria-hidden
             />
+          ) : (
+            <FolderOpen size={18} weight="duotone" aria-hidden="true" />
           )}
-          {isUploading ? 'Uploading...' : buttonText}
+          {isUploading ? 'Uploading & Grading…' : buttonText}
         </Button>
 
         <input

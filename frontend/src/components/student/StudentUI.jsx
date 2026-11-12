@@ -1,5 +1,6 @@
 // StudentUI.jsx - Không còn dữ liệu cứng, hoàn toàn nhận từ props
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   CheckCircle2,
   XCircle,
@@ -7,10 +8,17 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
-  ClipboardList,
   AlertCircle,
   GitMerge,
 } from 'lucide-react';
+import {
+  BracketsCurly,
+  ClockAfternoon,
+  FlowArrow,
+  Flask,
+  Stack,
+  Trophy,
+} from '@phosphor-icons/react';
 import DropZone from '../ui/DropZone';
 import DangerAlert from '../ui/DangerAlert';
 import { getAccessToken } from '../../utils/authRoutes';
@@ -18,6 +26,9 @@ import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } 
 import { Separator } from '../ui/separator';
 import LabPrefixBadge from '../ui/LabPrefixBadge';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../ui/sidebar';
+import { StageCard3D, EmptyState, AnimatedCounter } from '../ui/MotionPrimitives';
+import LottieAnimation from '../ui/LottieAnimation';
+import gradingEngineData from '../../assets/lottie/grading-engine.json';
 import { formatMmdRelationType, firstCompileErrorLine, formatStudentTestcaseMessage } from '../../utils/formatters';
 import { classListHasCompileError } from '../../utils/compileErrors';
 import {
@@ -34,8 +45,10 @@ import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
 
 const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
+const TAB_ICONS = { mmd: FlowArrow, class: BracketsCurly, testcase: Flask };
 const TAB_ORDER = Object.keys(TAB_LABELS);
 const HIDDEN_TESTCASES_PAGE_SIZE = 60;
+const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
 /** Strip trailing line endings from captured stdout for display only; grading is unchanged. */
 function formatIoDisplay(value) {
@@ -164,6 +177,24 @@ function formatScopeDetail(scope, detail) {
   return normalizedDetail ? `${normalizedScope} · ${normalizedDetail}` : normalizedScope;
 }
 
+function StudentStatCard({ label, icon: Icon, iconWellClass, children }) {
+  return (
+    <StageCard3D className="h-full flex flex-col justify-between p-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-muted">
+          {label}
+        </span>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWellClass}`}>
+          <Icon size={20} weight="duotone" aria-hidden="true" />
+        </span>
+      </div>
+      <div className="flex min-h-[2.5rem] items-baseline">
+        {children}
+      </div>
+    </StageCard3D>
+  );
+}
+
 export default function StudentUI({
   user,
   quarterName = '',
@@ -229,6 +260,7 @@ export default function StudentUI({
   }, [selectedChallengeId]);
 
   useEffect(() => {
+    if (IS_DESKTOP_APP) return undefined;
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
@@ -286,7 +318,8 @@ export default function StudentUI({
     }
   }, [hiddenTestcasesPage, hiddenTestcasesTotalPages]);
 
-  const tabCls = (t) => `px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t ? 'border-primary text-primary' : 'border-transparent text-foreground-muted hover:text-foreground-secondary'}`;
+  const reducedMotion = useReducedMotion();
+  const tabCls = (t) => `relative inline-flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === t ? 'text-primary-text font-semibold' : 'text-foreground-muted hover:text-foreground-secondary'}`;
 
   // Render loading state
   if (isLoading) {
@@ -379,17 +412,19 @@ export default function StudentUI({
                 {selectedLab?.name ?? 'Select a lab'}
               </p>
             </div>
-            {selectedLab?.deadlineDate && (
+            {!IS_DESKTOP_APP && selectedLab?.deadlineDate && (
               <p className="truncate text-xs text-foreground-muted">
                 {formatLabDeadlineMeta(selectedLab, { now })}
               </p>
             )}
           </div>
-          <StudentNotificationBell
-            labs={labs}
-            labSummariesById={labSummariesById}
-            now={now}
-          />
+          {!IS_DESKTOP_APP && (
+            <StudentNotificationBell
+              labs={labs}
+              labSummariesById={labSummariesById}
+              now={now}
+            />
+          )}
         </header>
 
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
@@ -397,10 +432,10 @@ export default function StudentUI({
         <div>
           {dailySubmissionQuota != null && (
             <div
-              className={`mb-3 rounded-lg border px-4 py-3 text-sm ${
+              className={`mb-3 rounded-r-xl border-l-4 px-4 py-2.5 text-sm ${
                 canSubmitToday
-                  ? 'border-border bg-surface-secondary text-foreground-secondary'
-                  : 'border-warning/40 bg-warning-bg text-warning-text'
+                  ? 'border-navy bg-surface-secondary text-foreground-secondary'
+                  : 'border-warning bg-warning-bg text-warning-text'
               }`}
             >
               {canSubmitToday
@@ -422,55 +457,53 @@ export default function StudentUI({
         </div>
 
         {/* Stats row — attempts/latest from DB; grade only after session upload */}
-        <div className="grid grid-cols-1 gap-4 mb-6 lg:grid-cols-3">
-          <div className="rounded-xl bg-success-bg p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 bg-success/15 rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-success-text" />
-              </div>
-              <span className="text-success-text/90 text-sm">Current Grade</span>
-            </div>
+        <div className="grid grid-cols-1 gap-4 mb-2 lg:grid-cols-3">
+          <StudentStatCard
+            label="Current Grade"
+            icon={Trophy}
+            iconWellClass="bg-success-bg text-success-text"
+          >
             {resultsRevealed && hasValue(sessionOverallScore) ? (
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-success-text sm:text-4xl">{sessionOverallScore}</span>
-                <span className="text-success-text/70 text-sm">/100</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-bold tabular-nums text-success-text sm:text-4xl">
+                  <AnimatedCounter value={sessionOverallScore} />
+                </span>
+                <span className="text-sm font-medium text-foreground-muted">/100</span>
               </div>
             ) : (
-              <span className="text-3xl font-bold text-success-text sm:text-4xl">--/--</span>
+              <span className="text-3xl font-bold tabular-nums text-foreground-disabled sm:text-4xl">--/--</span>
             )}
-          </div>
-          <div className="bg-surface rounded-xl p-5 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 bg-info-bg rounded-lg flex items-center justify-center">
-                <ClipboardList className="w-5 h-5 text-info" />
-              </div>
-              <span className="text-foreground-muted text-sm">Total Submissions</span>
-            </div>
-            <span className="text-foreground text-3xl font-bold">
-              {hasValue(stats.totalSubmissions) ? stats.totalSubmissions : '--/--'}
+          </StudentStatCard>
+
+          <StudentStatCard
+            label="Total Submissions"
+            icon={Stack}
+            iconWellClass="bg-navy-light text-navy-text dark:bg-primary-light dark:text-primary-text"
+          >
+            <span className="text-3xl font-bold tabular-nums text-foreground sm:text-4xl">
+              {hasValue(stats.totalSubmissions) ? <AnimatedCounter value={stats.totalSubmissions} /> : '--/--'}
             </span>
-          </div>
-          <div className="bg-surface rounded-xl p-5 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 bg-primary-light rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-primary" />
-              </div>
-              <span className="text-foreground-muted text-sm">Latest Submission</span>
-            </div>
-            <span className="text-foreground text-lg font-semibold">
+          </StudentStatCard>
+
+          <StudentStatCard
+            label="Latest Submission"
+            icon={ClockAfternoon}
+            iconWellClass="bg-secondary-light text-secondary-text"
+          >
+            <span className="block w-full truncate text-lg font-semibold text-foreground">
               {hasValue(stats.latestSubmission) ? stats.latestSubmission : '--/--'}
             </span>
-          </div>
+          </StudentStatCard>
         </div>
 
         {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex min-h-0 flex-col gap-4 lg:min-h-[560px] lg:flex-row">
           {/* Challenges sidebar - Từ backend */}
-          <div className="w-full lg:w-[30%] flex-shrink-0 bg-surface rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+          <div className="w-full lg:w-[30%] flex-shrink-0 rounded-2xl border border-border bg-surface shadow-stage-1 overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-foreground-secondary">Challenges</h2>
             </div>
-            <ul className="flex-1 overflow-y-auto divide-y divide-border">
+            <ul className="flex-1 overflow-y-auto divide-y divide-border-subtle">
               {isLoadingChallenges && challenges.length === 0 ? (
                 <li className="px-4 py-8 text-center">
                   <div className="mx-auto h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -498,7 +531,7 @@ export default function StudentUI({
                       className={`w-full text-left px-4 py-3.5 transition-colors flex items-center justify-between group ${
                         selectedChallengeId === ch.id
                           ? 'bg-primary-light'
-                          : 'hover:bg-surface-secondary hover:bg-surface-secondary'
+                          : 'hover:bg-surface-secondary'
                       }`}
                     >
                       <div>
@@ -531,21 +564,32 @@ export default function StudentUI({
           </div>
 
           {/* Main content - Từ backend */}
-          <div className="flex-1 bg-surface rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+          <div className="flex-1 rounded-2xl border border-border bg-surface shadow-stage-1 overflow-hidden flex flex-col">
             {resultsRevealed ? (
               <>
             {/* Tabs */}
             <div className="flex min-w-0 border-b border-border">
               <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {visibleTabs.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setActiveTab(t)}
-                    className={`${tabCls(t)} shrink-0`}
-                  >
-                    {TAB_LABELS[t]}
-                  </button>
-                ))}
+                {visibleTabs.map((t) => {
+                  const TabIcon = TAB_ICONS[t];
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setActiveTab(t)}
+                      className={`${tabCls(t)} shrink-0`}
+                    >
+                      {TabIcon && <TabIcon size={16} weight="duotone" aria-hidden="true" />}
+                      <span>{TAB_LABELS[t]}</span>
+                      {activeTab === t && (
+                        <motion.span
+                          layoutId={reducedMotion ? undefined : 'student-result-tab'}
+                          className="absolute bottom-0 left-2 right-2 h-[2.5px] rounded-full bg-primary"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <div className="hidden shrink-0 items-center pr-4 sm:flex">
                 <span className="max-w-[12rem] truncate text-xs text-foreground-disabled">
@@ -558,11 +602,16 @@ export default function StudentUI({
             <div className="flex-1 overflow-auto p-5">
               {isLoadingDetails || isRefreshingResults ? (
                 <div
-                  className="flex items-center justify-center h-48"
+                  className="flex flex-col items-center justify-center h-48"
                   aria-busy="true"
                   aria-label="Loading challenge details"
                 >
-                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="h-20 w-20">
+                    <LottieAnimation animationData={gradingEngineData} className="h-full w-full" />
+                  </div>
+                  {isRefreshingResults && (
+                    <p className="mt-1 text-xs font-semibold text-foreground-secondary">Refreshing scores…</p>
+                  )}
                 </div>
               ) : (
                 <>
@@ -575,20 +624,20 @@ export default function StudentUI({
                   />
 
                   {mmdParseError && (
-                    <div className="mb-4 rounded-lg border border-warning/40 bg-warning-bg px-4 py-3 text-sm text-warning-text">
+                    <div className="mb-4 rounded-r-xl border-l-4 border-warning bg-warning-bg px-4 py-3 text-sm text-warning-text">
                       {mmdParseError}
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 mb-4">
                     {mmdData.length > 0 ? mmdData.map((cls) => (
-                      <div key={cls.name} className="border border-border rounded-xl overflow-hidden">
-                        <div className="bg-primary-light px-4 py-2 border-b border-border">
-                          <p className="text-sm font-bold text-primary-text font-mono">{cls.name}</p>
+                      <div key={cls.name} className="rounded-xl bg-surface-secondary/75 overflow-hidden">
+                        <div className="bg-navy-light px-4 py-2 border-b border-border-subtle dark:bg-navy/50">
+                          <p className="text-sm font-bold text-navy-text font-mono dark:text-primary-text">{cls.name}</p>
                         </div>
-                        <ul className="divide-y divide-border">
+                        <ul className="divide-y divide-border-subtle">
                           {consolidateStudentMmdAttributes(cls.attributes ?? []).map((a, i) => (
-                            <li key={i} className={`flex items-start gap-3 px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-surface-secondary bg-surface-secondary/50'}`}>
+                            <li key={i} className={`flex items-start gap-3 px-4 py-2 text-xs ${i % 2 === 0 ? '' : 'bg-surface/60'}`}>
                               <span className={`font-mono flex-1 min-w-0 break-words ${a.type === 'field' ? 'text-info-text' : a.type === 'method' ? 'text-success-text' : 'text-warning-text'}`}>
                                 {a.name}
                               </span>
@@ -600,15 +649,13 @@ export default function StudentUI({
                         </ul>
                       </div>
                     )) : (
-                      <div className="rounded-xl border border-dashed border-border-subtle p-8 text-center text-foreground-muted">
-                        No MMD class data is available.
-                      </div>
+                      <EmptyState compact className="md:col-span-2 xl:col-span-3" title="No MMD class data available" />
                     )}
                   </div>
 
                   {resultsRevealed && relations.length > 0 && (
-                    <div className="overflow-hidden rounded-xl border border-border">
-                      <div className="flex items-center justify-between border-b border-border bg-surface-secondary px-4 py-3">
+                    <div className="overflow-hidden rounded-xl bg-surface-secondary/60">
+                      <div className="flex items-center justify-between border-b border-border-subtle bg-surface-secondary px-4 py-3">
                         <div className="flex items-center gap-2 text-foreground-muted">
                           <GitMerge className="w-4 h-4" />
                           <span className="text-xs font-semibold uppercase tracking-[0.2em]">Relations</span>
@@ -682,11 +729,11 @@ export default function StudentUI({
                         const compileErrorLine = firstCompileErrorLine(cls.error);
 
                         return (
-                          <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+                          <div key={`${cls.name}-${cls.type}`} className="overflow-hidden rounded-xl bg-surface-secondary/60">
                             <button
                               type="button"
                               onClick={() => setExpandedClassName((current) => (current === cls.name ? null : cls.name))}
-                              className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-5 py-4 text-left transition hover:bg-surface-secondary bg-surface-secondary hover:bg-surface-tertiary"
+                              className="flex w-full items-center justify-between gap-3 bg-surface-secondary px-5 py-4 text-left transition-colors hover:bg-surface-tertiary"
                             >
                               <div className="flex min-w-0 items-start gap-3">
                                 <ClassStatusIcon status={cls.status} />
@@ -713,7 +760,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-info">Fields</p>
                                     <div className="space-y-2">
                                       {fields.map((f, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok && !f.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${f.ok && !f.partial ? 'bg-surface' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-info-text">{formatStudentFieldLine(f)}</p>
                                             {formatStudentScopeLine(f.scope) && (
@@ -732,7 +779,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-warning">Constructors</p>
                                     <div className="space-y-2">
                                       {constructors.map((c, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok && !c.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${c.ok && !c.partial ? 'bg-surface' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-warning-text">{formatStudentConstructorLine(c)}</p>
                                             {formatStudentScopeLine(c.scope) && (
@@ -751,7 +798,7 @@ export default function StudentUI({
                                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-success">Methods</p>
                                     <div className="space-y-2">
                                       {methods.map((m, i) => (
-                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok && !m.partial ? 'bg-surface-secondary bg-background/40' : 'bg-error-bg'}`}>
+                                        <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.ok && !m.partial ? 'bg-surface' : 'bg-error-bg'}`}>
                                           <div>
                                             <p className="text-xs font-mono font-semibold text-success-text">{formatStudentMethodLine(m)}</p>
                                             {formatStudentScopeLine(m.scope) && (
@@ -771,9 +818,7 @@ export default function StudentUI({
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-border-subtle p-8 text-center text-foreground-muted">
-                      No class detail data is available.
-                    </div>
+                    <EmptyState compact title="No class detail data available" />
                   )}
                 </>
               )}
@@ -795,11 +840,14 @@ export default function StudentUI({
                           </p>
                           <div className="space-y-2">
                             {visibleTestcases.map((tc) => (
-                              <div key={tc.id} className="border border-border rounded-xl overflow-hidden">
+                              <div
+                                key={tc.id}
+                                className="overflow-hidden rounded-xl border border-border bg-surface-secondary/40 transition-colors hover:border-primary/40"
+                              >
                                 <button
                                   type="button"
                                   onClick={() => setExpandedTC(expandedTC === tc.id ? null : tc.id)}
-                                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-secondary hover:bg-surface-secondary transition-colors text-left"
+                                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-tertiary/60 transition-colors text-left"
                                 >
                                   <div className="flex items-center gap-3">
                                     <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
@@ -828,7 +876,7 @@ export default function StudentUI({
                                     <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border">
                                       <div className="p-4">
                                         <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-wider mb-2">Input</p>
-                                        <pre className="bg-surface-secondary bg-surface-secondary rounded-lg p-3 text-xs font-mono text-foreground-secondary whitespace-pre-wrap">{tc.input || '—'}</pre>
+                                        <pre className="bg-surface rounded-lg p-3 text-xs font-mono text-foreground-secondary whitespace-pre-wrap">{tc.input || '—'}</pre>
                                       </div>
                                       <div className="p-4">
                                         <p className="text-[10px] font-bold text-success uppercase tracking-wider mb-2">Expected Output</p>
@@ -896,10 +944,10 @@ export default function StudentUI({
                               return (
                               <div
                                 key={tc.id}
-                                className={`flex min-w-0 items-center gap-2 px-2.5 py-2 rounded-xl ${
+                                className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 ${
                                   tc.passed
-                                    ? 'bg-success-bg'
-                                    : 'bg-error-bg'
+                                    ? 'border-success/35 bg-success-bg'
+                                    : 'border-error/35 bg-error-bg'
                                 }`}
                               >
                                 <Tick ok={tc.passed} error={tc.result === 'ERROR'} />
@@ -947,9 +995,7 @@ export default function StudentUI({
                       )}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-border-subtle p-8 text-center text-foreground-muted">
-                      No testcase detail data is available.
-                    </div>
+                    <EmptyState compact title="No testcase detail data available" />
                   )}
                 </>
               )}
@@ -958,11 +1004,12 @@ export default function StudentUI({
             </div>
               </>
             ) : (
-              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-                <p className="text-sm font-medium text-foreground-secondary">
-                  {currentChallenge?.name || 'Challenge'}
-                </p>
-              </div>
+              <EmptyState
+                className="flex-1"
+                title={currentChallenge?.name || 'Ready to grade your solution'}
+                description="Drop your project folder above to view MMD inspection, Declaration checks, and operational testcase feedback."
+                icon={<BracketsCurly size={18} weight="duotone" aria-hidden="true" />}
+              />
             )}
           </div>
         </div>

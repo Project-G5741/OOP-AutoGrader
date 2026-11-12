@@ -18,14 +18,14 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 |---|---|
 
-| `DashboardSection.jsx` | Main grading overview layout |
+| `DashboardSection.jsx` | Borderless grading overview section wrapper (`flex-1` compatible) with Corporate Navy title bar; child panels render single-level stage cards directly |
 
-| `OverviewPanel.jsx` | Clickable summary stat cards; **View list** opens `OverviewDetailDialog` |
+| `OverviewPanel.jsx` | Clickable `StageCard3D` summary KPI cards with Phosphor Duotone wells & `AnimatedCounter`; **View list** opens `OverviewDetailDialog` |
 | `OverviewDetailDialog.jsx` | Dialog for the four overview cards: enrolled students, at-risk students (total under 70), labs, and qualifying scores behind the average |
-| `LecturerOverviewCard.jsx` | Summary stat cards |
+| `LecturerOverviewCard.jsx` | `StageCard3D` summary stat card primitive |
 
-| `SubmissionTable.jsx` | Lab submitter roster / challenge submission table |
-| `GradeDistributionChart.jsx` | Horizontal bar chart for lab overview grade distribution |
+| `SubmissionTable.jsx` | Single-card lab submitter roster / challenge submission table with flush 4-column `RosterSummaryBar` strip (`Submitted`, `Enrolled`, `Completion`, `Plagiarism`) |
+| `GradeDistributionChart.jsx` | Framer Motion animated horizontal bar chart for lab overview grade distribution |
 
 | `ClassScoreBreakdown.jsx` | Expandable Java class/member grading breakdown |
 
