@@ -21,6 +21,7 @@ import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.ParameterRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 
 class ClassReflectionGraderTest {
@@ -441,6 +442,116 @@ class ClassReflectionGraderTest {
     }
 
     @Test
+    void fieldNameAndTypeAliases_matchCartesianCombination() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedField field = ageField("private", "float");
+        field.name = "fee";
+        ParsedClass parsed = personShell(field);
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee", "charge"),
+                                "private",
+                                List.of("double", "float"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(fieldResult(result, fieldId).correct());
+    }
+
+    @Test
+    void unlistedFieldSynonym_doesNotMatch() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedField field = ageField("private", "float");
+        field.name = "price";
+        ParsedClass parsed = personShell(field);
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double", "float"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertFalse(fieldResult(result, fieldId).correct());
+    }
+
+    @Test
+    void methodNameReturnAndParameterTypeAliases_match() {
+        UUID methodId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId,
+                                List.of("calculateTotal", "calcTotal"),
+                                "public",
+                                List.of("double", "float"),
+                                false,
+                                false,
+                                false,
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))),
+                        List.of())),
+                List.of(),
+                List.of());
+        ParsedClass parsed = personShell(null);
+        ParsedMethod method = new ParsedMethod();
+        method.name = "calcTotal";
+        method.scope = "public";
+        method.returnType = "float";
+        method.parameterTypes = List.of("float");
+        parsed.methods = List.of(method);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(methodCorrect(result, methodId));
+    }
+
+    @Test
     void methodWrongStatic_isNotCorrectAndNotPartial() {
         UUID classId = UUID.randomUUID();
         UUID methodId = UUID.randomUUID();
@@ -532,6 +643,52 @@ class ClassReflectionGraderTest {
         assertFalse(graded.correct());
         assertFalse(graded.partial());
         assertEquals(new BigDecimal("50.00"), result.pillarPercentage());
+    }
+
+    @Test
+    void constructorParameterTypeAliasMatchesWithoutAliasingConstructorName() {
+        UUID ctorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Customer",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Customer",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of(new ConstructorRubric(
+                                ctorId,
+                                "public",
+                                false,
+                                List.of("int"),
+                                List.of(new ParameterRubric(
+                                        List.of("age"),
+                                        List.of("int", "byte"))))))),
+                List.of(),
+                List.of());
+        ParsedClass parsed = new ParsedClass();
+        parsed.simpleName = "Customer";
+        parsed.scope = "public";
+        parsed.declaringType = "class";
+        parsed.fields = List.of();
+        parsed.methods = List.of();
+        ParsedConstructor constructor = new ParsedConstructor();
+        constructor.scope = "public";
+        constructor.parameterTypes = List.of("byte");
+        parsed.constructors = List.of(constructor);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(result.constructors().stream()
+                .filter(entry -> entry.constructorId().equals(ctorId))
+                .findFirst()
+                .orElseThrow()
+                .correct());
     }
 
     @Test

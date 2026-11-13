@@ -19,12 +19,18 @@ import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.ConstructorDeclaration;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.FieldDeclaration;
+import com.eiu.capstone.backend.model.FieldDeclarationNameAlias;
+import com.eiu.capstone.backend.model.FieldDeclarationTypeAlias;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
+import com.eiu.capstone.backend.model.MethodDeclarationNameAlias;
+import com.eiu.capstone.backend.model.MethodDeclarationReturnTypeAlias;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
 import com.eiu.capstone.backend.model.Parameter;
+import com.eiu.capstone.backend.model.ParameterNameAlias;
+import com.eiu.capstone.backend.model.ParameterTypeAlias;
 import com.eiu.capstone.backend.model.Testcase;
 import com.eiu.capstone.backend.model.TestcaseAssertion;
 import com.eiu.capstone.backend.model.TestcaseInstance;
@@ -34,8 +40,14 @@ import com.eiu.capstone.backend.repository.ClassEntityRepository;
 import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationTypeAliasRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationReturnTypeAliasRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
+import com.eiu.capstone.backend.repository.ParameterNameAliasRepository;
+import com.eiu.capstone.backend.repository.ParameterTypeAliasRepository;
 import com.eiu.capstone.backend.repository.TestcaseAssertionRepository;
 import com.eiu.capstone.backend.repository.TestcaseInvocationRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
@@ -53,6 +65,12 @@ public class LabRubricService {
     private final TestcaseRepository testcaseRepository;
     private final TestcaseInvocationRepository testcaseInvocationRepository;
     private final TestcaseAssertionRepository testcaseAssertionRepository;
+    private final FieldDeclarationNameAliasRepository fieldNameAliasRepository;
+    private final FieldDeclarationTypeAliasRepository fieldTypeAliasRepository;
+    private final MethodDeclarationNameAliasRepository methodNameAliasRepository;
+    private final MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository;
+    private final ParameterNameAliasRepository parameterNameAliasRepository;
+    private final ParameterTypeAliasRepository parameterTypeAliasRepository;
 
     public LabRubricService(ChallengeRepository challengeRepository,
                             ClassEntityRepository classEntityRepository,
@@ -63,7 +81,13 @@ public class LabRubricService {
                             ClassRelationRepository classRelationRepository,
                             TestcaseRepository testcaseRepository,
                             TestcaseInvocationRepository testcaseInvocationRepository,
-                            TestcaseAssertionRepository testcaseAssertionRepository) {
+                            TestcaseAssertionRepository testcaseAssertionRepository,
+                            FieldDeclarationNameAliasRepository fieldNameAliasRepository,
+                            FieldDeclarationTypeAliasRepository fieldTypeAliasRepository,
+                            MethodDeclarationNameAliasRepository methodNameAliasRepository,
+                            MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository,
+                            ParameterNameAliasRepository parameterNameAliasRepository,
+                            ParameterTypeAliasRepository parameterTypeAliasRepository) {
         this.challengeRepository = challengeRepository;
         this.classEntityRepository = classEntityRepository;
         this.fieldRepository = fieldRepository;
@@ -74,6 +98,12 @@ public class LabRubricService {
         this.testcaseRepository = testcaseRepository;
         this.testcaseInvocationRepository = testcaseInvocationRepository;
         this.testcaseAssertionRepository = testcaseAssertionRepository;
+        this.fieldNameAliasRepository = fieldNameAliasRepository;
+        this.fieldTypeAliasRepository = fieldTypeAliasRepository;
+        this.methodNameAliasRepository = methodNameAliasRepository;
+        this.methodReturnTypeAliasRepository = methodReturnTypeAliasRepository;
+        this.parameterNameAliasRepository = parameterNameAliasRepository;
+        this.parameterTypeAliasRepository = parameterTypeAliasRepository;
     }
 
     public LabRubricSnapshot loadForLab(Lab lab) {
@@ -126,6 +156,71 @@ public class LabRubricService {
         List<Parameter> methodParams = allMethods.isEmpty() ? List.of() : parameterRepository.findByMethodIn(allMethods);
         List<Parameter> constructorParams = allConstructors.isEmpty() ? List.of()
                 : parameterRepository.findByConstructorEntityIn(allConstructors);
+        List<UUID> fieldDeclarationIds = allFields.stream()
+                .map(Field::getFieldDeclaration)
+                .map(FieldDeclaration::getId)
+                .toList();
+        List<UUID> methodDeclarationIds = allMethods.stream()
+                .map(Method::getMethodDeclaration)
+                .map(MethodDeclaration::getId)
+                .toList();
+        List<UUID> parameterIds = java.util.stream.Stream.concat(
+                        methodParams.stream(), constructorParams.stream())
+                .map(Parameter::getId)
+                .toList();
+        Map<UUID, List<String>> fieldNamesByDeclaration = fieldDeclarationIds.isEmpty()
+                ? Map.of()
+                : fieldNameAliasRepository
+                        .findByFieldDeclaration_IdInOrderByOrderIndexAsc(fieldDeclarationIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getFieldDeclaration().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(FieldDeclarationNameAlias::getValue, Collectors.toList())));
+        Map<UUID, List<String>> fieldTypesByDeclaration = fieldDeclarationIds.isEmpty()
+                ? Map.of()
+                : fieldTypeAliasRepository
+                        .findByFieldDeclaration_IdInOrderByOrderIndexAsc(fieldDeclarationIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getFieldDeclaration().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(FieldDeclarationTypeAlias::getValue, Collectors.toList())));
+        Map<UUID, List<String>> methodNamesByDeclaration = methodDeclarationIds.isEmpty()
+                ? Map.of()
+                : methodNameAliasRepository
+                        .findByMethodDeclaration_IdInOrderByOrderIndexAsc(methodDeclarationIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getMethodDeclaration().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(MethodDeclarationNameAlias::getValue, Collectors.toList())));
+        Map<UUID, List<String>> methodReturnsByDeclaration = methodDeclarationIds.isEmpty()
+                ? Map.of()
+                : methodReturnTypeAliasRepository
+                        .findByMethodDeclaration_IdInOrderByOrderIndexAsc(methodDeclarationIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getMethodDeclaration().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(
+                                        MethodDeclarationReturnTypeAlias::getValue, Collectors.toList())));
+        Map<UUID, List<String>> parameterNamesById = parameterIds.isEmpty()
+                ? Map.of()
+                : parameterNameAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(parameterIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getParameter().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(ParameterNameAlias::getValue, Collectors.toList())));
+        Map<UUID, List<String>> parameterTypesById = parameterIds.isEmpty()
+                ? Map.of()
+                : parameterTypeAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(parameterIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                alias -> alias.getParameter().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(ParameterTypeAlias::getValue, Collectors.toList())));
         List<ClassRelation> allRelations = allClasses.isEmpty() ? List.of()
                 : classRelationRepository.findByClassEntityInWithEndpoints(allClasses);
 
@@ -164,6 +259,10 @@ public class LabRubricService {
                 .collect(Collectors.toMap(Field::getId, field -> field));
         Map<UUID, List<String>> paramTypesByMethod = RubricParameterMaps.byMethod(methodParams);
         Map<UUID, List<String>> paramTypesByConstructorId = RubricParameterMaps.byConstructor(constructorParams);
+        Map<UUID, List<ParameterRubric>> paramAliasesByMethod = RubricParameterMaps.aliasesByMethod(
+                methodParams, parameterNamesById, parameterTypesById);
+        Map<UUID, List<ParameterRubric>> paramAliasesByConstructor = RubricParameterMaps.aliasesByConstructor(
+                constructorParams, parameterNamesById, parameterTypesById);
         TestcaseRubricContext testcaseContext = new TestcaseRubricContext(
                 classNameByClassId,
                 classNameByConstructorId,
@@ -202,7 +301,13 @@ public class LabRubricService {
                             methodsByClass.getOrDefault(classEntity.getId(), List.of()),
                             constructorsByClass.getOrDefault(classEntity.getId(), List.of()),
                             paramTypesByMethod,
-                            paramTypesByConstructorId));
+                            paramTypesByConstructorId,
+                            paramAliasesByMethod,
+                            paramAliasesByConstructor,
+                            fieldNamesByDeclaration,
+                            fieldTypesByDeclaration,
+                            methodNamesByDeclaration,
+                            methodReturnsByDeclaration));
                 }
                 List<RelationRubric> relationRubrics = relationsByChallenge.getOrDefault(challenge.getId(), List.of())
                         .stream()
@@ -236,16 +341,23 @@ public class LabRubricService {
                                       List<Method> methods,
                                       List<Constructor> constructors,
                                       Map<UUID, List<String>> paramTypesByMethod,
-                                      Map<UUID, List<String>> paramTypesByConstructor) {
+                                      Map<UUID, List<String>> paramTypesByConstructor,
+                                      Map<UUID, List<ParameterRubric>> paramAliasesByMethod,
+                                      Map<UUID, List<ParameterRubric>> paramAliasesByConstructor,
+                                      Map<UUID, List<String>> fieldNamesByDeclaration,
+                                      Map<UUID, List<String>> fieldTypesByDeclaration,
+                                      Map<UUID, List<String>> methodNamesByDeclaration,
+                                      Map<UUID, List<String>> methodReturnsByDeclaration) {
         List<FieldRubric> fieldRubrics = fields.stream()
                 .map(f -> {
                     FieldDeclaration fd = f.getFieldDeclaration();
                     String scope = fd.getScope() == null ? null : fd.getScope().getName();
                     return new FieldRubric(
                             f.getId(),
-                            f.getName(),
+                            fieldNamesByDeclaration.getOrDefault(fd.getId(), List.of(f.getName())),
                             scope,
-                            fd.getDataType(),
+                            fieldTypesByDeclaration.getOrDefault(
+                                    fd.getId(), java.util.Collections.singletonList(fd.getDataType())),
                             fd.isStatic(),
                             fd.isFinal());
                 })
@@ -256,13 +368,13 @@ public class LabRubricService {
                     MethodDeclaration md = m.getMethodDeclaration();
                     return new MethodRubric(
                             m.getId(),
-                            m.getName(),
+                            methodNamesByDeclaration.getOrDefault(md.getId(), List.of(m.getName())),
                             md.getScope().getName(),
-                            md.getReturnType(),
+                            methodReturnsByDeclaration.getOrDefault(md.getId(), List.of(md.getReturnType())),
                             md.isStatic(),
                             md.isAbstract(),
                             md.isFinal(),
-                            paramTypesByMethod.getOrDefault(m.getId(), List.of()));
+                            paramAliasesByMethod.getOrDefault(m.getId(), List.of()));
                 })
                 .toList();
 
@@ -273,7 +385,8 @@ public class LabRubricService {
                             c.getId(),
                             cd.getScope().getName(),
                             cd.isDefault(),
-                            paramTypesByConstructor.getOrDefault(c.getId(), List.of()));
+                            paramTypesByConstructor.getOrDefault(c.getId(), List.of()),
+                            paramAliasesByConstructor.getOrDefault(c.getId(), List.of()));
                 })
                 .toList();
 

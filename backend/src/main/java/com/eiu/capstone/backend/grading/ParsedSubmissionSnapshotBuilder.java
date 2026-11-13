@@ -67,10 +67,11 @@ public class ParsedSubmissionSnapshotBuilder {
                     : List.of();
             classSnapshot.shells.put(expectedClass.id().toString(), shell);
 
-            Map<String, ParsedField> parsedFields = parsed.fields.stream()
-                    .collect(Collectors.toMap(f -> f.name, f -> f, (a, b) -> a));
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsedFields.get(expectedField.name());
+                ParsedField pf = parsed.fields.stream()
+                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
+                        .findFirst()
+                        .orElse(null);
                 if (pf == null) {
                     continue;
                 }
@@ -84,7 +85,7 @@ public class ParsedSubmissionSnapshotBuilder {
             }
 
             for (MethodRubric expectedMethod : expectedClass.methods()) {
-                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
+                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod, false);
                 if (match == null) {
                     continue;
                 }
@@ -99,7 +100,8 @@ public class ParsedSubmissionSnapshotBuilder {
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
-                ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
+                ParsedConstructor match = findMatchingConstructor(
+                        parsed.constructors, expectedConstructor, false);
                 if (match == null) {
                     continue;
                 }
@@ -163,17 +165,19 @@ public class ParsedSubmissionSnapshotBuilder {
                 continue;
             }
 
-            Map<String, ParsedField> fieldsByName = parsed.fields.stream()
-                    .collect(Collectors.toMap(f -> f.name.toLowerCase(Locale.ROOT), f -> f, (a, b) -> a));
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = fieldsByName.get(expectedField.name().toLowerCase(Locale.ROOT));
+                ParsedField pf = parsed.fields.stream()
+                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
+                        .findFirst()
+                        .orElse(null);
                 if (pf != null) {
                     mmdSnapshot.attributes.put(expectedField.id().toString(), pf.name + ": " + pf.dataType);
                 }
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
-                ParsedConstructor match = findMatchingMmdConstructor(parsed.constructors, expectedConstructor.parameterTypes());
+                ParsedConstructor match = findMatchingConstructor(
+                        parsed.constructors, expectedConstructor, true);
                 if (match != null) {
                     String paramList = match.parameterTypes != null
                             ? String.join(", ", match.parameterTypes)
@@ -185,7 +189,7 @@ public class ParsedSubmissionSnapshotBuilder {
             }
 
             for (MethodRubric expectedMethod : expectedClass.methods()) {
-                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
+                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod, true);
                 if (match != null) {
                     String paramList = match.parameterTypes != null
                             ? String.join(", ", match.parameterTypes)
@@ -232,51 +236,34 @@ public class ParsedSubmissionSnapshotBuilder {
         return a.trim().equalsIgnoreCase(b.trim());
     }
 
-    private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, String name, List<String> expectedParamTypes) {
+    private ParsedMethod findMatchingMethod(
+            List<ParsedMethod> candidates, MethodRubric expected, boolean mmd) {
         for (ParsedMethod pm : candidates) {
-            if (pm.name != null && pm.name.equals(name) && sameTypes(pm.parameterTypes, expectedParamTypes)) {
+            boolean paramsMatch = mmd
+                    ? CartesianAliasMatcher.mmdParameterTypesMatch(
+                            pm.parameterTypes, expected.parameters())
+                    : CartesianAliasMatcher.declarationParameterTypesMatch(
+                            pm.parameterTypes, expected.parameters());
+            if (CartesianAliasMatcher.nameMatches(pm.name, expected.names()) && paramsMatch) {
                 return pm;
             }
         }
         return null;
     }
 
-    private ParsedConstructor findMatchingConstructor(List<ParsedConstructor> candidates, List<String> expectedParamTypes) {
+    private ParsedConstructor findMatchingConstructor(
+            List<ParsedConstructor> candidates, ConstructorRubric expected, boolean mmd) {
         for (ParsedConstructor pc : candidates) {
-            if (sameTypes(pc.parameterTypes, expectedParamTypes)) {
+            boolean matches = mmd
+                    ? CartesianAliasMatcher.mmdParameterTypesMatch(
+                            pc.parameterTypes, expected.parameters())
+                    : CartesianAliasMatcher.declarationParameterTypesMatch(
+                            pc.parameterTypes, expected.parameters());
+            if (matches) {
                 return pc;
             }
         }
         return null;
-    }
-
-    private ParsedConstructor findMatchingMmdConstructor(List<ParsedConstructor> candidates, List<String> expectedParamTypes) {
-        return findMatchingConstructor(candidates, expectedParamTypes);
-    }
-
-    private boolean sameTypes(List<String> a, List<String> b) {
-        if (a == null || b == null) {
-            return a == b;
-        }
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (int i = 0; i < a.size(); i++) {
-            if (!equalsIgnoreCase(a.get(i), b.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean equalsIgnoreCase(String a, String b) {
-        if (a == null && b == null) {
-            return true;
-        }
-        if (a == null || b == null) {
-            return false;
-        }
-        return a.trim().equalsIgnoreCase(b.trim());
     }
 
     private String formatParamTypes(List<String> parameterTypes) {

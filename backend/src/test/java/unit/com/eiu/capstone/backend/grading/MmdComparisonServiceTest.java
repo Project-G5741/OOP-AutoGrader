@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.ParameterRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 
 class MmdComparisonServiceTest {
@@ -338,5 +340,55 @@ class MmdComparisonServiceTest {
 
         assertTrue(outcome.isFieldCorrect(firstFineId));
         assertTrue(outcome.isFieldCorrect(additionalFineId));
+    }
+
+    @Test
+    void fieldAndMethodAliases_useSameCartesianRulesAsDeclaration() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Invoice",
+                List.of(new ClassRubric(
+                        classId,
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double", "float"),
+                                false,
+                                false)),
+                        List.of(new MethodRubric(
+                                methodId,
+                                List.of("calculateTotal", "calcTotal"),
+                                "public",
+                                List.of("double", "float"),
+                                false,
+                                false,
+                                false,
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        String mmd = diagram("""
+                class Invoice {
+                  -fee: float
+                  +calcTotal(fee: float): float
+                }
+                """);
+
+        MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+        assertTrue(outcome.isFieldCorrect(fieldId));
+        assertTrue(outcome.isMethodCorrect(methodId));
     }
 }

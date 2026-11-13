@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+import com.eiu.capstone.backend.grading.CartesianAliasMatcher;
 import com.eiu.capstone.backend.grading.EnumDeclaringTypes;
 import com.eiu.capstone.backend.grading.ParsedClass;
 import com.eiu.capstone.backend.grading.ParsedConstructor;
@@ -68,10 +69,11 @@ public class ClassReflectionGrader {
             weighted.add(new WeightedAccuracy(classWeight, classAccuracy));
             boolean shellPassed = classAccuracy >= 1.0;
 
-            Map<String, ParsedField> parsedFields = parsed.fields.stream()
-                    .collect(java.util.stream.Collectors.toMap(f -> f.name, f -> f, (a, b) -> a));
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsedFields.get(expectedField.name());
+                ParsedField pf = parsed.fields.stream()
+                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
+                        .findFirst()
+                        .orElse(null);
                 double accuracy;
                 if (!shellPassed) {
                     accuracy = 0;
@@ -80,7 +82,8 @@ public class ClassReflectionGrader {
                 } else {
                     boolean allMatch = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
                             || (PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
-                                    && PartialCreditEvaluator.matchesWhenSpecified(expectedField.dataType(), pf.dataType)
+                                    && CartesianAliasMatcher.declarationTypeMatches(
+                                            pf.dataType, expectedField.dataTypes())
                                     && expectedField.isStatic() == pf.isStatic
                                     && expectedField.isFinal() == pf.isFinal);
                     accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
@@ -90,7 +93,7 @@ public class ClassReflectionGrader {
             }
 
             for (MethodRubric expectedMethod : expectedClass.methods()) {
-                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
+                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod);
                 double accuracy;
                 if (!shellPassed) {
                     accuracy = 0;
@@ -98,7 +101,8 @@ public class ClassReflectionGrader {
                     accuracy = 0;
                 } else {
                     boolean allMatch = PartialCreditEvaluator.matches(expectedMethod.scope(), match.scope).get(0)
-                            && PartialCreditEvaluator.matches(expectedMethod.returnType(), match.returnType).get(0)
+                            && CartesianAliasMatcher.declarationTypeMatches(
+                                    match.returnType, expectedMethod.returnTypes())
                             && expectedMethod.isStatic() == match.isStatic
                             && expectedMethod.isAbstract() == match.isAbstract
                             && expectedMethod.isFinal() == match.isFinal;
@@ -111,7 +115,7 @@ public class ClassReflectionGrader {
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
                 ParsedConstructor match = findMatchingConstructor(
                         parsed.constructors,
-                        expectedConstructor.parameterTypes(),
+                        expectedConstructor.parameters(),
                         expectedClass.isNested() && !expectedClass.isStatic(),
                         parsed.outerSimpleName);
                 double accuracy;
@@ -155,9 +159,11 @@ public class ClassReflectionGrader {
                 && equalsIgnoreCase("public", actual.scope);
     }
 
-    private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, String name, List<String> expectedParamTypes) {
+    private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, MethodRubric expected) {
         for (ParsedMethod pm : candidates) {
-            if (pm.name.equals(name) && sameTypes(pm.parameterTypes, expectedParamTypes)) {
+            if (CartesianAliasMatcher.nameMatches(pm.name, expected.names())
+                    && CartesianAliasMatcher.declarationParameterTypesMatch(
+                            pm.parameterTypes, expected.parameters())) {
                 return pm;
             }
         }
@@ -165,7 +171,7 @@ public class ClassReflectionGrader {
     }
 
     private ParsedConstructor findMatchingConstructor(List<ParsedConstructor> candidates,
-                                                      List<String> expectedParamTypes,
+                                                      List<com.eiu.capstone.backend.grading.rubric.ParameterRubric> expectedParameters,
                                                       boolean stripImplicitOuterParam,
                                                       String outerSimpleName) {
         for (ParsedConstructor pc : candidates) {
@@ -177,7 +183,7 @@ public class ClassReflectionGrader {
                     && equalsIgnoreCase(actualParams.get(0), outerSimpleName)) {
                 actualParams = actualParams.subList(1, actualParams.size());
             }
-            if (sameTypes(actualParams, expectedParamTypes)) {
+            if (CartesianAliasMatcher.declarationParameterTypesMatch(actualParams, expectedParameters)) {
                 return pc;
             }
         }
@@ -187,18 +193,6 @@ public class ClassReflectionGrader {
     private static boolean classCompileFailed(ChallengeGradingContext context, ClassRubric expectedClass) {
         return context.failedClassNames().contains(expectedClass.name())
                 || context.failedClassNames().contains(expectedClass.qualifiedName());
-    }
-
-    private boolean sameTypes(List<String> a, List<String> b) {
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (int i = 0; i < a.size(); i++) {
-            if (!equalsIgnoreCase(a.get(i), b.get(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private boolean equalsIgnoreCase(String a, String b) {

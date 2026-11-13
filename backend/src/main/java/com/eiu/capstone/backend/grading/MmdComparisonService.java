@@ -47,18 +47,19 @@ public class MmdComparisonService {
             boolean solutionHasGetters = expectedClass.methods().stream().anyMatch(this::isGetter);
             boolean solutionHasSetters = expectedClass.methods().stream().anyMatch(this::isSetter);
 
-            Map<String, ParsedField> fieldsByName = parsed.fields.stream()
-                    .collect(Collectors.toMap(f -> f.name.toLowerCase(Locale.ROOT), f -> f, (a, b) -> a));
-
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = fieldsByName.get(expectedField.name().toLowerCase(Locale.ROOT));
+                ParsedField pf = parsed.fields.stream()
+                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
+                        .findFirst()
+                        .orElse(null);
                 boolean nameOnly = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
                         || (!specified(expectedField.dataType()) && !specified(expectedField.scope()));
                 boolean correct = pf != null && (nameOnly
                         || (!pf.invalidDeclarationFormat
                                 && PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
-                                && (specified(expectedField.dataType())
-                                        ? MmdTypeEquivalence.typesMatch(expectedField.dataType(), pf.dataType)
+                                && (expectedField.dataTypes().stream().anyMatch(MmdComparisonService::specified)
+                                        ? CartesianAliasMatcher.mmdTypeMatches(
+                                                pf.dataType, expectedField.dataTypes())
                                         : true)
                                 && mmdModifierMatches(expectedField.isStatic(), pf.isStatic)));
                 outcome.setField(expectedField.id(), correct);
@@ -73,7 +74,7 @@ public class MmdComparisonService {
                     outcome.setMethod(expectedMethod.id(), true);
                     continue;
                 }
-                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod.name(), expectedMethod.parameterTypes());
+                ParsedMethod match = findMatchingMethod(parsed.methods, expectedMethod);
                 boolean correct = match != null
                         && !match.invalidDeclarationFormat
                         && methodMatches(expectedMethod, match, parsed);
@@ -81,11 +82,13 @@ public class MmdComparisonService {
             }
 
             for (ConstructorRubric expectedConstructor : expectedClass.constructors()) {
-                ParsedConstructor match = findMatchingConstructor(parsed.constructors, expectedConstructor.parameterTypes());
+                ParsedConstructor match = findMatchingConstructor(
+                        parsed.constructors, expectedConstructor);
                 boolean correct = match != null
                         && !match.invalidDeclarationFormat
                         && scopesMatch(expectedConstructor.scope(), match.scope)
-                        && constructorTypesMatch(expectedConstructor.parameterTypes(), match.parameterTypes);
+                        && CartesianAliasMatcher.mmdParameterTypesMatch(
+                                match.parameterTypes, expectedConstructor.parameters());
                 outcome.setConstructor(expectedConstructor.id(), correct);
             }
         }
@@ -160,8 +163,8 @@ public class MmdComparisonService {
     private boolean methodMatches(MethodRubric expected, ParsedMethod actual, ParsedMmdClass parsedClass) {
         boolean effectiveAbstract = actual.isAbstract || interfaceMethodIsImplicitlyAbstract(parsedClass, actual);
         return scopesMatch(expected.scope(), actual.scope)
-                && MmdTypeEquivalence.typesMatch(expected.returnType(), actual.returnType)
-                && constructorTypesMatch(expected.parameterTypes(), actual.parameterTypes)
+                && CartesianAliasMatcher.mmdTypeMatches(actual.returnType, expected.returnTypes())
+                && CartesianAliasMatcher.mmdParameterTypesMatch(actual.parameterTypes, expected.parameters())
                 && mmdModifierMatches(expected.isStatic(), actual.isStatic)
                 && mmdModifierMatches(expected.isAbstract(), effectiveAbstract);
     }
@@ -257,43 +260,36 @@ public class MmdComparisonService {
     }
 
     private boolean isGetter(MethodRubric method) {
-        String name = method.name();
-        return name.startsWith("get") || name.startsWith("is");
+        return method.names().stream().anyMatch(name -> name.startsWith("get") || name.startsWith("is"));
     }
 
     private boolean isSetter(MethodRubric method) {
-        return method.name().startsWith("set");
+        return method.names().stream().anyMatch(name -> name.startsWith("set"));
     }
 
-    private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, String name, List<String> expectedParamTypes) {
+    private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, MethodRubric expected) {
         for (ParsedMethod method : candidates) {
             if ("__getter_shorthand__".equals(method.name) || "__setter_shorthand__".equals(method.name)) {
                 continue;
             }
-            if (method.name.equals(name) && constructorTypesMatch(expectedParamTypes, method.parameterTypes)) {
+            if (CartesianAliasMatcher.nameMatches(method.name, expected.names())
+                    && CartesianAliasMatcher.mmdParameterTypesMatch(
+                            method.parameterTypes, expected.parameters())) {
                 return method;
             }
         }
         return null;
     }
 
-    private ParsedConstructor findMatchingConstructor(List<ParsedConstructor> candidates, List<String> expectedParamTypes) {
+    private ParsedConstructor findMatchingConstructor(
+            List<ParsedConstructor> candidates, ConstructorRubric expected) {
         for (ParsedConstructor constructor : candidates) {
-            if (constructorTypesMatch(expectedParamTypes, constructor.parameterTypes)) {
+            if (CartesianAliasMatcher.mmdParameterTypesMatch(
+                    constructor.parameterTypes, expected.parameters())) {
                 return constructor;
             }
         }
         return null;
-    }
-
-    private boolean constructorTypesMatch(List<String> expected, List<String> actual) {
-        if (expected.size() != actual.size()) return false;
-        for (int i = 0; i < expected.size(); i++) {
-            if (!MmdTypeEquivalence.typesMatch(expected.get(i), actual.get(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean specified(String value) {

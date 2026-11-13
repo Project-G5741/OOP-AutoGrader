@@ -38,7 +38,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles; overloads accept `DisclosureMode` and `thinTrees` (student persisted upload = STUDENT + thin; student non-persisted/pruned upload = STUDENT + full; lecturer bulk = LECTURER) |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (declaration alias lists, invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `getAll` batches misses via `loadForLabs`; `invalidateAll()` after OT schema wipe |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
@@ -147,6 +147,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it; **`final` is not graded on MMD** (Declaration Test only)
 - **Declaration field comparison** (reflection + MMD when type/scope specified) checks rubric `is_static` / `is_final` on `field_declaration` for Java; MMD fields honor required **static** via `$` suffix on the member name/type (`mmdModifierMatches`); **`final` is not graded on MMD** (diagram has no final marker)
+- **Declaration aliases:** `CartesianAliasMatcher` applies lecturer-authored field/method/parameter name and type lists independently (Cartesian) in reflection, MMD, and parsed snapshots. Rubric `name()` / `dataType()` / `returnType()` and `parameterTypes()` accessors remain the first aliases for expected/display text.
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save). Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows

@@ -91,6 +91,47 @@ class ParsedSubmissionSnapshotBuilderTest {
     }
 
     @Test
+    void aliasNamedField_capturesStudentDisplayUnderRubricId() {
+        UUID fieldId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Challenge 1",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double", "float"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+        ParsedClass parsedClass = new ParsedClass();
+        parsedClass.simpleName = "Invoice";
+        ParsedField studentField = new ParsedField();
+        studentField.name = "fee";
+        studentField.scope = "private";
+        studentField.dataType = "float";
+        parsedClass.fields = List.of(studentField);
+        parsedClass.methods = List.of();
+        parsedClass.constructors = List.of();
+
+        ChallengeSnapshot snapshot = builder.build(rubric, List.of(parsedClass), null);
+
+        var entry = snapshot.classSnapshot.fields.get(fieldId.toString());
+        assertEquals("fee", entry.name);
+        assertEquals("float", entry.dataType);
+    }
+
+    @Test
     void mmdRelation_wrongType_capturesStudentEndpoints() {
         UUID relationId = UUID.randomUUID();
         ChallengeRubric rubric = new ChallengeRubric(
