@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mascot } from 'page-mascot';
+import { Mascot, MascotFrame } from './MascotSprite';
 import { X } from 'lucide-react';
 import { mascotArt, MASCOT_TIERS } from './studentMascots';
 import { getRandomDialogue } from './mascotBehaviors';
@@ -38,10 +38,6 @@ const REACTIONS = [
   'dizzy',
   'delighted',
 ];
-
-function spritePosition(index) {
-  return `${(index % 3) * 50}% ${Math.floor(index / 3) * 50}%`;
-}
 
 function FoxCoveringEyes({ size, className, art }) {
   const squashRef = useRef(null);
@@ -84,16 +80,7 @@ function FoxCoveringEyes({ size, className, art }) {
           transformOrigin: '50% 78%',
         }}
       >
-        <span
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `url(${art.reactions})`,
-            backgroundSize: '300% 300%',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: spritePosition(bashfulIndex),
-          }}
-        />
+        <MascotFrame src={art.reactions} index={bashfulIndex} size={size} />
       </span>
     </div>
   );
@@ -146,6 +133,7 @@ export default function StudentFoxMascot({
         label={`${art.name} mascot`}
         directions={art.directions}
         reactions={art.reactions}
+        trackPointer
       />
 
       {/* Interactive Speech Bubble: Floats cleanly BELOW the mascot icon */}

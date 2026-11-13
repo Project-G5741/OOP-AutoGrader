@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import { formatNumber } from '../../utils/formatters';
-import { Mascot } from 'page-mascot';
+import { Mascot } from './MascotSprite';
 import { MASCOT_TIERS, STUDENT_MASCOTS, mascotArt } from './studentMascots';
 
 // Economics & Pity constants
@@ -716,6 +716,7 @@ export default function MascotGachaModal({
                       label={`${showcaseItem.name} mascot`}
                       directions={mascotArt(showcaseItem.mascotId).directions}
                       reactions={mascotArt(showcaseItem.mascotId).reactions}
+                      trackPointer
                     />
                   )}
                   <Sparkles className="absolute -top-3 -right-3 h-8 w-8 text-amber-500 animate-spin" />
