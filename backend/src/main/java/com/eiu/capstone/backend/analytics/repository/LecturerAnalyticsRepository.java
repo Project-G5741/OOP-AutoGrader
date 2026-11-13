@@ -241,7 +241,9 @@ public class LecturerAnalyticsRepository {
                     ) best) AS average_score,
                     (SELECT COUNT(*) FROM (
                         WITH lab_total AS (
-                            SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab WHERE term_id = :termId
+                            SELECT CAST(COUNT(*) AS numeric) AS lab_count
+                            FROM lab
+                            WHERE term_id = :termId AND prefix = 'Official'
                         ),
                         grade_students AS (
                             SELECT te.user_id AS id
@@ -287,12 +289,12 @@ public class LecturerAnalyticsRepository {
                                         FROM lab l
                                         LEFT JOIN qualifying_scores qs
                                             ON qs.user_id = gs.id AND qs.lab_id = l.id
-                                        WHERE l.term_id = :termId)
+                                        WHERE l.term_id = :termId AND l.prefix = 'Official')
                                    END AS total_score
                             FROM grade_students gs
                             CROSS JOIN lab_total lt
                         )
-                        SELECT id FROM student_totals WHERE total_score < 70
+                        SELECT id FROM student_totals WHERE total_score < 50
                     ) at_risk) AS at_risk_students,
                     (SELECT COUNT(DISTINCT u.id)
                      FROM term_enrollment te
@@ -322,13 +324,15 @@ public class LecturerAnalyticsRepository {
     }
 
     /**
-     * Active students enrolled in the term, with the same total as grade overview
-     * (average of highest lab scores; missing labs count as 0).
+     * Active students enrolled in the term. {@code total_score} is the Score total:
+     * average of Official labs only; a missing Official lab counts as 0.
      */
     public List<Object[]> findOverviewStudentsForTerm(UUID termId) {
         String sql = """
                 WITH lab_total AS (
-                    SELECT CAST(COUNT(*) AS numeric) AS lab_count FROM lab WHERE term_id = :termId
+                    SELECT CAST(COUNT(*) AS numeric) AS lab_count
+                    FROM lab
+                    WHERE term_id = :termId AND prefix = 'Official'
                 ),
                 grade_students AS (
                     SELECT DISTINCT u.id,
@@ -377,7 +381,7 @@ public class LecturerAnalyticsRepository {
                             FROM lab l
                             LEFT JOIN qualifying_scores qs
                                 ON qs.user_id = gs.id AND qs.lab_id = l.id
-                            WHERE l.term_id = :termId)
+                            WHERE l.term_id = :termId AND l.prefix = 'Official')
                        END AS total_score
                 FROM grade_students gs
                 CROSS JOIN lab_total lt

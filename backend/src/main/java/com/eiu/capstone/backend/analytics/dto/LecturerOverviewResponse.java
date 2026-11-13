@@ -23,7 +23,7 @@ public record LecturerOverviewResponse(
             String submittedAt) {
     }
 
-    /** Enrolled active student. {@code atRisk} is total score &lt; 70, with missing labs as 0. */
+    /** Enrolled active student. {@code totalScore} is the Score total. {@code atRisk} is that total &lt; 50. */
     public record OverviewStudentItem(
             String studentId,
             String studentName,

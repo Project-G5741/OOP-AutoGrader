@@ -150,7 +150,7 @@ Only `.java` and `.mmd` files are accepted. Folder paths are preserved via `webk
 | Feature | Description |
 |---------|-------------|
 | **Grading Dashboard** | Overview cards, per-lab statistics, submission tables, challenge-level student scores |
-| **Grade Overview** | Cross-lab matrix of all students × all labs; sortable; at-risk threshold (< 70) |
+| **Grade Overview** | Cross-lab matrix of all students × all labs; sortable. Dashboard at-risk uses that Score total (&lt; 50) |
 | **Solution Management** | Visual lab structure editor — define challenges, classes, members, MMD relations, operational testcases |
 | **User Management** | Add/edit/deactivate users; assign roles; bulk import |
 | **Reports** | Analytics dashboard with trends and filters |
