@@ -9,9 +9,11 @@ export const CHALLENGE_FOLDER_PATTERN = /^challenge[_-]?\d+$/i;
 /**
  * @param {Array<{ file: File, relativePath: string }>} entries
  * @param {'LAB'|'EXAM'} mode
+ * @param {{ enrolledIrns?: Set<string>|null }} [options]
  * @returns {{ accepted: Array, skipped: Array }}
  */
-export function parseBulkMainFolder(entries, mode) {
+export function parseBulkMainFolder(entries, mode, options = {}) {
+  const enrolledIrns = options.enrolledIrns instanceof Set ? options.enrolledIrns : null;
   const skipped = [];
   if (!Array.isArray(entries) || entries.length === 0) {
     return { accepted: [], skipped: [{ path: '(empty)', reason: 'No files in drop' }] };
@@ -66,6 +68,14 @@ export function parseBulkMainFolder(entries, mode) {
     }
     const studentId = match[1];
     const studentName = match[2].replace(/_/g, ' ').trim().toUpperCase();
+    if (studentId.length !== 10) {
+      skipped.push({ path: folderName, reason: 'IRN must be exactly 10 digits' });
+      continue;
+    }
+    if (enrolledIrns && !enrolledIrns.has(studentId)) {
+      skipped.push({ path: folderName, reason: 'IRN is not enrolled in the current quarter' });
+      continue;
+    }
 
     const relevant = files.filter((f) => {
       const name = f.studentRelativePath.toLowerCase();

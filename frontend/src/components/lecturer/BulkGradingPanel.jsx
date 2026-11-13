@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, FlaskConical } from 'lucide-react';
 import Combobox from '../ui/Combobox';
 import Progress from '../ui/Progress';
@@ -12,7 +12,7 @@ import {
 } from '../../utils/bulkFolderParse';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
-import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { formatNumber, formatText } from '../../utils/formatters';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
@@ -118,6 +118,43 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [resultsTab, setResultsTab] = useState('overview');
   const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
   const [resultsPage, setResultsPage] = useState(0);
+  /** @type {'loading'|'ready'|'no-quarter'|'error'} */
+  const [membershipStatus, setMembershipStatus] = useState('loading');
+  const [enrolledIrns, setEnrolledIrns] = useState(() => new Set());
+  const [membershipError, setMembershipError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setMembershipStatus('loading');
+      setMembershipError(null);
+      try {
+        const response = await apiFetch(
+          `${API_BASE}/api/lecturer/bulk-grading/current-term-student-irns`,
+          { headers: authHeaders() },
+        );
+        if (cancelled) return;
+        if (response.status === 409) {
+          setEnrolledIrns(new Set());
+          setMembershipStatus('no-quarter');
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(await readFriendlyApiError(response, 'bulk-grade'));
+        }
+        const data = await response.json();
+        const list = Array.isArray(data?.irns) ? data.irns : [];
+        setEnrolledIrns(new Set(list.map((code) => String(code))));
+        setMembershipStatus('ready');
+      } catch (err) {
+        if (cancelled) return;
+        setEnrolledIrns(new Set());
+        setMembershipStatus('error');
+        setMembershipError(toFriendlyError(err, 'bulk-grade'));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -205,8 +242,12 @@ export default function BulkGradingPanel({ labs = [] }) {
     });
   }, [rows, resultsTab, labChallenges, selectedLab, bulkResultsTabLabel]);
 
+  const membershipReady = membershipStatus === 'ready';
+  const dropBlocked = !membershipReady || grading || !modeOk;
+
   const applyEntries = useCallback((entries, label) => {
-    const result = parseBulkMainFolder(entries, mode);
+    if (membershipStatus !== 'ready') return;
+    const result = parseBulkMainFolder(entries, mode, { enrolledIrns });
     setParseResult(result);
     setFolderLabel(label || 'dropped folder');
     setRows([]);
@@ -216,9 +257,10 @@ export default function BulkGradingPanel({ labs = [] }) {
     setDrawerStudent(null);
     setResultsTab('overview');
     setResultsPage(0);
-  }, [mode]);
+  }, [mode, enrolledIrns, membershipStatus]);
 
   const handleInputFiles = (fileList) => {
+    if (dropBlocked) return;
     const collected = Array.from(fileList).map((file) => ({
       file,
       relativePath: file.webkitRelativePath || file.name,
@@ -231,6 +273,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const handleDrop = async (event) => {
     event.preventDefault();
     setIsDragging(false);
+    if (dropBlocked) return;
     const items = event.dataTransfer?.items;
     if (!items?.length) return;
     const topLevel = Array.from(items).map((item) => item.webkitGetAsEntry()).filter(Boolean);
@@ -242,7 +285,8 @@ export default function BulkGradingPanel({ labs = [] }) {
   };
 
   const canStart =
-    modeOk
+    membershipReady
+    && modeOk
     && !grading
     && parseResult
     && parseResult.accepted.length > 0;
@@ -285,7 +329,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           },
         );
         if (!response.ok) {
-          throw new Error(await friendlyLoadErrorFromResponse(response));
+          throw new Error(await readFriendlyApiError(response, 'bulk-grade'));
         }
         const data = await response.json();
         const score = data.score ?? data.totalScore ?? null;
@@ -314,7 +358,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           studentName: student.studentName,
           score: null,
           plagiarismLabel: '—',
-          error: toFriendlyError(err, 'upload'),
+          error: toFriendlyError(err, 'bulk-grade'),
           payload: null,
         });
       }
@@ -407,12 +451,33 @@ export default function BulkGradingPanel({ labs = [] }) {
           </p>
         )}
 
+        {membershipStatus === 'no-quarter' && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            No current quarter is set. Set a current quarter before using Bulk Grading.
+          </p>
+        )}
+        {membershipStatus === 'error' && membershipError && (
+          <p className="rounded-r-xl border-l-4 border-error bg-error-bg px-3.5 py-2.5 text-sm text-error-text">
+            {membershipError}
+          </p>
+        )}
+        {membershipStatus === 'loading' && (
+          <p className="text-sm text-foreground-muted">Loading current-quarter student IRNs…</p>
+        )}
+
         <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!dropBlocked) setIsDragging(true);
+          }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           className={`rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-            isDragging ? 'border-primary bg-primary-light' : 'border-border bg-surface-secondary/70'
+            dropBlocked
+              ? 'border-border bg-surface-secondary/40 opacity-60'
+              : isDragging
+                ? 'border-primary bg-primary-light'
+                : 'border-border bg-surface-secondary/70'
           }`}
         >
           <div className="mx-auto mb-2 h-16 w-16">
@@ -426,7 +491,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           </p>
           <button
             type="button"
-            disabled={grading || !modeOk}
+            disabled={dropBlocked}
             onClick={() => inputRef.current?.click()}
             className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
@@ -440,6 +505,7 @@ export default function BulkGradingPanel({ labs = [] }) {
             webkitdirectory=""
             directory=""
             multiple
+            disabled={dropBlocked}
             onChange={(e) => handleInputFiles(e.target.files || [])}
           />
         </div>
