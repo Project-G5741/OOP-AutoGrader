@@ -19,6 +19,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
 | `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender` |
+| `FeedbackAdminMailService` | (`!desktop`) After a Feedback item is saved, send plain text to every active Admin account email via `TransactionalEmailSender`. Subject `Feedback OOP - AutoGrader`; body is type, author, and the submitted message. Mail failure does not fail create |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate |
 | `SolutionImportService` | Lecturer solution-folder import: group by `challenge_n`, compile+reflect+optional MMD → structure DTO fragments; no structure/OT persist. Enum constants import with null type and scope. Omits compiler-generated constructors when source declares none (class: implicit no-arg only; enum/record: all reflected ctors). Omits javac enum builtins `values()` and `valueOf(String)` on import. Explicit no-arg class constructors import with `isDefault=false`; record canonical ctor from the header counts as explicit |
@@ -45,7 +46,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `TestcaseRubricService` | Lecturer operational testcase GET/PUT; upsert invocations by client UUID; save 422 guardrails; structure-delete reference scan; `requireChallengeAccessible` for dry-run |
 | `TestcaseDryRunService` | Reference Java compile + `gradeSingle` preview; reuses local worker (`SharedLocalWorkerCache`) and compiled classes (`DryRunCompileCache`, default 5s TTL via `app.grading.dry-run-compile-idle-ttl-ms`) |
 | `DryRunCompileCache` | Fingerprint-keyed classes dir reuse for unchanged dry-run reference sources |
-| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; lecturer list/detail/status/reply/download; delete Resolved — soft-archive (`archived_at`) when a reply exists, else hard-delete. Author `GET /replies` includes archived replies; `DELETE /replies` consume hard-deletes those rows after the student reload/logout. Attachments in Postgres `bytea` |
+| `FeedbackService` | (`!desktop` controllers) Create Bug/Contribution with stamped IRN+name; convert PNG/JPG to WebP; after save, `FeedbackAdminMailService` emails active Admins (bean absent on desktop). Lecturer list/detail/status/reply/download; delete Resolved — soft-archive (`archived_at`) when a reply exists, else hard-delete. Author `GET /replies` includes archived replies; `DELETE /replies` consume hard-deletes those rows after the student reload/logout. Attachments in Postgres `bytea` |
 | `FeedbackImageConverter` | ImageIO PNG/JPG → WebP (quality ~80, longest side 1920). Fail 422 instead of storing original raster |
 
 ## Local Contracts
@@ -168,6 +169,7 @@ Per upload request (unique `requestId` prevents collisions):
 - Student dashboard lab list: `support` `ChallengeServiceTest` (sidebar challenges grouped, no scores) and `support` `StatsServiceTest` (batched attempt stats)
 - Deadline email: `support` `LabDeadlineEmailServiceTest` (anti-join candidates, no per-student ledger exists); scheduler rate/enabled via `app.deadline-reminder.*` (default hourly; off when `app.deadline-reminder.enabled=false`)
 - Current-term lecturer mail: `support` `CurrentTermMailServiceTest`; `authorization` `LecturerTermMailAuthorizationTest`
+- Feedback admin mail: `support` `FeedbackAdminMailServiceTest`; `unit` `FeedbackServiceCreateTest` (notify after save; mail failure still creates)
 - Structure save: `support` `LabStructureServiceSaveTest` (one inheritance/realization pair per source class); `integration` `LabStructureReplaceSaveIntegrationTest` (replace-aware save keeps challenge id + SCR, wipes OT, rebuilds classes on H2 desktop)
 - Lab clone: `support` `LabCloneServiceTest` (previous-current ordinal, source-term gate, UUID remap + structure/OT save)
 - Solution import: `unit` `SolutionImportServiceTest`, `SolutionImportExplicitConstructorsTest` (partial compile, Java-only/`hasMmd`, nested static outer link, implicit default ctor omission); auth via `SecurityAuthorizationTest` solution-import cases
