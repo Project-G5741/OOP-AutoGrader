@@ -40,7 +40,8 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 @Service
 public class LecturerAnalyticsService {
 
-    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("70");
+    /** Score total (Official labs only). A student is at risk only when that total is below 50. */
+    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("50");
 
     private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
     private final ChallengeService challengeService;
@@ -129,8 +130,8 @@ public class LecturerAnalyticsService {
             if (row == null || row.length < 4) {
                 continue;
             }
-            BigDecimal totalScore = AnalyticsMapper.toBigDecimal(row[3]);
-            boolean atRisk = totalScore != null && totalScore.compareTo(AT_RISK_TOTAL_BELOW) < 0;
+            BigDecimal totalScore = scoreTotal(AnalyticsMapper.toBigDecimal(row[3]));
+            boolean atRisk = isAtRiskScore(totalScore);
             students.add(new LecturerOverviewResponse.OverviewStudentItem(
                     AnalyticsMapper.toString(row[0]),
                     AnalyticsMapper.toString(row[1]),
@@ -139,6 +140,18 @@ public class LecturerAnalyticsService {
                     atRisk));
         }
         return students;
+    }
+
+    /** Same scale as {@link GradeOverviewOfficialTotal}: Score column rounds down to 2 places. */
+    static BigDecimal scoreTotal(BigDecimal raw) {
+        if (raw == null) {
+            return null;
+        }
+        return raw.setScale(2, RoundingMode.DOWN);
+    }
+
+    static boolean isAtRiskScore(BigDecimal scoreTotal) {
+        return scoreTotal != null && scoreTotal.compareTo(AT_RISK_TOTAL_BELOW) < 0;
     }
 
     private List<LecturerOverviewResponse.OverviewLabItem> loadOverviewLabs(UUID termId) {
