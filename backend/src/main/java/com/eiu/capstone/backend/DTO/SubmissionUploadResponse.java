@@ -17,6 +17,8 @@ public class SubmissionUploadResponse {
     private final Integer totalSubmissions;
     private final String latestSubmission;
     private final Map<String, ChallengeDetailBundleDTO> labResult;
+    /** False when the attempt was graded and returned without a `lab_submission` row (Admin). */
+    private final boolean persisted;
 
     public SubmissionUploadResponse(UUID submissionId,
                                     String irn,
@@ -27,6 +29,20 @@ public class SubmissionUploadResponse {
                                     Integer totalSubmissions,
                                     String latestSubmission,
                                     Map<String, ChallengeDetailBundleDTO> labResult) {
+        this(submissionId, irn, requestId, challengeResult, score, attemptNumber,
+                totalSubmissions, latestSubmission, labResult, true);
+    }
+
+    public SubmissionUploadResponse(UUID submissionId,
+                                    String irn,
+                                    String requestId,
+                                    Map<UUID, Integer> challengeResult,
+                                    BigDecimal score,
+                                    Integer attemptNumber,
+                                    Integer totalSubmissions,
+                                    String latestSubmission,
+                                    Map<String, ChallengeDetailBundleDTO> labResult,
+                                    boolean persisted) {
         this.submissionId = submissionId;
         this.irn = irn;
         this.requestId = requestId;
@@ -36,6 +52,7 @@ public class SubmissionUploadResponse {
         this.totalSubmissions = totalSubmissions;
         this.latestSubmission = latestSubmission;
         this.labResult = labResult;
+        this.persisted = persisted;
     }
 
     public UUID getSubmissionId() { return submissionId; }
@@ -49,4 +66,7 @@ public class SubmissionUploadResponse {
 
     @JsonProperty("lab_result")
     public Map<String, ChallengeDetailBundleDTO> getLabResult() { return labResult; }
+
+    /** False for Admin dry uploads: detail tabs must come from {@link #getLabResult()}, not a later GET. */
+    public boolean isPersisted() { return persisted; }
 }

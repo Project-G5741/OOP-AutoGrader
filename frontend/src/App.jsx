@@ -28,6 +28,7 @@ import { leavePresence } from "./utils/presence";
 import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
 import { consumeFeedbackRepliesOnLeave } from "./utils/feedbackReplyConsume";
 import { isWebMaintenanceMode } from "./utils/maintenanceMode";
+import { clearLecturerLoginGate, markLecturerLogin } from "./utils/studentAreaGate";
 
 function readResetTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("resetToken");
@@ -76,7 +77,11 @@ export default function App() {
     }
     const userPayload = { ...data, roles };
     persistAuthSession(data.accessToken, userPayload);
-    navigate(defaultDashboardPath(roles, data.inCurrentTerm));
+    const destination = defaultDashboardPath(roles, data.inCurrentTerm);
+    if (destination === ROUTES.lecturerDashboard) {
+      markLecturerLogin();
+    }
+    navigate(destination);
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
@@ -84,6 +89,7 @@ export default function App() {
     leavePresence();
     clearAuthSession();
     clearLecturerBootstrapStore();
+    clearLecturerLoginGate();
     navigate(ROUTES.login);
   }, [navigate]);
 

@@ -83,7 +83,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 - `GoogleTokenVerifier`: calls `https://oauth2.googleapis.com/tokeninfo`, checks audience, expiry, `email_verified`, domain `eiu.edu.vn`
 - `JwtService`: HS256 signing key derived once at construction from `jwt.secret` / `JWT_SECRET` (≥32 bytes); missing or too-short secrets fail startup
-- `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` / `ADMIN` strings; inactive accounts are rejected. Admin lab uploads are graded and returned, then discarded (no progress, streak credit, plagiarism, or overview cache invalidation)
+- `UserService.authenticateByIrn()`: maps DB roles to `STUDENT` / `LECTURER` / `ADMIN` strings; inactive accounts are rejected. Admin lab uploads are graded and returned, then discarded (no progress, streak credit, plagiarism, or overview cache invalidation). The response sets `persisted` false and includes student-safe `lab_result` trees (MMD, Declaration, Operational Test); the SPA renders those trees and does not GET `/class`, `/mmd`, or `/testcases` for that attempt
 - `PasswordResetService`: `POST /api/auth/forgot-password` (email lookup, inactive rejected) and `POST /api/auth/reset-password` (opaque token in body; inactive users rejected at complete as well as request); tokens stored hashed in `password_reset_token` (see `docs/plans/sql/password_reset_token.sql`)
 
 ### User management
