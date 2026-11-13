@@ -375,18 +375,6 @@ export default function StudentStreakFlame({
             </div>
           </div>
 
-          {/* Economy Explanation Note */}
-          <div className="u379-economy-note">
-            <p className="u379-economy-title">
-              {completedToday
-                ? '🎉 Tuyệt vời! Bạn đã nhận đủ 8 Vé Roll hôm nay.'
-                : '🎁 Hoàn thành đủ nhiệm vụ ngày nhận tối đa 8 Vé Roll (56 vé/tuần) & 50+ điểm thưởng.'}
-            </p>
-            <p className="u379-economy-desc">
-              Tích lũy vé quay để săn <b>Đá Crystal</b>. Trong 2.5 tháng, sinh viên chăm chỉ chắc chắn đổi được <b>2 Mascot Huyền Thoại</b>!
-            </p>
-          </div>
-
           {broken && (
             <p className="u379-note">
               {canRestore
