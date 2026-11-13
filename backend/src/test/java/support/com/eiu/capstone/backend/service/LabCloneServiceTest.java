@@ -42,6 +42,7 @@ import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
 import com.eiu.capstone.backend.DTO.rubric.MethodStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.ParameterStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.RelationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
@@ -175,6 +176,7 @@ class LabCloneServiceTest {
         UUID classId = UUID.randomUUID();
         UUID fieldId = UUID.randomUUID();
         UUID methodId = UUID.randomUUID();
+        UUID parameterId = UUID.randomUUID();
         UUID relationId = UUID.randomUUID();
         UUID testcaseId = UUID.randomUUID();
         UUID invocationId = UUID.randomUUID();
@@ -199,9 +201,15 @@ class LabCloneServiceTest {
                                 1,
                                 false,
                                 false,
-                                List.of(new FieldStructureDTO(fieldId, "x", "int", 1, false, false)),
+                                List.of(new FieldStructureDTO(
+                                        fieldId, "x", "int", 1, false, false,
+                                        List.of("x", "value"), List.of("int", "Integer"))),
                                 List.of(new MethodStructureDTO(
-                                        methodId, "bar", "void", 1, false, false, List.of())),
+                                        methodId, "bar", "void", 1, false, false,
+                                        List.of(new ParameterStructureDTO(
+                                                parameterId, "amount", "int", 0, false,
+                                                List.of("amount", "quantity"), List.of("int", "Integer"))),
+                                        List.of("bar", "run"), List.of("void", "Void"))),
                                 List.of(),
                                 null,
                                 1)),
@@ -223,7 +231,7 @@ class LabCloneServiceTest {
                 null,
                 List.of(),
                 List.of(new AssertionStructureDTO(
-                        assertionId, invocationId, AssertionKind.RETURN_VALUE, null, "1",
+                        assertionId, invocationId, AssertionKind.FIELD_STATE, fieldId, "1",
                         ComparisonMode.EXACT, 0)),
                 List.of(new InvocationStructureDTO(
                         invocationId, InvocationKind.METHOD, null, methodId, "[]",
@@ -263,6 +271,14 @@ class LabCloneServiceTest {
         assertNotEquals(classId, savedClass.id());
         assertNotEquals(fieldId, savedClass.fields().get(0).id());
         assertNotEquals(methodId, savedClass.methods().get(0).id());
+        assertEquals(List.of("x", "value"), savedClass.fields().get(0).names());
+        assertEquals(List.of("int", "Integer"), savedClass.fields().get(0).dataTypes());
+        assertEquals(List.of("bar", "run"), savedClass.methods().get(0).names());
+        assertEquals(List.of("void", "Void"), savedClass.methods().get(0).returnTypes());
+        ParameterStructureDTO savedParameter = savedClass.methods().get(0).parameters().get(0);
+        assertNotEquals(parameterId, savedParameter.id());
+        assertEquals(List.of("amount", "quantity"), savedParameter.names());
+        assertEquals(List.of("int", "Integer"), savedParameter.dataTypes());
         RelationStructureDTO savedRelation = savedChallenge.relations().get(0);
         assertNotEquals(relationId, savedRelation.id());
         assertEquals(savedClass.id(), savedRelation.sourceClassId());
@@ -280,6 +296,7 @@ class LabCloneServiceTest {
         assertEquals(savedClass.methods().get(0).id(), savedOt.invocations().get(0).methodId());
         assertNotEquals(assertionId, savedOt.assertions().get(0).id());
         assertEquals(savedOt.invocations().get(0).id(), savedOt.assertions().get(0).invocationId());
+        assertEquals(savedClass.fields().get(0).id(), savedOt.assertions().get(0).fieldId());
 
         assertEquals(newLabId, result.id());
         assertEquals("Lab Copy Me", result.name());

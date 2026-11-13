@@ -38,6 +38,65 @@ function cloneDraft(data) {
   return JSON.parse(JSON.stringify(data));
 }
 
+function aliasList(values, primary) {
+  return Array.isArray(values) && values.length > 0 ? values : [primary ?? ''];
+}
+
+function nullableAliasList(values, primary) {
+  return Array.isArray(values) && values.length > 0 ? values : [primary ?? null];
+}
+
+function normalizeParameterAliases(parameter) {
+  const names = aliasList(parameter.names, parameter.name);
+  const dataTypes = aliasList(parameter.dataTypes, parameter.dataType);
+  return {
+    ...parameter,
+    names,
+    name: names[0],
+    dataTypes,
+    dataType: dataTypes[0],
+  };
+}
+
+function normalizeStructureAliases(structure) {
+  return {
+    ...structure,
+    challenges: (structure.challenges || []).map((challenge) => ({
+      ...challenge,
+      classes: (challenge.classes || []).map((cls) => ({
+        ...cls,
+        fields: (cls.fields || []).map((field) => {
+          const names = aliasList(field.names, field.name);
+          const dataTypes = nullableAliasList(field.dataTypes, field.dataType);
+          return {
+            ...field,
+            names,
+            name: names[0],
+            dataTypes,
+            dataType: dataTypes[0],
+          };
+        }),
+        methods: (cls.methods || []).map((method) => {
+          const names = aliasList(method.names, method.name);
+          const returnTypes = aliasList(method.returnTypes, method.returnType);
+          return {
+            ...method,
+            names,
+            name: names[0],
+            returnTypes,
+            returnType: returnTypes[0],
+            parameters: (method.parameters || []).map(normalizeParameterAliases),
+          };
+        }),
+        constructors: (cls.constructors || []).map((constructor) => ({
+          ...constructor,
+          parameters: (constructor.parameters || []).map(normalizeParameterAliases),
+        })),
+      })),
+    })),
+  };
+}
+
 function toDateInputValue(value) {
   if (value == null || value === '') return '';
   if (typeof value === 'string') return value.slice(0, 10);
@@ -168,7 +227,7 @@ export default function SolutionManagement() {
   }, []);
 
   const applyStructure = useCallback((labId, structure) => {
-    const nextDraft = cloneDraft(structure);
+    const nextDraft = normalizeStructureAliases(cloneDraft(structure));
     nextDraft.challenges = (nextDraft.challenges || []).map((challenge) => ({
       ...challenge,
       relations: challenge.relations || [],
@@ -183,7 +242,7 @@ export default function SolutionManagement() {
         weight: cls.weight > 0 ? cls.weight : 1,
       })),
     }));
-    const snapshot = cloneDraft(structure);
+    const snapshot = normalizeStructureAliases(cloneDraft(structure));
     rememberStructureCache(labId, { draft: cloneDraft(nextDraft), snapshot });
     selectedLabIdRef.current = labId;
     setSelectedLabId(labId);
@@ -359,14 +418,15 @@ export default function SolutionManagement() {
     setSaving(true);
     showToast(null);
     try {
+      const payload = normalizeStructureAliases({
+        ...draft,
+        name: String(draft.name).trim(),
+        replacedChallengeIds: importReplacedChallengeIds,
+      });
       const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/structure`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          ...draft,
-          name: String(draft.name).trim(),
-          replacedChallengeIds: importReplacedChallengeIds,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         throw new Error(await readFriendlyApiError(res, 'save'));

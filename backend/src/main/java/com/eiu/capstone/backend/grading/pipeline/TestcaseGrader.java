@@ -105,7 +105,11 @@ public class TestcaseGrader {
             for (TestcaseRubric testcase : plan.runnable()) {
                 InvocationRunner.BatchItem batchItem = toBatchItem(testcase);
                 labItems.add(new InvocationRunner.LabBatchItem(
-                        classesDir, batchItem.steps(), batchItem.snapshotFieldNames()));
+                        classesDir,
+                        batchItem.steps(),
+                        batchItem.snapshotFieldNames(),
+                        batchItem.snapshotFieldAliases(),
+                        batchItem.snapshotFieldAliasesByInvocation()));
             }
         }
         List<List<InvocationOutcome>> allOutcomes = labItems.isEmpty()
@@ -251,7 +255,32 @@ public class TestcaseGrader {
                 .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
                 .map(AssertionRubric::fieldName)
                 .toList();
-        return new InvocationRunner.BatchItem(steps, snapshotFields);
+        Map<String, List<String>> snapshotFieldAliases = new HashMap<>();
+        Map<UUID, Map<String, List<String>>> aliasesByInvocation = new HashMap<>();
+        testcase.assertions().stream()
+                .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
+                .filter(assertion -> assertion.fieldName() != null)
+                .forEach(assertion -> {
+                    snapshotFieldAliases.putIfAbsent(
+                            assertion.fieldName(), assertion.fieldNameAliases());
+                    UUID invocationId = assertion.invocationId() != null
+                            ? assertion.invocationId()
+                            : (steps.size() == 1 ? steps.get(0).id() : null);
+                    if (invocationId != null) {
+                        aliasesByInvocation
+                                .computeIfAbsent(invocationId, ignored -> new HashMap<>())
+                                .putIfAbsent(assertion.fieldName(), assertion.fieldNameAliases());
+                    }
+                });
+        Map<UUID, Map<String, List<String>>> immutableAliasesByInvocation = new HashMap<>();
+        steps.forEach(step -> immutableAliasesByInvocation.put(step.id(), Map.of()));
+        aliasesByInvocation.forEach(
+                (invocationId, aliases) -> immutableAliasesByInvocation.put(invocationId, Map.copyOf(aliases)));
+        return new InvocationRunner.BatchItem(
+                steps,
+                snapshotFields,
+                Map.copyOf(snapshotFieldAliases),
+                Map.copyOf(immutableAliasesByInvocation));
     }
 
     private Evaluation finishEvaluate(TestcaseRubric testcase, List<InvocationOutcome> outcomes) {
@@ -389,7 +418,10 @@ public class TestcaseGrader {
                 step.dispatchClassId(),
                 step.dispatchClassName(),
                 step.resultTypeName(),
-                step.repeatCount());
+                step.repeatCount(),
+                step.methodNameAliases(),
+                step.parameterTypeAliases(),
+                step.receiverParameterTypeAliases());
     }
 
     private static int firstThrowIndex(List<InvocationOutcome> outcomes) {

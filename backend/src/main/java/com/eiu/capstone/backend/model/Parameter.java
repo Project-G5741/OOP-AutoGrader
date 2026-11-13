@@ -8,7 +8,6 @@ import java.util.UUID;
 public class Parameter {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -35,6 +34,10 @@ public class Parameter {
 
     public UUID getId() {
         return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
     }
 
     public Method getMethod() {

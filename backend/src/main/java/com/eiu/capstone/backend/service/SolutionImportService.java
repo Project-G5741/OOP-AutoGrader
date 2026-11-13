@@ -352,7 +352,9 @@ public class SolutionImportService {
                     constant ? null : field.dataType,
                     constant ? null : masterData.scopeId(field.scope),
                     constant ? false : field.isStatic,
-                    constant ? false : field.isFinal));
+                    constant ? false : field.isFinal,
+                    List.of(field.name),
+                    java.util.Collections.singletonList(constant ? null : field.dataType)));
         }
         return out;
     }
@@ -373,7 +375,9 @@ public class SolutionImportService {
                     masterData.scopeId(method.scope),
                     method.isStatic,
                     method.isAbstract,
-                    mapParameters(method.parameterTypes, method.parameterNames)));
+                    mapParameters(method.parameterTypes, method.parameterNames),
+                    List.of(method.name),
+                    List.of(method.returnType)));
         }
         return out;
     }
@@ -478,7 +482,9 @@ public class SolutionImportService {
                     name,
                     parameterTypes.get(i),
                     i,
-                    false));
+                    false,
+                    List.of(name),
+                    List.of(parameterTypes.get(i))));
         }
         return out;
     }

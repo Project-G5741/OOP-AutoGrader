@@ -6,12 +6,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.BulkCurrentTermStudentIrnsResponse;
 import com.eiu.capstone.backend.DTO.BulkGradeResponse;
 import com.eiu.capstone.backend.grading.GradedChallengeSummary;
 import com.eiu.capstone.backend.grading.GradingOutcome;
@@ -26,6 +28,9 @@ import com.eiu.capstone.backend.plagiarism.PlagiarismFingerprintExtractor;
 import com.eiu.capstone.backend.plagiarism.PlagiarismSignals;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
+import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
+import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.utility.TimeUtil;
@@ -38,22 +43,43 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 @Service
 public class LecturerBulkGradingService {
 
+    private static final Pattern TEN_DIGIT_IRN = Pattern.compile("^\\d{10}$");
+
     private final LabRepository labRepository;
     private final ChallengeRepository challengeRepository;
     private final LabRubricCache labRubricCache;
     private final SubmissionStorageService submissionStorageService;
     private final GradingService gradingService;
+    private final TermRepository termRepository;
+    private final TermEnrollmentRepository termEnrollmentRepository;
+    private final UserAccountRepository userAccountRepository;
 
     public LecturerBulkGradingService(LabRepository labRepository,
                                       ChallengeRepository challengeRepository,
                                       LabRubricCache labRubricCache,
                                       SubmissionStorageService submissionStorageService,
-                                      GradingService gradingService) {
+                                      GradingService gradingService,
+                                      TermRepository termRepository,
+                                      TermEnrollmentRepository termEnrollmentRepository,
+                                      UserAccountRepository userAccountRepository) {
         this.labRepository = labRepository;
         this.challengeRepository = challengeRepository;
         this.labRubricCache = labRubricCache;
         this.submissionStorageService = submissionStorageService;
         this.gradingService = gradingService;
+        this.termRepository = termRepository;
+        this.termEnrollmentRepository = termEnrollmentRepository;
+        this.userAccountRepository = userAccountRepository;
+    }
+
+    /**
+     * Current-quarter enrolled {@code student_code} values (including inactive).
+     * HTTP 409 when no current quarter is set.
+     */
+    public BulkCurrentTermStudentIrnsResponse listCurrentTermStudentIrns() {
+        requireCurrentTerm();
+        List<String> irns = termEnrollmentRepository.findStudentCodesEnrolledInCurrentTerm();
+        return new BulkCurrentTermStudentIrnsResponse(irns != null ? irns : List.of());
     }
 
     public BulkGradeResponse gradeOne(UUID labId, BulkGradeMode mode, List<MultipartFile> files) {
@@ -95,6 +121,7 @@ public class LecturerBulkGradingService {
         List<MultipartFile> remapped = BulkFolderPathRemapper.remap(files, mode, examChallengeNumber);
         String studentFolder = BulkFolderPathRemapper.extractStudentFolder(remapped);
         String irn = BulkFolderPathRemapper.extractIrn(studentFolder);
+        requireValidBulkIrn(irn);
         String requestId = UUID.randomUUID().toString();
 
         Path submissionFolderToDelete = null;
@@ -138,6 +165,32 @@ public class LecturerBulkGradingService {
             if (submissionFolderToDelete != null) {
                 submissionStorageService.deleteFolder(submissionFolderToDelete);
             }
+        }
+    }
+
+    void requireValidBulkIrn(String irn) {
+        requireCurrentTerm();
+        if (irn == null || !TEN_DIGIT_IRN.matcher(irn).matches()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "IRN must be exactly 10 digits");
+        }
+        UserAccount user = userAccountRepository.findByStudentCode(irn)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "IRN is not enrolled in the current quarter"));
+        if (!termEnrollmentRepository.existsByUser_IdAndTerm_CurrentTrue(user.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "IRN is not enrolled in the current quarter");
+        }
+    }
+
+    private void requireCurrentTerm() {
+        if (termRepository.findCurrent().isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No current quarter is set");
         }
     }
 }

@@ -14,7 +14,7 @@ import {
   selectedUnitTarget,
   unitMemberBlockedReason,
   unitTargetKey,
-  unitSelectableTargets,
+  unitSelectableGroups,
 } from './testcaseAuthoring';
 
 export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, referenceSources = [] }) {
@@ -39,7 +39,7 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
         Member
         <select
           className={FIELD_CLASS}
-          value={unitTargetKey(step)}
+          value={unitTargetKey(step, catalog)}
           onChange={(e) => {
             const nextStep = applyUnitTarget(step, e.target.value, catalog);
             const kinds = allowedAssertionKinds(nextStep, catalog, 'UNIT');
@@ -63,14 +63,15 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
           }}
         >
           <option value="">Select constructor or method</option>
-          {unitSelectableTargets(catalog).map((item) => {
-            const key = `${item.kind}:${item.id}`;
-            return (
-              <option key={key} value={key}>
-                {item.label}
-              </option>
-            );
-          })}
+          {unitSelectableGroups(catalog).map((group) => (
+            <optgroup key={group.classId} label={group.className}>
+              {group.items.map((item) => (
+                <option key={item.unitKey} value={item.unitKey}>
+                  {item.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
       </label>
 

@@ -22,6 +22,20 @@ public interface TermEnrollmentRepository extends JpaRepository<TermEnrollment, 
     @Query("SELECT te.user.id FROM TermEnrollment te WHERE te.term.current = true")
     List<UUID> findUserIdsEnrolledInCurrentTerm();
 
+    /**
+     * Non-blank student_code values for enrollments on the system current term.
+     * Includes inactive/suspended accounts; never falls back to teacher_code.
+     */
+    @Query("""
+            SELECT DISTINCT u.studentCode
+            FROM TermEnrollment te
+            JOIN te.user u
+            WHERE te.term.current = true
+              AND u.studentCode IS NOT NULL
+              AND TRIM(u.studentCode) <> ''
+            """)
+    List<String> findStudentCodesEnrolledInCurrentTerm();
+
     @Query(value = """
             SELECT DISTINCT u.id
             FROM term_enrollment te

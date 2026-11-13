@@ -38,7 +38,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/LabResultAssembler.java` | Build `lab_result.challenge_<N>` bundles; overloads accept `DisclosureMode` and `thinTrees` (student persisted upload = STUDENT + thin; student non-persisted/pruned upload = STUDENT + full; lecturer bulk = LECTURER) |
 | `ParsedSubmissionSnapshotBuilder.java` | Capture rubric-scoped student display text at grade time |
 | `GradingResultStore.java` | Short read/write transactions for submission result tables |
-| `grading/rubric/LabRubricService.java` | Load full lab rubric (invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
+| `grading/rubric/LabRubricService.java` | Load full lab rubric (declaration alias lists, invocations, assertions) in batched DB queries; `loadForLabs` covers many labs in one query set |
 | `grading/rubric/LabRubricCache.java` | In-process TTL cache keyed by lab ID; `get(UUID)` is a cache-hit with no SQL; `getAll` batches misses via `loadForLabs`; `invalidateAll()` after OT schema wipe |
 | `grading/rubric/LabRubricSnapshot.java` | Immutable rubric graph for grading |
 | `MmdParser.java` | Facade: `MmdTokenizer` → `MmdAstParser` → `MmdAstToParsedMapper` → diagram DTOs |
@@ -91,10 +91,10 @@ SubmissionController
 
 ### Operational testcase grading
 
-- Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, leftover `dispatch_class_id` / `receiver_constructor_id` columns unused for Unit), `testcase_assertion`
-- UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps. A constructor step may omit `constructor_id` and set `dispatch_class_id` to a challenge class; the worker then builds that object with the same hidden-receiver rule and stores no structure-editor constructor
+- Rubric tables: `testcase` (`UNIT` / `COMPOSITION`), `testcase_invocation` (ordered steps, optional `instance_name`, `dispatch_class_id` Call as / implicit default ctor, `receiver_constructor_id` for Unit Extends-inherited method context), `testcase_assertion`
+- UNIT: one invocation. Instance methods inject a hidden receiver at grade/dry-run (`receiverClassName` = declaring class, or subclass when `receiver_constructor_id` marks Extends-inherited context; no-arg or default-arg constructor). COMPOSITION: ordered named-instance steps. A constructor step may omit `constructor_id` and set `dispatch_class_id` to a challenge class; the worker then builds that object with the same hidden-receiver rule and stores no structure-editor constructor
 - Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
-- Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals() / receiver constructor
+- Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals(); Unit `receiver_constructor_id` only when the method is declared on a heritage ancestor of that constructor’s class
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
 - Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 3) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
 - Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback. Local IPC/spawn fallbacks use `LocalWorkerInfraErrors.STUDENT_MESSAGE`; remote sandbox failures use `SandboxInfraErrors.STUDENT_MESSAGE`. Desktop profile forces sandbox off (`application-desktop.yml` + practice host/bat clear `SANDBOX_*`)
@@ -115,6 +115,7 @@ SubmissionController
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives, `LocalDate` as `yyyy-MM-dd`; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
+- Declaration aliases also apply at OT runtime: FIELD_STATE snapshots try every authored field-name alias per bound invocation but keep the primary name as the result/display key; method, constructor, and explicit receiver-constructor lookup lazily try positional parameter-type aliases and coerce arguments using the combination that bound.
 
 ### Result persistence
 
@@ -147,6 +148,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it; **`final` is not graded on MMD** (Declaration Test only)
 - **Declaration field comparison** (reflection + MMD when type/scope specified) checks rubric `is_static` / `is_final` on `field_declaration` for Java; MMD fields honor required **static** via `$` suffix on the member name/type (`mmdModifierMatches`); **`final` is not graded on MMD** (diagram has no final marker)
+- **Declaration aliases:** `CartesianAliasMatcher` applies lecturer-authored field/method/parameter name and type lists independently (Cartesian) in reflection, MMD, parsed snapshots, and name-based OT resolution. Parameters match type aliases at each position; name aliases are enforced only when the rubric lists a non-blank name (blank/`""` from type-only convenience constructors means type-only). Reflection also skips unavailable/synthetic parameter names (`null`, blank, or positional `argN`) because Java bytecode may omit real names. Rubric `name()` / `dataType()` / `returnType()` and `parameterTypes()` accessors remain the first aliases for expected/display text.
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save). Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows
