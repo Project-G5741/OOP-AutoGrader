@@ -18,7 +18,7 @@ const COPY = {
   },
   atRisk: {
     title: 'At-Risk Students',
-    empty: 'No students are below 70.',
+    empty: 'No students are below 50.',
   },
 };
 
