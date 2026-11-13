@@ -122,12 +122,16 @@ public final class CartesianAliasMatcher {
             return allowUnavailable;
         }
         for (int i = 0; i < actualNames.size(); i++) {
+            List<String> expectedNames = expectedParameters.get(i).names();
+            // Type-only rubrics (convenience constructors / unset aliases) use blank names.
+            if (expectedNames.stream().noneMatch(CartesianAliasMatcher::specified)) {
+                continue;
+            }
             String actualName = actualNames.get(i);
             if (allowUnavailable && unavailableReflectionName(actualName, i)) {
                 continue;
             }
-            if (actualName == null
-                    || !nameMatches(actualName, expectedParameters.get(i).names())) {
+            if (actualName == null || !nameMatches(actualName, expectedNames)) {
                 return false;
             }
         }

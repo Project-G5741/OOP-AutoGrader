@@ -471,6 +471,41 @@ class MmdComparisonServiceTest {
     }
 
     @Test
+    void typeOnlyParameterRubricIgnoresDiagramParameterNames() {
+        UUID methodId = UUID.randomUUID();
+        UUID constructorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Car",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Car",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId, "drive", "public", "void", false, false, false, List.of("int"))),
+                        List.of(new ConstructorRubric(
+                                constructorId, "public", false, List.of("int", "String"))))),
+                List.of(),
+                List.of());
+
+        MmdGradingOutcome outcome = comparisonService.compare(
+                rubric,
+                parser.parse(diagram("""
+                        class Car {
+                          +Car(yearModel: int, make: String)
+                          +drive(speed: int): void
+                        }
+                        """)));
+
+        assertTrue(outcome.isConstructorCorrect(constructorId));
+        assertTrue(outcome.isMethodCorrect(methodId));
+    }
+
+    @Test
     void fieldMatchingSkipsEarlierNameOnlyCandidateForCompleteMatch() {
         UUID fieldId = UUID.randomUUID();
         ChallengeRubric rubric = new ChallengeRubric(
