@@ -765,19 +765,38 @@ public final class WorkerInvokeEngine {
 
     private Method findDeclaredMethod(Class<?> clazz, String name, Class<?>[] types)
             throws NoSuchMethodException {
-        try {
-            Method method = clazz.getDeclaredMethod(name, types);
-            method.setAccessible(true);
-            return method;
-        } catch (NoSuchMethodException e) {
-            for (Method candidate : clazz.getDeclaredMethods()) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            try {
+                Method method = current.getDeclaredMethod(name, types);
+                if (!method.isSynthetic() && !method.isBridge()) {
+                    method.setAccessible(true);
+                    return method;
+                }
+            } catch (NoSuchMethodException ignored) {
+                // Fall through to a same-types scan, then the Extends superclass.
+            }
+            for (Method candidate : current.getDeclaredMethods()) {
+                if (candidate.isSynthetic() || candidate.isBridge()) {
+                    continue;
+                }
                 if (candidate.getName().equals(name) && sameTypes(candidate.getParameterTypes(), types)) {
                     candidate.setAccessible(true);
                     return candidate;
                 }
             }
-            throw e;
+            current = current.getSuperclass();
         }
+        throw new NoSuchMethodException(
+                clazz.getName() + "#" + name + "(" + String.join(",", typeNames(types)) + ")");
+    }
+
+    private static String[] typeNames(Class<?>[] types) {
+        String[] names = new String[types.length];
+        for (int i = 0; i < types.length; i++) {
+            names[i] = types[i].getName();
+        }
+        return names;
     }
 
     private Method findDispatchMethod(Class<?> dispatchType, String name, Class<?>[] types)

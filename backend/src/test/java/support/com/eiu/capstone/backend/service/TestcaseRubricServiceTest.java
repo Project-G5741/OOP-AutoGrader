@@ -44,11 +44,13 @@ import com.eiu.capstone.backend.grading.rubric.RubricCacheInvalidationSupport;
 import com.eiu.capstone.backend.model.AssertionKind;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.ClassEntity;
+import com.eiu.capstone.backend.model.ClassRelation;
 import com.eiu.capstone.backend.model.ComparisonMode;
 import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.MasterData;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
 import com.eiu.capstone.backend.model.OopPrincipleTag;
@@ -419,6 +421,103 @@ class TestcaseRubricServiceTest {
         assertEquals(1, response.testcases().size());
         assertEquals(1, response.testcases().get(0).assertions().size());
         assertEquals(parentFieldId, response.testcases().get(0).assertions().get(0).fieldId());
+    }
+
+    @Test
+    void saveForChallenge_unitInheritedMethod_acceptsSubclassReceiverConstructor() {
+        UUID shapeClassId = UUID.randomUUID();
+        UUID drawMethodId = UUID.randomUUID();
+        ClassEntity shape = new ClassEntity();
+        shape.setId(shapeClassId);
+        shape.setChallenge(challenge);
+        shape.setName("Shape");
+        Method draw = instanceMethod(drawMethodId, shape, "draw", "void");
+
+        MasterData extendsType = new MasterData();
+        extendsType.setId(42);
+        extendsType.setName("Extends");
+        extendsType.setCategory("RELATION");
+        ClassRelation extendsLink = new ClassRelation();
+        extendsLink.setId(UUID.randomUUID());
+        extendsLink.setClassEntity(classEntity);
+        extendsLink.setTargetClassEntity(shape);
+        extendsLink.setRelationType(extendsType);
+
+        UUID invocationId = UUID.randomUUID();
+        InvocationStructureDTO invocation = new InvocationStructureDTO(
+                invocationId,
+                InvocationKind.METHOD,
+                null,
+                drawMethodId,
+                "[]",
+                constructorId,
+                "[]",
+                null,
+                null);
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "square-draw",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                invocation,
+                List.of(),
+                List.of(stdoutAssertion(UUID.randomUUID(), invocationId, "\"\"")),
+                List.of(invocation),
+                null);
+
+        stubChallengeAndMembers();
+        List<ClassEntity> classes = List.of(classEntity, shape);
+        stubExtraMembers(classes, List.of(constructor), List.of(method, draw), List.of());
+        when(classRelationRepository.findByClassEntityInWithEndpoints(any()))
+                .thenReturn(List.of(extendsLink));
+        when(methodRepository.findById(drawMethodId)).thenReturn(Optional.of(draw));
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals(1, response.testcases().size());
+        InvocationStructureDTO saved = response.testcases().get(0).invocation();
+        assertEquals(drawMethodId, saved.methodId());
+        assertEquals(constructorId, saved.receiverConstructorId());
+    }
+
+    @Test
+    void saveForChallenge_unitOwnMethod_rejectsReceiverConstructor() {
+        UUID invocationId = UUID.randomUUID();
+        InvocationStructureDTO invocation = new InvocationStructureDTO(
+                invocationId,
+                InvocationKind.METHOD,
+                null,
+                methodId,
+                "[]",
+                constructorId,
+                "[]",
+                null,
+                null);
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "own-with-receiver",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                invocation,
+                List.of(),
+                List.of(returnValueAssertion(UUID.randomUUID(), invocationId, "0")),
+                List.of(invocation),
+                null);
+
+        stubChallengeAndMembers();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.saveForChallenge(labId, challengeId, List.of(payload)));
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(entityManager, never()).persist(any(Testcase.class));
     }
 
     @Test

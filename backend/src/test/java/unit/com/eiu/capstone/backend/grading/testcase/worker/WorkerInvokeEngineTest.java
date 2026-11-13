@@ -281,6 +281,56 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void concreteLookupWalksExtendsAncestorMethod() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Shape.java", """
+                        public class Shape {
+                            public String draw() { return "shape"; }
+                        }
+                        """,
+                "Square.java", """
+                        public class Square extends Shape {
+                        }
+                        """));
+        Map<String, Object> draw = methodStep("Square", "draw", List.of(), "[]", null, null);
+        draw.put("receiverClassName", "Square");
+        draw.put("receiverParameterTypes", List.of());
+        draw.put("receiverParamsJson", "[]");
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(draw), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("\"shape\"", steps.get(0).get("returnValueJson").asText());
+    }
+
+    @Test
+    void concreteLookupPrefersSubclassOverrideOverAncestor() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Shape.java", """
+                        public class Shape {
+                            public String draw() { return "shape"; }
+                        }
+                        """,
+                "Square.java", """
+                        public class Square extends Shape {
+                            @Override
+                            public String draw() { return "square"; }
+                        }
+                        """));
+        Map<String, Object> draw = methodStep("Square", "draw", List.of(), "[]", null, null);
+        draw.put("receiverClassName", "Square");
+        draw.put("receiverParameterTypes", List.of());
+        draw.put("receiverParamsJson", "[]");
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(draw), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals("\"square\"", steps.get(0).get("returnValueJson").asText());
+    }
+
+    @Test
     void scenarioUnsupportedNonInstanceObjectTypeStillThrows() throws Exception {
         SerializedInvocationOutcome outcome = runScenario(classesDir, List.of(
                 constructorStep("Probe", List.of("Object"), "[{}]", null)), List.of());

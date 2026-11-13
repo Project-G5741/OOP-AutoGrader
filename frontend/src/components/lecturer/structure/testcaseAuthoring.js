@@ -244,11 +244,14 @@ function stripInstanceRefs(paramsJson) {
 function normalizeInvocation(step, unit) {
   const hydrated = hydrateInvocation(step);
   if (unit) {
+    const inheritedReceiver = hydrated.invocationKind === 'METHOD' && hydrated.receiverConstructorId;
     return {
       ...hydrated,
       instanceName: null,
-      receiverConstructorId: null,
-      receiverParams: '[]',
+      receiverConstructorId: inheritedReceiver || null,
+      receiverParams: inheritedReceiver
+        ? stripInstanceRefs(hydrated.receiverParams || '[]')
+        : '[]',
       dispatchClassId: null,
       params: stripInstanceRefs(hydrated.params),
       repeatCount: hydrated.invocationKind === 'METHOD'
@@ -764,30 +767,145 @@ export function unitMemberBlockedReason(target, catalog) {
   return null;
 }
 
+function methodSignatureKey(method) {
+  return `${method?.name || ''}|${paramSignature(method?.parameters)}`;
+}
+
+/** Ordered Extends chain: context class, then parents toward the root (Object never included). */
+function orderedExtendsChain(contextClassId, catalog) {
+  if (!contextClassId) return [];
+  const parentsByChildId = buildParentsByChildId(catalog.extendsChildrenByParentId || new Map());
+  const chain = [contextClassId];
+  const seen = new Set([contextClassId]);
+  let current = contextClassId;
+  while (true) {
+    const parents = [...(parentsByChildId.get(current) || [])];
+    if (parents.length === 0) break;
+    const parentId = parents[0];
+    if (seen.has(parentId)) break;
+    seen.add(parentId);
+    chain.push(parentId);
+    current = parentId;
+  }
+  return chain;
+}
+
+/**
+ * Concrete non-abstract methods for a context class: own + Extends ancestors.
+ * Closer declarations hide farther same-signature ancestors (R6).
+ */
+export function methodsForContextClass(contextClassId, catalog) {
+  if (!contextClassId) return [];
+  const seenSignatures = new Set();
+  const result = [];
+  orderedExtendsChain(contextClassId, catalog).forEach((ownerId) => {
+    (catalog.methods || []).forEach((method) => {
+      if (method.classId !== ownerId) return;
+      const signature = methodSignatureKey(method);
+      if (seenSignatures.has(signature)) return;
+      seenSignatures.add(signature);
+      result.push(method);
+    });
+  });
+  return result;
+}
+
+export function preferredConstructorForClass(classId, catalog) {
+  const ctors = (catalog.constructors || []).filter((ctor) => ctor.classId === classId);
+  if (ctors.length === 0) return null;
+  const noArg = ctors.find((ctor) => ctor.isNoArg);
+  if (noArg) return noArg;
+  return [...ctors].sort((a, b) => (a.parameters?.length || 0) - (b.parameters?.length || 0))[0];
+}
+
 export function unitTargets(catalog) {
   const ctorTargets = catalog.constructors.map((ctor) => ({ ...ctor, kind: 'CONSTRUCTOR' }));
   const methodTargets = catalog.methods.map((method) => ({ ...method, kind: 'METHOD' }));
   return [...ctorTargets, ...methodTargets];
 }
 
+/** Unit member options grouped by context class (optgroups). */
+export function unitSelectableGroups(catalog) {
+  const classes = [...(catalog.concreteClasses || [])].sort((a, b) => a.name.localeCompare(b.name));
+  return classes
+    .map((cls) => {
+      const constructors = (catalog.constructors || [])
+        .filter((ctor) => ctor.classId === cls.id)
+        .map((ctor) => ({
+          ...ctor,
+          kind: 'CONSTRUCTOR',
+          contextClassId: cls.id,
+          contextClassName: cls.name,
+          unitKey: `CONSTRUCTOR:${ctor.id}`,
+        }))
+        .filter((item) => !unitMemberBlockedReason(item, catalog));
+      const preferredCtor = preferredConstructorForClass(cls.id, catalog);
+      const methods = methodsForContextClass(cls.id, catalog)
+        .map((method) => {
+          const inherited = method.classId !== cls.id;
+          if (inherited && !preferredCtor) return null;
+          return {
+            ...method,
+            kind: 'METHOD',
+            contextClassId: cls.id,
+            contextClassName: cls.name,
+            receiverConstructorId: inherited ? preferredCtor.id : null,
+            unitKey: `METHOD:${method.id}@${cls.id}`,
+          };
+        })
+        .filter(Boolean)
+        .filter((item) => !unitMemberBlockedReason(item, catalog));
+      const items = [...constructors, ...methods];
+      if (items.length === 0) return null;
+      return { classId: cls.id, className: cls.name, items };
+    })
+    .filter(Boolean);
+}
+
 /** Members lecturers can pick for a UNIT testcase (excludes Composition-only shapes). */
 export function unitSelectableTargets(catalog) {
-  return unitTargets(catalog).filter((item) => !unitMemberBlockedReason(item, catalog));
+  return unitSelectableGroups(catalog).flatMap((group) => group.items);
 }
 
 export function selectedUnitTarget(step, catalog) {
   if (!step) return null;
   if (step.invocationKind === 'CONSTRUCTOR') {
     const ctor = catalog.constructorsById.get(step.constructorId);
-    return ctor ? { ...ctor, kind: 'CONSTRUCTOR' } : null;
+    return ctor
+      ? {
+          ...ctor,
+          kind: 'CONSTRUCTOR',
+          contextClassId: ctor.classId,
+          contextClassName: ctor.className,
+          unitKey: `CONSTRUCTOR:${ctor.id}`,
+        }
+      : null;
   }
   const method = catalog.methodsById.get(step.methodId);
-  return method ? { ...method, kind: 'METHOD' } : null;
+  if (!method) return null;
+  let contextClassId = method.classId;
+  if (step.receiverConstructorId) {
+    const receiverCtor = catalog.constructorsById.get(step.receiverConstructorId);
+    if (receiverCtor?.classId) contextClassId = receiverCtor.classId;
+  }
+  const contextClassName = catalog.classNameById?.get(contextClassId) || method.className;
+  return {
+    ...method,
+    kind: 'METHOD',
+    contextClassId,
+    contextClassName,
+    receiverConstructorId: step.receiverConstructorId || null,
+    unitKey: `METHOD:${method.id}@${contextClassId}`,
+  };
 }
 
 export function applyUnitTarget(step, key, catalog) {
-  const [kind, id] = String(key).split(':');
+  const raw = String(key || '');
+  const colon = raw.indexOf(':');
+  const kind = colon >= 0 ? raw.slice(0, colon) : '';
+  const rest = colon >= 0 ? raw.slice(colon + 1) : '';
   if (kind === 'CONSTRUCTOR') {
+    const id = rest;
     const ctor = catalog.constructorsById.get(id);
     return {
       ...step,
@@ -801,15 +919,22 @@ export function applyUnitTarget(step, key, catalog) {
       params: serializeParamsArray(parseParamsArray('[]', ctor?.parameters?.length || 0)),
     };
   }
+  const at = rest.indexOf('@');
+  const id = at >= 0 ? rest.slice(0, at) : rest;
+  const contextClassId = at >= 0 ? rest.slice(at + 1) : null;
   const method = catalog.methodsById.get(id);
+  const inherited = Boolean(method && contextClassId && method.classId !== contextClassId);
+  const preferredCtor = inherited ? preferredConstructorForClass(contextClassId, catalog) : null;
   return {
     ...step,
     invocationKind: 'METHOD',
     methodId: id || null,
     constructorId: null,
     instanceName: '',
-    receiverConstructorId: null,
-    receiverParams: '[]',
+    receiverConstructorId: preferredCtor?.id || null,
+    receiverParams: preferredCtor
+      ? serializeParamsArray(parseParamsArray('[]', preferredCtor.parameters?.length || 0))
+      : '[]',
     dispatchClassId: null,
     params: serializeParamsArray(parseParamsArray('[]', method?.parameters?.length || 0)),
   };
@@ -1048,6 +1173,12 @@ function fieldOwnerClassIdsForStep(step, catalog) {
       .forEach((id) => ids.add(id));
     return [...ids];
   }
+  if (step.receiverConstructorId) {
+    const receiverCtor = catalog.constructorsById.get(step.receiverConstructorId);
+    if (receiverCtor?.classId) {
+      return withExtendsAncestors([receiverCtor.classId], catalog);
+    }
+  }
   return withExtendsAncestors(method.classId ? [method.classId] : [], catalog);
 }
 
@@ -1142,10 +1273,20 @@ export function fieldsForClass(catalog, className) {
   return catalog.fields.filter((field) => field.className === className);
 }
 
-export function unitTargetKey(step) {
+export function unitTargetKey(step, catalog = null) {
   if (!step) return '';
   if (step.invocationKind === 'CONSTRUCTOR') {
     return step.constructorId ? `CONSTRUCTOR:${step.constructorId}` : '';
   }
-  return step.methodId ? `METHOD:${step.methodId}` : '';
+  if (!step.methodId) return '';
+  if (catalog) {
+    const selected = selectedUnitTarget(step, catalog);
+    if (selected?.unitKey) return selected.unitKey;
+  }
+  const method = catalog?.methodsById?.get(step.methodId);
+  const contextClassId = step.receiverConstructorId
+    ? catalog?.constructorsById?.get(step.receiverConstructorId)?.classId
+    : method?.classId;
+  if (contextClassId) return `METHOD:${step.methodId}@${contextClassId}`;
+  return `METHOD:${step.methodId}`;
 }
