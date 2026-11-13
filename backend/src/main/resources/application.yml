@@ -13,10 +13,18 @@ spring:
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
+        # Full address so JavaMail does not reverse-DNS this machine for Message-ID.
+        from: ${MAIL_FROM:projectg5741@gmail.com}
         smtp:
           auth: true
           starttls:
             enable: true
+          # EHLO name. Without it, Angus Mail calls InetAddress.getCanonicalHostName()
+          # and Windows getHostByAddr can block the request thread for minutes.
+          localhost: localhost
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 server:
   port: ${PORT:8002}
