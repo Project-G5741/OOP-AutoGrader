@@ -15,11 +15,12 @@ public class ParameterNameAlias {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     @JoinColumn(name = "parameter_id", nullable = false,
             foreignKey = @ForeignKey(name = "parameter_name_alias_parameter_fkey"))
     private Parameter parameter;
 
-    @Column(nullable = false)
+    @Column(name = "\"value\"", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)

@@ -15,11 +15,12 @@ public class FieldDeclarationTypeAlias {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     @JoinColumn(name = "field_declaration_id", nullable = false,
             foreignKey = @ForeignKey(name = "field_declaration_type_alias_fd_fkey"))
     private FieldDeclaration fieldDeclaration;
 
-    @Column
+    @Column(name = "\"value\"")
     private String value;
 
     @Column(name = "order_index", nullable = false)

@@ -15,11 +15,12 @@ public class MethodDeclarationReturnTypeAlias {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
     @JoinColumn(name = "method_declaration_id", nullable = false,
             foreignKey = @ForeignKey(name = "method_declaration_return_type_alias_md_fkey"))
     private MethodDeclaration methodDeclaration;
 
-    @Column(nullable = false)
+    @Column(name = "\"value\"", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)

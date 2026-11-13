@@ -21,7 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.eiu.capstone.backend.DTO.rubric.ChallengeStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
+import com.eiu.capstone.backend.DTO.rubric.MethodStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.ParameterStructureDTO;
 import com.eiu.capstone.backend.EiuCapstoneBackendApplication;
 import com.eiu.capstone.backend.model.AcademicYear;
 import com.eiu.capstone.backend.model.Challenge;
@@ -40,11 +44,22 @@ import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.AcademicYearRepository;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
+import com.eiu.capstone.backend.repository.ConstructorDeclarationRepository;
+import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldDeclarationRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationTypeAliasRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.repository.MasterDataRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationReturnTypeAliasRepository;
+import com.eiu.capstone.backend.repository.MethodRepository;
+import com.eiu.capstone.backend.repository.ParameterNameAliasRepository;
+import com.eiu.capstone.backend.repository.ParameterRepository;
+import com.eiu.capstone.backend.repository.ParameterTypeAliasRepository;
 import com.eiu.capstone.backend.repository.SubmissionChallengeResultRepository;
 import com.eiu.capstone.backend.repository.SubmissionFieldResultRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
@@ -84,6 +99,8 @@ class LabStructureReplaceSaveIntegrationTest {
     @Autowired private LabRepository labRepository;
     @Autowired private ChallengeRepository challengeRepository;
     @Autowired private ClassEntityRepository classEntityRepository;
+    @Autowired private ConstructorRepository constructorRepository;
+    @Autowired private ConstructorDeclarationRepository constructorDeclarationRepository;
     @Autowired private MasterDataRepository masterDataRepository;
     @Autowired private TestcaseRepository testcaseRepository;
     @Autowired private UserAccountRepository userAccountRepository;
@@ -92,12 +109,22 @@ class LabStructureReplaceSaveIntegrationTest {
     @Autowired private SubmissionFieldResultRepository submissionFieldResultRepository;
     @Autowired private FieldRepository fieldRepository;
     @Autowired private FieldDeclarationRepository fieldDeclarationRepository;
+    @Autowired private FieldDeclarationNameAliasRepository fieldNameAliasRepository;
+    @Autowired private FieldDeclarationTypeAliasRepository fieldTypeAliasRepository;
+    @Autowired private MethodRepository methodRepository;
+    @Autowired private MethodDeclarationRepository methodDeclarationRepository;
+    @Autowired private MethodDeclarationNameAliasRepository methodNameAliasRepository;
+    @Autowired private MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository;
+    @Autowired private ParameterRepository parameterRepository;
+    @Autowired private ParameterNameAliasRepository parameterNameAliasRepository;
+    @Autowired private ParameterTypeAliasRepository parameterTypeAliasRepository;
     @Autowired private TransactionTemplate transactionTemplate;
 
     private UUID labId;
     private UUID challengeId;
     private UUID oldClassId;
     private UUID newClassId;
+    private UUID constructorId;
     private UUID testcaseId;
     private UUID termId;
     private int scopeId;
@@ -105,6 +132,17 @@ class LabStructureReplaceSaveIntegrationTest {
 
     @BeforeEach
     void seed() {
+        parameterNameAliasRepository.deleteAll();
+        parameterTypeAliasRepository.deleteAll();
+        fieldNameAliasRepository.deleteAll();
+        fieldTypeAliasRepository.deleteAll();
+        methodNameAliasRepository.deleteAll();
+        methodReturnTypeAliasRepository.deleteAll();
+        parameterRepository.deleteAll();
+        constructorRepository.deleteAll();
+        constructorDeclarationRepository.deleteAll();
+        methodRepository.deleteAll();
+        methodDeclarationRepository.deleteAll();
         submissionFieldResultRepository.deleteAll();
         submissionChallengeResultRepository.deleteAll();
         labSubmissionRepository.deleteAll();
@@ -200,6 +238,7 @@ class LabStructureReplaceSaveIntegrationTest {
         submissionChallengeResultRepository.save(scr);
 
         newClassId = UUID.randomUUID();
+        constructorId = UUID.randomUUID();
     }
 
     @Test
@@ -262,6 +301,11 @@ class LabStructureReplaceSaveIntegrationTest {
         fieldResult.setCorrect(true);
         submissionFieldResultRepository.save(fieldResult);
 
+        FieldStructureDTO legacyField = labStructureService.loadForEditor(labId)
+                .challenges().get(0).classes().get(0).fields().get(0);
+        assertEquals(List.of("speed"), legacyField.names());
+        assertEquals(List.of("int"), legacyField.dataTypes());
+
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
                 challengeId,
                 "Challenge 1 rebuilt",
@@ -287,5 +331,82 @@ class LabStructureReplaceSaveIntegrationTest {
         assertEquals(1, labSubmissionRepository.count());
         assertEquals(1, submissionChallengeResultRepository.count());
         assertTrue(classEntityRepository.findById(newClassId).isPresent());
+    }
+
+    @Test
+    void saveAndLoadStructure_roundTripsAliasesAndUpsertsParameterByClientId() {
+        UUID fieldId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        UUID parameterId = UUID.randomUUID();
+        ParameterStructureDTO parameter = new ParameterStructureDTO(
+                parameterId, "cost", "double", 0, false,
+                List.of("cost", "fee"), List.of("double", "float"));
+        FieldStructureDTO field = new FieldStructureDTO(
+                fieldId, "cost", "double", scopeId, false, false,
+                List.of("cost", "fee", "charge"), List.of("double", "float"));
+        MethodStructureDTO method = new MethodStructureDTO(
+                methodId, "calculate", "double", scopeId, false, false, List.of(parameter),
+                List.of("calculate", "compute"), List.of("double", "float"));
+
+        LabStructureResponse firstPayload = structureWithMembers(field, method);
+        transactionTemplate.executeWithoutResult(status ->
+                labStructureService.saveLabStructure(labId, firstPayload, List.of(challengeId)));
+
+        LabStructureResponse firstLoad = labStructureService.loadForEditor(labId);
+        FieldStructureDTO loadedField = firstLoad.challenges().get(0).classes().get(0).fields().get(0);
+        MethodStructureDTO loadedMethod = firstLoad.challenges().get(0).classes().get(0).methods().get(0);
+        assertEquals(List.of("cost", "fee", "charge"), loadedField.names());
+        assertEquals(List.of("double", "float"), loadedField.dataTypes());
+        assertEquals("cost", fieldRepository.findById(fieldId).orElseThrow().getName());
+        assertEquals(List.of("calculate", "compute"), loadedMethod.names());
+        assertEquals(List.of("double", "float"), loadedMethod.returnTypes());
+        assertEquals(parameterId, loadedMethod.parameters().get(0).id());
+        assertEquals(List.of("cost", "fee"), loadedMethod.parameters().get(0).names());
+        assertEquals("NewCar", firstLoad.challenges().get(0).classes().get(0).constructors().get(0).name());
+
+        FieldStructureDTO reorderedField = new FieldStructureDTO(
+                fieldId, "fee", "float", scopeId, false, false,
+                List.of("fee", "cost"), List.of("float", "double"));
+        ParameterStructureDTO reorderedParameter = new ParameterStructureDTO(
+                parameterId, "fee", "float", 0, false,
+                List.of("fee"), List.of("float", "double"));
+        MethodStructureDTO reorderedMethod = new MethodStructureDTO(
+                methodId, "compute", "float", scopeId, false, false, List.of(reorderedParameter),
+                List.of("compute"), List.of("float", "double"));
+
+        transactionTemplate.executeWithoutResult(status ->
+                labStructureService.saveLabStructure(
+                        labId, structureWithMembers(reorderedField, reorderedMethod)));
+
+        LabStructureResponse secondLoad = labStructureService.loadForEditor(labId);
+        FieldStructureDTO reloadedField = secondLoad.challenges().get(0).classes().get(0).fields().get(0);
+        MethodStructureDTO reloadedMethod = secondLoad.challenges().get(0).classes().get(0).methods().get(0);
+        assertEquals(List.of("fee", "cost"), reloadedField.names());
+        assertEquals("fee", reloadedField.name());
+        assertEquals(List.of("compute"), reloadedMethod.names());
+        assertEquals("compute", methodRepository.findById(methodId).orElseThrow().getName());
+        assertEquals(parameterId, reloadedMethod.parameters().get(0).id());
+        assertEquals(1, parameterRepository.findByMethod_IdOrderByOrderIndexAsc(methodId).size());
+    }
+
+    private LabStructureResponse structureWithMembers(
+            FieldStructureDTO field, MethodStructureDTO method) {
+        ChallengeStructureDTO challenge = new ChallengeStructureDTO(
+                challengeId,
+                "Challenge 1 rebuilt",
+                1,
+                List.of(new ClassStructureDTO(
+                        newClassId,
+                        "NewCar",
+                        scopeId,
+                        declaringId,
+                        false,
+                        List.of(field),
+                        List.of(method),
+                        List.of(new ConstructorStructureDTO(
+                                constructorId, "NotAConstructorAlias", scopeId, false, List.of())))),
+                List.of());
+        return new LabStructureResponse(
+                labId, "Replace IT Lab", termId, null, true, null, "Official", List.of(challenge));
     }
 }

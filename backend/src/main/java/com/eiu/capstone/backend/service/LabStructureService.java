@@ -12,11 +12,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -45,12 +49,18 @@ import com.eiu.capstone.backend.model.Constructor;
 import com.eiu.capstone.backend.model.ConstructorDeclaration;
 import com.eiu.capstone.backend.model.Field;
 import com.eiu.capstone.backend.model.FieldDeclaration;
+import com.eiu.capstone.backend.model.FieldDeclarationNameAlias;
+import com.eiu.capstone.backend.model.FieldDeclarationTypeAlias;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabPrefix;
 import com.eiu.capstone.backend.model.MasterData;
 import com.eiu.capstone.backend.model.Method;
 import com.eiu.capstone.backend.model.MethodDeclaration;
+import com.eiu.capstone.backend.model.MethodDeclarationNameAlias;
+import com.eiu.capstone.backend.model.MethodDeclarationReturnTypeAlias;
 import com.eiu.capstone.backend.model.Parameter;
+import com.eiu.capstone.backend.model.ParameterNameAlias;
+import com.eiu.capstone.backend.model.ParameterTypeAlias;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.ClassEntityRepository;
@@ -58,12 +68,18 @@ import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorDeclarationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldDeclarationRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationTypeAliasRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.MasterDataRepository;
 import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationReturnTypeAliasRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
+import com.eiu.capstone.backend.repository.ParameterNameAliasRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
+import com.eiu.capstone.backend.repository.ParameterTypeAliasRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.utility.TimingLog;
@@ -89,6 +105,12 @@ public class LabStructureService {
     private final FieldDeclarationRepository fieldDeclarationRepository;
     private final MethodDeclarationRepository methodDeclarationRepository;
     private final ConstructorDeclarationRepository constructorDeclarationRepository;
+    private final FieldDeclarationNameAliasRepository fieldNameAliasRepository;
+    private final FieldDeclarationTypeAliasRepository fieldTypeAliasRepository;
+    private final MethodDeclarationNameAliasRepository methodNameAliasRepository;
+    private final MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository;
+    private final ParameterNameAliasRepository parameterNameAliasRepository;
+    private final ParameterTypeAliasRepository parameterTypeAliasRepository;
     private final MasterDataRepository masterDataRepository;
     private final RubricCacheInvalidationSupport rubricCacheInvalidationSupport;
     private final TestcaseRubricService testcaseRubricService;
@@ -111,6 +133,12 @@ public class LabStructureService {
                                FieldDeclarationRepository fieldDeclarationRepository,
                                MethodDeclarationRepository methodDeclarationRepository,
                                ConstructorDeclarationRepository constructorDeclarationRepository,
+                               FieldDeclarationNameAliasRepository fieldNameAliasRepository,
+                               FieldDeclarationTypeAliasRepository fieldTypeAliasRepository,
+                               MethodDeclarationNameAliasRepository methodNameAliasRepository,
+                               MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository,
+                               ParameterNameAliasRepository parameterNameAliasRepository,
+                               ParameterTypeAliasRepository parameterTypeAliasRepository,
                                MasterDataRepository masterDataRepository,
                                RubricCacheInvalidationSupport rubricCacheInvalidationSupport,
                                TestcaseRubricService testcaseRubricService,
@@ -132,6 +160,12 @@ public class LabStructureService {
         this.fieldDeclarationRepository = fieldDeclarationRepository;
         this.methodDeclarationRepository = methodDeclarationRepository;
         this.constructorDeclarationRepository = constructorDeclarationRepository;
+        this.fieldNameAliasRepository = fieldNameAliasRepository;
+        this.fieldTypeAliasRepository = fieldTypeAliasRepository;
+        this.methodNameAliasRepository = methodNameAliasRepository;
+        this.methodReturnTypeAliasRepository = methodReturnTypeAliasRepository;
+        this.parameterNameAliasRepository = parameterNameAliasRepository;
+        this.parameterTypeAliasRepository = parameterTypeAliasRepository;
         this.masterDataRepository = masterDataRepository;
         this.rubricCacheInvalidationSupport = rubricCacheInvalidationSupport;
         this.testcaseRubricService = testcaseRubricService;
@@ -178,6 +212,7 @@ public class LabStructureService {
                 : loadParameterWaveSerial(methods, constructors);
         List<Parameter> methodParams = params.methodParams();
         List<Parameter> constructorParams = params.constructorParams();
+        AliasMaps aliases = loadAliases(fields, methods, methodParams, constructorParams);
 
         Map<UUID, List<ClassEntity>> classesByChallenge = classes.stream()
                 .collect(Collectors.groupingBy(c -> c.getChallenge().getId()));
@@ -205,6 +240,7 @@ public class LabStructureService {
                         constructorsByClass,
                         paramsByMethod,
                         paramsByConstructor,
+                        aliases,
                         relationsByChallenge.getOrDefault(challenge.getId(), List.of())))
                 .toList();
 
@@ -486,6 +522,7 @@ public class LabStructureService {
                 .collect(Collectors.groupingBy(p -> p.getMethod().getId()));
         Map<UUID, List<Parameter>> paramsByConstructorId = constructorParams.stream()
                 .collect(Collectors.groupingBy(p -> p.getConstructorEntity().getId()));
+        AliasMaps aliases = loadAliases(fields, methods, methodParams, constructorParams);
 
         Map<Integer, MasterData> masterDataById = masterDataRepository.findAll().stream()
                 .collect(Collectors.toMap(MasterData::getId, Function.identity()));
@@ -504,7 +541,86 @@ public class LabStructureService {
                 relationsByChallengeId,
                 paramsByMethodId,
                 paramsByConstructorId,
+                aliases,
                 masterDataById);
+    }
+
+    private AliasMaps loadAliases(
+            List<Field> fields,
+            List<Method> methods,
+            List<Parameter> methodParams,
+            List<Parameter> constructorParams) {
+        List<UUID> fieldDeclarationIds = fields.stream()
+                .map(Field::getFieldDeclaration)
+                .filter(Objects::nonNull)
+                .map(FieldDeclaration::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        List<UUID> methodDeclarationIds = methods.stream()
+                .map(Method::getMethodDeclaration)
+                .filter(Objects::nonNull)
+                .map(MethodDeclaration::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        List<UUID> parameterIds = java.util.stream.Stream.concat(methodParams.stream(), constructorParams.stream())
+                .map(Parameter::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        return new AliasMaps(
+                groupAliasValues(
+                        fieldDeclarationIds.isEmpty() ? List.of()
+                                : fieldNameAliasRepository.findByFieldDeclaration_IdInOrderByOrderIndexAsc(fieldDeclarationIds),
+                        row -> row.getFieldDeclaration().getId(),
+                        FieldDeclarationNameAlias::getValue),
+                groupAliasValues(
+                        fieldDeclarationIds.isEmpty() ? List.of()
+                                : fieldTypeAliasRepository.findByFieldDeclaration_IdInOrderByOrderIndexAsc(fieldDeclarationIds),
+                        row -> row.getFieldDeclaration().getId(),
+                        FieldDeclarationTypeAlias::getValue),
+                groupAliasValues(
+                        methodDeclarationIds.isEmpty() ? List.of()
+                                : methodNameAliasRepository.findByMethodDeclaration_IdInOrderByOrderIndexAsc(methodDeclarationIds),
+                        row -> row.getMethodDeclaration().getId(),
+                        MethodDeclarationNameAlias::getValue),
+                groupAliasValues(
+                        methodDeclarationIds.isEmpty() ? List.of()
+                                : methodReturnTypeAliasRepository
+                                        .findByMethodDeclaration_IdInOrderByOrderIndexAsc(methodDeclarationIds),
+                        row -> row.getMethodDeclaration().getId(),
+                        MethodDeclarationReturnTypeAlias::getValue),
+                groupAliasValues(
+                        parameterIds.isEmpty() ? List.of()
+                                : parameterNameAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(parameterIds),
+                        row -> row.getParameter().getId(),
+                        ParameterNameAlias::getValue),
+                groupAliasValues(
+                        parameterIds.isEmpty() ? List.of()
+                                : parameterTypeAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(parameterIds),
+                        row -> row.getParameter().getId(),
+                        ParameterTypeAlias::getValue));
+    }
+
+    private static <T> Map<UUID, List<String>> groupAliasValues(
+            List<T> rows,
+            Function<T, UUID> parentId,
+            Function<T, String> value) {
+        return rows.stream().collect(Collectors.groupingBy(
+                parentId,
+                LinkedHashMap::new,
+                Collectors.mapping(value, Collectors.toList())));
+    }
+
+    private record AliasMaps(
+            Map<UUID, List<String>> fieldNames,
+            Map<UUID, List<String>> fieldTypes,
+            Map<UUID, List<String>> methodNames,
+            Map<UUID, List<String>> methodReturnTypes,
+            Map<UUID, List<String>> parameterNames,
+            Map<UUID, List<String>> parameterTypes) {
+
+        static AliasMaps empty() {
+            return new AliasMaps(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        }
     }
 
     /** Empty tree + master data only — clone insert path skips empty Neon lookups. */
@@ -525,6 +641,7 @@ public class LabStructureService {
                 new LinkedHashMap<>(),
                 new LinkedHashMap<>(),
                 new LinkedHashMap<>(),
+                AliasMaps.empty(),
                 masterDataById);
     }
 
@@ -542,6 +659,7 @@ public class LabStructureService {
         final Map<UUID, List<ClassRelation>> relationsByChallengeId;
         final Map<UUID, List<Parameter>> paramsByMethodId;
         final Map<UUID, List<Parameter>> paramsByConstructorId;
+        final AliasMaps aliases;
         final Map<Integer, MasterData> masterDataById;
 
         SaveContext(Map<UUID, Challenge> challengesById,
@@ -557,6 +675,7 @@ public class LabStructureService {
                     Map<UUID, List<ClassRelation>> relationsByChallengeId,
                     Map<UUID, List<Parameter>> paramsByMethodId,
                     Map<UUID, List<Parameter>> paramsByConstructorId,
+                    AliasMaps aliases,
                     Map<Integer, MasterData> masterDataById) {
             this.challengesById = new HashMap<>(challengesById);
             this.classesById = new HashMap<>(classesById);
@@ -571,6 +690,7 @@ public class LabStructureService {
             this.relationsByChallengeId = new HashMap<>(relationsByChallengeId);
             this.paramsByMethodId = new HashMap<>(paramsByMethodId);
             this.paramsByConstructorId = new HashMap<>(paramsByConstructorId);
+            this.aliases = aliases;
             this.masterDataById = masterDataById;
         }
 
@@ -1251,6 +1371,8 @@ public class LabStructureService {
         List<FieldDeclaration> declarationsToSave = new ArrayList<>();
         List<Field> fieldsToSave = new ArrayList<>();
         List<Boolean> isNewFlags = new ArrayList<>();
+        List<List<String>> nameAliases = new ArrayList<>();
+        List<List<String>> typeAliases = new ArrayList<>();
         Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
         for (int i = 0; i < classes.size(); i++) {
@@ -1292,11 +1414,12 @@ public class LabStructureService {
                     declaration = new FieldDeclaration();
                     isNew = true;
                 }
-                declaration.setName(requireNonBlank(dto.name(), "Field name"));
                 boolean enumClass = isEnumDeclaringType(classEntity);
-                declaration.setDataType(enumClass
-                        ? blankToNull(dto.dataType())
-                        : requireNonBlank(dto.dataType(), "Field type"));
+                List<String> names = requireAliases(dto.names(), dto.name(), "Field names", false);
+                List<String> dataTypes = requireAliases(
+                        dto.dataTypes(), dto.dataType(), "Field types", enumClass);
+                declaration.setName(names.get(0));
+                declaration.setDataType(dataTypes.get(0));
                 if (dto.scopeId() == null) {
                     if (!enumClass) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing field scope id");
@@ -1315,6 +1438,8 @@ public class LabStructureService {
                 declarationsToSave.add(declaration);
                 fieldsToSave.add(field);
                 isNewFlags.add(isNew);
+                nameAliases.add(names);
+                typeAliases.add(dataTypes);
             }
         }
 
@@ -1335,6 +1460,9 @@ public class LabStructureService {
                 }
             }
             flushStructure();
+            for (int i = 0; i < declarationsToSave.size(); i++) {
+                syncFieldAliases(declarationsToSave.get(i), nameAliases.get(i), typeAliases.get(i));
+            }
             for (Field field : fieldsToSave) {
                 ctx.putField(field);
                 keptByClassId.computeIfAbsent(field.getClassEntity().getId(), ignored -> new HashSet<>())
@@ -1358,6 +1486,8 @@ public class LabStructureService {
         List<Method> methodsToSave = new ArrayList<>();
         List<Boolean> isNewFlags = new ArrayList<>();
         List<List<ParameterStructureDTO>> parameterPayloads = new ArrayList<>();
+        List<List<String>> nameAliases = new ArrayList<>();
+        List<List<String>> returnTypeAliases = new ArrayList<>();
         Map<UUID, Set<UUID>> keptByClassId = new HashMap<>();
 
         for (int i = 0; i < classes.size(); i++) {
@@ -1399,8 +1529,11 @@ public class LabStructureService {
                     declaration = new MethodDeclaration();
                     isNew = true;
                 }
-                declaration.setName(requireNonBlank(dto.name(), "Method name"));
-                declaration.setReturnType(requireNonBlank(dto.returnType(), "Return type"));
+                List<String> names = requireAliases(dto.names(), dto.name(), "Method names", false);
+                List<String> returnTypes = requireAliases(
+                        dto.returnTypes(), dto.returnType(), "Method return types", false);
+                declaration.setName(names.get(0));
+                declaration.setReturnType(returnTypes.get(0));
                 declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "method scope"));
                 declaration.setStatic(dto.isStatic());
                 declaration.setAbstract(dto.isAbstract());
@@ -1409,6 +1542,8 @@ public class LabStructureService {
                 methodsToSave.add(method);
                 isNewFlags.add(isNew);
                 parameterPayloads.add(dto.parameters() != null ? dto.parameters() : List.of());
+                nameAliases.add(names);
+                returnTypeAliases.add(returnTypes);
             }
         }
 
@@ -1429,14 +1564,10 @@ public class LabStructureService {
                 }
             }
             flushStructure();
-            List<UUID> methodIds = methodsToSave.stream().map(Method::getId).toList();
-            parameterRepository.deleteByMethod_IdIn(methodIds);
-            List<Parameter> newParameters = new ArrayList<>();
             for (int i = 0; i < methodsToSave.size(); i++) {
-                newParameters.addAll(buildParameters(parameterPayloads.get(i), methodsToSave.get(i), null));
-            }
-            for (Parameter parameter : newParameters) {
-                entityManager.persist(parameter);
+                syncMethodAliases(
+                        declarationsToSave.get(i), nameAliases.get(i), returnTypeAliases.get(i));
+                syncParameters(ctx, parameterPayloads.get(i), methodsToSave.get(i), null);
             }
             flushStructure();
             for (Method method : methodsToSave) {
@@ -1503,10 +1634,7 @@ public class LabStructureService {
                     declaration = new ConstructorDeclaration();
                     isNew = true;
                 }
-                String constructorName = dto.name() != null && !dto.name().isBlank()
-                        ? dto.name().trim()
-                        : classEntity.getName();
-                declaration.setName(constructorName);
+                declaration.setName(classEntity.getName());
                 declaration.setScope(resolveMasterData(ctx, dto.scopeId(), "constructor scope"));
                 declaration.setDefault(dto.isDefault());
                 declarationsToSave.add(declaration);
@@ -1533,14 +1661,8 @@ public class LabStructureService {
                 }
             }
             flushStructure();
-            List<UUID> constructorIds = constructorsToSave.stream().map(Constructor::getId).toList();
-            parameterRepository.deleteByConstructorEntity_IdIn(constructorIds);
-            List<Parameter> newParameters = new ArrayList<>();
             for (int i = 0; i < constructorsToSave.size(); i++) {
-                newParameters.addAll(buildParameters(parameterPayloads.get(i), null, constructorsToSave.get(i)));
-            }
-            for (Parameter parameter : newParameters) {
-                entityManager.persist(parameter);
+                syncParameters(ctx, parameterPayloads.get(i), null, constructorsToSave.get(i));
             }
             flushStructure();
             for (Constructor constructor : constructorsToSave) {
@@ -1561,24 +1683,183 @@ public class LabStructureService {
         }
     }
 
-    private List<Parameter> buildParameters(List<ParameterStructureDTO> parameterDtos, Method method, Constructor constructor) {
-        if (parameterDtos == null || parameterDtos.isEmpty()) {
-            return List.of();
-        }
-        List<Parameter> parameters = new ArrayList<>();
+    private void syncParameters(
+            SaveContext ctx,
+            List<ParameterStructureDTO> parameterDtos,
+            Method method,
+            Constructor constructor) {
+        List<Parameter> existing = method != null
+                ? ctx.paramsByMethodId.getOrDefault(method.getId(), List.of())
+                : ctx.paramsByConstructorId.getOrDefault(constructor.getId(), List.of());
+        Map<UUID, Parameter> existingById = existing.stream()
+                .collect(Collectors.toMap(Parameter::getId, Function.identity()));
+        Map<UUID, Parameter> allExistingById = java.util.stream.Stream.concat(
+                        ctx.paramsByMethodId.values().stream(),
+                        ctx.paramsByConstructorId.values().stream())
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(Parameter::getId, Function.identity(), (left, right) -> left));
+        Set<UUID> keptIds = new HashSet<>();
         int index = 0;
-        for (ParameterStructureDTO dto : parameterDtos) {
-            Parameter parameter = new Parameter();
+        for (ParameterStructureDTO dto : parameterDtos != null ? parameterDtos : List.<ParameterStructureDTO>of()) {
+            Parameter parameter = dto.id() != null ? existingById.get(dto.id()) : null;
+            if (parameter == null && dto.id() != null && allExistingById.containsKey(dto.id())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parameter does not belong to member");
+            }
+            boolean isNew = parameter == null;
+            if (isNew) {
+                parameter = new Parameter();
+                parameter.setId(dto.id() != null ? dto.id() : UUID.randomUUID());
+            }
+            if (!isNew && ((method != null && !method.getId().equals(parameter.getMethod().getId()))
+                    || (constructor != null
+                            && !constructor.getId().equals(parameter.getConstructorEntity().getId())))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parameter does not belong to member");
+            }
+            if (!keptIds.add(parameter.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate parameter id");
+            }
+            List<String> names = requireAliases(dto.names(), dto.name(), "Parameter names", false);
+            List<String> dataTypes = requireAliases(dto.dataTypes(), dto.dataType(), "Parameter types", false);
             parameter.setMethod(method);
             parameter.setConstructorEntity(constructor);
-            parameter.setName(requireNonBlank(dto.name(), "Parameter name"));
-            parameter.setDataType(requireNonBlank(dto.dataType(), "Parameter type"));
+            parameter.setName(names.get(0));
+            parameter.setDataType(dataTypes.get(0));
             parameter.setOrderIndex(dto.orderIndex() >= 0 ? dto.orderIndex() : index);
             parameter.setFinal(dto.isFinal());
-            parameters.add(parameter);
+            parameter = parameterRepository.save(parameter);
+            syncParameterAliases(parameter, names, dataTypes);
             index++;
         }
-        return parameters;
+        List<Parameter> removed = existing.stream()
+                .filter(parameter -> !keptIds.contains(parameter.getId()))
+                .toList();
+        if (!removed.isEmpty()) {
+            List<UUID> removedIds = removed.stream().map(Parameter::getId).toList();
+            parameterNameAliasRepository.deleteByParameter_IdIn(removedIds);
+            parameterTypeAliasRepository.deleteByParameter_IdIn(removedIds);
+            parameterRepository.deleteAll(removed);
+        }
+    }
+
+    private void syncFieldAliases(
+            FieldDeclaration declaration,
+            List<String> names,
+            List<String> dataTypes) {
+        syncAliasRows(
+                fieldNameAliasRepository.findByFieldDeclaration_IdOrderByOrderIndexAsc(declaration.getId()),
+                names,
+                FieldDeclarationNameAlias::new,
+                row -> row.setFieldDeclaration(declaration),
+                FieldDeclarationNameAlias::setValue,
+                FieldDeclarationNameAlias::setOrderIndex,
+                fieldNameAliasRepository);
+        syncAliasRows(
+                fieldTypeAliasRepository.findByFieldDeclaration_IdOrderByOrderIndexAsc(declaration.getId()),
+                dataTypes,
+                FieldDeclarationTypeAlias::new,
+                row -> row.setFieldDeclaration(declaration),
+                FieldDeclarationTypeAlias::setValue,
+                FieldDeclarationTypeAlias::setOrderIndex,
+                fieldTypeAliasRepository);
+    }
+
+    private void syncMethodAliases(
+            MethodDeclaration declaration,
+            List<String> names,
+            List<String> returnTypes) {
+        syncAliasRows(
+                methodNameAliasRepository.findByMethodDeclaration_IdOrderByOrderIndexAsc(declaration.getId()),
+                names,
+                MethodDeclarationNameAlias::new,
+                row -> row.setMethodDeclaration(declaration),
+                MethodDeclarationNameAlias::setValue,
+                MethodDeclarationNameAlias::setOrderIndex,
+                methodNameAliasRepository);
+        syncAliasRows(
+                methodReturnTypeAliasRepository
+                        .findByMethodDeclaration_IdOrderByOrderIndexAsc(declaration.getId()),
+                returnTypes,
+                MethodDeclarationReturnTypeAlias::new,
+                row -> row.setMethodDeclaration(declaration),
+                MethodDeclarationReturnTypeAlias::setValue,
+                MethodDeclarationReturnTypeAlias::setOrderIndex,
+                methodReturnTypeAliasRepository);
+    }
+
+    private void syncParameterAliases(
+            Parameter parameter,
+            List<String> names,
+            List<String> dataTypes) {
+        syncAliasRows(
+                parameterNameAliasRepository.findByParameter_IdOrderByOrderIndexAsc(parameter.getId()),
+                names,
+                ParameterNameAlias::new,
+                row -> row.setParameter(parameter),
+                ParameterNameAlias::setValue,
+                ParameterNameAlias::setOrderIndex,
+                parameterNameAliasRepository);
+        syncAliasRows(
+                parameterTypeAliasRepository.findByParameter_IdOrderByOrderIndexAsc(parameter.getId()),
+                dataTypes,
+                ParameterTypeAlias::new,
+                row -> row.setParameter(parameter),
+                ParameterTypeAlias::setValue,
+                ParameterTypeAlias::setOrderIndex,
+                parameterTypeAliasRepository);
+    }
+
+    private <T> void syncAliasRows(
+            List<T> existing,
+            List<String> values,
+            Supplier<T> factory,
+            Consumer<T> attachParent,
+            BiConsumer<T, String> setValue,
+            BiConsumer<T, Integer> setOrderIndex,
+            JpaRepository<T, UUID> repository) {
+        int retainedCount = Math.min(existing.size(), values.size());
+        List<T> saved = new ArrayList<>(values.size());
+        for (int i = 0; i < retainedCount; i++) {
+            T row = existing.get(i);
+            setValue.accept(row, values.get(i));
+            setOrderIndex.accept(row, i);
+            saved.add(row);
+        }
+        if (existing.size() > values.size()) {
+            repository.deleteAll(existing.subList(values.size(), existing.size()));
+        }
+        for (int i = retainedCount; i < values.size(); i++) {
+            T row = factory.get();
+            attachParent.accept(row);
+            setValue.accept(row, values.get(i));
+            setOrderIndex.accept(row, i);
+            saved.add(row);
+        }
+        repository.saveAll(saved);
+    }
+
+    private static List<String> requireAliases(
+            List<String> aliases,
+            String legacyValue,
+            String label,
+            boolean allowNullPrimary) {
+        List<String> source = aliases != null
+                ? aliases
+                : java.util.Collections.singletonList(legacyValue);
+        if (source.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " must contain at least one value");
+        }
+        List<String> normalized = new ArrayList<>(source.size());
+        for (String value : source) {
+            if (value == null && allowNullPrimary && source.size() == 1) {
+                normalized.add(null);
+                continue;
+            }
+            if (value == null || value.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " cannot contain blank values");
+            }
+            normalized.add(value.trim());
+        }
+        return java.util.Collections.unmodifiableList(normalized);
     }
 
     private void deleteChallengeCascade(SaveContext ctx, Challenge challenge) {
@@ -1770,6 +2051,7 @@ public class LabStructureService {
                 ctx.constructorsByClassId,
                 ctx.paramsByMethodId,
                 ctx.paramsByConstructorId,
+                ctx.aliases,
                 ctx.relationsByChallengeId.getOrDefault(payload.id(), List.of()));
         return canonicalizeChallenge(current).equals(canonicalizeChallenge(payload));
     }
@@ -1805,6 +2087,15 @@ public class LabStructureService {
         List<FieldStructureDTO> fields = (dto.fields() != null ? dto.fields() : List.<FieldStructureDTO>of()).stream()
                 .sorted(Comparator.comparing(f -> f.id() != null ? f.id().toString() : f.name(),
                         String.CASE_INSENSITIVE_ORDER))
+                .map(f -> new FieldStructureDTO(
+                        f.id(),
+                        f.name() != null ? f.name().trim() : null,
+                        f.dataType() != null ? f.dataType().trim() : null,
+                        f.scopeId(),
+                        f.isStatic(),
+                        f.isFinal(),
+                        canonicalizeAliases(effectiveAliases(f.names(), f.name())),
+                        canonicalizeNullableAliases(effectiveAliases(f.dataTypes(), f.dataType()))))
                 .toList();
         List<MethodStructureDTO> methods = (dto.methods() != null ? dto.methods() : List.<MethodStructureDTO>of()).stream()
                 .sorted(Comparator.comparing(m -> m.id() != null ? m.id().toString() : m.name(),
@@ -1816,7 +2107,9 @@ public class LabStructureService {
                         m.scopeId(),
                         m.isStatic(),
                         m.isAbstract(),
-                        canonicalizeParams(m.parameters())))
+                        canonicalizeParams(m.parameters()),
+                        canonicalizeAliases(effectiveAliases(m.names(), m.name())),
+                        canonicalizeAliases(effectiveAliases(m.returnTypes(), m.returnType()))))
                 .toList();
         List<ConstructorStructureDTO> constructors = (dto.constructors() != null ? dto.constructors()
                 : List.<ConstructorStructureDTO>of()).stream()
@@ -1854,8 +2147,24 @@ public class LabStructureService {
                         p.name() != null ? p.name().trim() : null,
                         p.dataType() != null ? p.dataType().trim() : null,
                         p.orderIndex(),
-                        p.isFinal()))
+                        p.isFinal(),
+                        canonicalizeAliases(effectiveAliases(p.names(), p.name())),
+                        canonicalizeAliases(effectiveAliases(p.dataTypes(), p.dataType()))))
                 .toList();
+    }
+
+    private static List<String> effectiveAliases(List<String> aliases, String legacyValue) {
+        return aliases != null ? aliases : java.util.Collections.singletonList(legacyValue);
+    }
+
+    private static List<String> canonicalizeAliases(List<String> values) {
+        return values == null ? null : values.stream()
+                .map(value -> value != null ? value.trim() : null)
+                .toList();
+    }
+
+    private static List<String> canonicalizeNullableAliases(List<String> values) {
+        return canonicalizeAliases(values);
     }
 
     private ChallengeStructureDTO toChallengeDto(Challenge challenge,
@@ -1865,6 +2174,7 @@ public class LabStructureService {
                                                  Map<UUID, List<Constructor>> constructorsByClass,
                                                  Map<UUID, List<Parameter>> paramsByMethod,
                                                  Map<UUID, List<Parameter>> paramsByConstructor,
+                                                 AliasMaps aliases,
                                                  List<ClassRelation> relations) {
         List<ClassStructureDTO> classDtos = classes.stream()
                 .sorted(Comparator.comparing(ClassEntity::getName, String.CASE_INSENSITIVE_ORDER))
@@ -1874,7 +2184,8 @@ public class LabStructureService {
                         methodsByClass.getOrDefault(classEntity.getId(), List.of()),
                         constructorsByClass.getOrDefault(classEntity.getId(), List.of()),
                         paramsByMethod,
-                        paramsByConstructor))
+                        paramsByConstructor,
+                        aliases))
                 .toList();
         List<RelationStructureDTO> relationDtos = relations.stream()
                 .map(r -> new RelationStructureDTO(
@@ -1902,7 +2213,8 @@ public class LabStructureService {
                                          List<Method> methods,
                                          List<Constructor> constructors,
                                          Map<UUID, List<Parameter>> paramsByMethod,
-                                         Map<UUID, List<Parameter>> paramsByConstructor) {
+                                         Map<UUID, List<Parameter>> paramsByConstructor,
+                                         AliasMaps aliases) {
         List<FieldStructureDTO> fieldDtos = fields.stream()
                 .map(f -> new FieldStructureDTO(
                         f.getId(),
@@ -1912,7 +2224,15 @@ public class LabStructureService {
                                 ? null
                                 : f.getFieldDeclaration().getScope().getId(),
                         f.getFieldDeclaration().isStatic(),
-                        f.getFieldDeclaration().isFinal()))
+                        f.getFieldDeclaration().isFinal(),
+                        aliasesOrPrimary(
+                                aliases.fieldNames(),
+                                f.getFieldDeclaration().getId(),
+                                f.getFieldDeclaration().getName()),
+                        aliasesOrPrimary(
+                                aliases.fieldTypes(),
+                                f.getFieldDeclaration().getId(),
+                                f.getFieldDeclaration().getDataType())))
                 .toList();
         List<MethodStructureDTO> methodDtos = methods.stream()
                 .map(m -> new MethodStructureDTO(
@@ -1922,7 +2242,15 @@ public class LabStructureService {
                         m.getMethodDeclaration().getScope().getId(),
                         m.getMethodDeclaration().isStatic(),
                         m.getMethodDeclaration().isAbstract(),
-                        mapParameters(paramsByMethod.getOrDefault(m.getId(), List.of()))))
+                        mapParameters(paramsByMethod.getOrDefault(m.getId(), List.of()), aliases),
+                        aliasesOrPrimary(
+                                aliases.methodNames(),
+                                m.getMethodDeclaration().getId(),
+                                m.getMethodDeclaration().getName()),
+                        aliasesOrPrimary(
+                                aliases.methodReturnTypes(),
+                                m.getMethodDeclaration().getId(),
+                                m.getMethodDeclaration().getReturnType())))
                 .toList();
         List<ConstructorStructureDTO> constructorDtos = constructors.stream()
                 .map(c -> new ConstructorStructureDTO(
@@ -1930,7 +2258,7 @@ public class LabStructureService {
                         c.getName(),
                         c.getConstructorDeclaration().getScope().getId(),
                         c.getConstructorDeclaration().isDefault(),
-                        mapParameters(paramsByConstructor.getOrDefault(c.getId(), List.of()))))
+                        mapParameters(paramsByConstructor.getOrDefault(c.getId(), List.of()), aliases)))
                 .toList();
         return new ClassStructureDTO(
                 classEntity.getId(),
@@ -1950,10 +2278,27 @@ public class LabStructureService {
         return weight > 0 ? weight : 1;
     }
 
-    private List<ParameterStructureDTO> mapParameters(List<Parameter> parameters) {
+    private List<ParameterStructureDTO> mapParameters(List<Parameter> parameters, AliasMaps aliases) {
         return parameters.stream()
                 .sorted(Comparator.comparingInt(Parameter::getOrderIndex))
-                .map(p -> new ParameterStructureDTO(p.getId(), p.getName(), p.getDataType(), p.getOrderIndex(), p.isFinal()))
+                .map(p -> new ParameterStructureDTO(
+                        p.getId(),
+                        p.getName(),
+                        p.getDataType(),
+                        p.getOrderIndex(),
+                        p.isFinal(),
+                        aliasesOrPrimary(aliases.parameterNames(), p.getId(), p.getName()),
+                        aliasesOrPrimary(aliases.parameterTypes(), p.getId(), p.getDataType())))
                 .toList();
+    }
+
+    private static List<String> aliasesOrPrimary(
+            Map<UUID, List<String>> aliasesByParent,
+            UUID parentId,
+            String primary) {
+        List<String> aliases = aliasesByParent.get(parentId);
+        return aliases == null || aliases.isEmpty()
+                ? java.util.Collections.singletonList(primary)
+                : List.copyOf(aliases);
     }
 }
