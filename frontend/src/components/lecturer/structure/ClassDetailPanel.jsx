@@ -260,47 +260,60 @@ export default function ClassDetailPanel({
       <Section title="Fields" count={classData.fields?.length || 0}>
         <div className="space-y-3">
           {(classData.fields || []).map((field, index) => (
-            <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
-              <AliasListBox
-                className={enumClass ? 'col-span-11' : 'col-span-4'}
-                placeholder={enumClass ? 'Constant name' : 'Field name'}
-                ariaLabel={enumClass ? 'Constant name' : 'Field name'}
-                addLabel="Add name"
-                values={field.names}
-                fallback={field.name}
-                onChange={(names) => {
-                  const fields = [...classData.fields];
-                  fields[index] = { ...field, names, name: names[0] };
-                  updateFields(fields);
-                }}
-              />
-              {!enumClass && (
-                <>
-                  <AliasListBox
-                    className="col-span-2"
-                    placeholder="type"
-                    ariaLabel="Field datatype"
-                    addLabel="Add datatype"
-                    values={field.dataTypes}
-                    fallback={field.dataType}
-                    onChange={(dataTypes) => {
-                      const fields = [...classData.fields];
-                      fields[index] = { ...field, dataTypes, dataType: dataTypes[0] };
-                      updateFields(fields);
-                    }}
-                  />
-                  <div className="col-span-2 min-w-0">
-                    <ScopeSelect
-                      value={field.scopeId}
-                      options={scopeOptions}
-                      onChange={(scopeId) => {
+            <div key={field.id} className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 items-center">
+                <AliasListBox
+                  className={enumClass ? 'col-span-11' : 'col-span-5'}
+                  placeholder={enumClass ? 'Constant name' : 'Field name'}
+                  ariaLabel={enumClass ? 'Constant name' : 'Field name'}
+                  addLabel="Add name"
+                  values={field.names}
+                  fallback={field.name}
+                  onChange={(names) => {
+                    const fields = [...classData.fields];
+                    fields[index] = { ...field, names, name: names[0] };
+                    updateFields(fields);
+                  }}
+                />
+                {!enumClass && (
+                  <>
+                    <AliasListBox
+                      className="col-span-4"
+                      placeholder="type"
+                      ariaLabel="Field datatype"
+                      addLabel="Add datatype"
+                      values={field.dataTypes}
+                      fallback={field.dataType}
+                      onChange={(dataTypes) => {
                         const fields = [...classData.fields];
-                        fields[index] = { ...field, scopeId };
+                        fields[index] = { ...field, dataTypes, dataType: dataTypes[0] };
                         updateFields(fields);
                       }}
                     />
-                  </div>
-                  <label className="col-span-2 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                    <div className="col-span-2 min-w-0">
+                      <ScopeSelect
+                        value={field.scopeId}
+                        options={scopeOptions}
+                        onChange={(scopeId) => {
+                          const fields = [...classData.fields];
+                          fields[index] = { ...field, scopeId };
+                          updateFields(fields);
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="col-span-1 text-foreground-muted hover:text-error"
+                  onClick={() => updateFields(classData.fields.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              {!enumClass && (
+                <div className="flex flex-wrap items-center gap-4 pl-1 text-sm text-foreground-secondary">
+                  <label className="flex items-center gap-2 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={!!field.isStatic}
@@ -312,7 +325,7 @@ export default function ClassDetailPanel({
                     />
                     static
                   </label>
-                  <label className="col-span-1 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                  <label className="flex items-center gap-2 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={!!field.isFinal}
@@ -324,15 +337,8 @@ export default function ClassDetailPanel({
                     />
                     final
                   </label>
-                </>
+                </div>
               )}
-              <button
-                type="button"
-                className="col-span-1 text-foreground-muted hover:text-error"
-                onClick={() => updateFields(classData.fields.filter((_, i) => i !== index))}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
             </div>
           ))}
           <button
