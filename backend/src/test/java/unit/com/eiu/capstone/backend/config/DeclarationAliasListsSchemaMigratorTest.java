@@ -1,6 +1,7 @@
 package unit.com.eiu.capstone.backend.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.atLeast;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -91,12 +93,24 @@ class DeclarationAliasListsSchemaMigratorTest {
     }
 
     private static String readOperatorSql() throws Exception {
-        Path cwd = Path.of(System.getProperty("user.dir"));
-        Path path = cwd.resolve(Path.of("..", "docs", "sql", OPERATOR_SQL)).normalize();
-        if (!Files.isRegularFile(path)) {
-            path = cwd.resolve(Path.of("docs", "sql", OPERATOR_SQL)).normalize();
+        String resource = "/sql/" + OPERATOR_SQL;
+        String classpathSql;
+        try (InputStream in = DeclarationAliasListsSchemaMigratorTest.class.getResourceAsStream(resource)) {
+            assertNotNull(in, "operator SQL not on test classpath: " + resource);
+            classpathSql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertTrue(Files.isRegularFile(path), "operator SQL not found: " + path);
-        return Files.readString(path, StandardCharsets.UTF_8);
+        Path cwd = Path.of(System.getProperty("user.dir"));
+        for (Path relative : new Path[] {
+                Path.of("..", "docs", "sql", OPERATOR_SQL),
+                Path.of("docs", "sql", OPERATOR_SQL)
+        }) {
+            Path path = cwd.resolve(relative).normalize();
+            if (Files.isRegularFile(path)) {
+                assertEquals(Files.readString(path, StandardCharsets.UTF_8), classpathSql,
+                        "test classpath SQL drifted from " + path);
+                break;
+            }
+        }
+        return classpathSql;
     }
 }
