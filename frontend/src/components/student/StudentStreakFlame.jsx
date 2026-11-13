@@ -66,6 +66,8 @@ export default function StudentStreakFlame({
   awardPulse = 0,
   onRestore,
   restoring = false,
+  tickets = 0,
+  onOpenGacha,
 }) {
   const uid = useId().replace(/:/g, '');
   const rootRef = useRef(null);
@@ -287,30 +289,109 @@ export default function StudentStreakFlame({
             </span>
             <b>day streak</b>
           </div>
+
+          {/* Ticket Balance & Quick Gacha Link */}
+          <div className="u379-ticket-banner">
+            <div className="u379-ticket-left">
+              <span className="u379-ticket-icon" aria-hidden="true">🎟️</span>
+              <div className="u379-ticket-text">
+                <span className="u379-ticket-label">Vé Roll hiện có</span>
+                <span className="u379-ticket-val">
+                  {tickets} <span className="u379-ticket-unit">Vé</span>
+                </span>
+              </div>
+            </div>
+            {onOpenGacha && (
+              <button
+                type="button"
+                className="u379-gacha-btn"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenGacha();
+                }}
+              >
+                Vào Gacha ➔
+              </button>
+            )}
+          </div>
+
           <div className="u379-missions">
+            {/* Mission 1: Login */}
             <div className="u379-mission">
-              <MissionDot done={loggedIn} today={nextMission === 'login'} />
-              <span>Log in to the page</span>
+              <div className="u379-mission-info">
+                <MissionDot done={loggedIn} today={nextMission === 'login'} />
+                <div className="u379-mission-text">
+                  <span className="u379-mission-title">Đăng nhập hằng ngày</span>
+                  <span className="u379-mission-sub">{loggedIn ? 'Đã điểm danh' : 'Đăng nhập vào hệ thống'}</span>
+                </div>
+              </div>
+              <span className={`u379-badge ${loggedIn ? 'is-done' : ''}`}>
+                {loggedIn ? '✓ +2 Vé' : '+2 Vé Roll'}
+              </span>
             </div>
+
+            {/* Mission 2: Java Lab Submits */}
             <div className="u379-mission">
-              <MissionDot done={submitDone} today={nextMission === 'submit'} />
-              <span>{`Submit ${submitShown}/${submitGoal} times`}</span>
+              <div className="u379-mission-info">
+                <MissionDot done={submitDone} today={nextMission === 'submit'} />
+                <div className="u379-mission-text">
+                  <span className="u379-mission-title">Nộp bài tập Java</span>
+                  <span className="u379-mission-sub">{`Tiến độ: ${submitShown}/${submitGoal} lần`}</span>
+                </div>
+              </div>
+              <span className={`u379-badge ${submitDone ? 'is-done' : ''}`}>
+                {submitDone ? '✓ +3 Vé' : '+1 Vé / lần (max 3)'}
+              </span>
             </div>
+
+            {/* Mission 3: Mascot Petting */}
             <div className="u379-mission">
-              <MissionDot done={petDone} today={nextMission === 'pet'} />
-              <span>{`Pet the fox ${petShown}/${petGoal} times`}</span>
+              <div className="u379-mission-info">
+                <MissionDot done={petDone} today={nextMission === 'pet'} />
+                <div className="u379-mission-text">
+                  <span className="u379-mission-title">Chăm sóc linh vật</span>
+                  <span className="u379-mission-sub">{`Tiến độ: ${petShown}/${petGoal} lần vuốt`}</span>
+                </div>
+              </div>
+              <span className={`u379-badge ${petDone ? 'is-done' : ''}`}>
+                {petDone ? '✓ +2 Vé' : '+2 Vé Roll'}
+              </span>
+            </div>
+
+            {/* Mission 4: Daily Streak Bonus */}
+            <div className="u379-mission">
+              <div className="u379-mission-info">
+                <MissionDot done={completedToday} today={heat === 3 && !completedToday} />
+                <div className="u379-mission-text">
+                  <span className="u379-mission-title">Hoàn thành chuỗi Streak</span>
+                  <span className="u379-mission-sub">
+                    {completedToday ? 'Đã kích hoạt ngọn lửa' : 'Hoàn thành đủ cả 3 nhiệm vụ'}
+                  </span>
+                </div>
+              </div>
+              <span className={`u379-badge is-gold ${completedToday ? 'is-done' : ''}`}>
+                {completedToday ? '✓ +1 Vé & 50 pts' : '+1 Vé & 50+ pts'}
+              </span>
             </div>
           </div>
-          <p className="u379-note">
-            {completedToday
-              ? 'Today is complete.'
-              : 'Complete all three to earn 50 points, plus 5 for every 5 streak days. That bonus stays.'}
-          </p>
+
+          {/* Economy Explanation Note */}
+          <div className="u379-economy-note">
+            <p className="u379-economy-title">
+              {completedToday
+                ? '🎉 Tuyệt vời! Bạn đã nhận đủ 8 Vé Roll hôm nay.'
+                : '🎁 Hoàn thành đủ nhiệm vụ ngày nhận tối đa 8 Vé Roll (56 vé/tuần) & 50+ điểm thưởng.'}
+            </p>
+            <p className="u379-economy-desc">
+              Tích lũy vé quay để săn <b>Đá Crystal</b>. Trong 2.5 tháng, sinh viên chăm chỉ chắc chắn đổi được <b>2 Mascot Huyền Thoại</b>!
+            </p>
+          </div>
+
           {broken && (
             <p className="u379-note">
               {canRestore
-                ? `Your streak stopped at ${savedStreak}. Restore it once this month, or finish today to start again at day 1.`
-                : 'A restore was already used this month. Finish today to start again at day 1.'}
+                ? `Chuỗi streak dừng ở ${savedStreak} ngày. Khôi phục 1 lần trong tháng, hoặc làm xong hôm nay để bắt đầu lại ngày 1.`
+                : 'Đã sử dụng lượt khôi phục trong tháng. Hoàn thành hôm nay để bắt đầu lại ngày 1.'}
             </p>
           )}
           {broken && canRestore && (
@@ -320,7 +401,7 @@ export default function StudentStreakFlame({
               disabled={restoring}
               onClick={onRestore}
             >
-              Restore streak
+              Khôi phục streak
             </button>
           )}
         </div>

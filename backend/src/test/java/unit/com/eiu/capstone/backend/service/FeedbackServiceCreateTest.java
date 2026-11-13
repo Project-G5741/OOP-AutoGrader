@@ -3,11 +3,14 @@ package unit.com.eiu.capstone.backend.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,7 @@ import com.eiu.capstone.backend.model.FeedbackItem;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.FeedbackAttachmentRepository;
 import com.eiu.capstone.backend.repository.FeedbackItemRepository;
+import com.eiu.capstone.backend.service.FeedbackAdminMailService;
 import com.eiu.capstone.backend.service.FeedbackImageConverter;
 import com.eiu.capstone.backend.service.FeedbackService;
 
@@ -38,12 +42,15 @@ class FeedbackServiceCreateTest {
     private FeedbackAttachmentRepository attachmentRepository;
     @Mock
     private FeedbackImageConverter imageConverter;
+    @Mock
+    private FeedbackAdminMailService adminMailService;
 
     private FeedbackService service;
 
     @BeforeEach
     void setUp() {
-        service = new FeedbackService(itemRepository, attachmentRepository, imageConverter);
+        service = new FeedbackService(
+                itemRepository, attachmentRepository, imageConverter, Optional.of(adminMailService));
         lenient().when(itemRepository.save(any(FeedbackItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -60,6 +67,23 @@ class FeedbackServiceCreateTest {
         assertEquals("2331200001", saved.getAuthorIrn());
         assertEquals("Nguyen Van A", saved.getAuthorName());
         assertEquals("Please add dark mode", saved.getMessage());
+        verify(adminMailService).notifyAdmins(saved);
+    }
+
+    @Test
+    void mailFailureDoesNotFailCreate() {
+        UserAccount user = account("2331200001", "Nguyen Van A");
+        doThrow(new RuntimeException("brevo down")).when(adminMailService).notifyAdmins(any());
+        FeedbackCreatedDTO created = service.create(user, "BUG", "Still save this", null);
+        assertEquals("OPEN", created.status());
+        verify(itemRepository).save(any(FeedbackItem.class));
+    }
+
+    @Test
+    void rejectedCreateDoesNotMail() {
+        UserAccount user = account("2331200001", "Nguyen Van A");
+        assertThrows(ResponseStatusException.class, () -> service.create(user, "BUG", "   ", null));
+        verify(adminMailService, never()).notifyAdmins(any());
     }
 
     @Test

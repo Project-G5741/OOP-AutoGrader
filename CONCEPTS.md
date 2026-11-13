@@ -243,7 +243,7 @@ Shop points paid once per student per week from the frozen Sunday 23:59:59 Vietn
 ## Feedback
 
 ### Feedback item
-A signed-in author's Bug report or Contribution: required type and message, optional `.png`/`.jpg` (stored as WebP), optional `.java`/`.mmd`, plus IRN and display name taken from the account (not typed). Distinct from lecturer analytics Reports.
+A signed-in author's Bug report or Contribution: required type and message, optional `.png`/`.jpg` (stored as WebP), optional `.java`/`.mmd`, plus IRN and display name taken from the account (not typed). Distinct from lecturer analytics Reports. On create, the web/cloud API emails every active Admin account (subject `Feedback OOP - AutoGrader`; body is type, author, and the submitted message). Desktop practice has no Feedback mail.
 
 ### Feedback inbox
 Lecturer nav screen that lists Feedback items from every author (students and lecturers). Not the analytics Reports page.
