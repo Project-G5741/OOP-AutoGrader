@@ -20,7 +20,7 @@ public class MethodDeclarationReturnTypeAlias {
             foreignKey = @ForeignKey(name = "method_declaration_return_type_alias_md_fkey"))
     private MethodDeclaration methodDeclaration;
 
-    @Column(name = "\"value\"", nullable = false)
+    @Column(name = "`value`", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)

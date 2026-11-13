@@ -2320,13 +2320,18 @@ public class LabStructureService {
                 .toList();
     }
 
-    private static List<String> aliasesOrPrimary(
+    /** Package-visible for unit tests. Null entries are kept (ENUM field types). */
+    static List<String> aliasesOrPrimary(
             Map<UUID, List<String>> aliasesByParent,
             UUID parentId,
             String primary) {
         List<String> aliases = aliasesByParent.get(parentId);
-        return aliases == null || aliases.isEmpty()
-                ? java.util.Collections.singletonList(primary)
-                : List.copyOf(aliases);
+        if (aliases == null || aliases.isEmpty()) {
+            return java.util.Collections.singletonList(primary);
+        }
+        // Alias lists may contain null (ENUM field types). List.copyOf rejects nulls.
+        return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(aliases));
     }
 }
+
+

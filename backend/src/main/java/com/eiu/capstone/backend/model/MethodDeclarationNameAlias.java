@@ -20,7 +20,7 @@ public class MethodDeclarationNameAlias {
             foreignKey = @ForeignKey(name = "method_declaration_name_alias_md_fkey"))
     private MethodDeclaration methodDeclaration;
 
-    @Column(name = "\"value\"", nullable = false)
+    @Column(name = "`value`", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)

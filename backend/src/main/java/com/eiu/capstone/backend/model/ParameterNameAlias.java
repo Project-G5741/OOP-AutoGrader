@@ -20,7 +20,7 @@ public class ParameterNameAlias {
             foreignKey = @ForeignKey(name = "parameter_name_alias_parameter_fkey"))
     private Parameter parameter;
 
-    @Column(name = "\"value\"", nullable = false)
+    @Column(name = "`value`", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)

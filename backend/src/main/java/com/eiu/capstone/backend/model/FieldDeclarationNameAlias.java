@@ -20,7 +20,7 @@ public class FieldDeclarationNameAlias {
             foreignKey = @ForeignKey(name = "field_declaration_name_alias_fd_fkey"))
     private FieldDeclaration fieldDeclaration;
 
-    @Column(name = "\"value\"", nullable = false)
+    @Column(name = "`value`", nullable = false)
     private String value;
 
     @Column(name = "order_index", nullable = false)
