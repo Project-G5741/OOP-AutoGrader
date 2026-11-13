@@ -26,7 +26,78 @@ public record InvocationRubric(
         UUID dispatchClassId,
         String dispatchClassName,
         String resultTypeName,
-        int repeatCount) {
+        int repeatCount,
+        List<String> methodNameAliases,
+        List<List<String>> parameterTypeAliases,
+        List<List<String>> receiverParameterTypeAliases) {
+
+    public InvocationRubric {
+        parameterTypes = parameterTypes == null ? List.of() : List.copyOf(parameterTypes);
+        receiverParameterTypes = receiverParameterTypes == null
+                ? List.of()
+                : List.copyOf(receiverParameterTypes);
+        methodNameAliases = methodNameAliases == null || methodNameAliases.isEmpty()
+                ? (methodName == null ? List.of() : List.of(methodName))
+                : List.copyOf(methodNameAliases);
+        parameterTypeAliases = parameterTypeAliases == null || parameterTypeAliases.isEmpty()
+                ? parameterTypes.stream().map(List::of).toList()
+                : parameterTypeAliases.stream().map(List::copyOf).toList();
+        receiverParameterTypeAliases = receiverParameterTypeAliases == null
+                || receiverParameterTypeAliases.isEmpty()
+                ? receiverParameterTypes.stream().map(List::of).toList()
+                : receiverParameterTypeAliases.stream().map(List::copyOf).toList();
+    }
+
+    public InvocationRubric(
+            UUID id,
+            InvocationKind kind,
+            UUID constructorId,
+            UUID methodId,
+            String className,
+            String methodName,
+            List<String> parameterTypes,
+            String paramsJson,
+            UUID receiverConstructorId,
+            String receiverClassName,
+            List<String> receiverParameterTypes,
+            String receiverParamsJson,
+            String instanceName,
+            UUID dispatchClassId,
+            String dispatchClassName,
+            String resultTypeName,
+            int repeatCount,
+            List<String> methodNameAliases,
+            List<List<String>> parameterTypeAliases) {
+        this(
+                id, kind, constructorId, methodId, className, methodName, parameterTypes, paramsJson,
+                receiverConstructorId, receiverClassName, receiverParameterTypes, receiverParamsJson,
+                instanceName, dispatchClassId, dispatchClassName, resultTypeName, repeatCount,
+                methodNameAliases, parameterTypeAliases, null);
+    }
+
+    public InvocationRubric(
+            UUID id,
+            InvocationKind kind,
+            UUID constructorId,
+            UUID methodId,
+            String className,
+            String methodName,
+            List<String> parameterTypes,
+            String paramsJson,
+            UUID receiverConstructorId,
+            String receiverClassName,
+            List<String> receiverParameterTypes,
+            String receiverParamsJson,
+            String instanceName,
+            UUID dispatchClassId,
+            String dispatchClassName,
+            String resultTypeName,
+            int repeatCount) {
+        this(
+                id, kind, constructorId, methodId, className, methodName, parameterTypes, paramsJson,
+                receiverConstructorId, receiverClassName, receiverParameterTypes, receiverParamsJson,
+                instanceName, dispatchClassId, dispatchClassName, resultTypeName, repeatCount, null, null, null);
+    }
 
     public int effectiveRepeatCount() {
         return repeatCount < 1 ? 1 : repeatCount;
@@ -62,7 +133,10 @@ public record InvocationRubric(
                 null,
                 null,
                 null,
-                1);
+                1,
+                null,
+                null,
+                null);
     }
 
     public InvocationRubric(
@@ -99,7 +173,10 @@ public record InvocationRubric(
                 dispatchClassId,
                 dispatchClassName,
                 resultTypeName,
-                1);
+                1,
+                null,
+                null,
+                null);
     }
 
     /** Rubric type name for object RETURN_VALUE checks (constructor class or method return type). */

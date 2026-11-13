@@ -278,7 +278,9 @@ Each lab has one or more **Challenges**. Each challenge defines what the student
 **Adding fields / constructors / methods:**
 1. Click a class in the tree to open the **Class Detail Panel** on the right.
 2. Use the **+ Field**, **+ Constructor**, or **+ Method** buttons.
-3. Fill in the signature details and save.
+3. Fill in the signature details. For member names, datatypes/return types, and parameters, use the last **Add name** or **Add datatype** row to allow another accepted value.
+4. Reorder aliases to choose the primary value shown in expected-result text, or remove aliases while keeping at least one value in each list.
+5. Save the structure. Every authored name × datatype combination is accepted by Declaration and MMD grading.
 
 #### Weights
 

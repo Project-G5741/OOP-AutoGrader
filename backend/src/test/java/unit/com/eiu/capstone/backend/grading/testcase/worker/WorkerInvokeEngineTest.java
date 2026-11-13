@@ -281,6 +281,56 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void concreteLookupWalksExtendsAncestorMethod() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Shape.java", """
+                        public class Shape {
+                            public String draw() { return "shape"; }
+                        }
+                        """,
+                "Square.java", """
+                        public class Square extends Shape {
+                        }
+                        """));
+        Map<String, Object> draw = methodStep("Square", "draw", List.of(), "[]", null, null);
+        draw.put("receiverClassName", "Square");
+        draw.put("receiverParameterTypes", List.of());
+        draw.put("receiverParamsJson", "[]");
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(draw), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals(1, steps.size());
+        assertEquals("NORMAL", steps.get(0).get("kind").asText());
+        assertEquals("\"shape\"", steps.get(0).get("returnValueJson").asText());
+    }
+
+    @Test
+    void concreteLookupPrefersSubclassOverrideOverAncestor() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Shape.java", """
+                        public class Shape {
+                            public String draw() { return "shape"; }
+                        }
+                        """,
+                "Square.java", """
+                        public class Square extends Shape {
+                            @Override
+                            public String draw() { return "square"; }
+                        }
+                        """));
+        Map<String, Object> draw = methodStep("Square", "draw", List.of(), "[]", null, null);
+        draw.put("receiverClassName", "Square");
+        draw.put("receiverParameterTypes", List.of());
+        draw.put("receiverParamsJson", "[]");
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(draw), List.of());
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode steps = stepsJson(outcome);
+        assertEquals("\"square\"", steps.get(0).get("returnValueJson").asText());
+    }
+
+    @Test
     void scenarioUnsupportedNonInstanceObjectTypeStillThrows() throws Exception {
         SerializedInvocationOutcome outcome = runScenario(classesDir, List.of(
                 constructorStep("Probe", List.of("Object"), "[{}]", null)), List.of());
@@ -539,6 +589,135 @@ class WorkerInvokeEngineTest {
         assertEquals(1, steps.size());
         assertEquals("NORMAL", steps.get(0).get("kind").asText());
         assertEquals("100", steps.get(0).get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void fieldSnapshotUsesSecondaryNameAliasButKeepsPrimaryResultKey() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private int funds;
+                            public Account() { this.funds = 75; }
+                            public void touch() {}
+                        }
+                        """));
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", dir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(methodStep("Account", "touch", List.of(), "[]", null, null)));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode snapshots = stepsJson(outcome).get(0).get("fieldSnapshotsJson");
+        assertEquals("75", snapshots.get("balance").asText());
+        assertFalse(snapshots.has("funds"));
+    }
+
+    @Test
+    void methodInvokeUsesSecondaryNameAndParameterTypeAliases() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private float funds;
+                            public void credit(float amount) { funds += amount; }
+                        }
+                        """));
+        Map<String, Object> step = methodStep(
+                "Account", "deposit", List.of("double"), "[12.5]", null, null);
+        step.put("methodNameAliases", List.of("deposit", "credit"));
+        step.put("parameterTypeAliases", List.of(List.of("MissingType", "float")));
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", dir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(step));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode result = stepsJson(outcome).get(0);
+        assertEquals("NORMAL", result.get("kind").asText(), result.toString());
+        assertEquals("12.5", result.get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void constructorAndReceiverUseSecondaryParameterTypeAliases() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private float funds;
+                            public Account(float opening) { funds = opening; }
+                            public void credit(float amount) { funds += amount; }
+                        }
+                        """));
+        Map<String, Object> construct = constructorStep(
+                "Account", List.of("double"), "[10.5]", "account");
+        construct.put("parameterTypeAliases", List.of(List.of("MissingType", "float")));
+        Map<String, Object> call = methodStep(
+                "Account", "credit", List.of("float"), "[2.0]", null, null);
+        call.put("receiverClassName", "Account");
+        call.put("receiverParameterTypes", List.of("double"));
+        call.put("receiverParameterTypeAliases", List.of(List.of("MissingType", "float")));
+        call.put("receiverParamsJson", "[10.5]");
+        call.put("snapshotFieldNames", List.of("funds"));
+        call.put("snapshotFieldAliases", Map.of("funds", List.of("funds")));
+
+        SerializedInvocationOutcome constructed = runScenario(dir, List.of(construct), List.of("funds"));
+        SerializedInvocationOutcome received = runScenario(dir, List.of(call), List.of());
+
+        assertEquals("NORMAL", stepsJson(constructed).get(0).get("kind").asText(),
+                stepsJson(constructed).get(0).toString());
+        assertEquals("10.5", stepsJson(constructed).get(0).get("fieldSnapshotsJson").get("funds").asText());
+        assertEquals("NORMAL", stepsJson(received).get(0).get("kind").asText(),
+                stepsJson(received).get(0).toString());
+        assertEquals("12.5", stepsJson(received).get(0).get("fieldSnapshotsJson").get("funds").asText());
+    }
+
+    @Test
+    void fieldSnapshotAliasesAreScopedToEachScenarioStep() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Car.java", """
+                        public class Car {
+                            private int velocity = 5;
+                            public void touch() {}
+                        }
+                        """,
+                "Account.java", """
+                        public class Account {
+                            private int funds = 75;
+                            public void touch() {}
+                        }
+                        """));
+        Map<String, Object> car = methodStep("Car", "touch", List.of(), "[]", null, null);
+        car.put("snapshotFieldNames", List.of("value"));
+        car.put("snapshotFieldAliases", Map.of("value", List.of("value", "velocity")));
+        Map<String, Object> account = methodStep("Account", "touch", List.of(), "[]", null, null);
+        account.put("snapshotFieldNames", List.of("value"));
+        account.put("snapshotFieldAliases", Map.of("value", List.of("value", "funds")));
+
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(car, account), List.of());
+
+        assertEquals("5", stepsJson(outcome).get(0).get("fieldSnapshotsJson").get("value").asText());
+        assertEquals("75", stepsJson(outcome).get(1).get("fieldSnapshotsJson").get("value").asText());
+    }
+
+    @Test
+    void fieldSnapshotOmitsPrimaryKeyWhenNoAliasExists() throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", classesDir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(methodStep("Car", "getSpeed", List.of(), "[]", null, null)));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        assertFalse(stepsJson(outcome).get(0).get("fieldSnapshotsJson").has("balance"));
     }
 
     @Test

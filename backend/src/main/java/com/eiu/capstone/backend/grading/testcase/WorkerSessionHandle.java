@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.grading.testcase;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -265,7 +266,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     ? item.classesDir()
                     : fallbackClassesDir;
             String mappedDir = raw != null ? classesDirMapper.apply(raw) : null;
-            mapped.add(new WorkerIpc.BatchItemSpec(item.steps(), item.snapshotFieldNames(), mappedDir));
+            mapped.add(new WorkerIpc.BatchItemSpec(
+                    item.steps(), item.snapshotFieldNames(), mappedDir, item.snapshotFieldAliases()));
         }
         return mapped;
     }
@@ -389,10 +391,20 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.paramsJson(),
                 invocation.receiverClassName(),
                 invocation.receiverParameterTypes(),
-                invocation.receiverParamsJson());
+                invocation.receiverParamsJson(),
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases(),
+                invocation.receiverParameterTypeAliases());
     }
 
     static WorkerIpc.ScenarioStepSpec toScenarioStep(InvocationRubric invocation) {
+        return toScenarioStep(invocation, null, null);
+    }
+
+    static WorkerIpc.ScenarioStepSpec toScenarioStep(
+            InvocationRubric invocation,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
         return new WorkerIpc.ScenarioStepSpec(
                 invocation.kind().name(),
                 invocation.className(),
@@ -408,7 +420,12 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.kind() == InvocationKind.CONSTRUCTOR
                         && invocation.constructorId() == null
                         ? WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT
-                        : null);
+                        : null,
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases(),
+                invocation.receiverParameterTypeAliases(),
+                snapshotFieldNames,
+                snapshotFieldAliases);
     }
 
     /**

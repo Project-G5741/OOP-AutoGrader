@@ -100,12 +100,12 @@ The constructed instance is **not named**.
 
 **Goal:** Call `withdraw(30)` on a `BankAccount` and check `balance`.
 
-1. **Member:** pick `withdraw`.
-2. Dry-run builds a **hidden receiver** (no-arg when the class has one, otherwise default constructor arguments). That construct is not a step and is not named.
+1. **Member:** pick under the class optgroup (e.g. `BankAccount`). The list includes that class’s own methods and Extends-ancestor methods with declaring-class labels (e.g. `Shape.draw(...)` under **Square** when `Square` Extends `Shape` and `draw` is only on `Shape`). A closer declaration hides a farther same-signature ancestor.
+2. Dry-run builds a **hidden receiver** for the optgroup class (no-arg when the class has one, otherwise default constructor arguments). Inherited picks still construct the subclass, not the ancestor — Java shape `Square s = new Square(); s.draw();`. That construct is not a step and is not named.
 3. **Arguments:** scalars only (e.g. `30`). You cannot pass another rubric-class object.
 4. **Assertions:** return value, stdout, field state on the hidden receiver, and/or exception.
 
-Instance methods on classes that only have parameterized constructors still appear in Unit; the runner fills constructor parameters with JVM-style defaults (numeric zero, `false`, `null` for reference types including `String`). Use Composition when you need a specific receiver setup.
+Instance methods on classes that only have parameterized constructors still appear in Unit; the runner fills constructor parameters with JVM-style defaults (numeric zero, `false`, `null` for reference types including `String`). Use Composition when you need a specific receiver setup. Extends-ancestor methods under a class with **no Structure constructor** are omitted in Unit — use Composition for those.
 
 ### 5.3 Static method
 
@@ -117,7 +117,7 @@ Pick a static method as the one invocation. There is no receiver.
 - Named instances or `$instance` arguments
 - Rubric-class objects as arguments (those belong in Composition)
 - equals() against another live object
-- Lecturer-chosen receiver constructor
+- Manual receiver-constructor picking (Unit may auto-bind a subclass constructor only for Extends-inherited method rows)
 
 ---
 
@@ -195,7 +195,7 @@ If `Shape.draw()` is abstract, the abstract body is not executed — the receive
 
 The editor does **not** refuse a single-path Call as script. A lone happy-path expected can still miss empty overrides — author contrast when pedagogy needs it.
 
-When Call as and concrete lookup often print the **same** override result, that is expected for a real override. They differ when the subclass does **not** declare the method (inherited parent body / concrete lookup may fail) or for static hiding — not when a working override is already in place.
+When Call as and concrete lookup often print the **same** override result, that is expected for a real override. Prefer **concrete** (no Call as) for `Square s; s.draw()` when `draw` is inherited from `Shape`. Prefer **Call as** `Shape` for the parent-typed story `Shape s = square; s.draw()`. They still differ for static hiding and for proving override through a parent type.
 
 Class-tab Declaration Test only checks signatures. It does **not** prove override behavior; operational Call as + assertions do.
 
@@ -210,7 +210,7 @@ A value-returning method may assert return value, stdout, field state, and throw
 | Kind | Checks | Expected value examples |
 |------|--------|-------------------------|
 | **RETURN_VALUE** | What the call returned | `42`, `"hello"`, `true`, `null`, or an [object check](#8-object-checks) |
-| **FIELD_STATE** | A field after the step | Pick **Field**; expected e.g. `100`. Composition may inspect any named object already created. Unit instance methods inspect the hidden no-arg receiver; Unit constructors inspect the constructed instance |
+| **FIELD_STATE** | A field after the step | Pick **Field**; expected e.g. `100`. The dropdown lists the target type’s own fields and fields declared on every **Extends** ancestor in Structure (Java-like). Example: `Car extends Vehicle` → a Car step can pick `Vehicle.height`. Composition may also use a named-instance expected when the selected field’s type is a rubric class. Unit instance methods inspect the hidden no-arg receiver; Unit constructors inspect the constructed instance |
 | **STDOUT** | Text printed to standard output | `"Account opened\n"` (string JSON) |
 | **EXCEPTION** | That the call threw a specific exception type (not the message) | `"IllegalArgumentException"` |
 
@@ -227,7 +227,7 @@ A value-returning method may assert return value, stdout, field state, and throw
 ### Tips
 
 - You can add **multiple assertions** on the same step.
-- **FIELD_STATE** must reference a field from the dropdown.
+- **FIELD_STATE** must reference a field from the dropdown (own class or Extends ancestors saved in Structure).
 - For **EXCEPTION**, use the simple name (`NullPointerException`), not the full package.
 - Empty expected values are treated as `null` when you save.
 
@@ -250,7 +250,7 @@ For a **method** that returns a non-primitive rubric class on **Composition**, y
 |-------|-------------------------|------|
 | equals() | `{ "$objectCheck": "EQUALS", "$instance": "other" }` | **Composition only** — return value equals another live named object |
 
-**Unit** methods that return objects: use **RETURN_VALUE** (e.g. `null`) and/or **FIELD_STATE** on fields of the **return type** (not the hidden receiver). No equals() on Unit. Primitive returns use scalar **RETURN_VALUE** as usual. **FIELD_STATE** on void instance methods checks the receiver’s fields only.
+**Unit** methods that return objects: use **RETURN_VALUE** (e.g. `null`) and/or **FIELD_STATE** on fields of the **return type** (not the hidden receiver), including that return type’s Extends-ancestor fields. No equals() on Unit. Primitive returns use scalar **RETURN_VALUE** as usual. **FIELD_STATE** on void instance methods checks the receiver’s fields (own + Extends ancestors).
 
 Type-only and field-map object checks (`$objectCheck: TYPE` / `FIELDS`) are not supported; use **FIELD_STATE** instead.
 

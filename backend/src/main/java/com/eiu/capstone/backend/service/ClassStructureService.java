@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.service;
 
 import com.eiu.capstone.backend.DTO.*;
 import com.eiu.capstone.backend.grading.SubmissionDetailPersistGate;
+import com.eiu.capstone.backend.grading.CartesianAliasMatcher;
 import com.eiu.capstone.backend.grading.pipeline.HeritageShellMatcher;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
@@ -1467,7 +1468,8 @@ public class ClassStructureService {
         }
         return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matchesWhenSpecified(field.scope(), entry.scope)
-                        && PartialCreditEvaluator.matchesWhenSpecified(field.dataType(), entry.dataType)
+                        && CartesianAliasMatcher.declarationTypeMatches(
+                                entry.dataType, field.dataTypes())
                         && field.isStatic() == entry.isStatic
                         && field.isFinal() == entry.isFinal);
     }
@@ -1486,7 +1488,8 @@ public class ClassStructureService {
     private double computeMethodAccuracy(MethodRubric method, ClassMethodEntry entry) {
         return PartialCreditEvaluator.binaryAccuracy(
                 PartialCreditEvaluator.matches(method.scope(), entry.scope).get(0)
-                        && PartialCreditEvaluator.matches(method.returnType(), entry.returnType).get(0)
+                        && CartesianAliasMatcher.declarationTypeMatches(
+                                entry.returnType, method.returnTypes())
                         && method.isStatic() == entry.isStatic
                         && method.isAbstract() == entry.isAbstract
                         && method.isFinal() == entry.isFinal);
@@ -1516,7 +1519,8 @@ public class ClassStructureService {
         boolean defaultMatches = !constructor.isDefault()
                 || (actualParams.isEmpty() && equalsIgnoreCase("public", entry.scope));
         return PartialCreditEvaluator.binaryAccuracy(
-                sameParamTypes(actualParams, constructor.parameterTypes())
+                CartesianAliasMatcher.declarationParameterTypesMatch(
+                        actualParams, constructor.parameters())
                         && PartialCreditEvaluator.matches(constructor.scope(), entry.scope).get(0)
                         && defaultMatches);
     }

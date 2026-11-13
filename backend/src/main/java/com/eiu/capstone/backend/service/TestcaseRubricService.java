@@ -577,9 +577,7 @@ public class TestcaseRubricService {
         if (blankToNull(step.instanceName()) != null) {
             throw unprocessable("UNIT cannot name instances");
         }
-        if (step.receiverConstructorId() != null) {
-            throw unprocessable("UNIT cannot set receiver_constructor_id");
-        }
+        validateUnitReceiverConstructor(step, memberIds);
         if (containsInstanceRef(step.params()) || containsInstanceRef(step.receiverParams())) {
             throw unprocessable("UNIT cannot pass named instances as arguments");
         }
@@ -589,6 +587,40 @@ public class TestcaseRubricService {
         }
         rejectObjectArrayArgs(step.params(), paramTypes, memberIds, "Invocation params");
         return Map.of();
+    }
+
+    /**
+     * Unit may set {@code receiver_constructor_id} only when the method is declared on an
+     * Extends/Implements ancestor of that constructor's class (subclass-context inherited call).
+     */
+    private void validateUnitReceiverConstructor(InvocationStructureDTO step,
+                                                 ChallengeMemberIds memberIds) {
+        if (step.receiverConstructorId() == null) {
+            return;
+        }
+        if (step.invocationKind() != InvocationKind.METHOD || step.methodId() == null) {
+            throw unprocessable("UNIT cannot set receiver_constructor_id");
+        }
+        validateConstructorRef(step.receiverConstructorId(), memberIds);
+        UUID methodClassId = memberIds.classIdByMethodId().get(step.methodId());
+        String receiverClassName = memberIds.classNameByConstructorId().get(step.receiverConstructorId());
+        UUID receiverClassId = classIdForBinaryName(receiverClassName, memberIds);
+        if (methodClassId == null || receiverClassId == null || methodClassId.equals(receiverClassId)) {
+            throw unprocessable("UNIT cannot set receiver_constructor_id");
+        }
+        if (!memberIds.isHeritageDescendant(methodClassId, receiverClassId)) {
+            throw unprocessable(
+                    "UNIT receiver_constructor_id must construct a subclass of the method's declaring class");
+        }
+        if (containsInstanceRef(step.receiverParams())) {
+            throw unprocessable("UNIT cannot pass named instances as arguments");
+        }
+        List<String> receiverTypes = memberIds.paramTypesByConstructorId()
+                .getOrDefault(step.receiverConstructorId(), List.of());
+        rejectObjectArrayArgs(step.receiverParams(), receiverTypes, memberIds, "Receiver params");
+        if (hasOrdinaryRubricClassArgument(receiverTypes, memberIds)) {
+            throw unprocessable("UNIT cannot pass a rubric-class object as an argument");
+        }
     }
 
     private Map<String, String> validateCompositionSteps(List<InvocationStructureDTO> steps,
@@ -1124,6 +1156,18 @@ public class TestcaseRubricService {
         if (constructorId == null || !memberIds.constructorIds().contains(constructorId)) {
             throw unprocessable("Constructor does not belong to this challenge");
         }
+    }
+
+    private static UUID classIdForBinaryName(String binaryName, ChallengeMemberIds memberIds) {
+        if (binaryName == null || binaryName.isBlank()) {
+            return null;
+        }
+        for (Map.Entry<UUID, String> entry : memberIds.classNameByClassId().entrySet()) {
+            if (binaryName.equals(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return memberIds.classIdByName().get(binaryName);
     }
 
     private Testcase upsertTestcase(Challenge challenge, TestcaseStructureDTO dto) {

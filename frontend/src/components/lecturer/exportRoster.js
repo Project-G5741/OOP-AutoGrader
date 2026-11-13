@@ -1,7 +1,6 @@
 import { collectIncorrectExportRows } from './ClassScoreBreakdown';
 import { collectIncorrectMmdExportRows } from './MmdScoreBreakdown';
 import { formatNumber, formatText } from '../../utils/formatters';
-import { pillarExportFields } from './pillarScoreColumns';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -135,7 +134,6 @@ export function buildGradeOverviewExportRows({ labs, students }) {
       Student: formatText(student.studentName),
       IRN: formatText(student.irn),
       'Total Score': formatNumber(student.totalScore),
-      ...pillarExportFields(student, { blank: formatNumber(null) }),
     };
     (student.labScores ?? []).forEach((score, index) => {
       const lab = labColumns[index];

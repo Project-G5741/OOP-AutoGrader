@@ -33,6 +33,8 @@ import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
+import com.eiu.capstone.backend.DTO.rubric.MethodStructureDTO;
+import com.eiu.capstone.backend.DTO.rubric.ParameterStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.RelationStructureDTO;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.grading.rubric.DryRunChallengeCatalogCache;
@@ -51,12 +53,18 @@ import com.eiu.capstone.backend.repository.ClassRelationRepository;
 import com.eiu.capstone.backend.repository.ConstructorDeclarationRepository;
 import com.eiu.capstone.backend.repository.ConstructorRepository;
 import com.eiu.capstone.backend.repository.FieldDeclarationRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.FieldDeclarationTypeAliasRepository;
 import com.eiu.capstone.backend.repository.FieldRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
 import com.eiu.capstone.backend.repository.MasterDataRepository;
 import com.eiu.capstone.backend.repository.MethodDeclarationRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationNameAliasRepository;
+import com.eiu.capstone.backend.repository.MethodDeclarationReturnTypeAliasRepository;
 import com.eiu.capstone.backend.repository.MethodRepository;
+import com.eiu.capstone.backend.repository.ParameterNameAliasRepository;
 import com.eiu.capstone.backend.repository.ParameterRepository;
+import com.eiu.capstone.backend.repository.ParameterTypeAliasRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.TestcaseRepository;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
@@ -77,6 +85,12 @@ class LabStructureServiceSaveTest {
     @Mock private FieldDeclarationRepository fieldDeclarationRepository;
     @Mock private MethodDeclarationRepository methodDeclarationRepository;
     @Mock private ConstructorDeclarationRepository constructorDeclarationRepository;
+    @Mock private FieldDeclarationNameAliasRepository fieldNameAliasRepository;
+    @Mock private FieldDeclarationTypeAliasRepository fieldTypeAliasRepository;
+    @Mock private MethodDeclarationNameAliasRepository methodNameAliasRepository;
+    @Mock private MethodDeclarationReturnTypeAliasRepository methodReturnTypeAliasRepository;
+    @Mock private ParameterNameAliasRepository parameterNameAliasRepository;
+    @Mock private ParameterTypeAliasRepository parameterTypeAliasRepository;
     @Mock private MasterDataRepository masterDataRepository;
     @Mock private com.eiu.capstone.backend.grading.rubric.LabRubricCache labRubricCache;
     @Mock private TestcaseRubricService testcaseRubricService;
@@ -102,6 +116,7 @@ class LabStructureServiceSaveTest {
         rubricCacheInvalidationSupport = new RubricCacheInvalidationSupport(
                 labRubricCache, new DryRunChallengeCatalogCache());
         when(testcaseRepository.findByChallenge_IdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+        when(parameterRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         labStructureService = new LabStructureService(
                 labRepository,
                 termRepository,
@@ -115,6 +130,12 @@ class LabStructureServiceSaveTest {
                 fieldDeclarationRepository,
                 methodDeclarationRepository,
                 constructorDeclarationRepository,
+                fieldNameAliasRepository,
+                fieldTypeAliasRepository,
+                methodNameAliasRepository,
+                methodReturnTypeAliasRepository,
+                parameterNameAliasRepository,
+                parameterTypeAliasRepository,
                 masterDataRepository,
                 rubricCacheInvalidationSupport,
                 testcaseRubricService,
@@ -187,15 +208,17 @@ class LabStructureServiceSaveTest {
         ArgumentCaptor<ClassEntity> classCaptor = ArgumentCaptor.forClass(ClassEntity.class);
         verify(entityManager).persist(classCaptor.capture());
         assertEquals(classId, classCaptor.getValue().getId());
+        verify(labRubricCache).invalidate(labId);
     }
 
     @Test
-    void saveLabStructure_blankFieldName_throwsBadRequest() {
+    void saveLabStructure_emptyFieldNames_throwsBadRequest() {
         UUID challengeId = UUID.randomUUID();
         UUID classId = UUID.randomUUID();
         UUID fieldId = UUID.randomUUID();
 
-        FieldStructureDTO fieldDto = new FieldStructureDTO(fieldId, "   ", "int", 1, false, false);
+        FieldStructureDTO fieldDto = new FieldStructureDTO(
+                fieldId, "cost", "int", 1, false, false, List.of(), List.of("int"));
         ClassStructureDTO classDto = new ClassStructureDTO(
                 classId, "Car", 1, 2, false, List.of(fieldDto), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
@@ -226,6 +249,50 @@ class LabStructureServiceSaveTest {
                 ResponseStatusException.class,
                 () -> labStructureService.saveLabStructure(labId, payload));
         assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
+    void saveLabStructure_newParameterIdClaimedByTwoMembers_throwsBadRequestBeforePersistence() {
+        UUID challengeId = UUID.randomUUID();
+        UUID classId = UUID.randomUUID();
+        UUID sharedParameterId = UUID.randomUUID();
+        ParameterStructureDTO firstParameter = new ParameterStructureDTO(
+                sharedParameterId, "amount", "int", 0, false);
+        ParameterStructureDTO secondParameter = new ParameterStructureDTO(
+                sharedParameterId, "count", "int", 0, false);
+        ClassStructureDTO classDto = new ClassStructureDTO(
+                classId,
+                "Account",
+                1,
+                2,
+                false,
+                List.of(),
+                List.of(
+                        new MethodStructureDTO(
+                                UUID.randomUUID(), "deposit", "void", 1, false, false,
+                                List.of(firstParameter)),
+                        new MethodStructureDTO(
+                                UUID.randomUUID(), "withdraw", "void", 1, false, false,
+                                List.of(secondParameter))),
+                List.of());
+        LabStructureResponse payload = new LabStructureResponse(
+                labId,
+                "Lab 2",
+                termId,
+                null,
+                true,
+                null,
+                "Official",
+                List.of(new ChallengeStructureDTO(
+                        challengeId, "Accounts", 1, List.of(classDto), List.of())));
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> labStructureService.saveLabStructure(labId, payload));
+
+        assertEquals(400, ex.getStatusCode().value());
+        verify(entityManager, never()).persist(any());
     }
 
     @Test

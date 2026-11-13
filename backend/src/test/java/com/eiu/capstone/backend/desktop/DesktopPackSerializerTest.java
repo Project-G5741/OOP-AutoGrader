@@ -24,7 +24,12 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackLabMeta;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackManifest;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackSerializer;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
+import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.ParameterRubric;
 
 class DesktopPackSerializerTest {
 
@@ -85,5 +90,96 @@ class DesktopPackSerializerTest {
         String json = "{\"id\":\"" + labId + "\",\"name\":\"Lab 1\",\"studentVisible\":true}";
         DesktopPackLabMeta meta = mapper.readValue(json, DesktopPackLabMeta.class);
         assertEquals("Official", meta.prefix());
+    }
+
+    @Test
+    void roundtrip_preservesAliasLists() throws Exception {
+        UUID labId = UUID.randomUUID();
+        ParameterRubric parameter = new ParameterRubric(
+                List.of("amount", "quantity"),
+                List.of("double", "float"));
+        ClassRubric clazz = new ClassRubric(
+                UUID.randomUUID(),
+                "Invoice",
+                null,
+                "public",
+                "class",
+                false,
+                false,
+                List.of(new FieldRubric(
+                        UUID.randomUUID(),
+                        List.of("cost", "fee"),
+                        "private",
+                        List.of("double", "float"),
+                        false,
+                        false)),
+                List.of(new MethodRubric(
+                        UUID.randomUUID(),
+                        List.of("total", "sum"),
+                        "public",
+                        List.of("double", "float"),
+                        false,
+                        false,
+                        false,
+                        List.of(parameter))),
+                List.of(),
+                1);
+        LabRubricSnapshot rubric = new LabRubricSnapshot(
+                labId,
+                Map.of(1, new ChallengeRubric(
+                        UUID.randomUUID(), 1, "Main", List.of(clazz), List.of())));
+        DesktopPackInnerPayload payload = new DesktopPackInnerPayload(
+                "pack-aliases",
+                UUID.randomUUID(),
+                "2026 — Quarter 1",
+                List.of(new DesktopPackLabEntry(
+                        new DesktopPackLabMeta(labId, "Aliases", true, null, null, "Practice"),
+                        rubric)));
+
+        LabRubricSnapshot parsed = serializer.fromJson(serializer.toJson(payload)).labs().get(0).rubric();
+        var parsedClass = parsed.byChallengeNumber().get(1).classes().get(0);
+
+        assertEquals(List.of("cost", "fee"), parsedClass.fields().get(0).names());
+        assertEquals(List.of("double", "float"), parsedClass.fields().get(0).dataTypes());
+        assertEquals(List.of("total", "sum"), parsedClass.methods().get(0).names());
+        assertEquals(List.of("double", "float"), parsedClass.methods().get(0).returnTypes());
+        assertEquals(List.of("amount", "quantity"),
+                parsedClass.methods().get(0).parameters().get(0).names());
+        assertEquals(List.of("double", "float"),
+                parsedClass.methods().get(0).parameters().get(0).dataTypes());
+    }
+
+    @Test
+    void formatV1ScalarRubrics_deserializeAsSingleAliasLists() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        UUID fieldId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        UUID constructorId = UUID.randomUUID();
+
+        FieldRubric field = mapper.readValue("""
+                {"id":"%s","name":"cost","scope":"private","dataType":"double",
+                 "isStatic":false,"isFinal":false}
+                """.formatted(fieldId), FieldRubric.class);
+        MethodRubric method = mapper.readValue("""
+                {"id":"%s","name":"total","scope":"public","returnType":"double",
+                 "isStatic":false,"isAbstract":false,"isFinal":false,
+                 "parameterTypes":["double"]}
+                """.formatted(methodId), MethodRubric.class);
+        ConstructorRubric constructor = mapper.readValue("""
+                {"id":"%s","scope":"public","isDefault":false,
+                 "parameterTypes":["double"]}
+                """.formatted(constructorId), ConstructorRubric.class);
+        ParameterRubric parameter = mapper.readValue(
+                "{\"name\":\"amount\",\"dataType\":\"double\"}",
+                ParameterRubric.class);
+
+        assertEquals(List.of("cost"), field.names());
+        assertEquals(List.of("double"), field.dataTypes());
+        assertEquals(List.of("total"), method.names());
+        assertEquals(List.of("double"), method.returnTypes());
+        assertEquals(List.of("double"), method.parameterTypes());
+        assertEquals(List.of("double"), constructor.parameterTypes());
+        assertEquals(List.of("amount"), parameter.names());
+        assertEquals(List.of("double"), parameter.dataTypes());
     }
 }
