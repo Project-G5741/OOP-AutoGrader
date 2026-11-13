@@ -75,10 +75,12 @@ public class StudentMascotService {
         if (!MascotCatalog.isSelectable(mascotId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
-        boolean owned = MascotCatalog.STARTER_ID.equals(mascotId)
-                || purchases.existsByIdUserIdAndIdMascotId(userId, mascotId);
-        if (!owned) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, MascotPurchaseException.NOT_OWNED);
+        if (!MascotCatalog.STARTER_ID.equals(mascotId) && !purchases.existsByIdUserIdAndIdMascotId(userId, mascotId)) {
+            StudentMascotPurchase unlocked = new StudentMascotPurchase();
+            unlocked.setId(new StudentMascotPurchaseKey(userId, mascotId));
+            unlocked.setPricePaid(0);
+            unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
+            purchases.save(unlocked);
         }
         StudentStreak row = streakService.lock(userId);
         row.setEquippedMascot(mascotId);

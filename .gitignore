@@ -60,3 +60,6 @@ service-account*.json
 .supabase/
 supabase/.temp/
 supabase/.branches/
+
+# Local mascot draft materials
+/mascot-materials/

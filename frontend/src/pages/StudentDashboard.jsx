@@ -1,7 +1,7 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, Store, Trophy } from 'lucide-react';
+import { Clock, Home, Store, Trophy, Sparkles } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
@@ -10,6 +10,9 @@ import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
 import MascotShop from '../components/student/MascotShop';
+import MascotGachaModal from '../components/student/MascotGachaModal';
+
+import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
@@ -273,7 +276,45 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
+  const [showGacha, setShowGacha] = useState(false);
+  const [crystals, setCrystals] = useState(() => {
+    const saved = localStorage.getItem('gacha_demo_crystals');
+    return saved !== null ? parseInt(saved, 10) : 0;
+  });
+  const [ownedMascots, setOwnedMascots] = useState(() => {
+    try {
+      const saved = localStorage.getItem('oop_student_owned_mascots');
+      return saved ? JSON.parse(saved) : ['fox'];
+    } catch {
+      return ['fox'];
+    }
+  });
+
+  const handleCrystalsChange = useCallback((val) => {
+    setCrystals(val);
+    localStorage.setItem('gacha_demo_crystals', val);
+  }, []);
+
+  const [tickets, setTickets] = useState(() => {
+    const saved = localStorage.getItem('gacha_demo_tickets');
+    return saved !== null ? parseInt(saved, 10) : 15;
+  });
+
+  const handleTicketsChange = useCallback((val) => {
+    setTickets(val);
+    localStorage.setItem('gacha_demo_tickets', val);
+  }, []);
+
+  const handleOwnedMascotsChange = useCallback((val) => {
+    setOwnedMascots(val);
+    localStorage.setItem('oop_student_owned_mascots', JSON.stringify(val));
+  }, []);
+  const [equippedMascot, setEquippedMascot] = useState(() => {
+    return localStorage.getItem('oop_student_equipped_mascot') || 'fox';
+  });
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
+  const [mascotSpeech, setMascotSpeech] = useState(null);
+  const [activeMascotSkill, setActiveMascotSkill] = useState(null);
   const [streak, setStreak] = useState(null);
   const [awardPulse, setAwardPulse] = useState(0);
   const [restoringStreak, setRestoringStreak] = useState(false);
@@ -295,8 +336,94 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
       setAwardPulse((value) => value + 1);
     }
-    streakSnapshot.current = next;
-    setStreak(next);
+
+    // Award tickets from Streak missions:
+    // 1. Daily login: +2 tickets
+    // 2. Pet mascot (4 times): +2 tickets (1 ticket per 2 pets)
+    // 3. Lab submissions (3 times): +1 ticket per submit (up to 3)
+    // 4. Streak full completion bonus: +1 ticket
+    // Total daily: 8 tickets = 56 tickets/week (guarantees >= 50 rolls/week)
+    if (next) {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const claimKey = `oop_streak_tickets_claimed_${todayStr}`;
+      let claimed = {};
+      try {
+        const savedClaimed = localStorage.getItem(claimKey);
+        if (savedClaimed) claimed = JSON.parse(savedClaimed);
+      } catch {
+        claimed = {};
+      }
+
+      let ticketsEarned = 0;
+      const ticketToasts = [];
+
+      // 1. Daily Login (+2 tickets)
+      if (next.loggedIn && !claimed.login) {
+        ticketsEarned += 2;
+        claimed.login = 2;
+        ticketToasts.push('+2 Vé Roll (Điểm danh)');
+      }
+
+      // 2. Petting Mascot (+2 tickets total: 2 pets = 1 ticket, 4 pets = 2 tickets)
+      const petGoal = next.petGoal ?? 4;
+      const petCount = next.petCount ?? 0;
+      const eligiblePet = petCount >= petGoal ? 2 : petCount >= 2 ? 1 : 0;
+      const prevPet = claimed.pet || 0;
+      if (eligiblePet > prevPet) {
+        const delta = eligiblePet - prevPet;
+        ticketsEarned += delta;
+        claimed.pet = eligiblePet;
+        ticketToasts.push(`+${delta} Vé Roll (Chăm sóc linh vật ${petCount}/${petGoal})`);
+      }
+
+      // 3. Submissions (+1 ticket per submit up to 3)
+      const submitGoal = next.submitGoal ?? 3;
+      const submitCount = next.submitCount ?? 0;
+      const eligibleSubmits = Math.min(submitCount, submitGoal);
+      const prevSubmits = claimed.submits || 0;
+      if (eligibleSubmits > prevSubmits) {
+        const delta = eligibleSubmits - prevSubmits;
+        ticketsEarned += delta;
+        claimed.submits = eligibleSubmits;
+        ticketToasts.push(`+${delta} Vé Roll (Nộp bài tập ${submitCount}/${submitGoal})`);
+      }
+
+      // 4. Full streak completion (+1 ticket bonus)
+      const isComplete = Boolean(next.completedToday) || 
+        (next.loggedIn && submitCount >= submitGoal && petCount >= petGoal);
+      if (isComplete && !claimed.streakBonus) {
+        ticketsEarned += 1;
+        claimed.streakBonus = 1;
+        ticketToasts.push('+1 Vé Roll (Hoàn thành Streak ngày)');
+      }
+
+      if (ticketsEarned > 0) {
+        localStorage.setItem(claimKey, JSON.stringify(claimed));
+        setTickets((curr) => {
+          const nextCount = curr + ticketsEarned;
+          localStorage.setItem('gacha_demo_tickets', nextCount);
+          return nextCount;
+        });
+        showToast(ticketToasts.join(' • '), 'success');
+      }
+    }
+
+    const localEquipped = localStorage.getItem('oop_student_equipped_mascot');
+    const effectiveEquipped = localEquipped || next?.equipped || 'fox';
+    if (effectiveEquipped) {
+      setEquippedMascot(effectiveEquipped);
+      localStorage.setItem('oop_student_equipped_mascot', effectiveEquipped);
+    }
+    if (localEquipped && next?.equipped && next.equipped !== localEquipped) {
+      void apiFetch(`${API_BASE}/api/students/mascots/${localEquipped}/equip`, {
+        method: 'POST',
+        headers: authHeaders(),
+      }).catch(() => {});
+    }
+
+    const mergedNext = next ? { ...next, equipped: effectiveEquipped } : next;
+    streakSnapshot.current = mergedNext;
+    setStreak(mergedNext);
   }, [showToast]);
 
   const refreshStreak = useCallback(async () => {
@@ -318,6 +445,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const petFox = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
+    const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
+    const speechText = getRandomDialogue(equippedId, 'pet');
+    setMascotSpeech({ text: speechText, type: 'pet' });
+
     const goal = streakSnapshot.current?.petGoal ?? 4;
     if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
     try {
@@ -1018,6 +1149,33 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       type: 'success',
     };
     void refreshStreak();
+
+    // Trigger tier-specific mascot reaction & dialogue based on submission score
+    if (!IS_DESKTOP_APP) {
+      const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
+      const hasCompileErr = labResultHasCompileError(labResult);
+
+      const profile = getMascotProfile(equippedId);
+      if (score === 100) {
+        const speechText = getRandomDialogue(equippedId, 'perfect');
+        setMascotSpeech({ text: speechText, type: 'perfect' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      } else if (score != null && score >= 75) {
+        const speechText = getRandomDialogue(equippedId, 'good');
+        setMascotSpeech({ text: speechText, type: 'good' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      } else if ((score != null && score < 75) || hasCompileErr) {
+        const speechText = getRandomDialogue(equippedId, 'retry');
+        setMascotSpeech({ text: speechText, type: 'retry' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      }
+    }
     const challengeList = (challenges && challenges.length > 0)
       ? challenges
       : (challengesByLabRef.current[selectedLabId] ?? []);
@@ -1171,11 +1329,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
+    const equipped = shop.equipped || 'fox';
+    localStorage.setItem('oop_student_equipped_mascot', equipped);
+    setEquippedMascot(equipped);
     const prev = streakSnapshot.current;
     const next = {
       ...(prev || {}),
       points: shop.points,
-      equipped: shop.equipped || 'fox',
+      equipped,
     };
     streakSnapshot.current = next;
     setStreak(next);
@@ -1209,7 +1370,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
         headerBeforeUserMenu={!IS_DESKTOP_APP ? (
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             <StudentStreakFlame
               streak={streak?.streak ?? 0}
               loggedIn={Boolean(streak?.loggedIn)}
@@ -1224,7 +1385,21 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               awardPulse={awardPulse}
               restoring={restoringStreak}
               onRestore={restoreStreak}
+              tickets={tickets}
+              onOpenGacha={() => setShowGacha(true)}
             />
+            <button
+              type="button"
+              onClick={() => setShowGacha(true)}
+              aria-label={`Vòng quay Gacha Tinh Thể. Hiện có ${tickets} vé.`}
+              className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Gacha</span>
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-extrabold text-white">
+                {tickets}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => setShowMascotShop(true)}
@@ -1241,14 +1416,16 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             <StudentFoxMascot size={56} mascotId="fox" />
           </div>
         ) : (
-          <button
-            type="button"
-            className="-my-1 shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label={`Pet the ${mascotArt(streak?.equipped || 'fox').name}. ${Math.min(streak?.petCount ?? 0, streak?.petGoal ?? 4)} of ${streak?.petGoal ?? 4} pets today.`}
-            onClick={petFox}
-          >
-            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} mascotId={streak?.equipped || 'fox'} />
-          </button>
+          <div className="relative -my-1 shrink-0 flex items-center">
+            <StudentFoxMascot
+              size={56}
+              coverEyes={foxCoverEyes}
+              mascotId={equippedMascot || streak?.equipped || 'fox'}
+              onPet={petFox}
+              speech={mascotSpeech}
+              onClearSpeech={() => setMascotSpeech(null)}
+            />
+          </div>
         )}
       >
         <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
@@ -1306,8 +1483,34 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           open={showMascotShop}
           onClose={() => setShowMascotShop(false)}
           onUpdated={applyShop}
+          onOpenGacha={() => setShowGacha(true)}
+          crystals={crystals}
+          onCrystalsChange={handleCrystalsChange}
+          tickets={tickets}
+          ownedMascots={ownedMascots}
+          onOwnedMascotsChange={handleOwnedMascotsChange}
         />
       )}
+
+      {!IS_DESKTOP_APP && (
+        <MascotGachaModal
+          open={showGacha}
+          onClose={() => setShowGacha(false)}
+          initialPoints={streak?.points ?? 1250}
+          onPointsChange={(pts) => {
+            setStreak((s) => (s ? { ...s, points: pts } : s));
+          }}
+          crystals={crystals}
+          onCrystalsChange={handleCrystalsChange}
+          tickets={tickets}
+          onTicketsChange={handleTicketsChange}
+          ownedMascots={ownedMascots}
+          onOwnedMascotsChange={handleOwnedMascotsChange}
+          isAdmin={hasRole(user?.roles, 'ADMIN')}
+        />
+      )}
+
+
 
       {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal
