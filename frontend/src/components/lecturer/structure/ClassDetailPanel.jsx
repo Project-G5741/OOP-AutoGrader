@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import Combobox from '../../ui/Combobox';
+import AliasListBox from './AliasListBox';
 import ParameterRows from './ParameterRows';
 import WeightInput from './WeightInput';
 
@@ -77,7 +78,7 @@ export default function ClassDetailPanel({
     }
     onChange({
       ...classData,
-      fields: fields.map((field) => ({ ...field, dataType: '', scopeId: null })),
+      fields: fields.map((field) => ({ ...field, dataType: '', dataTypes: [''], scopeId: null })),
     });
   }, [enumClass, classData, onChange]);
 
@@ -162,7 +163,12 @@ export default function ClassDetailPanel({
                 patch({
                   declaringTypeId,
                   fields: nextEnum
-                    ? (classData.fields || []).map((field) => ({ ...field, dataType: '', scopeId: null }))
+                    ? (classData.fields || []).map((field) => ({
+                      ...field,
+                      dataType: '',
+                      dataTypes: [''],
+                      scopeId: null,
+                    }))
                     : classData.fields,
                 });
               }}
@@ -255,25 +261,31 @@ export default function ClassDetailPanel({
         <div className="space-y-3">
           {(classData.fields || []).map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
-              <input
-                className={`${enumClass ? 'col-span-11' : 'col-span-4'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
+              <AliasListBox
+                className={enumClass ? 'col-span-11' : 'col-span-4'}
                 placeholder={enumClass ? 'Constant name' : 'Field name'}
-                value={field.name}
-                onChange={(e) => {
+                ariaLabel={enumClass ? 'Constant name' : 'Field name'}
+                addLabel="Add name"
+                values={field.names}
+                fallback={field.name}
+                onChange={(names) => {
                   const fields = [...classData.fields];
-                  fields[index] = { ...field, name: e.target.value };
+                  fields[index] = { ...field, names, name: names[0] };
                   updateFields(fields);
                 }}
               />
               {!enumClass && (
                 <>
-                  <input
-                    className="col-span-2 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                  <AliasListBox
+                    className="col-span-2"
                     placeholder="type"
-                    value={field.dataType}
-                    onChange={(e) => {
+                    ariaLabel="Field datatype"
+                    addLabel="Add datatype"
+                    values={field.dataTypes}
+                    fallback={field.dataType}
+                    onChange={(dataTypes) => {
                       const fields = [...classData.fields];
-                      fields[index] = { ...field, dataType: e.target.value };
+                      fields[index] = { ...field, dataTypes, dataType: dataTypes[0] };
                       updateFields(fields);
                     }}
                   />
@@ -330,7 +342,9 @@ export default function ClassDetailPanel({
               {
                 id: crypto.randomUUID(),
                 name: '',
+                names: [''],
                 dataType: '',
+                dataTypes: [''],
                 scopeId: enumClass ? null : scopeOptions[0]?.id,
                 isStatic: false,
                 isFinal: false,
@@ -348,23 +362,27 @@ export default function ClassDetailPanel({
           {(classData.methods || []).map((method, index) => (
             <div key={method.id} className="rounded-lg border border-border p-3 dark:border-border">
               <div className="grid gap-2 md:grid-cols-2">
-                <input
-                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                <AliasListBox
                   placeholder="Method name"
-                  value={method.name}
-                  onChange={(e) => {
+                  ariaLabel="Method name"
+                  addLabel="Add name"
+                  values={method.names}
+                  fallback={method.name}
+                  onChange={(names) => {
                     const methods = [...classData.methods];
-                    methods[index] = { ...method, name: e.target.value };
+                    methods[index] = { ...method, names, name: names[0] };
                     updateMethods(methods);
                   }}
                 />
-                <input
-                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                <AliasListBox
                   placeholder="Return type"
-                  value={method.returnType}
-                  onChange={(e) => {
+                  ariaLabel="Method return type"
+                  addLabel="Add return type"
+                  values={method.returnTypes}
+                  fallback={method.returnType}
+                  onChange={(returnTypes) => {
                     const methods = [...classData.methods];
-                    methods[index] = { ...method, returnType: e.target.value };
+                    methods[index] = { ...method, returnTypes, returnType: returnTypes[0] };
                     updateMethods(methods);
                   }}
                 />
@@ -430,7 +448,9 @@ export default function ClassDetailPanel({
               {
                 id: crypto.randomUUID(),
                 name: '',
+                names: [''],
                 returnType: 'void',
+                returnTypes: ['void'],
                 scopeId: scopeOptions[0]?.id,
                 isStatic: false,
                 isAbstract: false,
