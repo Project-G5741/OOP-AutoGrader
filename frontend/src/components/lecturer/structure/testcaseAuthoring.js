@@ -512,18 +512,22 @@ export function paramSignature(parameters) {
   return (parameters || []).map((param) => param.dataType || '?').join(', ');
 }
 
+/** 'extends' | 'implements' | null — Call-as uses both; FIELD_STATE ancestors use Extends only. */
 function heritageRelationKind(relationTypeOption) {
   const name = (relationTypeOption?.name || '').toLowerCase();
-  if (name.includes('realiz') || name.includes('implement')) return 'heritage';
-  if (name.includes('inherit') || name.includes('extend') || name.includes('general')) return 'heritage';
+  if (name.includes('realiz') || name.includes('implement')) return 'implements';
+  if (name.includes('inherit') || name.includes('extend') || name.includes('general')) return 'extends';
   return null;
 }
 
-function buildChildrenByParentId(relations, relationTypeOptions) {
+function buildChildrenByParentId(relations, relationTypeOptions, kinds = null) {
+  const allowed = kinds == null ? null : new Set(kinds);
   const childrenByParentId = new Map();
   (relations || []).forEach((relation) => {
     const option = (relationTypeOptions || []).find((item) => item.id === relation.relationTypeId);
-    if (!heritageRelationKind(option)) return;
+    const kind = heritageRelationKind(option);
+    if (!kind) return;
+    if (allowed && !allowed.has(kind)) return;
     const parentId = relation.targetClassId;
     const childId = relation.sourceClassId;
     if (!parentId || !childId) return;
@@ -643,6 +647,11 @@ export function buildMemberCatalog(
     if (cls.name) classIdByName.set(cls.name, cls.id);
   });
   const childrenByParentId = buildChildrenByParentId(challenge?.relations, relationTypeOptions);
+  const extendsChildrenByParentId = buildChildrenByParentId(
+    challenge?.relations,
+    relationTypeOptions,
+    ['extends'],
+  );
   const constructors = [];
   const methods = [];
   const fields = [];
@@ -716,6 +725,7 @@ export function buildMemberCatalog(
     classNameById,
     concreteClasses,
     childrenByParentId,
+    extendsChildrenByParentId,
     noArgClassIds,
     constructors,
     methods,
@@ -1010,11 +1020,20 @@ export function classIdForClassName(className, catalog) {
   return method?.classId ?? null;
 }
 
+function withExtendsAncestors(rootIds, catalog) {
+  const ids = new Set(rootIds.filter(Boolean));
+  const extendsMap = catalog.extendsChildrenByParentId || new Map();
+  rootIds.filter(Boolean).forEach((rootId) => {
+    collectAncestorClassIds(rootId, extendsMap).forEach((id) => ids.add(id));
+  });
+  return [...ids];
+}
+
 function fieldOwnerClassIdsForStep(step, catalog) {
   if (!step) return [];
   if (step.invocationKind === 'CONSTRUCTOR') {
     const classId = constructorClassId(step, catalog);
-    return classId ? [classId] : [];
+    return withExtendsAncestors(classId ? [classId] : [], catalog);
   }
   const method = catalog.methodsById.get(step.methodId);
   if (!method) return [];
@@ -1025,9 +1044,11 @@ function fieldOwnerClassIdsForStep(step, catalog) {
     const ids = new Set([rootId]);
     collectDescendantClassIds(rootId, catalog.childrenByParentId || new Map())
       .forEach((id) => ids.add(id));
+    collectAncestorClassIds(rootId, catalog.extendsChildrenByParentId || new Map())
+      .forEach((id) => ids.add(id));
     return [...ids];
   }
-  return method.classId ? [method.classId] : [];
+  return withExtendsAncestors(method.classId ? [method.classId] : [], catalog);
 }
 
 /** Rubric fields eligible for FIELD_STATE on this step (constructed type, return type, or receiver). */

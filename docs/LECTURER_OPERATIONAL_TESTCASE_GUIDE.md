@@ -210,7 +210,7 @@ A value-returning method may assert return value, stdout, field state, and throw
 | Kind | Checks | Expected value examples |
 |------|--------|-------------------------|
 | **RETURN_VALUE** | What the call returned | `42`, `"hello"`, `true`, `null`, or an [object check](#8-object-checks) |
-| **FIELD_STATE** | A field after the step | Pick **Field**; expected e.g. `100`. Composition may inspect any named object already created. Unit instance methods inspect the hidden no-arg receiver; Unit constructors inspect the constructed instance |
+| **FIELD_STATE** | A field after the step | Pick **Field**; expected e.g. `100`. The dropdown lists the target type’s own fields and fields declared on every **Extends** ancestor in Structure (Java-like). Example: `Car extends Vehicle` → a Car step can pick `Vehicle.height`. Composition may also use a named-instance expected when the selected field’s type is a rubric class. Unit instance methods inspect the hidden no-arg receiver; Unit constructors inspect the constructed instance |
 | **STDOUT** | Text printed to standard output | `"Account opened\n"` (string JSON) |
 | **EXCEPTION** | That the call threw a specific exception type (not the message) | `"IllegalArgumentException"` |
 
@@ -227,7 +227,7 @@ A value-returning method may assert return value, stdout, field state, and throw
 ### Tips
 
 - You can add **multiple assertions** on the same step.
-- **FIELD_STATE** must reference a field from the dropdown.
+- **FIELD_STATE** must reference a field from the dropdown (own class or Extends ancestors saved in Structure).
 - For **EXCEPTION**, use the simple name (`NullPointerException`), not the full package.
 - Empty expected values are treated as `null` when you save.
 
@@ -250,7 +250,7 @@ For a **method** that returns a non-primitive rubric class on **Composition**, y
 |-------|-------------------------|------|
 | equals() | `{ "$objectCheck": "EQUALS", "$instance": "other" }` | **Composition only** — return value equals another live named object |
 
-**Unit** methods that return objects: use **RETURN_VALUE** (e.g. `null`) and/or **FIELD_STATE** on fields of the **return type** (not the hidden receiver). No equals() on Unit. Primitive returns use scalar **RETURN_VALUE** as usual. **FIELD_STATE** on void instance methods checks the receiver’s fields only.
+**Unit** methods that return objects: use **RETURN_VALUE** (e.g. `null`) and/or **FIELD_STATE** on fields of the **return type** (not the hidden receiver), including that return type’s Extends-ancestor fields. No equals() on Unit. Primitive returns use scalar **RETURN_VALUE** as usual. **FIELD_STATE** on void instance methods checks the receiver’s fields (own + Extends ancestors).
 
 Type-only and field-map object checks (`$objectCheck: TYPE` / `FIELDS`) are not supported; use **FIELD_STATE** instead.
 

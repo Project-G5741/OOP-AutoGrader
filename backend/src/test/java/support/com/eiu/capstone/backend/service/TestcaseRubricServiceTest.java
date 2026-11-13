@@ -378,6 +378,83 @@ class TestcaseRubricServiceTest {
     }
 
     @Test
+    void saveForChallenge_unitFieldState_acceptsExtendsParentFieldId() {
+        UUID parentClassId = UUID.randomUUID();
+        UUID parentFieldId = UUID.randomUUID();
+        ClassEntity parentClass = new ClassEntity();
+        parentClass.setId(parentClassId);
+        parentClass.setChallenge(challenge);
+        parentClass.setName("Vehicle");
+        Field parentField = new Field();
+        parentField.setId(parentFieldId);
+        parentField.setClassEntity(parentClass);
+
+        UUID invocationId = UUID.randomUUID();
+        UUID assertionId = UUID.randomUUID();
+        TestcaseStructureDTO payload = new TestcaseStructureDTO(
+                UUID.randomUUID(),
+                "inherited-height",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                new InvocationStructureDTO(invocationId, InvocationKind.CONSTRUCTOR, constructorId, null,
+                        "[]", null, "[]", null, null),
+                List.of(),
+                List.of(fieldStateAssertion(assertionId, invocationId, parentFieldId, "10")),
+                null,
+                null);
+
+        stubChallengeAndMembers();
+        List<ClassEntity> classes = List.of(classEntity, parentClass);
+        stubExtraMembers(classes, List.of(constructor), List.of(method), List.of());
+        when(fieldRepository.findByClassEntityInWithDeclaration(any()))
+                .thenReturn(List.of(speedField, parentField));
+        when(fieldRepository.findById(parentFieldId)).thenReturn(Optional.of(parentField));
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals(1, response.testcases().size());
+        assertEquals(1, response.testcases().get(0).assertions().size());
+        assertEquals(parentFieldId, response.testcases().get(0).assertions().get(0).fieldId());
+    }
+
+    @Test
+    void saveForChallenge_compositionFieldState_acceptsExtendsParentFieldId() {
+        UUID parentClassId = UUID.randomUUID();
+        UUID parentFieldId = UUID.randomUUID();
+        ClassEntity parentClass = new ClassEntity();
+        parentClass.setId(parentClassId);
+        parentClass.setChallenge(challenge);
+        parentClass.setName("Vehicle");
+        Field parentField = new Field();
+        parentField.setId(parentFieldId);
+        parentField.setClassEntity(parentClass);
+
+        UUID invocationId = UUID.randomUUID();
+        UUID assertionId = UUID.randomUUID();
+        InvocationStructureDTO construct = constructorInvocation(invocationId, "car", "[]");
+        TestcaseStructureDTO payload = compositionDto(
+                List.of(construct),
+                List.of(fieldStateAssertion(assertionId, invocationId, parentFieldId, "10")));
+
+        stubChallengeAndMembers();
+        List<ClassEntity> classes = List.of(classEntity, parentClass);
+        stubExtraMembers(classes, List.of(constructor), List.of(method), List.of());
+        when(fieldRepository.findByClassEntityInWithDeclaration(any()))
+                .thenReturn(List.of(speedField, parentField));
+        when(fieldRepository.findById(parentFieldId)).thenReturn(Optional.of(parentField));
+        when(testcaseRepository.save(any(Testcase.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChallengeTestcasesResponse response = service.saveForChallenge(labId, challengeId, List.of(payload));
+
+        assertEquals(1, response.testcases().size());
+        assertEquals(parentFieldId, response.testcases().get(0).assertions().get(0).fieldId());
+    }
+
+    @Test
     void saveForChallenge_threeFieldStateAssertions_roundTripCount() {
         UUID fieldA = UUID.randomUUID();
         UUID fieldB = UUID.randomUUID();
