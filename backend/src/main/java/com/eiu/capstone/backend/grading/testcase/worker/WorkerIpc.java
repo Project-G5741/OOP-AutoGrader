@@ -202,7 +202,25 @@ public final class WorkerIpc {
             List<String> receiverParameterTypes,
             String receiverParamsJson,
             List<String> methodNameAliases,
-            List<List<String>> parameterTypeAliases) {
+            List<List<String>> parameterTypeAliases,
+            List<List<String>> receiverParameterTypeAliases) {
+
+        public InvokeSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                List<String> methodNameAliases,
+                List<List<String>> parameterTypeAliases) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson,
+                    methodNameAliases, parameterTypeAliases, null);
+        }
 
         public InvokeSpec(
                 String kind,
@@ -215,7 +233,7 @@ public final class WorkerIpc {
                 String receiverParamsJson) {
             this(
                     kind, className, methodName, parameterTypes, paramsJson,
-                    receiverClassName, receiverParameterTypes, receiverParamsJson, null, null);
+                    receiverClassName, receiverParameterTypes, receiverParamsJson, null, null, null);
         }
     }
 
@@ -234,7 +252,32 @@ public final class WorkerIpc {
             int repeatCount,
             String constructMode,
             List<String> methodNameAliases,
-            List<List<String>> parameterTypeAliases) {
+            List<List<String>> parameterTypeAliases,
+            List<List<String>> receiverParameterTypeAliases,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
+
+        public ScenarioStepSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                String instanceName,
+                String dispatchClassName,
+                int repeatCount,
+                String constructMode,
+                List<String> methodNameAliases,
+                List<List<String>> parameterTypeAliases) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson,
+                    instanceName, dispatchClassName, repeatCount, constructMode,
+                    methodNameAliases, parameterTypeAliases, null, null, null);
+        }
 
         /** Composition step that builds the object the way a Unit hidden receiver does. */
         public static final String CONSTRUCT_DEFAULT = "DEFAULT";
@@ -262,6 +305,9 @@ public final class WorkerIpc {
                     instanceName,
                     dispatchClassName,
                     1,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null);
@@ -293,6 +339,9 @@ public final class WorkerIpc {
                     repeatCount,
                     null,
                     null,
+                    null,
+                    null,
+                    null,
                     null);
         }
 
@@ -312,7 +361,8 @@ public final class WorkerIpc {
             this(
                     kind, className, methodName, parameterTypes, paramsJson,
                     receiverClassName, receiverParameterTypes, receiverParamsJson,
-                    instanceName, dispatchClassName, repeatCount, constructMode, null, null);
+                    instanceName, dispatchClassName, repeatCount, constructMode,
+                    null, null, null, null, null);
         }
 
         public boolean implicitDefaultConstructor() {

@@ -576,7 +576,11 @@ public class LabRubricService {
                 invocation.getRepeatCount(),
                 context.methodNameAliasesById().getOrDefault(
                         methodId, method != null ? List.of(method.getName()) : List.of()),
-                context.paramTypeAliasesByMethodId().getOrDefault(methodId, List.of()));
+                context.paramTypeAliasesByMethodId().getOrDefault(methodId, List.of()),
+                receiverConstructorId != null
+                        ? context.paramTypeAliasesByConstructorId()
+                                .getOrDefault(receiverConstructorId, List.of())
+                        : List.of());
     }
 
     private record TestcaseRubricContext(

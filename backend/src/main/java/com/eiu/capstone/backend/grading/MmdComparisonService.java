@@ -14,7 +14,6 @@ import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
-import com.eiu.capstone.backend.grading.scoring.PartialCreditEvaluator;
 
 @Component
 public class MmdComparisonService {
@@ -48,20 +47,15 @@ public class MmdComparisonService {
             boolean solutionHasSetters = expectedClass.methods().stream().anyMatch(this::isSetter);
 
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsed.fields.stream()
-                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
-                        .findFirst()
-                        .orElse(null);
-                boolean nameOnly = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
-                        || (!specified(expectedField.dataType()) && !specified(expectedField.scope()));
-                boolean correct = pf != null && (nameOnly
-                        || (!pf.invalidDeclarationFormat
-                                && PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
-                                && (expectedField.dataTypes().stream().anyMatch(MmdComparisonService::specified)
-                                        ? CartesianAliasMatcher.mmdTypeMatches(
-                                                pf.dataType, expectedField.dataTypes())
-                                        : true)
-                                && mmdModifierMatches(expectedField.isStatic(), pf.isStatic)));
+                ParsedField pf = CartesianAliasMatcher.findBestMmdField(
+                        parsed.fields,
+                        expectedField,
+                        EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
+                boolean correct = pf != null
+                        && CartesianAliasMatcher.mmdFieldMatches(
+                                pf,
+                                expectedField,
+                                EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
                 outcome.setField(expectedField.id(), correct);
             }
 
@@ -87,8 +81,10 @@ public class MmdComparisonService {
                 boolean correct = match != null
                         && !match.invalidDeclarationFormat
                         && scopesMatch(expectedConstructor.scope(), match.scope)
-                        && CartesianAliasMatcher.mmdParameterTypesMatch(
-                                match.parameterTypes, expectedConstructor.parameters());
+                        && CartesianAliasMatcher.mmdParametersMatch(
+                                match.parameterNames,
+                                match.parameterTypes,
+                                expectedConstructor.parameters());
                 outcome.setConstructor(expectedConstructor.id(), correct);
             }
         }
@@ -164,7 +160,8 @@ public class MmdComparisonService {
         boolean effectiveAbstract = actual.isAbstract || interfaceMethodIsImplicitlyAbstract(parsedClass, actual);
         return scopesMatch(expected.scope(), actual.scope)
                 && CartesianAliasMatcher.mmdTypeMatches(actual.returnType, expected.returnTypes())
-                && CartesianAliasMatcher.mmdParameterTypesMatch(actual.parameterTypes, expected.parameters())
+                && CartesianAliasMatcher.mmdParametersMatch(
+                        actual.parameterNames, actual.parameterTypes, expected.parameters())
                 && mmdModifierMatches(expected.isStatic(), actual.isStatic)
                 && mmdModifierMatches(expected.isAbstract(), effectiveAbstract);
     }
@@ -273,8 +270,8 @@ public class MmdComparisonService {
                 continue;
             }
             if (CartesianAliasMatcher.nameMatches(method.name, expected.names())
-                    && CartesianAliasMatcher.mmdParameterTypesMatch(
-                            method.parameterTypes, expected.parameters())) {
+                    && CartesianAliasMatcher.mmdParametersMatch(
+                            method.parameterNames, method.parameterTypes, expected.parameters())) {
                 return method;
             }
         }
@@ -284,16 +281,12 @@ public class MmdComparisonService {
     private ParsedConstructor findMatchingConstructor(
             List<ParsedConstructor> candidates, ConstructorRubric expected) {
         for (ParsedConstructor constructor : candidates) {
-            if (CartesianAliasMatcher.mmdParameterTypesMatch(
-                    constructor.parameterTypes, expected.parameters())) {
+            if (CartesianAliasMatcher.mmdParametersMatch(
+                    constructor.parameterNames, constructor.parameterTypes, expected.parameters())) {
                 return constructor;
             }
         }
         return null;
-    }
-
-    private static boolean specified(String value) {
-        return value != null && !value.isBlank();
     }
 
     private boolean scopesMatch(String expected, String actual) {

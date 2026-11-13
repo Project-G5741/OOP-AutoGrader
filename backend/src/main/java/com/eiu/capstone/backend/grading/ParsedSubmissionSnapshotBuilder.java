@@ -68,10 +68,10 @@ public class ParsedSubmissionSnapshotBuilder {
             classSnapshot.shells.put(expectedClass.id().toString(), shell);
 
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsed.fields.stream()
-                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
-                        .findFirst()
-                        .orElse(null);
+                ParsedField pf = CartesianAliasMatcher.findBestDeclarationField(
+                        parsed.fields,
+                        expectedField,
+                        EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
                 if (pf == null) {
                     continue;
                 }
@@ -166,10 +166,10 @@ public class ParsedSubmissionSnapshotBuilder {
             }
 
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsed.fields.stream()
-                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
-                        .findFirst()
-                        .orElse(null);
+                ParsedField pf = CartesianAliasMatcher.findBestMmdField(
+                        parsed.fields,
+                        expectedField,
+                        EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
                 if (pf != null) {
                     mmdSnapshot.attributes.put(expectedField.id().toString(), pf.name + ": " + pf.dataType);
                 }
@@ -240,10 +240,10 @@ public class ParsedSubmissionSnapshotBuilder {
             List<ParsedMethod> candidates, MethodRubric expected, boolean mmd) {
         for (ParsedMethod pm : candidates) {
             boolean paramsMatch = mmd
-                    ? CartesianAliasMatcher.mmdParameterTypesMatch(
-                            pm.parameterTypes, expected.parameters())
-                    : CartesianAliasMatcher.declarationParameterTypesMatch(
-                            pm.parameterTypes, expected.parameters());
+                    ? CartesianAliasMatcher.mmdParametersMatch(
+                            pm.parameterNames, pm.parameterTypes, expected.parameters())
+                    : CartesianAliasMatcher.declarationParametersMatch(
+                            pm.parameterNames, pm.parameterTypes, expected.parameters());
             if (CartesianAliasMatcher.nameMatches(pm.name, expected.names()) && paramsMatch) {
                 return pm;
             }
@@ -255,10 +255,10 @@ public class ParsedSubmissionSnapshotBuilder {
             List<ParsedConstructor> candidates, ConstructorRubric expected, boolean mmd) {
         for (ParsedConstructor pc : candidates) {
             boolean matches = mmd
-                    ? CartesianAliasMatcher.mmdParameterTypesMatch(
-                            pc.parameterTypes, expected.parameters())
-                    : CartesianAliasMatcher.declarationParameterTypesMatch(
-                            pc.parameterTypes, expected.parameters());
+                    ? CartesianAliasMatcher.mmdParametersMatch(
+                            pc.parameterNames, pc.parameterTypes, expected.parameters())
+                    : CartesianAliasMatcher.declarationParametersMatch(
+                            pc.parameterNames, pc.parameterTypes, expected.parameters());
             if (matches) {
                 return pc;
             }

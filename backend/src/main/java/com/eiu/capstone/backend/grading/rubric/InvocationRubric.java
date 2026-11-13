@@ -28,7 +28,8 @@ public record InvocationRubric(
         String resultTypeName,
         int repeatCount,
         List<String> methodNameAliases,
-        List<List<String>> parameterTypeAliases) {
+        List<List<String>> parameterTypeAliases,
+        List<List<String>> receiverParameterTypeAliases) {
 
     public InvocationRubric {
         parameterTypes = parameterTypes == null ? List.of() : List.copyOf(parameterTypes);
@@ -41,6 +42,37 @@ public record InvocationRubric(
         parameterTypeAliases = parameterTypeAliases == null || parameterTypeAliases.isEmpty()
                 ? parameterTypes.stream().map(List::of).toList()
                 : parameterTypeAliases.stream().map(List::copyOf).toList();
+        receiverParameterTypeAliases = receiverParameterTypeAliases == null
+                || receiverParameterTypeAliases.isEmpty()
+                ? receiverParameterTypes.stream().map(List::of).toList()
+                : receiverParameterTypeAliases.stream().map(List::copyOf).toList();
+    }
+
+    public InvocationRubric(
+            UUID id,
+            InvocationKind kind,
+            UUID constructorId,
+            UUID methodId,
+            String className,
+            String methodName,
+            List<String> parameterTypes,
+            String paramsJson,
+            UUID receiverConstructorId,
+            String receiverClassName,
+            List<String> receiverParameterTypes,
+            String receiverParamsJson,
+            String instanceName,
+            UUID dispatchClassId,
+            String dispatchClassName,
+            String resultTypeName,
+            int repeatCount,
+            List<String> methodNameAliases,
+            List<List<String>> parameterTypeAliases) {
+        this(
+                id, kind, constructorId, methodId, className, methodName, parameterTypes, paramsJson,
+                receiverConstructorId, receiverClassName, receiverParameterTypes, receiverParamsJson,
+                instanceName, dispatchClassId, dispatchClassName, resultTypeName, repeatCount,
+                methodNameAliases, parameterTypeAliases, null);
     }
 
     public InvocationRubric(
@@ -64,7 +96,7 @@ public record InvocationRubric(
         this(
                 id, kind, constructorId, methodId, className, methodName, parameterTypes, paramsJson,
                 receiverConstructorId, receiverClassName, receiverParameterTypes, receiverParamsJson,
-                instanceName, dispatchClassId, dispatchClassName, resultTypeName, repeatCount, null, null);
+                instanceName, dispatchClassId, dispatchClassName, resultTypeName, repeatCount, null, null, null);
     }
 
     public int effectiveRepeatCount() {
@@ -102,6 +134,7 @@ public record InvocationRubric(
                 null,
                 null,
                 1,
+                null,
                 null,
                 null);
     }
@@ -141,6 +174,7 @@ public record InvocationRubric(
                 dispatchClassName,
                 resultTypeName,
                 1,
+                null,
                 null,
                 null);
     }

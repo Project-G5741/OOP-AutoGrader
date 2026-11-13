@@ -326,14 +326,24 @@ public final class WorkerInvokeEngine {
             beginStdoutCapture(stdout);
             capturing = true;
             if (kind(spec) == InvocationKind.CONSTRUCTOR) {
-                Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
-                Object instance = spec.implicitDefaultConstructor()
-                        ? instantiateHiddenReceiver(loader, clazz)
-                        : findConstructor(clazz, parameterTypes, loader).newInstance(args);
+                Object instance;
+                if (spec.implicitDefaultConstructor()) {
+                    instance = instantiateHiddenReceiver(loader, clazz);
+                } else {
+                    ResolvedConstructor resolved = resolveConstructor(
+                            clazz, parameterTypes, spec.parameterTypeAliases(), loader);
+                    Object[] args = coercer.coerceParams(
+                            spec.paramsJson(), resolved.parameterTypes(), namedInstances, loader);
+                    instance = resolved.constructor().newInstance(args);
+                }
                 ObjectFacts facts = describeObject(loader, instance, registry);
                 register(registry, spec.instanceName(), instance);
+                List<String> scopedFields = spec.snapshotFieldNames() != null
+                        ? spec.snapshotFieldNames() : snapshotFieldNames;
+                Map<String, List<String>> scopedAliases = spec.snapshotFieldAliases() != null
+                        ? spec.snapshotFieldAliases() : snapshotFieldAliases;
                 return normal(
-                        instance, instance, stdout, snapshotFieldNames, snapshotFieldAliases, facts, registry);
+                        instance, instance, stdout, scopedFields, scopedAliases, facts, registry);
             }
             ResolvedMethod resolved = resolveMethod(loader, spec, clazz, parameterTypes);
             Method method = resolved.method();
@@ -349,11 +359,19 @@ public final class WorkerInvokeEngine {
             }
             ObjectFacts facts = describeObject(loader, returnValue, registry);
             maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
+            List<String> scopedFields = spec.snapshotFieldNames() != null
+                    ? spec.snapshotFieldNames() : snapshotFieldNames;
+            Map<String, List<String>> scopedAliases = spec.snapshotFieldAliases() != null
+                    ? spec.snapshotFieldAliases() : snapshotFieldAliases;
             return normal(
-                    receiver, returnValue, stdout, snapshotFieldNames, snapshotFieldAliases, facts, registry);
+                    receiver, returnValue, stdout, scopedFields, scopedAliases, facts, registry);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return threw(receiver, cause, stdout, snapshotFieldNames, snapshotFieldAliases, registry);
+            List<String> scopedFields = spec.snapshotFieldNames() != null
+                    ? spec.snapshotFieldNames() : snapshotFieldNames;
+            Map<String, List<String>> scopedAliases = spec.snapshotFieldAliases() != null
+                    ? spec.snapshotFieldAliases() : snapshotFieldAliases;
+            return threw(receiver, cause, stdout, scopedFields, scopedAliases, registry);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
@@ -401,26 +419,34 @@ public final class WorkerInvokeEngine {
                 ? List.of(spec.methodName())
                 : spec.methodNameAliases();
         List<List<String>> typeAliases = normalizedTypeAliases(parameterTypes, spec.parameterTypeAliases());
-        List<List<String>> combinations = new ArrayList<>();
-        collectTypeCombinations(typeAliases, 0, new ArrayList<>(), combinations);
         Class<?> dispatchType = spec.dispatchClassName() != null && !spec.dispatchClassName().isBlank()
                 ? findClass(loader, spec.dispatchClassName())
                 : null;
+        IllegalArgumentException firstTypeResolutionFailure = null;
         for (String name : names) {
             if (name == null || name.isBlank()) {
                 continue;
             }
-            for (List<String> combination : combinations) {
+            TypeCombinationCursor combinations = new TypeCombinationCursor(typeAliases);
+            while (combinations.hasNext()) {
+                List<String> combination = combinations.next();
                 try {
                     Class<?>[] types = JavaTypeResolver.resolveAll(combination, loader);
                     Method method = dispatchType != null
                             ? findDispatchMethod(dispatchType, name, types)
                             : findDeclaredMethod(concrete, name, types);
                     return new ResolvedMethod(method, combination);
-                } catch (IllegalArgumentException | NoSuchMethodException ignored) {
+                } catch (IllegalArgumentException failure) {
+                    if (firstTypeResolutionFailure == null) {
+                        firstTypeResolutionFailure = failure;
+                    }
+                } catch (NoSuchMethodException ignored) {
                     // Try the next lecturer-authored Cartesian alias combination.
                 }
             }
+        }
+        if (firstTypeResolutionFailure != null) {
+            throw firstTypeResolutionFailure;
         }
         throw new NoSuchMethodException(
                 concrete.getName() + "." + spec.methodName() + "(" + String.join(",", parameterTypes) + ")");
@@ -438,22 +464,6 @@ public final class WorkerInvokeEngine {
             normalized.add(choices == null || choices.isEmpty() ? List.of(primaryTypes.get(i)) : choices);
         }
         return normalized;
-    }
-
-    private static void collectTypeCombinations(
-            List<List<String>> aliases,
-            int index,
-            List<String> current,
-            List<List<String>> combinations) {
-        if (index == aliases.size()) {
-            combinations.add(List.copyOf(current));
-            return;
-        }
-        for (String type : aliases.get(index)) {
-            current.add(type);
-            collectTypeCombinations(aliases, index + 1, current, combinations);
-            current.remove(current.size() - 1);
-        }
     }
 
     private SerializedInvocationOutcome normal(Object instance,
@@ -576,6 +586,7 @@ public final class WorkerInvokeEngine {
                 loader,
                 spec.receiverClassName(),
                 spec.receiverParameterTypes() != null ? spec.receiverParameterTypes() : List.of(),
+                spec.receiverParameterTypeAliases(),
                 spec.receiverParamsJson(),
                 namedInstances);
     }
@@ -583,15 +594,18 @@ public final class WorkerInvokeEngine {
     private Object instantiateWithConstructor(URLClassLoader loader,
                                             String className,
                                             List<String> parameterTypes,
+                                            List<List<String>> parameterTypeAliases,
                                             String paramsJson,
                                             Function<String, Object> namedInstances) throws Exception {
         Class<?> clazz = findClass(loader, className);
         if (parameterTypes == null || parameterTypes.isEmpty()) {
             return instantiateHiddenReceiver(loader, clazz);
         }
-        Constructor<?> constructor = findConstructor(clazz, parameterTypes, loader);
-        Object[] args = coercer.coerceParams(paramsJson, parameterTypes, namedInstances, loader);
-        return constructor.newInstance(args);
+        ResolvedConstructor resolved = resolveConstructor(
+                clazz, parameterTypes, parameterTypeAliases, loader);
+        Object[] args = coercer.coerceParams(
+                paramsJson, resolved.parameterTypes(), namedInstances, loader);
+        return resolved.constructor().newInstance(args);
     }
 
     /**
@@ -719,22 +733,34 @@ public final class WorkerInvokeEngine {
         return JavaTypeResolver.loadStudentClass(className, loader);
     }
 
-    private Constructor<?> findConstructor(Class<?> clazz, List<String> parameterTypes, URLClassLoader loader)
-            throws NoSuchMethodException {
-        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes, loader);
-        try {
-            Constructor<?> constructor = clazz.getDeclaredConstructor(types);
-            constructor.setAccessible(true);
-            return constructor;
-        } catch (NoSuchMethodException e) {
-            for (Constructor<?> candidate : clazz.getDeclaredConstructors()) {
-                if (sameTypes(candidate.getParameterTypes(), types)) {
-                    candidate.setAccessible(true);
-                    return candidate;
+    private ResolvedConstructor resolveConstructor(
+            Class<?> clazz,
+            List<String> parameterTypes,
+            List<List<String>> parameterTypeAliases,
+            URLClassLoader loader) throws NoSuchMethodException {
+        TypeCombinationCursor combinations = new TypeCombinationCursor(
+                normalizedTypeAliases(parameterTypes, parameterTypeAliases));
+        IllegalArgumentException firstTypeResolutionFailure = null;
+        while (combinations.hasNext()) {
+            List<String> combination = combinations.next();
+            try {
+                Class<?>[] types = JavaTypeResolver.resolveAll(combination, loader);
+                Constructor<?> constructor = clazz.getDeclaredConstructor(types);
+                constructor.setAccessible(true);
+                return new ResolvedConstructor(constructor, combination);
+            } catch (IllegalArgumentException failure) {
+                if (firstTypeResolutionFailure == null) {
+                    firstTypeResolutionFailure = failure;
                 }
+            } catch (NoSuchMethodException ignored) {
+                // One missing alias is a miss, not a reason to abandon later valid aliases.
             }
-            throw e;
         }
+        if (firstTypeResolutionFailure != null) {
+            throw firstTypeResolutionFailure;
+        }
+        throw new NoSuchMethodException(
+                clazz.getName() + "(" + String.join(",", parameterTypes) + ")");
     }
 
     private Method findDeclaredMethod(Class<?> clazz, String name, Class<?>[] types)
@@ -834,7 +860,10 @@ public final class WorkerInvokeEngine {
                 1,
                 null,
                 spec.methodNameAliases(),
-                spec.parameterTypeAliases());
+                spec.parameterTypeAliases(),
+                spec.receiverParameterTypeAliases(),
+                null,
+                null);
     }
 
     private ObjectFacts describeObject(URLClassLoader loader, Object object, Map<String, Object> registry) {
@@ -983,6 +1012,50 @@ public final class WorkerInvokeEngine {
             return new ObjectFacts(null, Map.of(), Map.of());
         }
     }
+
+    private static final class TypeCombinationCursor {
+        private final List<List<String>> aliases;
+        private final int[] indexes;
+        private boolean hasNext;
+
+        private TypeCombinationCursor(List<List<String>> aliases) {
+            this.aliases = aliases;
+            this.indexes = new int[aliases.size()];
+            this.hasNext = aliases.stream().noneMatch(List::isEmpty);
+        }
+
+        private boolean hasNext() {
+            return hasNext;
+        }
+
+        private List<String> next() {
+            List<String> combination = new ArrayList<>(aliases.size());
+            for (int i = 0; i < aliases.size(); i++) {
+                combination.add(aliases.get(i).get(indexes[i]));
+            }
+            advance();
+            return List.copyOf(combination);
+        }
+
+        private void advance() {
+            if (indexes.length == 0) {
+                hasNext = false;
+                return;
+            }
+            for (int i = indexes.length - 1; i >= 0; i--) {
+                indexes[i]++;
+                if (indexes[i] < aliases.get(i).size()) {
+                    return;
+                }
+                indexes[i] = 0;
+            }
+            hasNext = false;
+        }
+    }
+
+    private record ResolvedConstructor(
+            Constructor<?> constructor,
+            List<String> parameterTypes) {}
 
     private record ResolvedMethod(Method method, List<String> parameterTypes) {}
 }

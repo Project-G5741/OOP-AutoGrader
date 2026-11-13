@@ -133,6 +133,7 @@ public class TestcaseRubricAssembler {
             String className = implicitDefault
                     ? maps.classNameByClassId().get(dispatchClassId)
                     : maps.classNameByConstructorId().get(constructorId);
+            ConstructorRubric constructorAliases = findConstructor(aliasSource, constructorId);
             int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
             return new InvocationRubric(
                     invocationId,
@@ -153,12 +154,18 @@ public class TestcaseRubricAssembler {
                     dispatchClassId,
                     dispatchClassName,
                     InvocationRubric.resultTypeNameForConstructor(className),
-                    1);
+                    1,
+                    null,
+                    constructorAliases != null
+                            ? constructorAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
+                            : null,
+                    null);
         }
         UUID methodId = dto.methodId();
         Method method = maps.methodById().get(methodId);
         MethodRubric methodAliases = findMethod(aliasSource, methodId);
         UUID receiverConstructorId = dto.receiverConstructorId();
+        ConstructorRubric receiverAliases = findConstructor(aliasSource, receiverConstructorId);
         int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
         return new InvocationRubric(
                 invocationId,
@@ -184,6 +191,9 @@ public class TestcaseRubricAssembler {
                 methodAliases != null ? methodAliases.names() : null,
                 methodAliases != null
                         ? methodAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
+                        : null,
+                receiverAliases != null
+                        ? receiverAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
                         : null);
     }
 
@@ -205,6 +215,17 @@ public class TestcaseRubricAssembler {
         return challenge.classes().stream()
                 .flatMap(cls -> cls.methods().stream())
                 .filter(method -> methodId.equals(method.id()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static ConstructorRubric findConstructor(ChallengeRubric challenge, UUID constructorId) {
+        if (challenge == null || constructorId == null) {
+            return null;
+        }
+        return challenge.classes().stream()
+                .flatMap(cls -> cls.constructors().stream())
+                .filter(constructor -> constructorId.equals(constructor.id()))
                 .findFirst()
                 .orElse(null);
     }

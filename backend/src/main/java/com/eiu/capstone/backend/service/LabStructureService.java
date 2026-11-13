@@ -316,6 +316,7 @@ public class LabStructureService {
         if (!Objects.equals(labId, payload.id())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lab id mismatch");
         }
+        validateUniqueParameterIds(payload);
 
         List<ChallengeStructureDTO> challengePayloads = payload.challenges() != null ? payload.challenges() : List.of();
         long loadStartedAt = System.currentTimeMillis();
@@ -1365,6 +1366,33 @@ public class LabStructureService {
         }
         classEntity.setOuterClass(outer);
         classEntity.setStatic(dto.isStatic());
+    }
+
+    private static void validateUniqueParameterIds(LabStructureResponse payload) {
+        Set<UUID> claimed = new HashSet<>();
+        for (ChallengeStructureDTO challenge : payload.challenges() != null
+                ? payload.challenges() : List.<ChallengeStructureDTO>of()) {
+            for (ClassStructureDTO classDto : challenge.classes() != null
+                    ? challenge.classes() : List.<ClassStructureDTO>of()) {
+                for (MethodStructureDTO method : classDto.methods() != null
+                        ? classDto.methods() : List.<MethodStructureDTO>of()) {
+                    claimParameterIds(method.parameters(), claimed);
+                }
+                for (ConstructorStructureDTO constructor : classDto.constructors() != null
+                        ? classDto.constructors() : List.<ConstructorStructureDTO>of()) {
+                    claimParameterIds(constructor.parameters(), claimed);
+                }
+            }
+        }
+    }
+
+    private static void claimParameterIds(List<ParameterStructureDTO> parameters, Set<UUID> claimed) {
+        for (ParameterStructureDTO parameter : parameters != null
+                ? parameters : List.<ParameterStructureDTO>of()) {
+            if (parameter.id() != null && !claimed.add(parameter.id())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate parameter id");
+            }
+        }
     }
 
     private void syncFieldsBatch(SaveContext ctx, List<ClassEntity> classes, List<ClassStructureDTO> classDtos) {

@@ -543,12 +543,78 @@ class ClassReflectionGraderTest {
         method.scope = "public";
         method.returnType = "float";
         method.parameterTypes = List.of("float");
+        method.parameterNames = List.of("fee");
         parsed.methods = List.of(method);
 
         ClassReflectionGrader.ClassPillarResult result = grader.grade(
                 ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
 
         assertTrue(methodCorrect(result, methodId));
+    }
+
+    @Test
+    void realMethodParameterNameMustMatchAliasAtSamePosition() {
+        UUID methodId = UUID.randomUUID();
+        ParsedClass parsed = personShell(null);
+        ParsedMethod method = matchingCalculateMethod();
+        method.parameterNames = List.of("price");
+        parsed.methods = List.of(method);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(methodParameterAliasRubric(methodId), null, null, List.of(parsed)));
+
+        assertFalse(methodCorrect(result, methodId));
+    }
+
+    @Test
+    void syntheticMethodParameterNameSkipsNameCheck() {
+        UUID methodId = UUID.randomUUID();
+        ParsedClass parsed = personShell(null);
+        ParsedMethod method = matchingCalculateMethod();
+        method.parameterNames = List.of("arg0");
+        parsed.methods = List.of(method);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(methodParameterAliasRubric(methodId), null, null, List.of(parsed)));
+
+        assertTrue(methodCorrect(result, methodId));
+    }
+
+    @Test
+    void fieldMatchingSkipsEarlierNameOnlyCandidateForCompleteMatch() {
+        UUID fieldId = UUID.randomUUID();
+        ParsedField wrong = ageField("private", "String");
+        wrong.name = "cost";
+        ParsedField correct = ageField("private", "double");
+        correct.name = "fee";
+        ParsedClass parsed = personShell(null);
+        parsed.fields = List.of(wrong, correct);
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertTrue(fieldResult(result, fieldId).correct());
     }
 
     @Test
@@ -692,6 +758,53 @@ class ClassReflectionGraderTest {
     }
 
     @Test
+    void realConstructorParameterNameMustMatchAliasAtSamePosition() {
+        UUID ctorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Customer",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Customer",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of(new ConstructorRubric(
+                                ctorId,
+                                "public",
+                                false,
+                                List.of("int"),
+                                List.of(new ParameterRubric(
+                                        List.of("age"),
+                                        List.of("int"))))))),
+                List.of(),
+                List.of());
+        ParsedClass parsed = new ParsedClass();
+        parsed.simpleName = "Customer";
+        parsed.scope = "public";
+        parsed.declaringType = "class";
+        parsed.fields = List.of();
+        parsed.methods = List.of();
+        ParsedConstructor constructor = new ParsedConstructor();
+        constructor.scope = "public";
+        constructor.parameterTypes = List.of("int");
+        constructor.parameterNames = List.of("years");
+        parsed.constructors = List.of(constructor);
+
+        ClassReflectionGrader.ClassPillarResult result = grader.grade(
+                ChallengeGradingContext.of(rubric, null, null, List.of(parsed)));
+
+        assertFalse(result.constructors().stream()
+                .filter(entry -> entry.constructorId().equals(ctorId))
+                .findFirst()
+                .orElseThrow()
+                .correct());
+    }
+
+    @Test
     void extraHeritageRows_skipHeritageCheck() {
         ObserverFixture fx = observerFixture("realization");
         UUID loggerId = UUID.randomUUID();
@@ -779,6 +892,43 @@ class ClassReflectionGraderTest {
                 .findFirst()
                 .orElseThrow()
                 .correct();
+    }
+
+    private ChallengeRubric methodParameterAliasRubric(UUID methodId) {
+        return new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Person",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Person",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId,
+                                List.of("calculate"),
+                                "public",
+                                List.of("double"),
+                                false,
+                                false,
+                                false,
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))),
+                        List.of())),
+                List.of(),
+                List.of());
+    }
+
+    private ParsedMethod matchingCalculateMethod() {
+        ParsedMethod method = new ParsedMethod();
+        method.name = "calculate";
+        method.scope = "public";
+        method.returnType = "double";
+        method.parameterTypes = List.of("float");
+        return method;
     }
 
     private ObserverFixture observerFixture(String relationTypeName) {

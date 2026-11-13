@@ -70,22 +70,20 @@ public class ClassReflectionGrader {
             boolean shellPassed = classAccuracy >= 1.0;
 
             for (FieldRubric expectedField : expectedClass.fields()) {
-                ParsedField pf = parsed.fields.stream()
-                        .filter(field -> CartesianAliasMatcher.nameMatches(field.name, expectedField.names()))
-                        .findFirst()
-                        .orElse(null);
+                ParsedField pf = CartesianAliasMatcher.findBestDeclarationField(
+                        parsed.fields,
+                        expectedField,
+                        EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
                 double accuracy;
                 if (!shellPassed) {
                     accuracy = 0;
                 } else if (pf == null) {
                     accuracy = 0;
                 } else {
-                    boolean allMatch = EnumDeclaringTypes.isEnum(expectedClass.declaringType())
-                            || (PartialCreditEvaluator.matchesWhenSpecified(expectedField.scope(), pf.scope)
-                                    && CartesianAliasMatcher.declarationTypeMatches(
-                                            pf.dataType, expectedField.dataTypes())
-                                    && expectedField.isStatic() == pf.isStatic
-                                    && expectedField.isFinal() == pf.isFinal);
+                    boolean allMatch = CartesianAliasMatcher.declarationFieldMatches(
+                            pf,
+                            expectedField,
+                            EnumDeclaringTypes.isEnum(expectedClass.declaringType()));
                     accuracy = PartialCreditEvaluator.binaryAccuracy(allMatch);
                 }
                 weighted.add(new WeightedAccuracy(MemberWeightCalculator.defaultMemberWeight(), accuracy));
@@ -162,8 +160,8 @@ public class ClassReflectionGrader {
     private ParsedMethod findMatchingMethod(List<ParsedMethod> candidates, MethodRubric expected) {
         for (ParsedMethod pm : candidates) {
             if (CartesianAliasMatcher.nameMatches(pm.name, expected.names())
-                    && CartesianAliasMatcher.declarationParameterTypesMatch(
-                            pm.parameterTypes, expected.parameters())) {
+                    && CartesianAliasMatcher.declarationParametersMatch(
+                            pm.parameterNames, pm.parameterTypes, expected.parameters())) {
                 return pm;
             }
         }
@@ -176,14 +174,19 @@ public class ClassReflectionGrader {
                                                       String outerSimpleName) {
         for (ParsedConstructor pc : candidates) {
             List<String> actualParams = pc.parameterTypes;
+            List<String> actualNames = pc.parameterNames;
             if (stripImplicitOuterParam
                     && outerSimpleName != null
                     && !outerSimpleName.isBlank()
                     && !actualParams.isEmpty()
                     && equalsIgnoreCase(actualParams.get(0), outerSimpleName)) {
                 actualParams = actualParams.subList(1, actualParams.size());
+                if (actualNames != null && !actualNames.isEmpty()) {
+                    actualNames = actualNames.subList(1, actualNames.size());
+                }
             }
-            if (CartesianAliasMatcher.declarationParameterTypesMatch(actualParams, expectedParameters)) {
+            if (CartesianAliasMatcher.declarationParametersMatch(
+                    actualNames, actualParams, expectedParameters)) {
                 return pc;
             }
         }

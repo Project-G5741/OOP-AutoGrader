@@ -78,7 +78,7 @@ export default function ClassDetailPanel({
     }
     onChange({
       ...classData,
-      fields: fields.map((field) => ({ ...field, dataType: '', dataTypes: [''], scopeId: null })),
+      fields: fields.map((field) => ({ ...field, dataType: null, dataTypes: [null], scopeId: null })),
     });
   }, [enumClass, classData, onChange]);
 
@@ -165,8 +165,8 @@ export default function ClassDetailPanel({
                   fields: nextEnum
                     ? (classData.fields || []).map((field) => ({
                       ...field,
-                      dataType: '',
-                      dataTypes: [''],
+                      dataType: null,
+                      dataTypes: [null],
                       scopeId: null,
                     }))
                     : classData.fields,
@@ -343,8 +343,8 @@ export default function ClassDetailPanel({
                 id: crypto.randomUUID(),
                 name: '',
                 names: [''],
-                dataType: '',
-                dataTypes: [''],
+                dataType: enumClass ? null : '',
+                dataTypes: enumClass ? [null] : [''],
                 scopeId: enumClass ? null : scopeOptions[0]?.id,
                 isStatic: false,
                 isFinal: false,

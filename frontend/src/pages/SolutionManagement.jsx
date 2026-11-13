@@ -42,6 +42,10 @@ function aliasList(values, primary) {
   return Array.isArray(values) && values.length > 0 ? values : [primary ?? ''];
 }
 
+function nullableAliasList(values, primary) {
+  return Array.isArray(values) && values.length > 0 ? values : [primary ?? null];
+}
+
 function normalizeParameterAliases(parameter) {
   const names = aliasList(parameter.names, parameter.name);
   const dataTypes = aliasList(parameter.dataTypes, parameter.dataType);
@@ -63,7 +67,7 @@ function normalizeStructureAliases(structure) {
         ...cls,
         fields: (cls.fields || []).map((field) => {
           const names = aliasList(field.names, field.name);
-          const dataTypes = aliasList(field.dataTypes, field.dataType);
+          const dataTypes = nullableAliasList(field.dataTypes, field.dataType);
           return {
             ...field,
             names,

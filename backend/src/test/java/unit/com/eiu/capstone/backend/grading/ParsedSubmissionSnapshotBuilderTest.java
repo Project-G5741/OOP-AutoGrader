@@ -132,6 +132,51 @@ class ParsedSubmissionSnapshotBuilderTest {
     }
 
     @Test
+    void fieldSnapshotUsesCompleteMatchInsteadOfEarlierNameOnlyMatch() {
+        UUID fieldId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Challenge 1",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+        ParsedClass parsedClass = new ParsedClass();
+        parsedClass.simpleName = "Invoice";
+        ParsedField wrong = new ParsedField();
+        wrong.name = "cost";
+        wrong.scope = "private";
+        wrong.dataType = "String";
+        ParsedField correct = new ParsedField();
+        correct.name = "fee";
+        correct.scope = "private";
+        correct.dataType = "double";
+        parsedClass.fields = List.of(wrong, correct);
+        parsedClass.methods = List.of();
+        parsedClass.constructors = List.of();
+
+        ChallengeSnapshot snapshot = builder.build(rubric, List.of(parsedClass), null);
+
+        var entry = snapshot.classSnapshot.fields.get(fieldId.toString());
+        assertEquals("fee", entry.name);
+        assertEquals("double", entry.dataType);
+    }
+
+    @Test
     void mmdRelation_wrongType_capturesStudentEndpoints() {
         UUID relationId = UUID.randomUUID();
         ChallengeRubric rubric = new ChallengeRubric(

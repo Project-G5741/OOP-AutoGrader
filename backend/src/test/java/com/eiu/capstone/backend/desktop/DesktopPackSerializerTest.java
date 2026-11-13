@@ -25,6 +25,7 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackManifest;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackSerializer;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
@@ -146,5 +147,39 @@ class DesktopPackSerializerTest {
                 parsedClass.methods().get(0).parameters().get(0).names());
         assertEquals(List.of("double", "float"),
                 parsedClass.methods().get(0).parameters().get(0).dataTypes());
+    }
+
+    @Test
+    void formatV1ScalarRubrics_deserializeAsSingleAliasLists() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        UUID fieldId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        UUID constructorId = UUID.randomUUID();
+
+        FieldRubric field = mapper.readValue("""
+                {"id":"%s","name":"cost","scope":"private","dataType":"double",
+                 "isStatic":false,"isFinal":false}
+                """.formatted(fieldId), FieldRubric.class);
+        MethodRubric method = mapper.readValue("""
+                {"id":"%s","name":"total","scope":"public","returnType":"double",
+                 "isStatic":false,"isAbstract":false,"isFinal":false,
+                 "parameterTypes":["double"]}
+                """.formatted(methodId), MethodRubric.class);
+        ConstructorRubric constructor = mapper.readValue("""
+                {"id":"%s","scope":"public","isDefault":false,
+                 "parameterTypes":["double"]}
+                """.formatted(constructorId), ConstructorRubric.class);
+        ParameterRubric parameter = mapper.readValue(
+                "{\"name\":\"amount\",\"dataType\":\"double\"}",
+                ParameterRubric.class);
+
+        assertEquals(List.of("cost"), field.names());
+        assertEquals(List.of("double"), field.dataTypes());
+        assertEquals(List.of("total"), method.names());
+        assertEquals(List.of("double"), method.returnTypes());
+        assertEquals(List.of("double"), method.parameterTypes());
+        assertEquals(List.of("double"), constructor.parameterTypes());
+        assertEquals(List.of("amount"), parameter.names());
+        assertEquals(List.of("double"), parameter.dataTypes());
     }
 }

@@ -578,7 +578,7 @@ class WorkerInvokeEngineTest {
         Map<String, Object> step = methodStep(
                 "Account", "deposit", List.of("double"), "[12.5]", null, null);
         step.put("methodNameAliases", List.of("deposit", "credit"));
-        step.put("parameterTypeAliases", List.of(List.of("double", "float")));
+        step.put("parameterTypeAliases", List.of(List.of("MissingType", "float")));
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("op", "scenario");
         request.put("classesDir", dir.toAbsolutePath().toString());
@@ -592,6 +592,67 @@ class WorkerInvokeEngineTest {
         JsonNode result = stepsJson(outcome).get(0);
         assertEquals("NORMAL", result.get("kind").asText(), result.toString());
         assertEquals("12.5", result.get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void constructorAndReceiverUseSecondaryParameterTypeAliases() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private float funds;
+                            public Account(float opening) { funds = opening; }
+                            public void credit(float amount) { funds += amount; }
+                        }
+                        """));
+        Map<String, Object> construct = constructorStep(
+                "Account", List.of("double"), "[10.5]", "account");
+        construct.put("parameterTypeAliases", List.of(List.of("MissingType", "float")));
+        Map<String, Object> call = methodStep(
+                "Account", "credit", List.of("float"), "[2.0]", null, null);
+        call.put("receiverClassName", "Account");
+        call.put("receiverParameterTypes", List.of("double"));
+        call.put("receiverParameterTypeAliases", List.of(List.of("MissingType", "float")));
+        call.put("receiverParamsJson", "[10.5]");
+        call.put("snapshotFieldNames", List.of("funds"));
+        call.put("snapshotFieldAliases", Map.of("funds", List.of("funds")));
+
+        SerializedInvocationOutcome constructed = runScenario(dir, List.of(construct), List.of("funds"));
+        SerializedInvocationOutcome received = runScenario(dir, List.of(call), List.of());
+
+        assertEquals("NORMAL", stepsJson(constructed).get(0).get("kind").asText(),
+                stepsJson(constructed).get(0).toString());
+        assertEquals("10.5", stepsJson(constructed).get(0).get("fieldSnapshotsJson").get("funds").asText());
+        assertEquals("NORMAL", stepsJson(received).get(0).get("kind").asText(),
+                stepsJson(received).get(0).toString());
+        assertEquals("12.5", stepsJson(received).get(0).get("fieldSnapshotsJson").get("funds").asText());
+    }
+
+    @Test
+    void fieldSnapshotAliasesAreScopedToEachScenarioStep() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Car.java", """
+                        public class Car {
+                            private int velocity = 5;
+                            public void touch() {}
+                        }
+                        """,
+                "Account.java", """
+                        public class Account {
+                            private int funds = 75;
+                            public void touch() {}
+                        }
+                        """));
+        Map<String, Object> car = methodStep("Car", "touch", List.of(), "[]", null, null);
+        car.put("snapshotFieldNames", List.of("value"));
+        car.put("snapshotFieldAliases", Map.of("value", List.of("value", "velocity")));
+        Map<String, Object> account = methodStep("Account", "touch", List.of(), "[]", null, null);
+        account.put("snapshotFieldNames", List.of("value"));
+        account.put("snapshotFieldAliases", Map.of("value", List.of("value", "funds")));
+
+        SerializedInvocationOutcome outcome = runScenario(dir, List.of(car, account), List.of());
+
+        assertEquals("5", stepsJson(outcome).get(0).get("fieldSnapshotsJson").get("value").asText());
+        assertEquals("75", stepsJson(outcome).get(1).get("fieldSnapshotsJson").get("value").asText());
     }
 
     @Test
