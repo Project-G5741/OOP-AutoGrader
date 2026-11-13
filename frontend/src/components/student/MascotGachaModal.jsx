@@ -174,14 +174,14 @@ export default function MascotGachaModal({
 
   const countdownTimerRef = useRef(null);
 
-  // Sync points & tickets
+  // Persist the demo counters. Do not call the parent from here: this effect also
+  // runs when the parent pushes a new ticket count, and echoing that value back
+  // fights the header badge (it steps by 2 and never settles).
   useEffect(() => {
-    localStorage.setItem('gacha_demo_points', points);
-    localStorage.setItem('gacha_demo_tickets', tickets);
-    localStorage.setItem('gacha_demo_pity', pityCount);
-    onPointsChange?.(points);
-    onTicketsChange?.(tickets);
-  }, [points, tickets, pityCount, onPointsChange, onTicketsChange]);
+    localStorage.setItem('gacha_demo_points', String(points));
+    localStorage.setItem('gacha_demo_tickets', String(tickets));
+    localStorage.setItem('gacha_demo_pity', String(pityCount));
+  }, [points, tickets, pityCount]);
 
   // Handle 5-second showcase countdown
   useEffect(() => {
@@ -374,9 +374,13 @@ export default function MascotGachaModal({
       totalCashback += it.pointsRefund || 0;
     }
 
-    // Apply currency returns
+    // Apply currency returns. Notify the parent here, not from an effect,
+    // so a streak grant on the dashboard is not written back as the old count.
+    const nextPoints = newPoints + totalCashback;
     setTickets(newTickets);
-    setPoints(newPoints + totalCashback);
+    setPoints(nextPoints);
+    onTicketsChange?.(newTickets);
+    onPointsChange?.(nextPoints);
     if (earnedCrystals > 0) {
       onCrystalsChange?.(crystals + earnedCrystals);
     }
@@ -994,7 +998,11 @@ export default function MascotGachaModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPoints((p) => p + 1000)}
+                  onClick={() => {
+                    const next = points + 1000;
+                    setPoints(next);
+                    onPointsChange?.(next);
+                  }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
                 >
                   +1,000 Points
