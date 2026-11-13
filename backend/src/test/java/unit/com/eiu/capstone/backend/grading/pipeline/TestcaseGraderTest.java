@@ -527,7 +527,8 @@ class TestcaseGraderTest {
                 "int",
                 "100",
                 ComparisonMode.EXACT,
-                0);
+                0,
+                List.of("balance", "funds"));
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "deposit",
@@ -555,6 +556,9 @@ class TestcaseGraderTest {
         assertEquals("BankAccount", sent.receiverClassName());
         assertEquals(List.of(), sent.receiverParameterTypes());
         assertEquals("[]", sent.receiverParamsJson());
+        assertEquals(
+                List.of("balance", "funds"),
+                itemsCaptor.getValue().get(0).snapshotFieldAliases().get("balance"));
     }
 
     @Test

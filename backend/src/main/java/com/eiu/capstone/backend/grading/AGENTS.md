@@ -115,6 +115,7 @@ SubmissionController
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives, `LocalDate` as `yyyy-MM-dd`; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
+- Declaration aliases also apply at OT runtime: FIELD_STATE snapshots try every authored field-name alias but keep the primary name as the result/display key; method lookup tries authored method names × positional parameter-type aliases and coerces arguments using the combination that bound.
 
 ### Result persistence
 
@@ -147,7 +148,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 - **MMD parse errors:** `MmdPillarGrader` captures `MmdParseException` message on `MmdPillarResult.parseError`; persisted in `SubmissionMmdMetaStore.ChallengeMmdMeta.parseError`; exposed as `{ classes, parseError }` on `GET .../mmd` and `lab_result.challenge_N.mmd`
 - **MMD method comparison** checks scope, return type, parameter types, and rubric `static` / `abstract` when required (extra diagram markers are ignored when the rubric does not require them); methods inside `<<interface>>` blocks count as abstract when the rubric requires it; **`final` is not graded on MMD** (Declaration Test only)
 - **Declaration field comparison** (reflection + MMD when type/scope specified) checks rubric `is_static` / `is_final` on `field_declaration` for Java; MMD fields honor required **static** via `$` suffix on the member name/type (`mmdModifierMatches`); **`final` is not graded on MMD** (diagram has no final marker)
-- **Declaration aliases:** `CartesianAliasMatcher` applies lecturer-authored field/method/parameter name and type lists independently (Cartesian) in reflection, MMD, and parsed snapshots. Rubric `name()` / `dataType()` / `returnType()` and `parameterTypes()` accessors remain the first aliases for expected/display text.
+- **Declaration aliases:** `CartesianAliasMatcher` applies lecturer-authored field/method/parameter name and type lists independently (Cartesian) in reflection, MMD, parsed snapshots, and name-based OT resolution. Rubric `name()` / `dataType()` / `returnType()` and `parameterTypes()` accessors remain the first aliases for expected/display text.
 - **MMD types** treat primitive names and wrappers as equivalent (`double` ≡ `Double`)
 - Rubric writers must call `RubricCacheInvalidationSupport.invalidateLab(labId)` after mutations (structure save, testcase save). Operator OT wipe (`docs/sql/2026-09-23-operational-testcase-unit-composition.sql` or `TestcaseSchemaMigrator`) must `LabRubricCache.invalidateAll()` or restart the API
 - Lecturer dry-run reuses `TestcaseGrader.gradeSingle()` against a temp compile dir; mixed reference javac is a preview (`ERROR` if the testcase touches a failed type), not HTTP 422; does not write `submission_*` rows

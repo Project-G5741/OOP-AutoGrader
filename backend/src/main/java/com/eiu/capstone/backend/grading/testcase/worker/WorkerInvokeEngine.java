@@ -38,6 +38,14 @@ public final class WorkerInvokeEngine {
                                               WorkerIpc.InvokeSpec spec,
                                               List<String> snapshotFieldNames,
                                               int stdoutCap) {
+        return invoke(classesDir, spec, snapshotFieldNames, null, stdoutCap);
+    }
+
+    public SerializedInvocationOutcome invoke(Path classesDir,
+                                              WorkerIpc.InvokeSpec spec,
+                                              List<String> snapshotFieldNames,
+                                              Map<String, List<String>> snapshotFieldAliases,
+                                              int stdoutCap) {
         if (!Files.isDirectory(classesDir)) {
             return SerializedInvocationOutcome.error("Missing compiled classes directory");
         }
@@ -45,7 +53,9 @@ public final class WorkerInvokeEngine {
             return SerializedInvocationOutcome.error("Missing invocation rubric");
         }
         try (URLClassLoader loader = studentLoader(classesDir)) {
-            return executeStep(loader, toStep(spec), snapshotFieldNames, stdoutCap, new LinkedHashMap<>());
+            return executeStep(
+                    loader, toStep(spec), snapshotFieldNames, snapshotFieldAliases,
+                    stdoutCap, new LinkedHashMap<>());
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
@@ -55,6 +65,14 @@ public final class WorkerInvokeEngine {
                                                 List<WorkerIpc.ScenarioStepSpec> steps,
                                                 List<String> snapshotFieldNames,
                                                 int stdoutCap) {
+        return scenario(classesDir, steps, snapshotFieldNames, null, stdoutCap);
+    }
+
+    public SerializedInvocationOutcome scenario(Path classesDir,
+                                                List<WorkerIpc.ScenarioStepSpec> steps,
+                                                List<String> snapshotFieldNames,
+                                                Map<String, List<String>> snapshotFieldAliases,
+                                                int stdoutCap) {
         if (!Files.isDirectory(classesDir)) {
             return SerializedInvocationOutcome.error("Missing compiled classes directory");
         }
@@ -62,7 +80,7 @@ public final class WorkerInvokeEngine {
             return SerializedInvocationOutcome.error("Missing scenario steps");
         }
         try (URLClassLoader loader = studentLoader(classesDir)) {
-            return scenario(loader, steps, snapshotFieldNames, stdoutCap);
+            return scenario(loader, steps, snapshotFieldNames, snapshotFieldAliases, stdoutCap);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
@@ -169,7 +187,8 @@ public final class WorkerInvokeEngine {
         try (URLClassLoader loader = studentLoader(classesDir)) {
             List<WorkerIpc.ScenarioStepSpec> steps = item == null ? null : item.steps();
             List<String> snapshots = item == null ? null : item.snapshotFieldNames();
-            return scenario(loader, steps, snapshots, stdoutCap);
+            Map<String, List<String>> snapshotAliases = item == null ? null : item.snapshotFieldAliases();
+            return scenario(loader, steps, snapshots, snapshotAliases, stdoutCap);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         }
@@ -178,12 +197,13 @@ public final class WorkerInvokeEngine {
     private SerializedInvocationOutcome scenario(URLClassLoader loader,
                                                  List<WorkerIpc.ScenarioStepSpec> steps,
                                                  List<String> snapshotFieldNames,
+                                                 Map<String, List<String>> snapshotFieldAliases,
                                                  int stdoutCap) {
         Map<String, Object> registry = new LinkedHashMap<>();
         List<SerializedInvocationOutcome> outcomes = new ArrayList<>();
         for (WorkerIpc.ScenarioStepSpec step : steps) {
             SerializedInvocationOutcome outcome = executeStep(
-                    loader, step, snapshotFieldNames, stdoutCap, registry);
+                    loader, step, snapshotFieldNames, snapshotFieldAliases, stdoutCap, registry);
             outcomes.add(outcome);
             if (shouldStopScenario(outcome)) {
                 break;
@@ -283,6 +303,7 @@ public final class WorkerInvokeEngine {
     private SerializedInvocationOutcome executeStep(URLClassLoader loader,
                                                     WorkerIpc.ScenarioStepSpec spec,
                                                     List<String> snapshotFieldNames,
+                                                    Map<String, List<String>> snapshotFieldAliases,
                                                     int stdoutCap,
                                                     Map<String, Object> registry) {
         if (spec == null || spec.className() == null || spec.className().isBlank()) {
@@ -302,18 +323,22 @@ public final class WorkerInvokeEngine {
         try {
             Class<?> clazz = findClass(loader, spec.className());
             List<String> parameterTypes = spec.parameterTypes() != null ? spec.parameterTypes() : List.of();
-            Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
             beginStdoutCapture(stdout);
             capturing = true;
             if (kind(spec) == InvocationKind.CONSTRUCTOR) {
+                Object[] args = coercer.coerceParams(spec.paramsJson(), parameterTypes, namedInstances, loader);
                 Object instance = spec.implicitDefaultConstructor()
                         ? instantiateHiddenReceiver(loader, clazz)
                         : findConstructor(clazz, parameterTypes, loader).newInstance(args);
                 ObjectFacts facts = describeObject(loader, instance, registry);
                 register(registry, spec.instanceName(), instance);
-                return normal(instance, instance, stdout, snapshotFieldNames, facts, registry);
+                return normal(
+                        instance, instance, stdout, snapshotFieldNames, snapshotFieldAliases, facts, registry);
             }
-            Method method = resolveMethod(loader, spec, clazz, parameterTypes);
+            ResolvedMethod resolved = resolveMethod(loader, spec, clazz, parameterTypes);
+            Method method = resolved.method();
+            Object[] args = coercer.coerceParams(
+                    spec.paramsJson(), resolved.parameterTypes(), namedInstances, loader);
             if (!Modifier.isStatic(method.getModifiers())) {
                 receiver = resolveReceiver(loader, spec, clazz, registry, namedInstances);
             }
@@ -324,10 +349,11 @@ public final class WorkerInvokeEngine {
             }
             ObjectFacts facts = describeObject(loader, returnValue, registry);
             maybeRegisterMethodProduct(loader, method, spec, receiver, returnValue, registry);
-            return normal(receiver, returnValue, stdout, snapshotFieldNames, facts, registry);
+            return normal(
+                    receiver, returnValue, stdout, snapshotFieldNames, snapshotFieldAliases, facts, registry);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return threw(receiver, cause, stdout, snapshotFieldNames, registry);
+            return threw(receiver, cause, stdout, snapshotFieldNames, snapshotFieldAliases, registry);
         } catch (Exception e) {
             return SerializedInvocationOutcome.error(messageOrSimpleName(e));
         } finally {
@@ -366,22 +392,75 @@ public final class WorkerInvokeEngine {
         return instantiateHiddenReceiver(loader, clazz);
     }
 
-    private Method resolveMethod(URLClassLoader loader,
-                                 WorkerIpc.ScenarioStepSpec spec,
-                                 Class<?> concrete,
-                                 List<String> parameterTypes) throws NoSuchMethodException, ClassNotFoundException {
-        Class<?>[] types = JavaTypeResolver.resolveAll(parameterTypes, loader);
-        if (spec.dispatchClassName() != null && !spec.dispatchClassName().isBlank()) {
-            Class<?> dispatchType = findClass(loader, spec.dispatchClassName());
-            return findDispatchMethod(dispatchType, spec.methodName(), types);
+    private ResolvedMethod resolveMethod(URLClassLoader loader,
+                                         WorkerIpc.ScenarioStepSpec spec,
+                                         Class<?> concrete,
+                                         List<String> parameterTypes)
+            throws NoSuchMethodException, ClassNotFoundException {
+        List<String> names = spec.methodNameAliases() == null || spec.methodNameAliases().isEmpty()
+                ? List.of(spec.methodName())
+                : spec.methodNameAliases();
+        List<List<String>> typeAliases = normalizedTypeAliases(parameterTypes, spec.parameterTypeAliases());
+        List<List<String>> combinations = new ArrayList<>();
+        collectTypeCombinations(typeAliases, 0, new ArrayList<>(), combinations);
+        Class<?> dispatchType = spec.dispatchClassName() != null && !spec.dispatchClassName().isBlank()
+                ? findClass(loader, spec.dispatchClassName())
+                : null;
+        for (String name : names) {
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            for (List<String> combination : combinations) {
+                try {
+                    Class<?>[] types = JavaTypeResolver.resolveAll(combination, loader);
+                    Method method = dispatchType != null
+                            ? findDispatchMethod(dispatchType, name, types)
+                            : findDeclaredMethod(concrete, name, types);
+                    return new ResolvedMethod(method, combination);
+                } catch (IllegalArgumentException | NoSuchMethodException ignored) {
+                    // Try the next lecturer-authored Cartesian alias combination.
+                }
+            }
         }
-        return findDeclaredMethod(concrete, spec.methodName(), types);
+        throw new NoSuchMethodException(
+                concrete.getName() + "." + spec.methodName() + "(" + String.join(",", parameterTypes) + ")");
+    }
+
+    private static List<List<String>> normalizedTypeAliases(
+            List<String> primaryTypes,
+            List<List<String>> aliases) {
+        if (aliases == null || aliases.size() != primaryTypes.size()) {
+            return primaryTypes.stream().map(List::of).toList();
+        }
+        List<List<String>> normalized = new ArrayList<>(aliases.size());
+        for (int i = 0; i < aliases.size(); i++) {
+            List<String> choices = aliases.get(i);
+            normalized.add(choices == null || choices.isEmpty() ? List.of(primaryTypes.get(i)) : choices);
+        }
+        return normalized;
+    }
+
+    private static void collectTypeCombinations(
+            List<List<String>> aliases,
+            int index,
+            List<String> current,
+            List<List<String>> combinations) {
+        if (index == aliases.size()) {
+            combinations.add(List.copyOf(current));
+            return;
+        }
+        for (String type : aliases.get(index)) {
+            current.add(type);
+            collectTypeCombinations(aliases, index + 1, current, combinations);
+            current.remove(current.size() - 1);
+        }
     }
 
     private SerializedInvocationOutcome normal(Object instance,
                                                Object returnValue,
                                                BoundedStdout stdout,
                                                List<String> snapshotFieldNames,
+                                               Map<String, List<String>> snapshotFieldAliases,
                                                ObjectFacts facts,
                                                Map<String, Object> registry) {
         Object snapshotTarget = fieldSnapshotTarget(instance, returnValue, facts);
@@ -390,7 +469,7 @@ public final class WorkerInvokeEngine {
                 coercer.toJson(returnValue),
                 stdout.text(),
                 stdout.truncated(),
-                snapshotFields(snapshotTarget, snapshotFieldNames, registry),
+                snapshotFields(snapshotTarget, snapshotFieldNames, snapshotFieldAliases, registry),
                 null,
                 List.of(),
                 null,
@@ -406,6 +485,7 @@ public final class WorkerInvokeEngine {
                                               Throwable cause,
                                               BoundedStdout stdout,
                                               List<String> snapshotFieldNames,
+                                              Map<String, List<String>> snapshotFieldAliases,
                                               Map<String, Object> registry) {
         List<String> supers = new ArrayList<>();
         for (Class<?> type = cause.getClass().getSuperclass(); type != null; type = type.getSuperclass()) {
@@ -417,7 +497,7 @@ public final class WorkerInvokeEngine {
                 null,
                 stdout.text(),
                 stdout.truncated(),
-                snapshotFields(snapshotTarget, snapshotFieldNames, registry),
+                snapshotFields(snapshotTarget, snapshotFieldNames, snapshotFieldAliases, registry),
                 cause.getClass().getSimpleName(),
                 List.copyOf(supers),
                 null,
@@ -437,6 +517,7 @@ public final class WorkerInvokeEngine {
 
     private Map<String, String> snapshotFields(Object target,
                                                List<String> fieldNames,
+                                               Map<String, List<String>> fieldAliases,
                                                Map<String, Object> registry) {
         Map<String, String> snapshots = new LinkedHashMap<>();
         if (target == null || fieldNames == null) {
@@ -447,9 +528,12 @@ public final class WorkerInvokeEngine {
                 continue;
             }
             try {
-                snapshots.put(fieldName, encodeFieldSnapshot(readField(target, fieldName), registry));
-            } catch (ReflectiveOperationException e) {
-                snapshots.put(fieldName, "null");
+                List<String> aliases = fieldAliases != null
+                        ? fieldAliases.getOrDefault(fieldName, List.of(fieldName))
+                        : List.of(fieldName);
+                snapshots.put(fieldName, encodeFieldSnapshot(readField(target, aliases), registry));
+            } catch (ReflectiveOperationException ignored) {
+                // Absence is distinct from a present field whose value is null.
             }
         }
         return snapshots;
@@ -469,18 +553,20 @@ public final class WorkerInvokeEngine {
         return coercer.toJson(value);
     }
 
-    private Object readField(Object target, String fieldName) throws ReflectiveOperationException {
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(fieldName);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-                type = type.getSuperclass();
+    private Object readField(Object target, List<String> fieldNames) throws ReflectiveOperationException {
+        for (String fieldName : fieldNames) {
+            Class<?> type = target.getClass();
+            while (type != null) {
+                try {
+                    Field field = type.getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field.get(target);
+                } catch (NoSuchFieldException ignored) {
+                    type = type.getSuperclass();
+                }
             }
         }
-        throw new NoSuchFieldException(fieldName);
+        throw new NoSuchFieldException(String.join(", ", fieldNames));
     }
 
     private Object instantiateReceiver(URLClassLoader loader,
@@ -744,7 +830,11 @@ public final class WorkerInvokeEngine {
                 spec.receiverParameterTypes(),
                 spec.receiverParamsJson(),
                 null,
-                null);
+                null,
+                1,
+                null,
+                spec.methodNameAliases(),
+                spec.parameterTypeAliases());
     }
 
     private ObjectFacts describeObject(URLClassLoader loader, Object object, Map<String, Object> registry) {
@@ -893,4 +983,6 @@ public final class WorkerInvokeEngine {
             return new ObjectFacts(null, Map.of(), Map.of());
         }
     }
+
+    private record ResolvedMethod(Method method, List<String> parameterTypes) {}
 }

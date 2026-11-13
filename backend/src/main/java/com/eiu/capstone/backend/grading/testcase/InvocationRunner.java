@@ -21,7 +21,15 @@ public class InvocationRunner {
         this.jsonValueCoercer = jsonValueCoercer;
     }
 
-    public record BatchItem(List<InvocationRubric> steps, List<String> snapshotFieldNames) {}
+    public record BatchItem(
+            List<InvocationRubric> steps,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
+
+        public BatchItem(List<InvocationRubric> steps, List<String> snapshotFieldNames) {
+            this(steps, snapshotFieldNames, Map.of());
+        }
+    }
 
     public InvocationOutcome invokeSingle(ChallengeGradingContext context,
                                           InvocationRubric invocation,
@@ -75,7 +83,8 @@ public class InvocationRunner {
             specs.add(new WorkerIpc.BatchItemSpec(
                     steps,
                     item == null ? List.of() : item.snapshotFieldNames(),
-                    classesDir));
+                    classesDir,
+                    item == null ? Map.of() : item.snapshotFieldAliases()));
         }
         SerializedInvocationOutcome serialized = handle.batch(
                 context.classesDir().toAbsolutePath().toString(), specs);
@@ -98,7 +107,7 @@ public class InvocationRunner {
         List<WorkerIpc.BatchItemSpec> specs = new ArrayList<>(items.size());
         for (LabBatchItem item : items) {
             if (item == null || item.classesDir() == null || item.classesDir().isBlank()) {
-                specs.add(new WorkerIpc.BatchItemSpec(List.of(), List.of(), null));
+                specs.add(new WorkerIpc.BatchItemSpec(List.of(), List.of(), null, Map.of()));
                 continue;
             }
             List<WorkerIpc.ScenarioStepSpec> steps = new ArrayList<>();
@@ -107,7 +116,8 @@ public class InvocationRunner {
                     steps.add(WorkerSessionHandle.toScenarioStep(step));
                 }
             }
-            specs.add(new WorkerIpc.BatchItemSpec(steps, item.snapshotFieldNames(), item.classesDir()));
+            specs.add(new WorkerIpc.BatchItemSpec(
+                    steps, item.snapshotFieldNames(), item.classesDir(), item.snapshotFieldAliases()));
         }
         SerializedInvocationOutcome serialized = handle.batch(null, specs, batchParallelism);
         return toBatchOutcomes(serialized, items.size());
@@ -116,7 +126,16 @@ public class InvocationRunner {
     public record LabBatchItem(
             String classesDir,
             List<InvocationRubric> steps,
-            List<String> snapshotFieldNames) {}
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
+
+        public LabBatchItem(
+                String classesDir,
+                List<InvocationRubric> steps,
+                List<String> snapshotFieldNames) {
+            this(classesDir, steps, snapshotFieldNames, Map.of());
+        }
+    }
 
     private List<List<InvocationOutcome>> toBatchOutcomes(SerializedInvocationOutcome serialized, int expected) {
         if (serialized == null) {

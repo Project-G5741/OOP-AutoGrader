@@ -105,7 +105,10 @@ public class TestcaseGrader {
             for (TestcaseRubric testcase : plan.runnable()) {
                 InvocationRunner.BatchItem batchItem = toBatchItem(testcase);
                 labItems.add(new InvocationRunner.LabBatchItem(
-                        classesDir, batchItem.steps(), batchItem.snapshotFieldNames()));
+                        classesDir,
+                        batchItem.steps(),
+                        batchItem.snapshotFieldNames(),
+                        batchItem.snapshotFieldAliases()));
             }
         }
         List<List<InvocationOutcome>> allOutcomes = labItems.isEmpty()
@@ -251,7 +254,13 @@ public class TestcaseGrader {
                 .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
                 .map(AssertionRubric::fieldName)
                 .toList();
-        return new InvocationRunner.BatchItem(steps, snapshotFields);
+        Map<String, List<String>> snapshotFieldAliases = new HashMap<>();
+        testcase.assertions().stream()
+                .filter(assertion -> assertion.kind() == AssertionKind.FIELD_STATE)
+                .filter(assertion -> assertion.fieldName() != null)
+                .forEach(assertion -> snapshotFieldAliases.putIfAbsent(
+                        assertion.fieldName(), assertion.fieldNameAliases()));
+        return new InvocationRunner.BatchItem(steps, snapshotFields, Map.copyOf(snapshotFieldAliases));
     }
 
     private Evaluation finishEvaluate(TestcaseRubric testcase, List<InvocationOutcome> outcomes) {
@@ -389,7 +398,9 @@ public class TestcaseGrader {
                 step.dispatchClassId(),
                 step.dispatchClassName(),
                 step.resultTypeName(),
-                step.repeatCount());
+                step.repeatCount(),
+                step.methodNameAliases(),
+                step.parameterTypeAliases());
     }
 
     private static int firstThrowIndex(List<InvocationOutcome> outcomes) {

@@ -265,7 +265,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     ? item.classesDir()
                     : fallbackClassesDir;
             String mappedDir = raw != null ? classesDirMapper.apply(raw) : null;
-            mapped.add(new WorkerIpc.BatchItemSpec(item.steps(), item.snapshotFieldNames(), mappedDir));
+            mapped.add(new WorkerIpc.BatchItemSpec(
+                    item.steps(), item.snapshotFieldNames(), mappedDir, item.snapshotFieldAliases()));
         }
         return mapped;
     }
@@ -389,7 +390,9 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.paramsJson(),
                 invocation.receiverClassName(),
                 invocation.receiverParameterTypes(),
-                invocation.receiverParamsJson());
+                invocation.receiverParamsJson(),
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases());
     }
 
     static WorkerIpc.ScenarioStepSpec toScenarioStep(InvocationRubric invocation) {
@@ -408,7 +411,9 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.kind() == InvocationKind.CONSTRUCTOR
                         && invocation.constructorId() == null
                         ? WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT
-                        : null);
+                        : null,
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases());
     }
 
     /**

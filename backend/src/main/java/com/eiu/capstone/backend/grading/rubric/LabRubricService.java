@@ -263,6 +263,24 @@ public class LabRubricService {
                 methodParams, parameterNamesById, parameterTypesById);
         Map<UUID, List<ParameterRubric>> paramAliasesByConstructor = RubricParameterMaps.aliasesByConstructor(
                 constructorParams, parameterNamesById, parameterTypesById);
+        Map<UUID, List<String>> fieldNameAliasesById = allFields.stream()
+                .collect(Collectors.toMap(
+                        Field::getId,
+                        field -> fieldNamesByDeclaration.getOrDefault(
+                                field.getFieldDeclaration().getId(), List.of(field.getName()))));
+        Map<UUID, List<String>> methodNameAliasesById = allMethods.stream()
+                .collect(Collectors.toMap(
+                        Method::getId,
+                        method -> methodNamesByDeclaration.getOrDefault(
+                                method.getMethodDeclaration().getId(), List.of(method.getName()))));
+        Map<UUID, List<List<String>>> paramTypeAliasesByMethod = paramAliasesByMethod.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream().map(ParameterRubric::dataTypes).toList()));
+        Map<UUID, List<List<String>>> paramTypeAliasesByConstructor = paramAliasesByConstructor.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream().map(ParameterRubric::dataTypes).toList()));
         TestcaseRubricContext testcaseContext = new TestcaseRubricContext(
                 classNameByClassId,
                 classNameByConstructorId,
@@ -270,7 +288,11 @@ public class LabRubricService {
                 paramTypesByMethod,
                 classNameByMethodId,
                 methodById,
-                fieldById);
+                fieldById,
+                fieldNameAliasesById,
+                methodNameAliasesById,
+                paramTypeAliasesByMethod,
+                paramTypeAliasesByConstructor);
         Map<UUID, List<Testcase>> testcasesByChallenge = allTestcases.stream()
                 .collect(Collectors.groupingBy(t -> t.getChallenge().getId()));
 
@@ -453,7 +475,11 @@ public class LabRubricService {
                             field != null ? field.getFieldDeclaration().getDataType() : null,
                             assertion.getExpectedValue(),
                             assertion.getComparisonMode(),
-                            assertion.getOrderIndex());
+                            assertion.getOrderIndex(),
+                            field != null
+                                    ? context.fieldNameAliasesById().getOrDefault(
+                                            field.getId(), List.of(field.getName()))
+                                    : List.of());
                 })
                 .toList();
 
@@ -504,7 +530,12 @@ public class LabRubricService {
                     dispatchClassId,
                     dispatchClassName,
                     InvocationRubric.resultTypeNameForConstructor(className),
-                    invocation.getRepeatCount());
+                    invocation.getRepeatCount(),
+                    null,
+                    implicitDefault
+                            ? List.of()
+                            : context.paramTypeAliasesByConstructorId()
+                                    .getOrDefault(constructorId, List.of()));
         }
         return methodInvocationRubric(invocation, context, instanceName, dispatchClassId, dispatchClassName);
     }
@@ -542,7 +573,10 @@ public class LabRubricService {
                 dispatchClassId,
                 dispatchClassName,
                 InvocationRubric.resultTypeNameForMethod(method),
-                invocation.getRepeatCount());
+                invocation.getRepeatCount(),
+                context.methodNameAliasesById().getOrDefault(
+                        methodId, method != null ? List.of(method.getName()) : List.of()),
+                context.paramTypeAliasesByMethodId().getOrDefault(methodId, List.of()));
     }
 
     private record TestcaseRubricContext(
@@ -552,5 +586,9 @@ public class LabRubricService {
             Map<UUID, List<String>> paramTypesByMethodId,
             Map<UUID, String> classNameByMethodId,
             Map<UUID, Method> methodById,
-            Map<UUID, Field> fieldById) {}
+            Map<UUID, Field> fieldById,
+            Map<UUID, List<String>> fieldNameAliasesById,
+            Map<UUID, List<String>> methodNameAliasesById,
+            Map<UUID, List<List<String>>> paramTypeAliasesByMethodId,
+            Map<UUID, List<List<String>>> paramTypeAliasesByConstructorId) {}
 }

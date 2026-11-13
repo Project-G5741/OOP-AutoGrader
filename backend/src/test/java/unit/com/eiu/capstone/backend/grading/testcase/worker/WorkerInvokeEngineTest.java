@@ -542,6 +542,74 @@ class WorkerInvokeEngineTest {
     }
 
     @Test
+    void fieldSnapshotUsesSecondaryNameAliasButKeepsPrimaryResultKey() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private int funds;
+                            public Account() { this.funds = 75; }
+                            public void touch() {}
+                        }
+                        """));
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", dir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(methodStep("Account", "touch", List.of(), "[]", null, null)));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode snapshots = stepsJson(outcome).get(0).get("fieldSnapshotsJson");
+        assertEquals("75", snapshots.get("balance").asText());
+        assertFalse(snapshots.has("funds"));
+    }
+
+    @Test
+    void methodInvokeUsesSecondaryNameAndParameterTypeAliases() throws Exception {
+        Path dir = compileSources(Map.of(
+                "Account.java", """
+                        public class Account {
+                            private float funds;
+                            public void credit(float amount) { funds += amount; }
+                        }
+                        """));
+        Map<String, Object> step = methodStep(
+                "Account", "deposit", List.of("double"), "[12.5]", null, null);
+        step.put("methodNameAliases", List.of("deposit", "credit"));
+        step.put("parameterTypeAliases", List.of(List.of("double", "float")));
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", dir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(step));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        JsonNode result = stepsJson(outcome).get(0);
+        assertEquals("NORMAL", result.get("kind").asText(), result.toString());
+        assertEquals("12.5", result.get("fieldSnapshotsJson").get("balance").asText());
+    }
+
+    @Test
+    void fieldSnapshotOmitsPrimaryKeyWhenNoAliasExists() throws Exception {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("op", "scenario");
+        request.put("classesDir", classesDir.toAbsolutePath().toString());
+        request.put("snapshotFieldNames", List.of("balance"));
+        request.put("snapshotFieldAliases", Map.of("balance", List.of("balance", "funds")));
+        request.put("steps", List.of(methodStep("Car", "getSpeed", List.of(), "[]", null, null)));
+
+        SerializedInvocationOutcome outcome = WorkerIpc.handleLine(WorkerIpc.mapper().writeValueAsString(request));
+
+        assertEquals("NORMAL", outcome.kind(), outcome.errorMessage());
+        assertFalse(stepsJson(outcome).get(0).get("fieldSnapshotsJson").has("balance"));
+    }
+
+    @Test
     void compareIpcOpIsUnknown() throws Exception {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("op", "compare");
