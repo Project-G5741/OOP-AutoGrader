@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import Combobox from '../../ui/Combobox';
+import AliasListBox from './AliasListBox';
 import ParameterRows from './ParameterRows';
 import WeightInput from './WeightInput';
 
@@ -77,7 +78,7 @@ export default function ClassDetailPanel({
     }
     onChange({
       ...classData,
-      fields: fields.map((field) => ({ ...field, dataType: '', scopeId: null })),
+      fields: fields.map((field) => ({ ...field, dataType: null, dataTypes: [null], scopeId: null })),
     });
   }, [enumClass, classData, onChange]);
 
@@ -162,7 +163,12 @@ export default function ClassDetailPanel({
                 patch({
                   declaringTypeId,
                   fields: nextEnum
-                    ? (classData.fields || []).map((field) => ({ ...field, dataType: '', scopeId: null }))
+                    ? (classData.fields || []).map((field) => ({
+                      ...field,
+                      dataType: null,
+                      dataTypes: [null],
+                      scopeId: null,
+                    }))
                     : classData.fields,
                 });
               }}
@@ -254,41 +260,60 @@ export default function ClassDetailPanel({
       <Section title="Fields" count={classData.fields?.length || 0}>
         <div className="space-y-3">
           {(classData.fields || []).map((field, index) => (
-            <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
-              <input
-                className={`${enumClass ? 'col-span-11' : 'col-span-4'} rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white`}
-                placeholder={enumClass ? 'Constant name' : 'Field name'}
-                value={field.name}
-                onChange={(e) => {
-                  const fields = [...classData.fields];
-                  fields[index] = { ...field, name: e.target.value };
-                  updateFields(fields);
-                }}
-              />
-              {!enumClass && (
-                <>
-                  <input
-                    className="col-span-2 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
-                    placeholder="type"
-                    value={field.dataType}
-                    onChange={(e) => {
-                      const fields = [...classData.fields];
-                      fields[index] = { ...field, dataType: e.target.value };
-                      updateFields(fields);
-                    }}
-                  />
-                  <div className="col-span-2 min-w-0">
-                    <ScopeSelect
-                      value={field.scopeId}
-                      options={scopeOptions}
-                      onChange={(scopeId) => {
+            <div key={field.id} className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 items-center">
+                <AliasListBox
+                  className={enumClass ? 'col-span-11' : 'col-span-5'}
+                  placeholder={enumClass ? 'Constant name' : 'Field name'}
+                  ariaLabel={enumClass ? 'Constant name' : 'Field name'}
+                  addLabel="Add name"
+                  values={field.names}
+                  fallback={field.name}
+                  onChange={(names) => {
+                    const fields = [...classData.fields];
+                    fields[index] = { ...field, names, name: names[0] };
+                    updateFields(fields);
+                  }}
+                />
+                {!enumClass && (
+                  <>
+                    <AliasListBox
+                      className="col-span-4"
+                      placeholder="type"
+                      ariaLabel="Field datatype"
+                      addLabel="Add datatype"
+                      values={field.dataTypes}
+                      fallback={field.dataType}
+                      onChange={(dataTypes) => {
                         const fields = [...classData.fields];
-                        fields[index] = { ...field, scopeId };
+                        fields[index] = { ...field, dataTypes, dataType: dataTypes[0] };
                         updateFields(fields);
                       }}
                     />
-                  </div>
-                  <label className="col-span-2 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                    <div className="col-span-2 min-w-0">
+                      <ScopeSelect
+                        value={field.scopeId}
+                        options={scopeOptions}
+                        onChange={(scopeId) => {
+                          const fields = [...classData.fields];
+                          fields[index] = { ...field, scopeId };
+                          updateFields(fields);
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="col-span-1 text-foreground-muted hover:text-error"
+                  onClick={() => updateFields(classData.fields.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              {!enumClass && (
+                <div className="flex flex-wrap items-center gap-4 pl-1 text-sm text-foreground-secondary">
+                  <label className="flex items-center gap-2 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={!!field.isStatic}
@@ -300,7 +325,7 @@ export default function ClassDetailPanel({
                     />
                     static
                   </label>
-                  <label className="col-span-1 flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
+                  <label className="flex items-center gap-2 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={!!field.isFinal}
@@ -312,15 +337,8 @@ export default function ClassDetailPanel({
                     />
                     final
                   </label>
-                </>
+                </div>
               )}
-              <button
-                type="button"
-                className="col-span-1 text-foreground-muted hover:text-error"
-                onClick={() => updateFields(classData.fields.filter((_, i) => i !== index))}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
             </div>
           ))}
           <button
@@ -330,7 +348,9 @@ export default function ClassDetailPanel({
               {
                 id: crypto.randomUUID(),
                 name: '',
-                dataType: '',
+                names: [''],
+                dataType: enumClass ? null : '',
+                dataTypes: enumClass ? [null] : [''],
                 scopeId: enumClass ? null : scopeOptions[0]?.id,
                 isStatic: false,
                 isFinal: false,
@@ -348,23 +368,27 @@ export default function ClassDetailPanel({
           {(classData.methods || []).map((method, index) => (
             <div key={method.id} className="rounded-lg border border-border p-3 dark:border-border">
               <div className="grid gap-2 md:grid-cols-2">
-                <input
-                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                <AliasListBox
                   placeholder="Method name"
-                  value={method.name}
-                  onChange={(e) => {
+                  ariaLabel="Method name"
+                  addLabel="Add name"
+                  values={method.names}
+                  fallback={method.name}
+                  onChange={(names) => {
                     const methods = [...classData.methods];
-                    methods[index] = { ...method, name: e.target.value };
+                    methods[index] = { ...method, names, name: names[0] };
                     updateMethods(methods);
                   }}
                 />
-                <input
-                  className="rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+                <AliasListBox
                   placeholder="Return type"
-                  value={method.returnType}
-                  onChange={(e) => {
+                  ariaLabel="Method return type"
+                  addLabel="Add return type"
+                  values={method.returnTypes}
+                  fallback={method.returnType}
+                  onChange={(returnTypes) => {
                     const methods = [...classData.methods];
-                    methods[index] = { ...method, returnType: e.target.value };
+                    methods[index] = { ...method, returnTypes, returnType: returnTypes[0] };
                     updateMethods(methods);
                   }}
                 />
@@ -430,7 +454,9 @@ export default function ClassDetailPanel({
               {
                 id: crypto.randomUUID(),
                 name: '',
+                names: [''],
                 returnType: 'void',
+                returnTypes: ['void'],
                 scopeId: scopeOptions[0]?.id,
                 isStatic: false,
                 isAbstract: false,

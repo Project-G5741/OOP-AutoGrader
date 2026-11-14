@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.controller;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +16,7 @@ import com.eiu.capstone.backend.service.StudentMascotService;
 
 @RestController
 @RequestMapping("/api/students/mascots")
+@Profile("!desktop")
 public class StudentMascotController {
 
     private final JwtAuthHelper jwtAuthHelper;

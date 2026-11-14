@@ -9,19 +9,19 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | Student/lecturer code + password login, Google OAuth, forgot-password entry, JWT decode |
+| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane with `oop-stage.json` Lottie + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; zero nested borders, zero gradients) |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert`. Set Password uses `PasswordStrengthField` (strength meter + rule checks); submit still follows `getFirstTimeSetupErrors` (6–100 characters) |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
-| `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`) |
-| `FeedbackInbox.jsx` | Lecturer Feedback inbox (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies; header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and streak flame at the header’s top-right on submit, history, and ranking views |
-| `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`) |
+| `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
+| `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
+| `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
-| `NoAccessPage.jsx` | Signed-in landing for gated API 403 |
-| `RateLimitedPage.jsx` | Burst-guard 429 jail: hold then return to prior location |
-| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; Dribbble-style split layout with 3D graduation-cap hero (`/maintenance/maintenance-hero.jpg`); no sign-in button. Lecturers open `/staff` (not linked on the page) |
+| `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
+| `RateLimitedPage.jsx` | Burst-guard 429 jail: `StageCard3D` + animated SVG countdown progress ring, hold then return to prior location |
+| `MaintenancePage.jsx` | Full-site lock when `VITE_MAINTENANCE_MODE` (or `NEXT_PUBLIC_MAINTENANCE_MODE`) is truthy; split architectural 3D hero (`/maintenance/maintenance-hero.jpg`, zero gradients); no sign-in button. Lecturers open `/staff` (not linked on the page) |
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import, email current-quarter roster |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
@@ -52,7 +52,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 
 When `isWebMaintenanceMode()` is true (`App.jsx`), anonymous users and students stay on `MaintenancePage` (no login control on that screen). Lecturers open **`/staff`** for the normal login form; student-only attempts there are rejected and do not persist. A stored **LECTURER** session mounts the app. Student-only sessions are **kicked**: `clearAuthSession`, presence leave. Dual-role lecturers who open student URLs are sent to `/lecturer-dashboard`. Desktop practice is excluded. When the flag is off, `/staff` redirects to `/` (or the signed-in dashboard).
 
-Dual-role users and Admin land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Admin opens the student area from the account menu. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard. An Admin is treated as in the current quarter without an enrollment row.
+Dual-role users and Admin land on `/lecturer-dashboard` after login; student routes remain reachable by URL. Admin opens the student area from the account menu, which waits out the 5 seconds after that sign-in before navigating. Wrong-role access redirects to the user's default dashboard. Active students not in the current term land on `/student-history` and cannot open the submit dashboard. An Admin is treated as in the current quarter without an enrollment row.
 
 ### Lecturer in-dashboard sections (`activeNav`)
 
@@ -61,7 +61,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` from the overview payload | First paint: `GET /api/lecturer/bootstrap/dashboard` (fresh overview). Secondary: labs list, `/api/labs/{id}/statistics`, submissions, plagiarism flags |
 | `score` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | First paint: `GET /api/lecturer/bootstrap/score`. Sort/search/page: `GET /api/lecturer/grade-overview` |
 | `ranking` | Live weekly `RankingBoard` | First paint: `GET /api/lecturer/bootstrap/ranking` |
-| `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list) |
+| `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list); panel also loads `GET /api/lecturer/bulk-grading/current-term-student-irns` |
 | `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` (full account list — client search/stats; not paged like Score) |
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
@@ -84,13 +84,13 @@ Same bar and buttons as the lecturer shell, on its own row under the header. Stu
 
 | State | Renders | API |
 |---|---|---|
-| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results). Header shows **Enrolled Quarter:** from `GET /api/students/term-access` `quarterName` | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete; when `lab_result` reports a compile error, a stacked **Compilation Error** error toast plus Declaration **DangerAlert** |
+| `showHistory === false` | Main dashboard (left lab list + right upload/stats/results). Header shows **Enrolled Quarter:** from `GET /api/students/term-access` `quarterName` | Full-page spinner waits only for `GET /api/labs/list` (`inCurrentTerm`). That payload includes per-lab `challenges` and `totalSubmissions` / `latestSubmission`, so Challenges and stats populate without follow-up `.../challenges/list` or `/stats` unless those fields are missing. Also `GET /api/submissions/my-labs?scope=current` for notifications; **after upload, challenges/stats/my-labs are not refetched for that lab** — scores and attempt counts come from the upload payload. **Current Grade** and challenge scores + class/MMD detail only after upload in session; success **Toast** on grading complete; when `lab_result` reports a compile error, a stacked **Compilation Error** error toast plus Declaration **DangerAlert**. Admin uploads (`persisted: false`) show MMD, Declaration, and Operation Test from that `lab_result` and do not GET `/class`, `/mmd`, or `/testcases` |
 | `showHistory === true` | `StudentHistoryPage` | Live `my-history` + `my-labs` (all quarters, `termLabel` on each lab/submission) |
 | `view === 'ranking'` | `StudentRankingPage` | `GET /api/students/ranking/current` (web). Top 20, 10 per page; **Your ranking** under the table. Out-of-term: empty rows |
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build hides **Change Password** and omits Ranking from the nav. **Logout** is the last account-menu item, under Change Password. The student header shop button shows the point balance and opens the mascot shop.
+Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build replaces the profile/account menu with a direct **Exit** button and omits Ranking from the nav. On web, **Logout** is the last account-menu item, under Change Password, and the student header shop button shows the point balance and opens the mascot shop.
 
 ### API endpoints used from pages
 
@@ -112,12 +112,13 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/students/ranking/current` | `StudentRankingPage.jsx` |
 | `GET /api/lecturer/bootstrap/ranking` | `LecturerDashboard.jsx` (`activeNav === 'ranking'`) |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
+| `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` from `GET /api/students/streak` |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
-| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — **Email quarter** on the Quarters page; body `{ subject, body }`; one email per active student enrolled in the current quarter |
+| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — **Email quarter** on the Quarters page; body `{ subject, body }`; one email per active student enrolled in the current quarter, plus every active Admin |
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
@@ -169,7 +170,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; **Email quarter** (page header and current-quarter toolbar) sends subject+body to current-quarter account emails
+- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; **Email quarter** (page header and current-quarter toolbar) sends subject+body to current-quarter student emails and every active Admin
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in. Delete User keeps the confirm dialog open with a spinner until the server finishes
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 

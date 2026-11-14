@@ -17,7 +17,8 @@ public interface GradingResultJdbcWriter {
                                     BigDecimal score,
                                     OffsetDateTime submittedAt,
                                     List<SubmissionChallengeResult> challengeRows,
-                                    String desktopPackVersion);
+                                    String desktopPackVersion,
+                                    LabPillarScores pillarScores);
 
     void upsertChallengeResults(List<SubmissionChallengeResult> rows);
 

@@ -43,6 +43,18 @@ public class StudentStreakSchemaMigrator {
                     ADD COLUMN IF NOT EXISTS equipped_mascot VARCHAR(32) NOT NULL DEFAULT 'fox'
                 """);
         jdbcTemplate.execute("""
+                ALTER TABLE student_daily_streak
+                    ADD COLUMN IF NOT EXISTS gacha_tickets INTEGER NOT NULL DEFAULT 0
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE student_daily_streak
+                    ADD COLUMN IF NOT EXISTS mission_tickets_awarded INTEGER NOT NULL DEFAULT 0
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE student_daily_streak
+                    ADD COLUMN IF NOT EXISTS gacha_launch_gift BOOLEAN NOT NULL DEFAULT FALSE
+                """);
+        jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS student_mascot_purchase (
                     user_id       UUID NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
                     mascot_id     VARCHAR(32) NOT NULL,

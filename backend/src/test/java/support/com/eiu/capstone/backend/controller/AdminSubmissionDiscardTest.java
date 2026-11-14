@@ -1,7 +1,10 @@
 package support.com.eiu.capstone.backend.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -24,6 +27,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
+import com.eiu.capstone.backend.DTO.ClassDetailDTO;
+import com.eiu.capstone.backend.DTO.MmdResponseDTO;
 import com.eiu.capstone.backend.DTO.SubmissionUploadResponse;
 import com.eiu.capstone.backend.controller.SubmissionController;
 import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
@@ -127,13 +133,25 @@ class AdminSubmissionDiscardTest {
         when(submissionStorageService.processUpload(any(), any(), any()))
                 .thenReturn(new SubmissionStorageService.ProcessResult(folder, List.of(), Map.of(), 0L));
         when(labRubricCache.get(lab)).thenReturn(null);
+        ChallengeDetailBundleDTO fullBundle = new ChallengeDetailBundleDTO(
+                List.of(new ClassDetailDTO("Flower", "CLASS", "error", null, List.of(), List.of(), List.of())),
+                new MmdResponseDTO(List.of(), null),
+                List.of(),
+                Map.of(
+                        "class", BigDecimal.ZERO,
+                        "mmd", BigDecimal.ZERO,
+                        "testcase", BigDecimal.ZERO,
+                        "total", new BigDecimal("80")),
+                Map.of("class", true, "mmd", true, "testcase", true));
         when(gradingService.gradeSubmission(any(), any(), any(), any()))
                 .thenReturn(new GradingOutcome(
                         new BigDecimal("80.00"),
                         List.of(new GradedChallengeSummary(challengeId, 80)),
                         Map.of(),
                         Map.of(),
-                        null));
+                        new com.eiu.capstone.backend.grading.GradingService.GradingComputationResult()));
+        when(gradingService.assembleStudentResult(any(), any(), any(), any(), any(), eq(false)))
+                .thenReturn(Map.of("challenge_1", fullBundle));
 
         JwtUserPrincipal principal = new JwtUserPrincipal("admin@eiu.edu.vn", "T100", List.of("ADMIN"));
         ResponseEntity<SubmissionUploadResponse> response = controller.upload(
@@ -144,6 +162,8 @@ class AdminSubmissionDiscardTest {
 
         assertEquals(new BigDecimal("80.00"), response.getBody().getScore());
         assertEquals(80, response.getBody().getChallengeResult().get(challengeId));
+        assertFalse(response.getBody().isPersisted());
+        assertSame(fullBundle, response.getBody().getLabResult().get("challenge_1"));
         verify(uploadPersistService, never()).persist(any(), any());
         verify(studentStreakService, never()).recordSubmission(any());
         verify(plagiarismService, never()).inspectUpload(any(), any(PlagiarismSignals.class));

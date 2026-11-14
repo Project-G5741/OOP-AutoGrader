@@ -3,6 +3,7 @@ package com.eiu.capstone.backend.grading.testcase;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -96,6 +97,15 @@ public final class WorkerSessionHandle implements AutoCloseable {
 
     public static WorkerSessionHandle failedRemote(String message, long spawnMs) {
         return new WorkerSessionHandle(null, 5, null, message, spawnMs, null, UnaryOperator.identity(), true, null);
+    }
+
+    /** Local-worker failure with no live session (tests + callers that already know spawn failed). */
+    public static WorkerSessionHandle failedLocal(String message, long spawnMs) {
+        return new WorkerSessionHandle(null, 5, null, message, spawnMs, null, UnaryOperator.identity(), false, null);
+    }
+
+    private String infraFallbackMessage() {
+        return remote ? SandboxInfraErrors.STUDENT_MESSAGE : LocalWorkerInfraErrors.STUDENT_MESSAGE;
     }
 
     public long spawnMs() {
@@ -194,7 +204,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     Math.max(0, batchParallelism));
             SerializedInvocationOutcome partial = roundTrip(request, transportWaitSeconds(slice.size()));
             if (partial == null) {
-                return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
+                return SerializedInvocationOutcome.error(infraFallbackMessage());
             }
             if (SerializedInvocationOutcome.KIND_ERROR.equals(partial.kind())
                     && (partial.batch() == null || partial.batch().isEmpty())) {
@@ -203,7 +213,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 }
                 while (merged.size() < items.size()) {
                     merged.add(SerializedInvocationOutcome.error(
-                            partial.errorMessage() != null ? partial.errorMessage() : SandboxInfraErrors.STUDENT_MESSAGE));
+                            partial.errorMessage() != null ? partial.errorMessage() : infraFallbackMessage()));
                 }
                 return SerializedInvocationOutcome.batchOf(merged);
             }
@@ -256,7 +266,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     ? item.classesDir()
                     : fallbackClassesDir;
             String mappedDir = raw != null ? classesDirMapper.apply(raw) : null;
-            mapped.add(new WorkerIpc.BatchItemSpec(item.steps(), item.snapshotFieldNames(), mappedDir));
+            mapped.add(new WorkerIpc.BatchItemSpec(
+                    item.steps(), item.snapshotFieldNames(), mappedDir, item.snapshotFieldAliases()));
         }
         return mapped;
     }
@@ -276,7 +287,9 @@ public final class WorkerSessionHandle implements AutoCloseable {
             }
             if (session == null || !session.isAlive()) {
                 return SerializedInvocationOutcome.error(
-                        spawnFailure != null ? spawnFailure : SandboxInfraErrors.STUDENT_MESSAGE);
+                        spawnFailure != null && !spawnFailure.isBlank()
+                                ? spawnFailure
+                                : infraFallbackMessage());
             }
             String json;
             try {
@@ -291,7 +304,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                         WorkerProcessClient.IPC_LINE_CAP_BYTES);
                 if (line == null) {
                     maybeRespawnLocked();
-                    return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
+                    return SerializedInvocationOutcome.error(infraFallbackMessage());
                 }
                 SerializedInvocationOutcome parsed = WorkerIpc.mapper()
                         .readValue(line, SerializedInvocationOutcome.class);
@@ -304,10 +317,10 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 return SerializedInvocationOutcome.timedOut("", false);
             } catch (WorkerSpawnException e) {
                 maybeRespawnLocked();
-                return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
+                return SerializedInvocationOutcome.error(infraFallbackMessage());
             } catch (Exception e) {
                 maybeRespawnLocked();
-                return SerializedInvocationOutcome.error(SandboxInfraErrors.STUDENT_MESSAGE);
+                return SerializedInvocationOutcome.error(infraFallbackMessage());
             }
         }
     }
@@ -378,10 +391,20 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.paramsJson(),
                 invocation.receiverClassName(),
                 invocation.receiverParameterTypes(),
-                invocation.receiverParamsJson());
+                invocation.receiverParamsJson(),
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases(),
+                invocation.receiverParameterTypeAliases());
     }
 
     static WorkerIpc.ScenarioStepSpec toScenarioStep(InvocationRubric invocation) {
+        return toScenarioStep(invocation, null, null);
+    }
+
+    static WorkerIpc.ScenarioStepSpec toScenarioStep(
+            InvocationRubric invocation,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
         return new WorkerIpc.ScenarioStepSpec(
                 invocation.kind().name(),
                 invocation.className(),
@@ -397,7 +420,12 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 invocation.kind() == InvocationKind.CONSTRUCTOR
                         && invocation.constructorId() == null
                         ? WorkerIpc.ScenarioStepSpec.CONSTRUCT_DEFAULT
-                        : null);
+                        : null,
+                invocation.methodNameAliases(),
+                invocation.parameterTypeAliases(),
+                invocation.receiverParameterTypeAliases(),
+                snapshotFieldNames,
+                snapshotFieldAliases);
     }
 
     /**

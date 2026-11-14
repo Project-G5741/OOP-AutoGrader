@@ -231,6 +231,53 @@ class ClassStructureServiceDisclosureTest {
     }
 
     @Test
+    void lecturerMmdFailure_usesPrimaryAliasesForExpectedLabel() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+        ClassRubric classRubric = new ClassRubric(
+                classId,
+                "Invoice",
+                "PUBLIC",
+                "CLASS",
+                false,
+                List.of(new FieldRubric(
+                        fieldId,
+                        List.of("cost", "fee"),
+                        "PRIVATE",
+                        List.of("double", "float"),
+                        false,
+                        false)),
+                List.of(),
+                List.of());
+        ChallengeRubric challengeRubric = new ChallengeRubric(
+                UUID.randomUUID(), 1, "Challenge 1", List.of(classRubric), List.of());
+        var mmdSnapshot = new com.eiu.capstone.backend.grading.ParsedSubmissionSnapshot.MmdSnapshot();
+        mmdSnapshot.attributes.put(fieldId.toString(), "price: int");
+        ChallengeSnapshot snapshot = new ChallengeSnapshot();
+        snapshot.mmdSnapshot = mmdSnapshot;
+        MmdGradingOutcome outcome = new MmdGradingOutcome();
+        outcome.setClassPresent(classId, true);
+        outcome.setClass(classId, true);
+        outcome.setField(fieldId, false);
+
+        List<MmdClassDTO> result = service.buildMmdDataFromRubric(
+                challengeRubric,
+                new SubmissionCorrectIds(Set.of(), Set.of(), Set.of(), Set.of()),
+                outcome,
+                true,
+                new ChallengeMmdMeta(),
+                UUID.randomUUID(),
+                snapshot,
+                DisclosureMode.LECTURER);
+
+        var field = result.get(0).attributes().stream()
+                .filter(attribute -> "field".equals(attribute.type()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("price: int (expected cost: double)", field.error());
+    }
+
+    @Test
     void studentMode_missingMmdRelation_doesNotRevealRubricEndpoints() {
         UUID classId = UUID.randomUUID();
         UUID relationId = UUID.randomUUID();

@@ -9,6 +9,11 @@ $backendTarget = Join-Path $repoRoot "backend\target"
 $frontendDist = Join-Path $repoRoot "frontend\dist-desktop"
 # Fixed path the web API streams (cwd = backend/ → target/OOP-AutoGrader-Practice.zip)
 $webDownloadZip = Join-Path $backendTarget "OOP-AutoGrader-Practice.zip"
+# Relative -OutputDir must not depend on the caller's cwd (or Push-Location during mvn).
+if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
+    $OutputDir = Join-Path $repoRoot $OutputDir
+}
+$OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 
 $desktopBackendJar = Join-Path $backendTarget "backend-1.0.0-desktop.jar"
 $workerJar = Join-Path $backendTarget "backend-1.0.0-worker.jar"

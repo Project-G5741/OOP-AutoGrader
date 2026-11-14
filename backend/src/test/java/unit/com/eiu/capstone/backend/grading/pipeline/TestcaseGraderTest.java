@@ -527,7 +527,8 @@ class TestcaseGraderTest {
                 "int",
                 "100",
                 ComparisonMode.EXACT,
-                0);
+                0,
+                List.of("balance", "funds"));
         TestcaseRubric testcase = new TestcaseRubric(
                 UUID.randomUUID(),
                 "deposit",
@@ -555,6 +556,9 @@ class TestcaseGraderTest {
         assertEquals("BankAccount", sent.receiverClassName());
         assertEquals(List.of(), sent.receiverParameterTypes());
         assertEquals("[]", sent.receiverParamsJson());
+        assertEquals(
+                List.of("balance", "funds"),
+                itemsCaptor.getValue().get(0).snapshotFieldAliases().get("balance"));
     }
 
     @Test
@@ -582,6 +586,42 @@ class TestcaseGraderTest {
                 itemsCaptor.capture());
         assertTrue(itemsCaptor.getValue().get(0).steps().get(1).paramsJson().contains("$instance"));
         assertTrue(itemsCaptor.getValue().get(0).steps().get(1).paramsJson().contains("eng"));
+    }
+
+    @Test
+    void compositionScopesSamePrimaryFieldNameAliasesByInvocation() {
+        UUID carId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        InvocationRubric car = constructorStep(carId, "Car", "[]", "car");
+        InvocationRubric account = constructorStep(accountId, "Account", "[]", "account");
+        AssertionRubric carValue = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.FIELD_STATE, carId, UUID.randomUUID(),
+                "value", "int", "5", ComparisonMode.EXACT, 0,
+                List.of("value", "velocity"));
+        AssertionRubric accountValue = new AssertionRubric(
+                UUID.randomUUID(), AssertionKind.FIELD_STATE, accountId, UUID.randomUUID(),
+                "value", "int", "75", ComparisonMode.EXACT, 1,
+                List.of("value", "funds"));
+        TestcaseRubric testcase = composition(
+                "scoped aliases", List.of(car, account), List.of(carValue, accountValue));
+        InvocationRunner runner = scenarioRunner(List.of(
+                InvocationOutcome.normal(null, "", false, Map.of("value", 5)),
+                InvocationOutcome.normal(null, "", false, Map.of("value", 75))));
+
+        TestcaseGrader.PendingTestcaseResult result = realGrader(runner)
+                .gradeSingle(testcase, context(testcase));
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        org.mockito.ArgumentCaptor<List<InvocationRunner.BatchItem>> itemsCaptor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(runner).invokeBatch(
+                org.mockito.ArgumentMatchers.any(),
+                itemsCaptor.capture());
+        InvocationRunner.BatchItem sent = itemsCaptor.getValue().get(0);
+        assertEquals(List.of("value", "velocity"),
+                sent.snapshotFieldAliasesByInvocation().get(carId).get("value"));
+        assertEquals(List.of("value", "funds"),
+                sent.snapshotFieldAliasesByInvocation().get(accountId).get("value"));
     }
 
     @Test

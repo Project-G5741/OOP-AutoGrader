@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import AliasListBox from './AliasListBox';
 
 export default function ParameterRows({ parameters = [], onChange, label = 'Parameters' }) {
   const updateParam = (index, patch) => {
@@ -10,7 +11,15 @@ export default function ParameterRows({ parameters = [], onChange, label = 'Para
   const addParam = () => {
     onChange([
       ...parameters,
-      { id: crypto.randomUUID(), name: '', dataType: '', orderIndex: parameters.length, isFinal: false },
+      {
+        id: crypto.randomUUID(),
+        name: '',
+        names: [''],
+        dataType: '',
+        dataTypes: [''],
+        orderIndex: parameters.length,
+        isFinal: false,
+      },
     ]);
   };
 
@@ -23,17 +32,23 @@ export default function ParameterRows({ parameters = [], onChange, label = 'Para
       <div className="text-xs font-medium uppercase tracking-wide text-foreground-secondary">{label}</div>
       {parameters.map((param, index) => (
         <div key={param.id || index} className="grid grid-cols-12 gap-2 items-center">
-          <input
-            className="col-span-5 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+          <AliasListBox
+            className="col-span-5"
             placeholder="name"
-            value={param.name}
-            onChange={(e) => updateParam(index, { name: e.target.value })}
+            ariaLabel={`Parameter ${index + 1} name`}
+            addLabel="Add name"
+            values={param.names}
+            fallback={param.name}
+            onChange={(names) => updateParam(index, { names, name: names[0] })}
           />
-          <input
-            className="col-span-6 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm dark:text-white"
+          <AliasListBox
+            className="col-span-6"
             placeholder="type"
-            value={param.dataType}
-            onChange={(e) => updateParam(index, { dataType: e.target.value })}
+            ariaLabel={`Parameter ${index + 1} datatype`}
+            addLabel="Add datatype"
+            values={param.dataTypes}
+            fallback={param.dataType}
+            onChange={(dataTypes) => updateParam(index, { dataTypes, dataType: dataTypes[0] })}
           />
           <button
             type="button"

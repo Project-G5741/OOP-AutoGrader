@@ -237,6 +237,7 @@ public final class MmdAstToParsedMapper {
                 ParsedConstructor ctor = new ParsedConstructor();
                 ctor.scope = scope;
                 ctor.parameterTypes = params.types();
+                ctor.parameterNames = params.names();
                 ctor.invalidDeclarationFormat = params.invalidDeclarationFormat();
                 current.constructors.add(ctor);
             } else {
@@ -246,6 +247,7 @@ public final class MmdAstToParsedMapper {
                 method.name = nameSuffix.value();
                 method.scope = scope;
                 method.parameterTypes = params.types();
+                method.parameterNames = params.names();
                 method.invalidDeclarationFormat = params.invalidDeclarationFormat();
                 method.isStatic = nameSuffix.isStatic() || returnClause.isStatic();
                 method.isAbstract = nameSuffix.isAbstract() || returnClause.isAbstract();
@@ -353,8 +355,9 @@ public final class MmdAstToParsedMapper {
 
     private ParameterListParse parseParameterTypes(String paramsPart) {
         if (paramsPart.isEmpty()) {
-            return new ParameterListParse(List.of(), false);
+            return new ParameterListParse(List.of(), List.of(), false);
         }
+        List<String> names = new ArrayList<>();
         List<String> types = new ArrayList<>();
         boolean invalid = false;
         for (String segment : splitParams(paramsPart)) {
@@ -363,12 +366,13 @@ public final class MmdAstToParsedMapper {
                 continue;
             }
             ParameterTypeParse parsed = extractParameterType(trimmed);
+            names.add(parsed.name());
             types.add(parsed.type());
             if (parsed.invalidDeclarationFormat()) {
                 invalid = true;
             }
         }
-        return new ParameterListParse(types, invalid);
+        return new ParameterListParse(names, types, invalid);
     }
 
     /**
@@ -382,25 +386,26 @@ public final class MmdAstToParsedMapper {
             String name = parseMermaidSuffixes(param.substring(0, colon).trim()).value();
             String type = parseMermaidSuffixes(param.substring(colon + 1).trim()).value();
             if (!name.isEmpty() && !type.isEmpty()) {
-                return new ParameterTypeParse(type, false);
+                return new ParameterTypeParse(name, type, false);
             }
-            return new ParameterTypeParse(type.isEmpty() ? name : type, true);
+            return new ParameterTypeParse(name, type.isEmpty() ? name : type, true);
         }
         int lastSpace = param.lastIndexOf(' ');
         if (lastSpace > 0) {
             String left = param.substring(0, lastSpace).trim();
             String right = param.substring(lastSpace + 1).trim();
             if (looksLikeType(left)) {
-                return new ParameterTypeParse(parseMermaidSuffixes(left).value(), true);
+                return new ParameterTypeParse(right, parseMermaidSuffixes(left).value(), true);
             }
-            return new ParameterTypeParse(parseMermaidSuffixes(right).value(), true);
+            return new ParameterTypeParse(left, parseMermaidSuffixes(right).value(), true);
         }
-        return new ParameterTypeParse(parseMermaidSuffixes(param).value(), true);
+        return new ParameterTypeParse("", parseMermaidSuffixes(param).value(), true);
     }
 
-    private record ParameterListParse(List<String> types, boolean invalidDeclarationFormat) {}
+    private record ParameterListParse(
+            List<String> names, List<String> types, boolean invalidDeclarationFormat) {}
 
-    private record ParameterTypeParse(String type, boolean invalidDeclarationFormat) {}
+    private record ParameterTypeParse(String name, String type, boolean invalidDeclarationFormat) {}
 
     private String stripLeadingStaticKeyword(String value) {
         if (value.regionMatches(true, 0, "static ", 0, 7)) {

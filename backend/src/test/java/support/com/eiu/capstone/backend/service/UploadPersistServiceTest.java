@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.eiu.capstone.backend.grading.GradingOutcome;
+import com.eiu.capstone.backend.grading.LabPillarScores;
 import com.eiu.capstone.backend.grading.GradingResultJdbcWriter;
 import com.eiu.capstone.backend.grading.GradingResultJdbcWriter.UploadWriteResult;
 import com.eiu.capstone.backend.grading.GradingResultStore;
@@ -76,7 +77,8 @@ class UploadPersistServiceTest {
 
         OffsetDateTime submittedAt = TimeUtil.nowInVietnam();
         when(jdbcWriter.persistUpload(eq(submissionId), eq(userId), eq(labId),
-                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null)))
+                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null),
+                eq(new LabPillarScores(null, null, null))))
                 .thenAnswer(invocation -> {
                     submission.setSubmittedAt(invocation.getArgument(4));
                     return new UploadWriteResult(2, submittedAt);
@@ -90,7 +92,8 @@ class UploadPersistServiceTest {
         InOrder order = inOrder(jdbcWriter, parsedSubmissionSnapshotStore, gradingResultStore);
         order.verify(jdbcWriter).persistUpload(
                 eq(submissionId), eq(userId), eq(labId),
-                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null));
+                eq(new BigDecimal("81.25")), any(), eq(List.of()), eq(null),
+                eq(new LabPillarScores(null, null, null)));
         order.verify(parsedSubmissionSnapshotStore).save(eq(submissionId), eq(Map.of()));
         order.verify(gradingResultStore).scheduleDetailPersist(submissionId, computed);
     }

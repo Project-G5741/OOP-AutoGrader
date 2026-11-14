@@ -14,7 +14,7 @@ const HEADER_CLASS =
 const HEADER_SPACER = <span className="mb-0.5 block h-4" aria-hidden="true" />;
 const CELL_CLASS = 'px-3 py-0 h-10 text-sm text-foreground align-middle';
 const PANEL_CLASS =
-  'flex h-full min-h-[240px] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-colors';
+  'flex h-full min-h-[240px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-stage-1 transition-colors';
 
 function LabScoreCell({ score, flagged, overlapPercent, plagiarismRole }) {
   const showOverlap = flagged && overlapPercent != null && overlapPercent > 0;

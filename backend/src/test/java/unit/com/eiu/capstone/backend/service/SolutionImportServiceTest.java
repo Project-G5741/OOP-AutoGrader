@@ -204,6 +204,39 @@ class SolutionImportServiceTest {
     }
 
     @Test
+    void reflectedMembers_importAsOneElementAliasLists() {
+        List<MultipartFile> files = List.of(javaFile("challenge_1/Aliases.java", """
+                public class Aliases {
+                    public double cost;
+                    public Aliases(int count) {}
+                    public float total(String label) { return 0; }
+                }
+                """));
+
+        SolutionImportResponse response = service.importSolution(LAB_ID, files);
+        var clazz = response.challenges().get(0).challenge().classes().stream()
+                .filter(c -> "Aliases".equals(c.name()))
+                .findFirst()
+                .orElseThrow();
+
+        var field = clazz.fields().get(0);
+        assertEquals(List.of(field.name()), field.names());
+        assertEquals(List.of(field.dataType()), field.dataTypes());
+
+        var method = clazz.methods().get(0);
+        assertEquals(List.of(method.name()), method.names());
+        assertEquals(List.of(method.returnType()), method.returnTypes());
+        assertEquals(List.of(method.parameters().get(0).name()), method.parameters().get(0).names());
+        assertEquals(List.of(method.parameters().get(0).dataType()), method.parameters().get(0).dataTypes());
+
+        var constructor = clazz.constructors().get(0);
+        assertEquals(List.of(constructor.parameters().get(0).name()),
+                constructor.parameters().get(0).names());
+        assertEquals(List.of(constructor.parameters().get(0).dataType()),
+                constructor.parameters().get(0).dataTypes());
+    }
+
+    @Test
     void simpleEnum_omitsCompilerConstructors() {
         List<MultipartFile> files = List.of(
                 javaFile("challenge_1/Color.java", "public enum Color { RED, GREEN }"));

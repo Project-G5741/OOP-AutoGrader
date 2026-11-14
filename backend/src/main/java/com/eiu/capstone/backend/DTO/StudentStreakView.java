@@ -13,5 +13,6 @@ public record StudentStreakView(
         int savedStreak,
         boolean canRestore,
         String equipped,
+        int gachaTickets,
         boolean missionCompletedNow) {
 }

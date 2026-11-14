@@ -47,4 +47,17 @@ class LocalDateCoercionTest {
         assertTrue(ValueComparator.matches("2024-06-13", expected, ComparisonMode.EXACT));
         assertEquals("\"2024-06-13\"", coercer.toJson(LocalDate.of(2024, 6, 13)));
     }
+
+    @Test
+    void unserializableObjectFallsBackToValidJsonString() throws Exception {
+        Object unserializable = new Object() {
+            @Override
+            public String toString() {
+                return "opaque-object";
+            }
+        };
+        String json = coercer.toJson(unserializable);
+        assertEquals("\"opaque-object\"", json);
+        assertEquals("opaque-object", new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).asText());
+    }
 }

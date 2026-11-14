@@ -44,6 +44,11 @@ final class SecurityAuthorizationProbes {
             return "ok";
         }
 
+        @GetMapping("/bulk-grading/current-term-student-irns")
+        String bulkCurrentTermStudentIrns() {
+            return "ok";
+        }
+
         @PostMapping("/labs/{labId}/solution-import")
         String solutionImport(@PathVariable UUID labId) {
             return "ok";

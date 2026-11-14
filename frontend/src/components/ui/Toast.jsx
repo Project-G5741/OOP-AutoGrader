@@ -1,10 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { CheckCircle, Warning, XCircle } from '@phosphor-icons/react';
 
 const VARIANTS = {
   success: 'border-success/40 bg-success-bg text-success-text',
   error: 'border-error/40 bg-error-bg text-error-text',
   warning: 'border-warning/40 bg-warning-bg text-warning-text',
+};
+
+const VARIANT_ICONS = {
+  success: CheckCircle,
+  error: XCircle,
+  warning: Warning,
 };
 
 const EXIT_MS = 300;
@@ -55,15 +62,18 @@ export default function Toast({
 
   if (!message) return null;
 
+  const ToastIcon = VARIANT_ICONS[type] || CheckCircle;
+
   return (
     <div
       role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
-      className={`${stacked ? 'w-full' : 'fixed right-10 top-16 z-[110]'} max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
+      className={`${stacked ? 'w-full' : 'fixed right-6 bottom-20 z-[110]'} max-w-sm rounded-xl border px-4 py-3 text-sm shadow-stage-2 ${
         exiting ? 'animate-toast-out' : 'animate-toast-in'
       } ${VARIANTS[type] || VARIANTS.success}`}
     >
       <div className="flex items-start gap-3">
-        <p className="min-w-0 flex-1">{message}</p>
+        <ToastIcon size={20} weight="duotone" className="mt-0.5 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 flex-1 font-medium">{message}</p>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {actionLabel ? (
             <button
@@ -130,7 +140,7 @@ export function ToastProvider({ children }) {
       {children}
       {toasts.length > 0 && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed right-10 top-16 z-[110] flex w-full max-w-sm flex-col gap-2">
+            <div className="fixed right-6 bottom-20 z-[110] flex w-full max-w-sm flex-col gap-2 pointer-events-none [&>*]:pointer-events-auto">
               {toasts.map((toast) => (
                 <Toast
                   key={toast.id}

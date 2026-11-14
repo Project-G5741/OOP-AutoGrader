@@ -112,6 +112,7 @@ public class SubmissionController {
                                  PlagiarismService plagiarismService,
                                  StudentTermAccessService studentTermAccessService,
                                  UploadPersistService uploadPersistService,
+                                 @Autowired(required = false)
                                  StudentStreakService studentStreakService,
                                  @Autowired(required = false)
                                  StudentDailySubmissionQuotaService dailySubmissionQuotaService,
@@ -237,8 +238,14 @@ public class SubmissionController {
             long gradeMs = System.currentTimeMillis() - gradeStart;
 
             if (principal.hasRole(JwtRoleNames.ADMIN)) {
+                GradingOutcome adminOutcome = withFullStudentTreesIfComputed(
+                        submission.getId(),
+                        rubric,
+                        gradingOutcome,
+                        compileErrorsByChallengeId(rubric, uploadResult.challenges),
+                        packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges));
                 return ResponseEntity.ok(discardedUploadResponse(
-                        submission, irn, requestId, attemptNumber, gradingOutcome));
+                        submission, irn, requestId, attemptNumber, adminOutcome));
             }
 
             long persistStart = System.currentTimeMillis();
@@ -248,10 +255,12 @@ public class SubmissionController {
             StudentLabProgress progress = persisted.progress();
             int assignedAttempt = submission.getAttemptNumber();
             long persistMs = System.currentTimeMillis() - persistStart;
-            try {
-                studentStreakService.recordSubmission(userAccount.getId());
-            } catch (RuntimeException streakError) {
-                System.out.printf("streak submit record failed user=%s%n", userAccount.getId());
+            if (studentStreakService != null) {
+                try {
+                    studentStreakService.recordSubmission(userAccount.getId());
+                } catch (RuntimeException streakError) {
+                    System.out.printf("streak submit record failed user=%s%n", userAccount.getId());
+                }
             }
 
             UUID persistedId = submission.getId();
@@ -259,6 +268,11 @@ public class SubmissionController {
                     compileErrorsByChallengeId(rubric, uploadResult.challenges);
             Map<UUID, String> packageNotices =
                     packageNormalizationNoticesByChallengeId(rubric, uploadResult.challenges);
+            boolean prunedByRetention = submissionRetentionService.willPruneLateUpload(submission);
+            var responseLabResult = prunedByRetention
+                    ? withFullStudentTreesIfComputed(
+                            persistedId, rubric, gradingOutcome, compileErrors, packageNotices).labResult()
+                    : gradingOutcome.labResult();
             var mmdMeta = gradingOutcome.mmdMetaByChallengeId();
             CompletableFuture.runAsync(() -> {
                 try {
@@ -306,7 +320,7 @@ public class SubmissionController {
                     progress.getLastSubmittedAt() == null
                             ? null
                             : TimeUtil.formatLatestSubmission(progress.getLastSubmittedAt()),
-                    gradingOutcome.labResult()
+                    responseLabResult
             ));
         } finally {
             if (submissionFolderToDelete != null) {
@@ -314,6 +328,33 @@ public class SubmissionController {
                 CompletableFuture.runAsync(() -> submissionStorageService.deleteFolder(folder), persistExecutor);
             }
         }
+    }
+
+    /**
+     * Student uploads that will not stay persisted (Admin dry uploads or late uploads immediately
+     * deleted by retention) cannot fetch sidecar /class, /mmd, or /testcases rows afterwards, so
+     * keep full student-safe detail trees in the upload response.
+     */
+    private GradingOutcome withFullStudentTreesIfComputed(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingOutcome outcome,
+            Map<UUID, ChallengeCompileErrors> compileErrors,
+            Map<UUID, String> packageNotices) {
+        if (outcome == null || outcome.computed() == null) {
+            return outcome;
+        }
+        var full = gradingService.assembleStudentResult(
+                submissionId, rubric, outcome, compileErrors, packageNotices, false);
+        if (full == null || full.isEmpty()) {
+            return outcome;
+        }
+        return new GradingOutcome(
+                outcome.overallScore(),
+                outcome.gradedChallenges(),
+                outcome.mmdMetaByChallengeId(),
+                full,
+                outcome.computed());
     }
 
     private SubmissionUploadResponse discardedUploadResponse(
@@ -343,7 +384,8 @@ public class SubmissionController {
                 attemptNumber,
                 attemptNumber,
                 latest,
-                gradingOutcome.labResult());
+                gradingOutcome.labResult(),
+                false);
     }
 
     private void scheduleSubmissionRetention(LabSubmission submission) {

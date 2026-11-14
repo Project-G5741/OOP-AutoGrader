@@ -111,12 +111,13 @@
   position: absolute;
   left: 50%;
   top: 8px;
-  width: 40px;
-  height: 40px;
-  margin-left: -20px;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 146, 43, .35), transparent);
-  transition: opacity .6s, transform .6s;
+  background: var(--gold-bg);
+  opacity: 0.7;
+  transition: opacity .4s, transform .4s;
   pointer-events: none;
 }
 
@@ -125,9 +126,9 @@
   right: 0;
   top: calc(100% + 8px);
   z-index: 60;
-  width: min(18rem, calc(100vw - 2rem));
-  padding: 14px;
-  border-radius: 18px;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 16px;
+  border-radius: 20px;
   background: var(--ux-surface);
   color: var(--ux-ink);
   border: 1px solid var(--ux-line);
@@ -177,19 +178,148 @@
   color: var(--ux-ink-2);
 }
 
+.u379-ticket-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--ux-surface-2);
+  border: 1px solid var(--ux-line);
+}
+
+.u379-ticket-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.u379-ticket-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.u379-ticket-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.u379-ticket-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ux-ink-3);
+}
+
+.u379-ticket-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.u379-ticket-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ux-ink-2);
+}
+
+.u379-gacha-btn {
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.u379-gacha-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
 .u379-missions {
   display: grid;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .u379-mission {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ux-line);
+}
+
+.u379-mission:last-child {
+  border-bottom: none;
+}
+
+.u379-mission-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.u379-mission-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.u379-mission-title {
+  font-size: 12px;
   font-weight: 700;
   color: var(--ux-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.u379-mission-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ux-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.u379-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  background: var(--ux-surface-2);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.u379-badge.is-done {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.u379-badge.is-gold {
+  background: color-mix(in srgb, var(--gold) 15%, transparent);
+  color: var(--warning-text, #B45309);
+  border-color: color-mix(in srgb, var(--gold) 35%, transparent);
 }
 
 .u379-dt {
@@ -204,7 +334,7 @@
 
 .u379-dt.is-on {
   border: 0;
-  background: linear-gradient(135deg, #FF922B, #F03E3E);
+  background: var(--gold);
   animation: u379-pop .45s cubic-bezier(.3, 1.8, .5, 1);
 }
 
@@ -240,13 +370,19 @@
   border: 0;
   padding: 9px 20px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #FF922B, #F03E3E);
+  background: var(--gold);
   color: #fff;
   font: inherit;
   font-size: 13px;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 8px 18px -8px rgba(240, 62, 62, .7);
+  box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--gold) 65%, transparent);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.u379-go:hover:not(:disabled) {
+  background: var(--gold-hover);
+  transform: translateY(-1px);
 }
 
 .u379-go:focus-visible {

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.ChallengeDetailBundleDTO;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ChallengePipelineResult;
 import com.eiu.capstone.backend.grading.pipeline.GradingPipeline.ClassMmdPhaseResult;
@@ -102,7 +103,7 @@ public class GradingService {
                           @Qualifier("workerJvmSlot") Semaphore workerJvmSlot,
                           WorkerSessionFactory workerSessionFactory,
                           SharedLocalWorkerCache sharedLocalWorkerCache,
-                          @Value("${app.grading.testcase-invoke-timeout-seconds:5}") int invokeTimeoutSeconds,
+                          @Value("${app.grading.testcase-invoke-timeout-seconds:3}") int invokeTimeoutSeconds,
                           @Value("${app.grading.ot-batch-parallelism:0}") int otBatchParallelism,
                           @Value("${app.grading.timing-log:false}") boolean timingLog) {
         this.challengeRepository = challengeRepository;
@@ -198,6 +199,26 @@ public class GradingService {
                 computed.mmdMetaByChallengeId,
                 labResult,
                 computed);
+    }
+
+    public Map<String, ChallengeDetailBundleDTO> assembleStudentResult(
+            UUID submissionId,
+            LabRubricSnapshot rubric,
+            GradingOutcome outcome,
+            Map<UUID, ChallengeCompileErrors> compileErrorsByChallengeId,
+            Map<UUID, String> normalizationNoticesByChallengeId,
+            boolean thinTrees) {
+        if (outcome == null || outcome.computed() == null) {
+            return outcome != null ? outcome.labResult() : Map.of();
+        }
+        return labResultAssembler.assemble(
+                submissionId,
+                rubric,
+                outcome.computed(),
+                compileErrorsByChallengeId,
+                normalizationNoticesByChallengeId,
+                DisclosureMode.STUDENT,
+                thinTrees);
     }
 
     private static ExistingResults emptyExistingResults() {
@@ -355,13 +376,17 @@ public class GradingService {
                 String mmdOutcomesJson = cc.mmdApplicable && cc.mmdResult != null
                         ? MmdOutcomesCodec.toJson(cc.mmdResult.outcome())
                         : null;
-                result.challengeResults.add(buildChallengeResult(
+                SubmissionChallengeResult challengeRow = buildChallengeResult(
                         existing.challengeResults,
                         submission,
                         cc.pendingChallenge.challengeId(),
                         cc.pendingChallenge.correct(),
                         challengeScore,
-                        mmdOutcomesJson));
+                        mmdOutcomesJson);
+                challengeRow.setMmdScore(cc.mmdApplicable ? zeroPillar(cc.mmdPillarPct) : null);
+                challengeRow.setDeclarationScore(cc.classApplicable ? zeroPillar(cc.classPillarPct) : null);
+                challengeRow.setOperationalScore(cc.testcaseApplicable ? zeroPillar(cc.testcasePillarPct) : null);
+                result.challengeResults.add(challengeRow);
             }
             if (cc.challengeNumber != null && cc.percentage != null) {
                 percentagesByChallengeNumber.put(cc.challengeNumber, cc.percentage);
@@ -401,7 +426,15 @@ public class GradingService {
         }
 
         result.overallScore = PillarScoreAggregator.weightedLabPercentage(overallChallengeScores);
+        LabPillarScores pillars = LabPillarScores.rollup(rubric, result.pillarScoresByChallengeNumber);
+        result.mmdScore = pillars.mmdScore();
+        result.declarationScore = pillars.declarationScore();
+        result.operationalScore = pillars.operationalScore();
         return result;
+    }
+
+    private static BigDecimal zeroPillar(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private ChallengeComputation gradeChallengeFolder(
@@ -699,6 +732,9 @@ public class GradingService {
         List<BigDecimal> challengePercentages;
         List<GradedChallengeSummary> gradedChallenges;
         BigDecimal overallScore;
+        public BigDecimal mmdScore;
+        public BigDecimal declarationScore;
+        public BigDecimal operationalScore;
         public Map<UUID, com.eiu.capstone.backend.service.SubmissionMmdMetaStore.ChallengeMmdMeta> mmdMetaByChallengeId;
         public Map<Integer, PillarScoreBreakdown> pillarScoresByChallengeNumber;
         public Map<Integer, MmdPillarGrader.MmdPillarResult> mmdResultsByChallengeNumber;

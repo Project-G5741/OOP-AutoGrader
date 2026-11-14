@@ -45,6 +45,23 @@ class GradeOverviewOfficialTotalTest {
     }
 
     @Test
+    void averageApplicable_skipsPracticeAndMissingPillar() {
+        BigDecimal total = GradeOverviewOfficialTotal.averageApplicable(
+                Arrays.asList("Official", "Official", "Practice"),
+                Arrays.asList(new BigDecimal("80"), null, new BigDecimal("10")),
+                Arrays.asList(true, false, true));
+        assertEquals(new BigDecimal("80.00"), total);
+    }
+
+    @Test
+    void averageApplicable_isNullWhenASubmittedPillarIsUnknown() {
+        assertNull(GradeOverviewOfficialTotal.averageApplicable(
+                Arrays.asList("Official", "Official"),
+                Arrays.asList(new BigDecimal("80"), null),
+                Arrays.asList(true, true)));
+    }
+
+    @Test
     void average_countsUnsubmittedOfficialAsZero() {
         BigDecimal total = GradeOverviewOfficialTotal.average(
                 Arrays.asList("Official", "Official"),

@@ -1,5 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
-import { useTheme } from '../context/ThemeContext';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '../components/ui/Toast';
 import AppShell from '../components/layout/AppShell';
 import UserStats from '../components/UserStats';
@@ -67,7 +66,6 @@ function readIsActive(user) {
 }
 
 export default function UserManagement({ hideNav = false, user, onLogout, noShell = false }) {
-  const { isDark } = useTheme();
   const showToast = useToast();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
@@ -435,7 +433,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   );
 
   return (
-    <div className={isDark ? 'dark' : ''}>
+    <>
       {noShell ? (
         inner
       ) : (
@@ -466,6 +464,6 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         onRoleToggle={handleRoleToggle}
         canAssignAdmin={actorIsAdmin}
       />
-    </div>
+    </>
   );
 }

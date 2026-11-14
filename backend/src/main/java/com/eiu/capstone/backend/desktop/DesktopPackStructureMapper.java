@@ -23,8 +23,6 @@ import com.eiu.capstone.backend.DTO.rubric.testcase.InstanceStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.InvocationStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.testcase.TestcaseStructureDTO;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackLabMeta;
-import com.eiu.capstone.backend.desktop.pack.DesktopPackLabEntry;
-import com.eiu.capstone.backend.desktop.pack.DesktopPackLabMeta;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
@@ -34,6 +32,7 @@ import com.eiu.capstone.backend.grading.rubric.InstanceRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.ParameterRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 
@@ -140,19 +139,25 @@ public class DesktopPackStructureMapper {
                 field.dataType(),
                 field.scope() == null ? null : masterData.scopeId(field.scope()),
                 field.isStatic(),
-                field.isFinal());
+                field.isFinal(),
+                field.names(),
+                field.dataTypes());
     }
 
     private MethodStructureDTO toMethod(MethodRubric method) {
         List<ParameterStructureDTO> parameters = new ArrayList<>();
-        List<String> types = method.parameterTypes() == null ? List.of() : method.parameterTypes();
-        for (int i = 0; i < types.size(); i++) {
+        List<ParameterRubric> parameterRubrics =
+                method.parameters() == null ? List.of() : method.parameters();
+        for (int i = 0; i < parameterRubrics.size(); i++) {
+            var parameter = parameterRubrics.get(i);
             parameters.add(new ParameterStructureDTO(
                     UUID.randomUUID(),
-                    "arg" + i,
-                    types.get(i),
+                    parameter.name(),
+                    parameter.dataType(),
                     i,
-                    method.isFinal()));
+                    method.isFinal(),
+                    parameter.names(),
+                    parameter.dataTypes()));
         }
         return new MethodStructureDTO(
                 method.id(),
@@ -161,19 +166,25 @@ public class DesktopPackStructureMapper {
                 masterData.scopeId(method.scope()),
                 method.isStatic(),
                 method.isAbstract(),
-                parameters);
+                parameters,
+                method.names(),
+                method.returnTypes());
     }
 
     private ConstructorStructureDTO toConstructor(ConstructorRubric constructor) {
         List<ParameterStructureDTO> parameters = new ArrayList<>();
-        List<String> types = constructor.parameterTypes() == null ? List.of() : constructor.parameterTypes();
-        for (int i = 0; i < types.size(); i++) {
+        List<ParameterRubric> parameterRubrics =
+                constructor.parameters() == null ? List.of() : constructor.parameters();
+        for (int i = 0; i < parameterRubrics.size(); i++) {
+            var parameter = parameterRubrics.get(i);
             parameters.add(new ParameterStructureDTO(
                     UUID.randomUUID(),
-                    "arg" + i,
-                    types.get(i),
+                    parameter.name(),
+                    parameter.dataType(),
                     i,
-                    false));
+                    false,
+                    parameter.names(),
+                    parameter.dataTypes()));
         }
         return new ConstructorStructureDTO(
                 constructor.id(),

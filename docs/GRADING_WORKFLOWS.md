@@ -602,7 +602,7 @@ Each dry-run or student-upload OT batch:
 
 1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot when any challenge has OT; dry-run always acquires. Class `--reflect` also acquires the same slot. Local path borrows from `SharedLocalWorkerCache` (default close-on-release / `worker-idle-ttl-ms=0`; optional positive TTL) after the slot; sandbox sessions are never cached.
 2. Sends one NDJSON `batch` for all runnable OT in the grade call (lab-wide for upload/bulk; one item for dry-run). Each item may carry its own `classesDir`. The worker runs items on a CPU-capped pool with a per-item platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
-3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **5s**) per batch item as **execution** wall-clock; the API transport wait adds 30s return slack. On outer hang the API tree-kills and respawns without releasing the host slot.
+3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **3s**) per batch item as **execution** wall-clock; the API transport wait adds 30s return slack. On outer hang the API tree-kills and respawns without releasing the host slot.
 
 At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab parse prefers worker `--reflect` (in-process fallback if the JAR is missing or reflect fails). Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
@@ -720,7 +720,7 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; upload/bulk/dry-run acquire on the HTTP thread |
 | (fixed) | 2, not CPU-capped | `rubricOverlapExecutor` | Upload rubric cache load overlapping compile |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, sidecars, plagiarism inspect, temp delete |
-| `app.grading.testcase-invoke-timeout-seconds` | 5 | — | Per-batch-item student-code execution timeout (transport wait adds 30s slack) |
+| `app.grading.testcase-invoke-timeout-seconds` | 3 | — | Per-batch-item student-code execution timeout (transport wait adds 30s slack) |
 | `app.grading.ot-batch-parallelism` | 0 | — | Cap in-worker OT pool (0 = `availableProcessors()`) |
 | `app.grading.worker-jar` | `/app/worker.jar` | — | Thin worker JAR |
 | `app.grading.worker-java` | `java` | — | Java binary used to spawn the worker |

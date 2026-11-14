@@ -55,3 +55,8 @@ Student UI uses **latest attempt** per lab, not `highest_score` from progress ro
 - Backend: copy `backend/.env.backend.example` → `backend/.env`
 - Frontend: copy `frontend/.env.example` → `frontend/.env`
 - Swagger: `http://localhost:8002/swagger-ui/index.html`
+
+## Desktop profile (Offline practice app)
+- For every web changes, also consider if that changes should also be applied to desktop profile. DO NOT assumpt, ask if encounter ambiguity.
+- For every desktop profile changes, update the zip under backend/target.
+- Critical: Grading logic between student dashboard, bulk grading and offline practice MUST be the same.

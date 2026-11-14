@@ -1,7 +1,7 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, Store, Trophy } from 'lucide-react';
+import { Clock, Home, Store, Trophy, Sparkles } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
@@ -10,6 +10,9 @@ import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
 import MascotShop from '../components/student/MascotShop';
+import MascotGachaModal from '../components/student/MascotGachaModal';
+
+import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
@@ -91,6 +94,11 @@ function mergeTestcaseBundle(challengeId, testcaseJson, cacheRef) {
   return mapped;
 }
 
+function bundleClassList(bundle) {
+  const classes = bundle?.class ?? bundle?.classData;
+  return Array.isArray(classes) ? classes : [];
+}
+
 function applyChallengeBundle(bundle) {
   if (!bundle) {
     return { classData: [], mmdData: [], mmdParseError: null, testCases: [], normalizationNotice: null };
@@ -100,7 +108,7 @@ function applyChallengeBundle(bundle) {
     || bundle.score_applicability?.testcase === true
     || (Array.isArray(bundle.testcases) && bundle.testcases.length > 0);
   return {
-    classData: normalizeClassData(bundle.class ?? []),
+    classData: normalizeClassData(bundleClassList(bundle)),
     mmdData: mmd.classes,
     mmdParseError: mmd.parseError,
     testCases: testcaseApplicable ? mapOperationalTestcases(bundle.testcases) : [],
@@ -142,10 +150,11 @@ function applyCachedBundleToState(
 function indexLabResultByChallengeId(labResult, challenges) {
   if (!labResult) return {};
   const indexed = {};
-  for (const challenge of challenges) {
-    const challengeNumber = challenge.challengeNumber ?? challenge.challenge_number;
+  for (const challenge of challenges ?? []) {
+    const challengeNumber = challenge.challengeNumber ?? challenge.challenge_number ?? challenge.number;
     if (challengeNumber == null) continue;
-    const bundle = labResult[`challenge_${challengeNumber}`];
+    const bundle = labResult[`challenge_${challengeNumber}`]
+      ?? labResult[`challenge_${Number(challengeNumber)}`];
     if (bundle) {
       indexed[challengeCacheKey(challenge.id)] = bundle;
     }
@@ -166,7 +175,7 @@ function isThinChallengeBundle(bundle) {
   if (!bundle) {
     return true;
   }
-  const classes = bundle.class ?? [];
+  const classes = bundleClassList(bundle);
   const mmdClasses = bundle.mmd?.classes ?? (Array.isArray(bundle.mmd) ? bundle.mmd : []);
   const testcases = bundle.testcases ?? [];
   const applicability = bundle.scoreApplicability ?? bundle.score_applicability ?? {};
@@ -197,10 +206,14 @@ function detailCachesReady(challengeId, bundle, classCache, mmdCache, testcaseCa
   const applicability = bundle?.scoreApplicability ?? bundle?.score_applicability ?? {};
   const classes = classCache[key] ?? [];
   const mmdClasses = mmdCache[key]?.classes ?? [];
+  const testcases = testcaseCache[key] ?? [];
   if (applicability.class !== false && classes.length === 0) {
     return false;
   }
   if (applicability.mmd === true && mmdClasses.length === 0) {
+    return false;
+  }
+  if (applicability.testcase === true && testcases.length === 0) {
     return false;
   }
   return true;
@@ -263,7 +276,72 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
+  const [showGacha, setShowGacha] = useState(false);
+  const [crystals, setCrystals] = useState(() => {
+    const saved = localStorage.getItem('gacha_demo_crystals');
+    return saved !== null ? parseInt(saved, 10) : 0;
+  });
+  const [ownedMascots, setOwnedMascots] = useState(() => {
+    try {
+      const saved = localStorage.getItem('oop_student_owned_mascots');
+      return saved ? JSON.parse(saved) : ['fox'];
+    } catch {
+      return ['fox'];
+    }
+  });
+
+  const handleCrystalsChange = useCallback((val) => {
+    setCrystals(val);
+    localStorage.setItem('gacha_demo_crystals', val);
+  }, []);
+
+  const [tickets, setTickets] = useState(() => {
+    const saved = localStorage.getItem('gacha_demo_tickets');
+    return saved !== null ? parseInt(saved, 10) : 15;
+  });
+  const ticketsRef = useRef(tickets);
+
+  const handleTicketsChange = useCallback((val) => {
+    const prev = ticketsRef.current;
+    ticketsRef.current = val;
+    setTickets(val);
+    localStorage.setItem('gacha_demo_tickets', val);
+    if (IS_DESKTOP_APP || val >= prev) return;
+    const count = prev - val;
+    apiFetch(`${API_BASE}/api/students/streak/gacha-spend`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        ticketsRef.current = prev;
+        setTickets(prev);
+        localStorage.setItem('gacha_demo_tickets', prev);
+        return;
+      }
+      const body = await response.json();
+      if (typeof body.gachaTickets === 'number') {
+        ticketsRef.current = body.gachaTickets;
+        setTickets(body.gachaTickets);
+        localStorage.setItem('gacha_demo_tickets', body.gachaTickets);
+      }
+    }).catch(() => {
+      ticketsRef.current = prev;
+      setTickets(prev);
+      localStorage.setItem('gacha_demo_tickets', prev);
+    });
+  }, []);
+
+  const handleOwnedMascotsChange = useCallback((val) => {
+    setOwnedMascots(val);
+    localStorage.setItem('oop_student_owned_mascots', JSON.stringify(val));
+  }, []);
+  const [equippedMascot, setEquippedMascot] = useState(() => {
+    return localStorage.getItem('oop_student_equipped_mascot') || 'fox';
+  });
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
+  const [mascotSpeech, setMascotSpeech] = useState(null);
+  const [activeMascotSkill, setActiveMascotSkill] = useState(null);
   const [streak, setStreak] = useState(null);
   const [awardPulse, setAwardPulse] = useState(0);
   const [restoringStreak, setRestoringStreak] = useState(false);
@@ -285,11 +363,26 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
       setAwardPulse((value) => value + 1);
     }
-    streakSnapshot.current = next;
-    setStreak(next);
+
+    if (typeof next?.gachaTickets === 'number') {
+      ticketsRef.current = next.gachaTickets;
+      setTickets(next.gachaTickets);
+      localStorage.setItem('gacha_demo_tickets', next.gachaTickets);
+    }
+
+    const serverEquipped = next?.equipped || 'fox';
+    if (next) {
+      setEquippedMascot(serverEquipped);
+      localStorage.setItem('oop_student_equipped_mascot', serverEquipped);
+    }
+
+    const mergedNext = next ? { ...next, equipped: serverEquipped } : next;
+    streakSnapshot.current = mergedNext;
+    setStreak(mergedNext);
   }, [showToast]);
 
   const refreshStreak = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     try {
       const response = await apiFetch(`${API_BASE}/api/students/streak`, {
         headers: authHeaders(),
@@ -306,6 +399,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [refreshStreak]);
 
   const petFox = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
+    const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
+    const speechText = getRandomDialogue(equippedId, 'pet');
+    setMascotSpeech({ text: speechText, type: 'pet' });
+
     const goal = streakSnapshot.current?.petGoal ?? 4;
     if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
     try {
@@ -324,6 +422,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [applyStreak, showToast]);
 
   const restoreStreak = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     setRestoringStreak(true);
     try {
       const response = await apiFetch(`${API_BASE}/api/students/streak/restore`, {
@@ -596,30 +695,47 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         ? mergeTestcaseBundle(key, testcaseJson, labResultCacheRef)
         : [];
 
+      const inlineBundle = labResultCacheRef.current[key];
+      const existingBundle = inlineBundle ? applyChallengeBundle(inlineBundle) : null;
+      const resolvedClassData = classRes.ok && (parsedClass.classData.length > 0 || !existingBundle?.classData?.length)
+        ? parsedClass.classData
+        : (existingBundle?.classData?.length ? existingBundle.classData : parsedClass.classData);
+      const resolvedClassNotice = classRes.ok && (parsedClass.normalizationNotice != null || existingBundle?.normalizationNotice == null)
+        ? parsedClass.normalizationNotice
+        : (existingBundle?.normalizationNotice ?? parsedClass.normalizationNotice);
+      const resolvedMmd = mmdRes.ok && (parsedMmd.classes.length > 0 || parsedMmd.parseError != null || !existingBundle?.mmdData?.length)
+        ? parsedMmd
+        : (existingBundle?.mmdData?.length
+          ? { classes: existingBundle.mmdData, parseError: existingBundle.mmdParseError }
+          : parsedMmd);
+      const resolvedTestcases = testcaseRes.ok && (mappedTestcases.length > 0 || !existingBundle?.testCases?.length)
+        ? mappedTestcases
+        : (existingBundle?.testCases?.length ? existingBundle.testCases : mappedTestcases);
+
       // Only cache successful responses — never poison the cache with !ok empties.
-      if (classRes.ok) {
-        classDataCacheRef.current[key] = parsedClass.classData;
-        classNoticeCacheRef.current[key] = parsedClass.normalizationNotice;
+      if (classRes.ok || resolvedClassData.length > 0) {
+        classDataCacheRef.current[key] = resolvedClassData;
+        classNoticeCacheRef.current[key] = resolvedClassNotice;
       } else {
         delete classDataCacheRef.current[key];
         delete classNoticeCacheRef.current[key];
       }
-      if (mmdRes.ok) {
-        mmdDataCacheRef.current[key] = parsedMmd;
+      if (mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null) {
+        mmdDataCacheRef.current[key] = resolvedMmd;
       } else {
         delete mmdDataCacheRef.current[key];
       }
-      if (testcaseRes.ok) {
-        testcaseDataCacheRef.current[key] = mappedTestcases;
+      if (testcaseRes.ok || resolvedTestcases.length > 0) {
+        testcaseDataCacheRef.current[key] = resolvedTestcases;
       } else {
         delete testcaseDataCacheRef.current[key];
       }
       if (applyToUi) {
-        setClassData(classRes.ok ? parsedClass.classData : []);
-        setClassNormalizationNotice(classRes.ok ? parsedClass.normalizationNotice : null);
-        setMmdData(mmdRes.ok ? parsedMmd.classes : []);
-        setMmdParseError(mmdRes.ok ? parsedMmd.parseError : null);
-        setTestCases(testcaseRes.ok ? mappedTestcases : []);
+        setClassData(classRes.ok || resolvedClassData.length > 0 ? resolvedClassData : []);
+        setClassNormalizationNotice(classRes.ok || resolvedClassData.length > 0 ? resolvedClassNotice : null);
+        setMmdData(mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null ? resolvedMmd.classes : []);
+        setMmdParseError(mmdRes.ok || resolvedMmd.classes.length > 0 || resolvedMmd.parseError != null ? resolvedMmd.parseError : null);
+        setTestCases(testcaseRes.ok || resolvedTestcases.length > 0 ? resolvedTestcases : []);
       }
     } catch (err) {
       console.error('Failed to fetch challenge details:', err);
@@ -651,6 +767,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [fetchChallengeDetails]);
 
   const fetchLabSummaries = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
     const token = getAccessToken();
     if (!token) {
       setLabSummariesById({});
@@ -704,7 +821,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
     fetchLabs();
-    if (!showHistory && !showRanking && inCurrentTerm) {
+    if (!IS_DESKTOP_APP && !showHistory && !showRanking && inCurrentTerm) {
       fetchLabSummaries();
     }
   }, [fetchLabSummaries, inCurrentTerm, showHistory, showRanking]);
@@ -790,8 +907,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
 
     const selectedKey = challengeCacheKey(selectedChallengeId);
+    const inlineOnly = labSession?.persisted === false;
     const cachedBundle = labResultCacheRef.current[selectedKey];
-    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
+    if (cachedBundle && (inlineOnly || !isThinChallengeBundle(cachedBundle))) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -799,6 +917,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           setMmdParseError,
           setTestCases,
           setClassNormalizationNotice);
+      return;
+    }
+    if (inlineOnly) {
+      applyDetailCachesToState(selectedKey);
       return;
     }
 
@@ -889,8 +1011,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       return;
     }
     const key = challengeCacheKey(challengeId);
+    const inlineOnly = sessionResultsByLab[selectedLabId]?.persisted === false;
     const cachedBundle = labResultCacheRef.current[key];
-    if (cachedBundle && !isThinChallengeBundle(cachedBundle)) {
+    if (cachedBundle && (inlineOnly || !isThinChallengeBundle(cachedBundle))) {
       applyCachedBundleToState(
           cachedBundle,
           setClassData,
@@ -898,6 +1021,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           setMmdParseError,
           setTestCases,
           setClassNormalizationNotice);
+      return;
+    }
+    if (inlineOnly) {
+      applyDetailCachesToState(key);
       return;
     }
     if (detailCachesReady(
@@ -968,6 +1095,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const submissionId = uploadResponse?.submissionId ?? null;
 
     const labResult = uploadResponse?.lab_result ?? uploadResponse?.labResult ?? null;
+    const inlineOnly = uploadResponse?.persisted === false;
 
     const scoreToast = {
       message: score != null
@@ -976,7 +1104,37 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       type: 'success',
     };
     void refreshStreak();
-    const indexedLabResult = indexLabResultByChallengeId(labResult, challenges);
+
+    // Trigger tier-specific mascot reaction & dialogue based on submission score
+    if (!IS_DESKTOP_APP) {
+      const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
+      const hasCompileErr = labResultHasCompileError(labResult);
+
+      const profile = getMascotProfile(equippedId);
+      if (score === 100) {
+        const speechText = getRandomDialogue(equippedId, 'perfect');
+        setMascotSpeech({ text: speechText, type: 'perfect' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      } else if (score != null && score >= 75) {
+        const speechText = getRandomDialogue(equippedId, 'good');
+        setMascotSpeech({ text: speechText, type: 'good' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      } else if ((score != null && score < 75) || hasCompileErr) {
+        const speechText = getRandomDialogue(equippedId, 'retry');
+        setMascotSpeech({ text: speechText, type: 'retry' });
+        if (profile?.skillType) {
+          setActiveMascotSkill(profile.skillType);
+        }
+      }
+    }
+    const challengeList = (challenges && challenges.length > 0)
+      ? challenges
+      : (challengesByLabRef.current[selectedLabId] ?? []);
+    const indexedLabResult = indexLabResultByChallengeId(labResult, challengeList);
     const challengeScores = {
       ...normalizeChallengeScores(resultMap),
       ...challengeScoresFromBundles(indexedLabResult),
@@ -1012,6 +1170,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           : null,
         challengeScores,
         challengeBundles: indexedLabResult,
+        persisted: !inlineOnly,
       },
     }));
 
@@ -1038,25 +1197,27 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setIsRefreshingResults(true);
     setIsLoadingDetails(false);
     try {
-      const needsSidecar = Object.values(indexedLabResult).some((bundle) => isThinChallengeBundle(bundle));
-      if (needsSidecar) {
-        await prefetchAllChallengeDetails(selectedLabId, challenges, {
+      for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
+        if (!bundle || (!inlineOnly && isThinChallengeBundle(bundle))) continue;
+        const key = challengeCacheKey(challengeId);
+        const applied = applyChallengeBundle(bundle);
+        classDataCacheRef.current[key] = applied.classData;
+        classNoticeCacheRef.current[key] = applied.normalizationNotice;
+        mmdDataCacheRef.current[key] = {
+          classes: applied.mmdData,
+          parseError: applied.mmdParseError,
+        };
+        testcaseDataCacheRef.current[key] = applied.testCases;
+      }
+      const thinChallenges = inlineOnly ? [] : (challengeList ?? []).filter((ch) => {
+        const key = challengeCacheKey(ch?.id);
+        return key && hasSessionChallengeScore(challengeScores, ch?.id) && isThinChallengeBundle(indexedLabResult[key]);
+      });
+      if (thinChallenges.length > 0) {
+        await prefetchAllChallengeDetails(selectedLabId, thinChallenges, {
           submissionId,
           challengeScores,
         });
-      } else {
-        for (const [challengeId, bundle] of Object.entries(indexedLabResult)) {
-          if (!bundle || isThinChallengeBundle(bundle)) continue;
-          const key = challengeCacheKey(challengeId);
-          const applied = applyChallengeBundle(bundle);
-          classDataCacheRef.current[key] = applied.classData;
-          classNoticeCacheRef.current[key] = applied.normalizationNotice;
-          mmdDataCacheRef.current[key] = {
-            classes: applied.mmdData,
-            parseError: applied.mmdParseError,
-          };
-          testcaseDataCacheRef.current[key] = applied.testCases;
-        }
       }
       if (
         selectedChallengeId
@@ -1116,18 +1277,21 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
-    } else if (cmd === 'mascotShop') {
+    } else if (cmd === 'mascotShop' && !IS_DESKTOP_APP) {
       setShowMascotShop(true);
     }
   };
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
+    const equipped = shop.equipped || 'fox';
+    localStorage.setItem('oop_student_equipped_mascot', equipped);
+    setEquippedMascot(equipped);
     const prev = streakSnapshot.current;
     const next = {
       ...(prev || {}),
       points: shop.points,
-      equipped: shop.equipped || 'fox',
+      equipped,
     };
     streakSnapshot.current = next;
     setStreak(next);
@@ -1160,8 +1324,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
           <DesktopRubricPackImport onToast={showToast} />
         ) : null}
-        headerBeforeUserMenu={
-          <div className="flex shrink-0 items-center gap-1">
+        headerBeforeUserMenu={!IS_DESKTOP_APP ? (
+          <div className="flex shrink-0 items-center gap-1.5">
             <StudentStreakFlame
               streak={streak?.streak ?? 0}
               loggedIn={Boolean(streak?.loggedIn)}
@@ -1176,7 +1340,21 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               awardPulse={awardPulse}
               restoring={restoringStreak}
               onRestore={restoreStreak}
+              tickets={tickets}
+              onOpenGacha={() => setShowGacha(true)}
             />
+            <button
+              type="button"
+              onClick={() => setShowGacha(true)}
+              aria-label={`Vòng quay Gacha Tinh Thể. Hiện có ${tickets} vé.`}
+              className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Gacha</span>
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-extrabold text-white">
+                {tickets}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => setShowMascotShop(true)}
@@ -1187,17 +1365,23 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               <span className="tabular-nums">{formatNumber(streak?.points ?? 0)}</span>
             </button>
           </div>
-        }
-        headerAddon={
-          <button
-            type="button"
-            className="-my-1 shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label={`Pet the ${mascotArt(streak?.equipped || 'fox').name}. ${Math.min(streak?.petCount ?? 0, streak?.petGoal ?? 4)} of ${streak?.petGoal ?? 4} pets today.`}
-            onClick={petFox}
-          >
-            <StudentFoxMascot size={56} coverEyes={foxCoverEyes} mascotId={streak?.equipped || 'fox'} />
-          </button>
-        }
+        ) : null}
+        headerAddon={IS_DESKTOP_APP ? (
+          <div className="-my-1 shrink-0">
+            <StudentFoxMascot size={56} mascotId="fox" />
+          </div>
+        ) : (
+          <div className="relative -my-1 shrink-0 flex items-center">
+            <StudentFoxMascot
+              size={56}
+              coverEyes={foxCoverEyes}
+              mascotId={equippedMascot || streak?.equipped || 'fox'}
+              onPet={petFox}
+              speech={mascotSpeech}
+              onClearSpeech={() => setMascotSpeech(null)}
+            />
+          </div>
+        )}
       >
         <div className={showRanking ? 'flex min-h-0 w-full flex-1 flex-col' : 'w-full'}>
           {labsError && (
@@ -1249,11 +1433,39 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         </div>
       </AppShell>
 
-      <MascotShop
-        open={showMascotShop}
-        onClose={() => setShowMascotShop(false)}
-        onUpdated={applyShop}
-      />
+      {!IS_DESKTOP_APP && (
+        <MascotShop
+          open={showMascotShop}
+          onClose={() => setShowMascotShop(false)}
+          onUpdated={applyShop}
+          onOpenGacha={() => setShowGacha(true)}
+          crystals={crystals}
+          onCrystalsChange={handleCrystalsChange}
+          tickets={tickets}
+          ownedMascots={ownedMascots}
+          onOwnedMascotsChange={handleOwnedMascotsChange}
+        />
+      )}
+
+      {!IS_DESKTOP_APP && (
+        <MascotGachaModal
+          open={showGacha}
+          onClose={() => setShowGacha(false)}
+          initialPoints={streak?.points ?? 1250}
+          onPointsChange={(pts) => {
+            setStreak((s) => (s ? { ...s, points: pts } : s));
+          }}
+          crystals={crystals}
+          onCrystalsChange={handleCrystalsChange}
+          tickets={tickets}
+          onTicketsChange={handleTicketsChange}
+          ownedMascots={ownedMascots}
+          onOwnedMascotsChange={handleOwnedMascotsChange}
+          isAdmin={hasRole(user?.roles, 'ADMIN')}
+        />
+      )}
+
+
 
       {!IS_DESKTOP_APP && showChangePassword && (
         <ChangePasswordModal

@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 function cssVar(name) {
-  return `var(--${name})`;
+  return `rgb(var(--${name}-rgb) / <alpha-value>)`;
 }
 
 export default {
@@ -12,13 +12,31 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+      },
       colors: {
+        navy: {
+          DEFAULT: cssVar('navy'),
+          hover: cssVar('navy-hover'),
+          light: cssVar('navy-light'),
+          text: cssVar('navy-text'),
+          foreground: cssVar('on-navy'),
+        },
+        gold: {
+          DEFAULT: cssVar('gold'),
+          hover: cssVar('gold-hover'),
+          bg: cssVar('gold-bg'),
+          text: cssVar('gold-text'),
+        },
         primary: {
           DEFAULT: cssVar('primary'),
           hover: cssVar('primary-hover'),
           active: cssVar('primary-active'),
           light: cssVar('primary-light'),
           text: cssVar('primary-text'),
+          foreground: cssVar('on-primary'),
         },
         secondary: {
           DEFAULT: cssVar('secondary'),
@@ -97,6 +115,11 @@ export default {
           from: { opacity: 0, transform: 'translateY(6px)' },
           to: { opacity: 1, transform: 'translateY(0)' },
         },
+      },
+      boxShadow: {
+        'stage-1': '0 2px 6px -1px rgb(var(--shadow-rgb) / 0.06), 0 1px 3px -1px rgb(var(--shadow-rgb) / 0.04)',
+        'stage-2': '0 10px 25px -5px rgb(var(--shadow-rgb) / 0.08), 0 4px 10px -4px rgb(var(--shadow-rgb) / 0.04)',
+        'stage-3': '0 22px 44px -12px rgb(var(--shadow-rgb) / 0.16), 0 8px 18px -6px rgb(var(--shadow-rgb) / 0.06)',
       },
       animation: {
         'toast-in': 'toast-in 0.3s ease-out forwards',

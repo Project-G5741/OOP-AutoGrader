@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import { ChatCenteredText, Tray } from '@phosphor-icons/react';
 import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { useToast } from '../components/ui/Toast';
 import Button from '../components/ui/Button';
 import ModalOverlay from '../components/ui/ModalOverlay';
+import { EmptyState } from '../components/ui/MotionPrimitives';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -169,19 +171,24 @@ export default function FeedbackInbox() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-border bg-surface p-4 sm:p-6">
+      <section className="rounded-2xl border border-border bg-surface p-4 shadow-stage-1 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-foreground">Feedback</h2>
-          <div className="flex rounded-lg border border-border p-1">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy-light text-navy dark:text-foreground">
+              <Tray weight="duotone" className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-foreground">Feedback</h2>
+          </div>
+          <div className="flex rounded-xl bg-surface-secondary p-1">
             {['OPEN', 'RESOLVED', 'ALL'].map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setStatusFilter(value)}
-                className={`rounded-md px-3 py-1.5 text-sm ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                   statusFilter === value
-                    ? 'bg-primary text-white'
-                    : 'text-foreground-secondary hover:bg-surface-secondary'
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-foreground-secondary hover:text-foreground'
                 }`}
               >
                 {value === 'OPEN' ? 'Open' : value === 'RESOLVED' ? 'Resolved' : 'All'}
@@ -194,24 +201,31 @@ export default function FeedbackInbox() {
         ) : error ? (
           <p className="rounded-lg border border-warning bg-warning-bg p-3 text-sm text-warning-text">{error}</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-foreground-secondary">No feedback yet.</p>
+          <EmptyState
+            compact
+            icon={<Tray weight="duotone" className="h-4 w-4" />}
+            title="No feedback yet"
+            description="Student bug reports and feature contributions will appear here."
+          />
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="-mx-4 divide-y divide-border-subtle border-t border-border-subtle sm:-mx-6">
             {rows.map((row) => (
               <li key={row.id}>
                 <button
                   type="button"
                   onClick={() => openItem(row.id)}
-                  className={`flex w-full flex-col gap-1 px-2 py-3 text-left hover:bg-surface-secondary ${
-                    selectedId === row.id ? 'bg-primary-light' : ''
+                  className={`flex w-full flex-col gap-1 border-l-4 px-4 py-3 text-left transition-colors sm:px-6 ${
+                    selectedId === row.id
+                      ? 'border-l-primary bg-primary-light'
+                      : 'border-l-transparent hover:bg-surface-secondary'
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="font-semibold text-foreground">{typeLabel(row.itemType)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                       row.status === 'RESOLVED'
                         ? 'bg-success-bg text-success-text'
-                        : 'bg-primary-light text-primary-text'
+                        : 'bg-navy-light text-navy dark:bg-primary-light dark:text-primary-text'
                     }`}>
                       {statusLabel(row.status)}
                     </span>
@@ -228,9 +242,14 @@ export default function FeedbackInbox() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-surface p-4 sm:p-6">
+      <section className="rounded-2xl border border-border bg-surface p-4 shadow-stage-1 sm:p-6">
         {!selectedId ? (
-          <p className="text-sm text-foreground-secondary">Select an item to read the full message and files.</p>
+          <EmptyState
+            compact
+            icon={<ChatCenteredText weight="duotone" className="h-4 w-4" />}
+            title="Select an item"
+            description="Choose a feedback message on the left to read full details and attachments."
+          />
         ) : detailError ? (
           <p className="rounded-lg border border-warning bg-warning-bg p-3 text-sm text-warning-text">{detailError}</p>
         ) : !detail ? (
@@ -239,7 +258,7 @@ export default function FeedbackInbox() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-semibold text-foreground">{typeLabel(detail.itemType)}</h3>
+                <h3 className="text-base font-bold text-foreground">{typeLabel(detail.itemType)}</h3>
                 <p className="text-sm text-foreground-secondary">
                   {detail.authorName} · {detail.authorIrn}
                 </p>
@@ -276,10 +295,10 @@ export default function FeedbackInbox() {
                 )}
               </div>
             </div>
-            <p className="whitespace-pre-wrap text-sm text-foreground">{detail.message}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{detail.message}</p>
             {detail.lecturerResponse && (
-              <div className="rounded-lg border border-border bg-surface-secondary px-3 py-2">
-                <p className="text-xs font-medium text-foreground-muted">Reply to student</p>
+              <div className="rounded-r-xl border-l-4 border-secondary bg-surface-secondary px-3.5 py-2.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-secondary-text">Reply to student</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{detail.lecturerResponse}</p>
               </div>
             )}

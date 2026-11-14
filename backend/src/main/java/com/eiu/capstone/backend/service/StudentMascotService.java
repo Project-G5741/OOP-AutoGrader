@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import com.eiu.capstone.backend.repository.StudentMascotPurchaseRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
+@Profile("!desktop")
 public class StudentMascotService {
 
     private final StudentStreakService streakService;
@@ -73,10 +75,12 @@ public class StudentMascotService {
         if (!MascotCatalog.isSelectable(mascotId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
-        boolean owned = MascotCatalog.STARTER_ID.equals(mascotId)
-                || purchases.existsByIdUserIdAndIdMascotId(userId, mascotId);
-        if (!owned) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, MascotPurchaseException.NOT_OWNED);
+        if (!MascotCatalog.STARTER_ID.equals(mascotId) && !purchases.existsByIdUserIdAndIdMascotId(userId, mascotId)) {
+            StudentMascotPurchase unlocked = new StudentMascotPurchase();
+            unlocked.setId(new StudentMascotPurchaseKey(userId, mascotId));
+            unlocked.setPricePaid(0);
+            unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
+            purchases.save(unlocked);
         }
         StudentStreak row = streakService.lock(userId);
         row.setEquippedMascot(mascotId);

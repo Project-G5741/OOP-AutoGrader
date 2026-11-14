@@ -28,6 +28,7 @@ import com.eiu.capstone.backend.analytics.dto.LecturerOverviewResponse;
 import com.eiu.capstone.backend.analytics.dto.SubmissionSummaryDTO;
 import com.eiu.capstone.backend.analytics.mapper.AnalyticsMapper;
 import com.eiu.capstone.backend.analytics.repository.LecturerAnalyticsRepository;
+import com.eiu.capstone.backend.grading.LabPillarScores;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.plagiarism.PlagiarismService;
@@ -39,7 +40,8 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 @Service
 public class LecturerAnalyticsService {
 
-    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("70");
+    /** Score total (Official labs only). A student is at risk only when that total is below 50. */
+    private static final BigDecimal AT_RISK_TOTAL_BELOW = new BigDecimal("50");
 
     private final LecturerAnalyticsRepository lecturerAnalyticsRepository;
     private final ChallengeService challengeService;
@@ -48,6 +50,7 @@ public class LecturerAnalyticsService {
     private final PlagiarismService plagiarismService;
     private final TermService termService;
     private final LabRepository labRepository;
+    private final AttemptPillarLoader attemptPillarLoader;
 
     public LecturerAnalyticsService(LecturerAnalyticsRepository lecturerAnalyticsRepository,
                                     ChallengeService challengeService,
@@ -55,7 +58,8 @@ public class LecturerAnalyticsService {
                                     LabStatisticsCache labStatisticsCache,
                                     PlagiarismService plagiarismService,
                                     TermService termService,
-                                    LabRepository labRepository) {
+                                    LabRepository labRepository,
+                                    AttemptPillarLoader attemptPillarLoader) {
         this.lecturerAnalyticsRepository = lecturerAnalyticsRepository;
         this.challengeService = challengeService;
         this.lecturerOverviewCache = lecturerOverviewCache;
@@ -63,6 +67,7 @@ public class LecturerAnalyticsService {
         this.plagiarismService = plagiarismService;
         this.termService = termService;
         this.labRepository = labRepository;
+        this.attemptPillarLoader = attemptPillarLoader;
     }
 
     public LecturerOverviewResponse getOverview() {
@@ -125,8 +130,8 @@ public class LecturerAnalyticsService {
             if (row == null || row.length < 4) {
                 continue;
             }
-            BigDecimal totalScore = AnalyticsMapper.toBigDecimal(row[3]);
-            boolean atRisk = totalScore != null && totalScore.compareTo(AT_RISK_TOTAL_BELOW) < 0;
+            BigDecimal totalScore = scoreTotal(AnalyticsMapper.toBigDecimal(row[3]));
+            boolean atRisk = isAtRiskScore(totalScore);
             students.add(new LecturerOverviewResponse.OverviewStudentItem(
                     AnalyticsMapper.toString(row[0]),
                     AnalyticsMapper.toString(row[1]),
@@ -135,6 +140,18 @@ public class LecturerAnalyticsService {
                     atRisk));
         }
         return students;
+    }
+
+    /** Same scale as {@link GradeOverviewOfficialTotal}: Score column rounds down to 2 places. */
+    static BigDecimal scoreTotal(BigDecimal raw) {
+        if (raw == null) {
+            return null;
+        }
+        return raw.setScale(2, RoundingMode.DOWN);
+    }
+
+    static boolean isAtRiskScore(BigDecimal scoreTotal) {
+        return scoreTotal != null && scoreTotal.compareTo(AT_RISK_TOTAL_BELOW) < 0;
     }
 
     private List<LecturerOverviewResponse.OverviewLabItem> loadOverviewLabs(UUID termId) {
@@ -274,6 +291,7 @@ public class LecturerAnalyticsService {
                     items.add(item);
                 }
             }
+            items = withRecoveredLabPillars(labId, items);
             items = withPlagiarismFlags(labId, items);
         }
 
@@ -291,7 +309,7 @@ public class LecturerAnalyticsService {
                 items.add(item);
             }
         }
-        return withPlagiarismFlags(labId, items);
+        return withPlagiarismFlags(labId, withRecoveredLabPillars(labId, items));
     }
 
     public Page<ChallengeStudentRowDTO> getChallengeStudentRoster(UUID labId,
@@ -305,7 +323,8 @@ public class LecturerAnalyticsService {
         SortSpec sortSpec = resolveChallengeSort(sort);
 
         long total = lecturerAnalyticsRepository.countSubmittedStudentsForChallenge(labId, challengeId);
-        List<ChallengeStudentRowDTO> items = new ArrayList<>();
+            List<ChallengeStudentRowDTO> items = new ArrayList<>();
+        List<UUID> pillarSubmissionIds = new ArrayList<>();
         if (total > 0) {
             int offset = safePage * safeSize;
             for (Object[] row : lecturerAnalyticsRepository.findChallengeStudentRoster(
@@ -313,8 +332,10 @@ public class LecturerAnalyticsService {
                 ChallengeStudentRowDTO item = toChallengeRosterRow(row, challengeId);
                 if (item != null) {
                     items.add(item);
+                    pillarSubmissionIds.add(row.length > 11 ? AnalyticsMapper.toUuid(row[11]) : null);
                 }
             }
+            items = withRecoveredChallengePillars(labId, challengeId, items, pillarSubmissionIds);
             items = withChallengePlagiarismFlags(labId, items);
         }
 
@@ -362,6 +383,9 @@ public class LecturerAnalyticsService {
             }
 
             Map<UUID, Map<UUID, BigDecimal>> scoresByStudent = new HashMap<>();
+            Map<UUID, Map<UUID, LabPillarScores>> pillarsByStudent = new HashMap<>();
+            Map<UUID, Map<UUID, UUID>> submissionByStudent = new HashMap<>();
+            Map<UUID, List<UUID>> recoverByLab = new HashMap<>();
             for (Object[] row : lecturerAnalyticsRepository.findLabScoresForStudents(studentIds, termId)) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);
                 UUID labId = AnalyticsMapper.toUuid(row[1]);
@@ -370,7 +394,29 @@ public class LecturerAnalyticsService {
                     continue;
                 }
                 scoresByStudent.computeIfAbsent(studentId, ignored -> new HashMap<>()).put(labId, score);
+                LabPillarScores stored = new LabPillarScores(
+                        AnalyticsMapper.toBigDecimal(row[4]),
+                        AnalyticsMapper.toBigDecimal(row[5]),
+                        AnalyticsMapper.toBigDecimal(row[6]));
+                pillarsByStudent.computeIfAbsent(studentId, ignored -> new HashMap<>()).put(labId, stored);
+                UUID submissionId = AnalyticsMapper.toUuid(row[3]);
+                if (submissionId != null) {
+                    submissionByStudent.computeIfAbsent(studentId, ignored -> new HashMap<>()).put(labId, submissionId);
+                    if (!stored.anyStored()) {
+                        recoverByLab.computeIfAbsent(labId, ignored -> new ArrayList<>()).add(submissionId);
+                    }
+                }
             }
+            Map<UUID, LabPillarScores> recoveredBySubmission = new HashMap<>();
+            for (Map.Entry<UUID, List<UUID>> entry : recoverByLab.entrySet()) {
+                recoveredBySubmission.putAll(attemptPillarLoader.labScores(entry.getKey(), entry.getValue()));
+            }
+
+            List<UUID> labIds = new ArrayList<>();
+            for (GradeOverviewLabColumnDTO lab : labs) {
+                labIds.add(lab.labId());
+            }
+            Map<UUID, boolean[]> applicability = labApplicability(labIds);
 
             for (Object[] row : students) {
                 UUID studentId = AnalyticsMapper.toUuid(row[0]);
@@ -378,11 +424,35 @@ public class LecturerAnalyticsService {
                     continue;
                 }
                 Map<UUID, BigDecimal> studentScores = scoresByStudent.getOrDefault(studentId, Map.of());
+                Map<UUID, LabPillarScores> studentPillars = pillarsByStudent.getOrDefault(studentId, Map.of());
+                Map<UUID, UUID> studentSubmissions = submissionByStudent.getOrDefault(studentId, Map.of());
                 List<BigDecimal> labScores = new ArrayList<>();
                 List<String> prefixes = new ArrayList<>();
+                List<BigDecimal> mmdCells = new ArrayList<>();
+                List<BigDecimal> declarationCells = new ArrayList<>();
+                List<BigDecimal> operationalCells = new ArrayList<>();
+                List<Boolean> mmdApplies = new ArrayList<>();
+                List<Boolean> declarationApplies = new ArrayList<>();
+                List<Boolean> operationalApplies = new ArrayList<>();
                 for (GradeOverviewLabColumnDTO lab : labs) {
                     labScores.add(studentScores.get(lab.labId()));
                     prefixes.add(lab.prefix());
+                    boolean submitted = studentScores.containsKey(lab.labId());
+                    LabPillarScores pillars = studentPillars.get(lab.labId());
+                    if (pillars != null && !pillars.anyStored()) {
+                        UUID submissionId = studentSubmissions.get(lab.labId());
+                        LabPillarScores recovered = submissionId == null ? null : recoveredBySubmission.get(submissionId);
+                        if (recovered != null) {
+                            pillars = recovered;
+                        }
+                    }
+                    boolean[] flags = applicability.getOrDefault(lab.labId(), new boolean[3]);
+                    mmdApplies.add(flags[0]);
+                    declarationApplies.add(flags[1]);
+                    operationalApplies.add(flags[2]);
+                    mmdCells.add(pillarCell(submitted, pillars == null ? null : pillars.mmdScore(), flags[0]));
+                    declarationCells.add(pillarCell(submitted, pillars == null ? null : pillars.declarationScore(), flags[1]));
+                    operationalCells.add(pillarCell(submitted, pillars == null ? null : pillars.operationalScore(), flags[2]));
                 }
                 BigDecimal totalScore = GradeOverviewOfficialTotal.average(prefixes, labScores);
                 rows.add(new GradeOverviewStudentRowDTO(
@@ -390,6 +460,9 @@ public class LecturerAnalyticsService {
                         AnalyticsMapper.toString(row[1]),
                         AnalyticsMapper.toString(row[2]),
                         totalScore,
+                        GradeOverviewOfficialTotal.averageApplicable(prefixes, mmdCells, mmdApplies),
+                        GradeOverviewOfficialTotal.averageApplicable(prefixes, declarationCells, declarationApplies),
+                        GradeOverviewOfficialTotal.averageApplicable(prefixes, operationalCells, operationalApplies),
                         labScores
                 ));
             }
@@ -472,7 +545,10 @@ public class LecturerAnalyticsService {
                     item.submissionId(),
                     item.hasSubmission(),
                     role != null,
-                    role));
+                    role,
+                    item.mmdScore(),
+                    item.declarationScore(),
+                    item.operationalScore()));
         }
         return marked;
     }
@@ -495,7 +571,10 @@ public class LecturerAnalyticsService {
                     item.hasSubmission(),
                     item.submissionId(),
                     role != null,
-                    role));
+                    role,
+                    item.mmdScore(),
+                    item.declarationScore(),
+                    item.operationalScore()));
         }
         return marked;
     }
@@ -514,7 +593,12 @@ public class LecturerAnalyticsService {
                 TimeUtil.formatDisplayTimestamp(row[5]),
                 AnalyticsMapper.toBoolean(row[6]),
                 submissionId,
-                submissionId != null
+                submissionId != null,
+                false,
+                null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[8]) : null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[9]) : null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[10]) : null
         );
     }
 
@@ -539,7 +623,12 @@ public class LecturerAnalyticsService {
                 AnalyticsMapper.toInt(row[4]),
                 TimeUtil.formatDisplayTimestamp(row[5]),
                 hasSubmission,
-                submissionId
+                submissionId,
+                false,
+                null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[8]) : null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[9]) : null,
+                row.length > 10 ? AnalyticsMapper.toBigDecimal(row[10]) : null
         );
     }
 
@@ -615,6 +704,103 @@ public class LecturerAnalyticsService {
             default -> "full_name";
         };
         return new SortSpec(column, direction, null);
+    }
+
+    private List<SubmissionSummaryDTO> withRecoveredLabPillars(UUID labId, List<SubmissionSummaryDTO> items) {
+        List<UUID> need = new ArrayList<>();
+        for (SubmissionSummaryDTO item : items) {
+            if (item.submissionId() != null && !pillarStored(item.mmdScore(), item.declarationScore(), item.operationalScore())) {
+                need.add(item.submissionId());
+            }
+        }
+        if (need.isEmpty()) {
+            return items;
+        }
+        Map<UUID, LabPillarScores> recovered = attemptPillarLoader.labScores(labId, need);
+        if (recovered.isEmpty()) {
+            return items;
+        }
+        List<SubmissionSummaryDTO> filled = new ArrayList<>(items.size());
+        for (SubmissionSummaryDTO item : items) {
+            LabPillarScores extra = item.submissionId() == null ? null : recovered.get(item.submissionId());
+            if (extra == null || !extra.anyStored()) {
+                filled.add(item);
+                continue;
+            }
+            filled.add(new SubmissionSummaryDTO(
+                    item.studentId(), item.studentName(), item.studentCode(), item.score(), item.attempt(),
+                    item.submittedAt(), item.bestSubmission(), item.submissionId(), item.hasSubmission(),
+                    item.plagiarismFlagged(), item.plagiarismRole(),
+                    extra.mmdScore(), extra.declarationScore(), extra.operationalScore()));
+        }
+        return filled;
+    }
+
+    private List<ChallengeStudentRowDTO> withRecoveredChallengePillars(UUID labId,
+                                                                       UUID challengeId,
+                                                                       List<ChallengeStudentRowDTO> items,
+                                                                       List<UUID> pillarSubmissionIds) {
+        List<UUID> need = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            ChallengeStudentRowDTO item = items.get(i);
+            UUID sourceId = i < pillarSubmissionIds.size() ? pillarSubmissionIds.get(i) : null;
+            if (sourceId != null && !pillarStored(item.mmdScore(), item.declarationScore(), item.operationalScore())) {
+                need.add(sourceId);
+            }
+        }
+        if (need.isEmpty()) {
+            return items;
+        }
+        Map<UUID, LabPillarScores> recovered = attemptPillarLoader.challengeScores(labId, challengeId, need);
+        if (recovered.isEmpty()) {
+            return items;
+        }
+        List<ChallengeStudentRowDTO> filled = new ArrayList<>(items.size());
+        for (int i = 0; i < items.size(); i++) {
+            ChallengeStudentRowDTO item = items.get(i);
+            UUID sourceId = i < pillarSubmissionIds.size() ? pillarSubmissionIds.get(i) : null;
+            LabPillarScores extra = sourceId == null ? null : recovered.get(sourceId);
+            if (extra == null || !extra.anyStored()) {
+                filled.add(item);
+                continue;
+            }
+            filled.add(new ChallengeStudentRowDTO(
+                    item.studentId(), item.studentName(), item.studentCode(), item.score(), item.attempts(),
+                    item.submittedAt(), item.hasSubmission(), item.submissionId(),
+                    item.plagiarismFlagged(), item.plagiarismRole(),
+                    extra.mmdScore(), extra.declarationScore(), extra.operationalScore()));
+        }
+        return filled;
+    }
+
+    private Map<UUID, boolean[]> labApplicability(List<UUID> labIds) {
+        Map<UUID, boolean[]> flags = new HashMap<>();
+        for (Object[] row : lecturerAnalyticsRepository.findLabPillarApplicability(labIds)) {
+            UUID labId = AnalyticsMapper.toUuid(row[0]);
+            if (labId == null) {
+                continue;
+            }
+            flags.put(labId, new boolean[] {
+                    AnalyticsMapper.toBoolean(row[1]),
+                    AnalyticsMapper.toBoolean(row[2]),
+                    AnalyticsMapper.toBoolean(row[3])
+            });
+        }
+        return flags;
+    }
+
+    private static BigDecimal pillarCell(boolean submitted, BigDecimal stored, boolean applicable) {
+        if (!applicable) {
+            return BigDecimal.ZERO;
+        }
+        if (!submitted) {
+            return BigDecimal.ZERO;
+        }
+        return stored;
+    }
+
+    private static boolean pillarStored(BigDecimal mmd, BigDecimal declaration, BigDecimal operational) {
+        return mmd != null || declaration != null || operational != null;
     }
 
     private record SortSpec(String column, String direction, UUID labId) {

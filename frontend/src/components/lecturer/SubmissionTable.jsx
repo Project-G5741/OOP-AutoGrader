@@ -1,8 +1,10 @@
-import { Eye, GitCompare, FileCheck2, Users, TrendingUp, ShieldAlert } from 'lucide-react';
+import { Eye, GitCompare } from 'lucide-react';
+import { SealCheck, ShieldWarning, TrendUp, UsersThree } from '@phosphor-icons/react';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { formatNumber, formatPercent, formatText } from '../../utils/formatters';
 import PlagiarismDangerMark, { studentLabOverlapPercent } from './PlagiarismDangerMark';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
+import { PILLAR_EXPORT_COLUMNS, formatPillarScore } from './pillarScoreColumns';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -10,29 +12,29 @@ const SUMMARY_ITEMS = [
   {
     key: 'studentsSubmitted',
     label: 'Submitted',
-    icon: FileCheck2,
+    icon: SealCheck,
     accent: 'bg-success-bg text-success-text',
     format: (summary) => formatNumber(summary?.studentsSubmitted),
   },
   {
     key: 'studentCount',
     label: 'Enrolled',
-    icon: Users,
-    accent: 'bg-primary-light text-primary-text',
+    icon: UsersThree,
+    accent: 'bg-navy-light text-navy dark:text-foreground',
     format: (summary) => formatNumber(summary?.studentCount),
   },
   {
     key: 'completionRate',
     label: 'Completion',
-    icon: TrendingUp,
-    accent: 'bg-info-bg text-info-text',
+    icon: TrendUp,
+    accent: 'bg-secondary-light text-secondary-text',
     format: (summary) => formatPercent(summary?.completionRate),
   },
   {
     key: 'plagiarismRate',
     label: 'Plagiarism',
-    icon: ShieldAlert,
-    accent: 'bg-warning-bg text-warning-text',
+    icon: ShieldWarning,
+    accent: 'bg-gold-bg text-gold-text',
     format: (summary) => formatPercent(summary?.plagiarismRate),
     valueClass: (summary) => ((summary?.plagiarismRate ?? 0) > 0 ? 'text-warning-text' : 'text-foreground'),
   },
@@ -43,34 +45,24 @@ function RosterSummaryBar({ summary }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="border-t border-border bg-surface-secondary/50 px-4 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:justify-between sm:gap-4">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const valueClass = item.valueClass?.(summary) ?? 'text-foreground';
-          const isPlagiarism = item.key === 'plagiarismRate';
-          return (
-            <div
-              key={item.key}
-              className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg border px-3 py-2.5 shadow-sm dark:border-transparent dark:shadow-none ${
-                isPlagiarism
-                  ? 'border-warning/30 bg-warning-bg/30 dark:border-warning/20'
-                  : 'border-border-subtle bg-surface'
-              }`}
-            >
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.accent}`}>
-                <Icon className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-foreground-muted">{item.label}</p>
-                <p className={`text-lg font-semibold tabular-nums leading-tight ${valueClass}`}>
-                  {item.format(summary)}
-                </p>
-              </div>
+    <div className="grid grid-cols-1 divide-y divide-border-subtle border-t border-border bg-surface-secondary/50 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const valueClass = item.valueClass?.(summary) ?? 'text-foreground';
+        return (
+          <div key={item.key} className="flex min-w-0 items-center gap-3 px-4 py-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.accent}`}>
+              <Icon weight="duotone" className="h-5 w-5" aria-hidden="true" />
             </div>
-          );
-        })}
-      </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-muted">{item.label}</p>
+              <p className={`text-lg font-bold tabular-nums leading-tight ${valueClass}`}>
+                {item.format(summary)}
+              </p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -79,6 +71,7 @@ const ROSTER_COLUMNS = [
   { key: 'studentName', label: 'Student' },
   { key: 'studentCode', label: 'ID' },
   { key: 'score', label: 'Score' },
+  ...PILLAR_EXPORT_COLUMNS.map((column) => ({ ...column, sortable: false })),
   { key: 'attempt', label: 'Attempt', labelKey: 'attemptLabel' },
   { key: 'submittedAt', label: 'Submitted At' },
 ];
@@ -102,7 +95,8 @@ export default function SubmissionTable({
   const showPagination = pagination && (pagination.totalPages > 1 || pagination.total > pagination.size);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm transition-colors dark:border-transparent dark:shadow-none">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-stage-1 transition-colors">
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] table-auto">
         <thead>
           <tr className="border-b border-border">
@@ -114,6 +108,7 @@ export default function SubmissionTable({
                 activeField={sortState?.field}
                 direction={sortState?.direction}
                 onSort={onSort}
+                sortable={col.sortable !== false}
                 className={HEADER_CLASS}
               />
             ))}
@@ -124,7 +119,7 @@ export default function SubmissionTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-sm text-foreground-secondary">
+              <td colSpan={10} className="px-4 py-10 text-center text-sm text-foreground-secondary">
                 No student data found
               </td>
             </tr>
@@ -142,6 +137,11 @@ export default function SubmissionTable({
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentName)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{formatText(submission.studentCode)}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{formatNumber(submission.score)}</td>
+                  {PILLAR_EXPORT_COLUMNS.map((column) => (
+                    <td key={column.key} className="px-4 py-3 text-center text-sm font-medium tabular-nums text-foreground">
+                      {formatPillarScore(submission[column.key])}
+                    </td>
+                  ))}
                   <td className="px-4 py-3 text-sm text-foreground">{formatNumber(submission.attempt ?? submission.attempts)}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{submission.submittedAt || '—'}</td>
                   <td className="px-4 py-3 align-middle">
@@ -187,6 +187,7 @@ export default function SubmissionTable({
           )}
         </tbody>
       </table>
+      </div>
 
       <RosterSummaryBar summary={summary} />
 

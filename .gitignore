@@ -1,11 +1,45 @@
 package-lock.json
 node_modules/
 dist/
+dist-desktop/
 frontend/dist-desktop/
 .cursor/vendor/
 /Submission/
 .env
 /tmp-*.json
+
+# Desktop practice build & local runtime artifacts
+StudentPractice/
+OOP-AutoGrader-Practice.zip
+*.agpack
+*.WebView2/
+*.mv.db
+*.trace.db
+desktop-pack-fingerprint.txt
+
+# Build outputs, caches, logs & temp files
+*.class
+*.jar
+!**/maven-wrapper.jar
+.vite/
+.eslintcache
+coverage/
+*.log
+hs_err_pid*.log
+replay_pid*.log
+*.tmp
+tmp/
+
+# OS & IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
 
 # Secrets and local config (never commit)
 .env.*
@@ -26,3 +60,6 @@ service-account*.json
 .supabase/
 supabase/.temp/
 supabase/.branches/
+
+# Local mascot draft materials
+/mascot-materials/

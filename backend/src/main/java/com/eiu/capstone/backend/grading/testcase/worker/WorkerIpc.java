@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.grading.testcase.worker;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -49,12 +50,16 @@ public final class WorkerIpc {
         Path classesDir = request.classesDir() != null ? Path.of(request.classesDir()) : null;
         try {
             return switch (request.op()) {
-                case OP_INVOKE -> ENGINE.invoke(classesDir, request.invoke(), request.snapshotFieldNames(), stdoutCap);
-                case OP_SCENARIO -> ENGINE.scenario(classesDir, request.steps(), request.snapshotFieldNames(), stdoutCap);
+                case OP_INVOKE -> ENGINE.invoke(
+                        classesDir, request.invoke(), request.snapshotFieldNames(),
+                        request.snapshotFieldAliases(), stdoutCap);
+                case OP_SCENARIO -> ENGINE.scenario(
+                        classesDir, request.steps(), request.snapshotFieldNames(),
+                        request.snapshotFieldAliases(), stdoutCap);
                 case OP_BATCH -> ENGINE.batch(
                         classesDir,
                         request.items(),
-                        request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 5,
+                        request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 3,
                         stdoutCap,
                         request.batchParallelism());
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
@@ -117,7 +122,8 @@ public final class WorkerIpc {
             List<ScenarioStepSpec> steps,
             List<BatchItemSpec> items,
             int timeoutSeconds,
-            int batchParallelism) {
+            int batchParallelism,
+            Map<String, List<String>> snapshotFieldAliases) {
 
         public Request(String op,
                        String classesDir,
@@ -125,7 +131,7 @@ public final class WorkerIpc {
                        CompareSpec compare,
                        List<String> snapshotFieldNames,
                        int stdoutCap) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null, null, 0, 0);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, null, null, 0, 0, null);
         }
 
         public Request(String op,
@@ -135,7 +141,7 @@ public final class WorkerIpc {
                        List<String> snapshotFieldNames,
                        int stdoutCap,
                        List<ScenarioStepSpec> steps) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, null, 0, 0);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, null, 0, 0, null);
         }
 
         public Request(String op,
@@ -147,7 +153,22 @@ public final class WorkerIpc {
                        List<ScenarioStepSpec> steps,
                        List<BatchItemSpec> items,
                        int timeoutSeconds) {
-            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, items, timeoutSeconds, 0);
+            this(op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap, steps, items, timeoutSeconds, 0, null);
+        }
+
+        public Request(String op,
+                       String classesDir,
+                       InvokeSpec invoke,
+                       CompareSpec compare,
+                       List<String> snapshotFieldNames,
+                       int stdoutCap,
+                       List<ScenarioStepSpec> steps,
+                       List<BatchItemSpec> items,
+                       int timeoutSeconds,
+                       int batchParallelism) {
+            this(
+                    op, classesDir, invoke, compare, snapshotFieldNames, stdoutCap,
+                    steps, items, timeoutSeconds, batchParallelism, null);
         }
     }
 
@@ -155,10 +176,18 @@ public final class WorkerIpc {
     public record BatchItemSpec(
             List<ScenarioStepSpec> steps,
             List<String> snapshotFieldNames,
-            String classesDir) {
+            String classesDir,
+            Map<String, List<String>> snapshotFieldAliases) {
 
         public BatchItemSpec(List<ScenarioStepSpec> steps, List<String> snapshotFieldNames) {
-            this(steps, snapshotFieldNames, null);
+            this(steps, snapshotFieldNames, null, null);
+        }
+
+        public BatchItemSpec(
+                List<ScenarioStepSpec> steps,
+                List<String> snapshotFieldNames,
+                String classesDir) {
+            this(steps, snapshotFieldNames, classesDir, null);
         }
     }
 
@@ -171,7 +200,42 @@ public final class WorkerIpc {
             String paramsJson,
             String receiverClassName,
             List<String> receiverParameterTypes,
-            String receiverParamsJson) {}
+            String receiverParamsJson,
+            List<String> methodNameAliases,
+            List<List<String>> parameterTypeAliases,
+            List<List<String>> receiverParameterTypeAliases) {
+
+        public InvokeSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                List<String> methodNameAliases,
+                List<List<String>> parameterTypeAliases) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson,
+                    methodNameAliases, parameterTypeAliases, null);
+        }
+
+        public InvokeSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson, null, null, null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ScenarioStepSpec(
@@ -186,7 +250,34 @@ public final class WorkerIpc {
             String instanceName,
             String dispatchClassName,
             int repeatCount,
-            String constructMode) {
+            String constructMode,
+            List<String> methodNameAliases,
+            List<List<String>> parameterTypeAliases,
+            List<List<String>> receiverParameterTypeAliases,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases) {
+
+        public ScenarioStepSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                String instanceName,
+                String dispatchClassName,
+                int repeatCount,
+                String constructMode,
+                List<String> methodNameAliases,
+                List<List<String>> parameterTypeAliases) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson,
+                    instanceName, dispatchClassName, repeatCount, constructMode,
+                    methodNameAliases, parameterTypeAliases, null, null, null);
+        }
 
         /** Composition step that builds the object the way a Unit hidden receiver does. */
         public static final String CONSTRUCT_DEFAULT = "DEFAULT";
@@ -214,6 +305,11 @@ public final class WorkerIpc {
                     instanceName,
                     dispatchClassName,
                     1,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
         }
 
@@ -241,7 +337,32 @@ public final class WorkerIpc {
                     instanceName,
                     dispatchClassName,
                     repeatCount,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null);
+        }
+
+        public ScenarioStepSpec(
+                String kind,
+                String className,
+                String methodName,
+                List<String> parameterTypes,
+                String paramsJson,
+                String receiverClassName,
+                List<String> receiverParameterTypes,
+                String receiverParamsJson,
+                String instanceName,
+                String dispatchClassName,
+                int repeatCount,
+                String constructMode) {
+            this(
+                    kind, className, methodName, parameterTypes, paramsJson,
+                    receiverClassName, receiverParameterTypes, receiverParamsJson,
+                    instanceName, dispatchClassName, repeatCount, constructMode,
+                    null, null, null, null, null);
         }
 
         public boolean implicitDefaultConstructor() {

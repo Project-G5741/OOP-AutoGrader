@@ -12,7 +12,10 @@ import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
 import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.ConstructorRubric;
 import com.eiu.capstone.backend.grading.rubric.FieldRubric;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
+import com.eiu.capstone.backend.grading.rubric.ParameterRubric;
 import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 
 class MmdComparisonServiceTest {
@@ -338,5 +341,204 @@ class MmdComparisonServiceTest {
 
         assertTrue(outcome.isFieldCorrect(firstFineId));
         assertTrue(outcome.isFieldCorrect(additionalFineId));
+    }
+
+    @Test
+    void fieldAndMethodAliases_useSameCartesianRulesAsDeclaration() {
+        UUID classId = UUID.randomUUID();
+        UUID fieldId = UUID.randomUUID();
+        UUID methodId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Invoice",
+                List.of(new ClassRubric(
+                        classId,
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double", "float"),
+                                false,
+                                false)),
+                        List.of(new MethodRubric(
+                                methodId,
+                                List.of("calculateTotal", "calcTotal"),
+                                "public",
+                                List.of("double", "float"),
+                                false,
+                                false,
+                                false,
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        String mmd = diagram("""
+                class Invoice {
+                  -fee: float
+                  +calcTotal(fee: float): float
+                }
+                """);
+
+        MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
+
+        assertTrue(outcome.isFieldCorrect(fieldId));
+        assertTrue(outcome.isMethodCorrect(methodId));
+    }
+
+    @Test
+    void methodParameterNameMustMatchAliasAtSamePosition() {
+        UUID methodId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Invoice",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId,
+                                List.of("calculate"),
+                                "public",
+                                List.of("double"),
+                                false,
+                                false,
+                                false,
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        MmdGradingOutcome outcome = comparisonService.compare(
+                rubric,
+                parser.parse(diagram("""
+                        class Invoice {
+                          +calculate(price: float): double
+                        }
+                        """)));
+
+        assertFalse(outcome.isMethodCorrect(methodId));
+    }
+
+    @Test
+    void constructorParameterNameMustMatchAliasAtSamePosition() {
+        UUID constructorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Invoice",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of(new ConstructorRubric(
+                                constructorId,
+                                "public",
+                                false,
+                                List.of("double"),
+                                List.of(new ParameterRubric(
+                                        List.of("cost", "fee"),
+                                        List.of("double", "float"))))))),
+                List.of(),
+                List.of());
+
+        MmdGradingOutcome outcome = comparisonService.compare(
+                rubric,
+                parser.parse(diagram("""
+                        class Invoice {
+                          +Invoice(price: float)
+                        }
+                        """)));
+
+        assertFalse(outcome.isConstructorCorrect(constructorId));
+    }
+
+    @Test
+    void typeOnlyParameterRubricIgnoresDiagramParameterNames() {
+        UUID methodId = UUID.randomUUID();
+        UUID constructorId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Car",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Car",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(),
+                        List.of(new MethodRubric(
+                                methodId, "drive", "public", "void", false, false, false, List.of("int"))),
+                        List.of(new ConstructorRubric(
+                                constructorId, "public", false, List.of("int", "String"))))),
+                List.of(),
+                List.of());
+
+        MmdGradingOutcome outcome = comparisonService.compare(
+                rubric,
+                parser.parse(diagram("""
+                        class Car {
+                          +Car(yearModel: int, make: String)
+                          +drive(speed: int): void
+                        }
+                        """)));
+
+        assertTrue(outcome.isConstructorCorrect(constructorId));
+        assertTrue(outcome.isMethodCorrect(methodId));
+    }
+
+    @Test
+    void fieldMatchingSkipsEarlierNameOnlyCandidateForCompleteMatch() {
+        UUID fieldId = UUID.randomUUID();
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(),
+                1,
+                "Invoice",
+                List.of(new ClassRubric(
+                        UUID.randomUUID(),
+                        "Invoice",
+                        "public",
+                        "CLASS",
+                        false,
+                        List.of(new FieldRubric(
+                                fieldId,
+                                List.of("cost", "fee"),
+                                "private",
+                                List.of("double"),
+                                false,
+                                false)),
+                        List.of(),
+                        List.of())),
+                List.of(),
+                List.of());
+
+        MmdGradingOutcome outcome = comparisonService.compare(
+                rubric,
+                parser.parse(diagram("""
+                        class Invoice {
+                          -cost: String
+                          -fee: double
+                        }
+                        """)));
+
+        assertTrue(outcome.isFieldCorrect(fieldId));
     }
 }
