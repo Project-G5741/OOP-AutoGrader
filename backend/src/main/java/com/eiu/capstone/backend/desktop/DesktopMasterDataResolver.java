@@ -59,7 +59,7 @@ public class DesktopMasterDataResolver {
         created.setId(nextId.getAndIncrement());
         created.setCategory(category);
         created.setName(name.trim());
-        created = masterDataRepository.save(created);
+        created = masterDataRepository.saveAndFlush(created);
         cache.put(key, created.getId());
         return created.getId();
     }

@@ -39,7 +39,9 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackLabMeta;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackManifest;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackSerializer;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
+import com.eiu.capstone.backend.grading.rubric.MethodRubric;
 import com.eiu.capstone.backend.repository.LabRepository;
 
 @SpringBootTest(classes = EiuCapstoneBackendApplication.class)
@@ -138,6 +140,148 @@ class DesktopPackImportIntegrationTest {
 
         var skip = bootstrapService.bootstrap();
         assertTrue(skip.ready(), () -> String.valueOf(skip.error()));
+    }
+
+    @Test
+    void labImport_packWithClassScope_materializes() throws Exception {
+        UUID classId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        LabRubricSnapshot rubric = new LabRubricSnapshot(
+                LAB_ID,
+                Map.of(
+                        1,
+                        new ChallengeRubric(
+                                CHALLENGE_ID,
+                                1,
+                                "Warmup",
+                                List.of(new ClassRubric(
+                                        classId,
+                                        "Widget",
+                                        "PUBLIC",
+                                        "CLASS",
+                                        false,
+                                        List.of(),
+                                        List.of(),
+                                        List.of())),
+                                List.of(),
+                                List.of(),
+                                false,
+                                true,
+                                1,
+                                1,
+                                0,
+                                1)));
+        String filename = DesktopPackFileNames.labFilename("Scoped Lab");
+        byte[] body = serialize(
+                TERM_ID,
+                "2026 — Quarter 1",
+                LAB_ID,
+                "Scoped Lab",
+                "scoped-v1",
+                List.of(LAB_ID),
+                CHALLENGE_ID,
+                rubric);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", filename, "application/octet-stream", body);
+
+        mockMvc.perform(multipart("/api/desktop/packs/import").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.filename").value(filename));
+    }
+
+    @Test
+    void labImport_packWithTypeOnlyParameterNames_materializes() throws Exception {
+        UUID labId = UUID.fromString("c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1");
+        UUID challengeId = UUID.fromString("e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1");
+        UUID classId = UUID.fromString("12121212-1212-1212-1212-121212121212");
+        UUID methodId = UUID.fromString("13131313-1313-1313-1313-131313131313");
+        LabRubricSnapshot rubric = new LabRubricSnapshot(
+                labId,
+                Map.of(
+                        1,
+                        new ChallengeRubric(
+                                challengeId,
+                                1,
+                                "Warmup",
+                                List.of(new ClassRubric(
+                                        classId,
+                                        "Widget",
+                                        "PUBLIC",
+                                        "CLASS",
+                                        false,
+                                        List.of(),
+                                        List.of(new MethodRubric(
+                                                methodId,
+                                                "update",
+                                                "PUBLIC",
+                                                "void",
+                                                false,
+                                                false,
+                                                false,
+                                                List.of("String"))),
+                                        List.of())),
+                                List.of(),
+                                List.of(),
+                                false,
+                                true,
+                                1,
+                                1,
+                                0,
+                                1)));
+        String filename = DesktopPackFileNames.labFilename("TypeOnly Params");
+        byte[] body = serialize(
+                TERM_ID,
+                "2026 — Quarter 1",
+                labId,
+                "TypeOnly Params",
+                "type-only-v1",
+                List.of(labId),
+                challengeId,
+                rubric);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", filename, "application/octet-stream", body);
+
+        mockMvc.perform(multipart("/api/desktop/packs/import").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.filename").value(filename));
+    }
+
+    @Test
+    void labImport_packWithZeroPillarChallenge_materializes() throws Exception {
+        UUID labId = UUID.fromString("c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2");
+        UUID challengeId = UUID.fromString("e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2");
+        LabRubricSnapshot rubric = new LabRubricSnapshot(
+                labId,
+                Map.of(
+                        1,
+                        new ChallengeRubric(
+                                challengeId,
+                                1,
+                                "Section 1",
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                false,
+                                false,
+                                1,
+                                1,
+                                0,
+                                1)));
+        String filename = DesktopPackFileNames.labFilename("Zero Pillar");
+        byte[] body = serialize(
+                TERM_ID,
+                "2026 — Quarter 1",
+                labId,
+                "Zero Pillar",
+                "zero-pillar-v1",
+                List.of(labId),
+                challengeId,
+                rubric);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", filename, "application/octet-stream", body);
+
+        mockMvc.perform(multipart("/api/desktop/packs/import").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.filename").value(filename));
     }
 
     @Test
@@ -259,6 +403,18 @@ class DesktopPackImportIntegrationTest {
                                 1,
                                 0,
                                 1)));
+        return serialize(termId, termLabel, labId, labName, version, labIds, challengeId, rubric);
+    }
+
+    private static byte[] serialize(
+            UUID termId,
+            String termLabel,
+            UUID labId,
+            String labName,
+            String version,
+            List<UUID> labIds,
+            UUID challengeId,
+            LabRubricSnapshot rubric) throws Exception {
         DesktopPackInnerPayload inner = new DesktopPackInnerPayload(
                 version,
                 termId,
