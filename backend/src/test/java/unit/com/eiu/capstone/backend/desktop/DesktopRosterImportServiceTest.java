@@ -11,11 +11,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -30,8 +32,12 @@ import com.eiu.capstone.backend.repository.RoleRepository;
 import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.TermRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class DesktopRosterImportServiceTest {
+
+    @TempDir
+    Path tempDir;
 
     private TermRepository termRepository;
     private AcademicYearRepository academicYearRepository;
@@ -56,7 +62,9 @@ class DesktopRosterImportServiceTest {
                 termEnrollmentRepository,
                 userAccountRepository,
                 roleRepository,
-                passwordEncoder);
+                passwordEncoder,
+                new ObjectMapper(),
+                tempDir.toString());
 
         currentTerm = new Term();
         currentTerm.setId(java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"));
@@ -81,6 +89,7 @@ class DesktopRosterImportServiceTest {
         verify(termEnrollmentRepository).deleteByTerm_Id(currentTerm.getId());
         verify(termEnrollmentRepository, times(2)).save(any(TermEnrollment.class));
         verify(userAccountRepository, times(2)).save(any(UserAccount.class));
+        assertTrue(java.nio.file.Files.isRegularFile(tempDir.resolve("data").resolve("offline-roster-irns.json")));
     }
 
     @Test
@@ -102,17 +111,25 @@ class DesktopRosterImportServiceTest {
     }
 
     @Test
-    void hasUsableRoster_requiresCurrentTermAndCodes() {
+    void hasUsableRoster_ignoresNonTenDigitCodes() {
         when(termEnrollmentRepository.findStudentCodesEnrolledInCurrentTerm())
-                .thenReturn(List.of("2331200057"));
+                .thenReturn(List.of("DESKTOP", "LECTURER"));
+        assertFalse(service.hasUsableRoster());
+
+        when(termEnrollmentRepository.findStudentCodesEnrolledInCurrentTerm())
+                .thenReturn(List.of("DESKTOP", "2331200057"));
         assertTrue(service.hasUsableRoster());
+    }
 
-        when(termEnrollmentRepository.findStudentCodesEnrolledInCurrentTerm())
-                .thenReturn(List.of());
-        assertFalse(service.hasUsableRoster());
+    @Test
+    void restorePersistedRoster_reimportsSavedIrns() {
+        when(userAccountRepository.findByStudentCode("2331200057")).thenReturn(Optional.empty());
+        service.replaceImport(List.of("2331200057"));
+        verify(termEnrollmentRepository, times(1)).save(any(TermEnrollment.class));
 
-        when(termRepository.findCurrent()).thenReturn(Optional.empty());
-        assertFalse(service.hasUsableRoster());
+        service.restorePersistedRosterIntoCurrentTerm();
+        verify(termEnrollmentRepository, times(2)).deleteByTerm_Id(currentTerm.getId());
+        verify(termEnrollmentRepository, times(2)).save(any(TermEnrollment.class));
     }
 
     @Test

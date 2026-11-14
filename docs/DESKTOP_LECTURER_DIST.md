@@ -13,13 +13,13 @@ LecturerBulk/
   runtime/jdk/
   ui/dist-desktop-lecturer/
   rubric/                       # same .agpack names as student practice
-  data/                         # H2 DB, submissions, bulk-last-batch.json
+  data/                         # H2 DB, submissions, bulk-last-batch.json, offline-roster-irns.json
 ```
 
 ## Prerequisites before grading
 
 1. **Rubric pack** — same signed practice packs (`Rubric_{year}_Q{n}.agpack` / `Rubric_{labName}.agpack`). Import from the app header (restart after Okay).
-2. **Current-term roster** — on the website Term / Quarters page, **Download roster** (CSV, next to Practice pack); in the offline app header, **Import roster**. Import **replaces** any previous local roster (not a merge). Empty successful import clears membership and blocks Bulk. Importing a rubric pack also wipes local enrollments — import roster again after pack import/restart.
+2. **Current-term roster** — on the website Term / Quarters page, **Download roster** (CSV, next to Practice pack); in the offline app header, **Import roster**. Import **replaces** any previous local roster (not a merge). Empty successful import clears membership and blocks Bulk. Pack import and roster import are independent: the last roster IRN set is kept under `data/offline-roster-irns.json` and re-applied after pack wipe/import.
 3. Without a usable roster, drop / Start Grading stay blocked.
 
 ## Run

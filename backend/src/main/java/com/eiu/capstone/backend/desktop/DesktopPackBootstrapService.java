@@ -119,6 +119,9 @@ public class DesktopPackBootstrapService {
             log.warn("Could not clear desktop pack fingerprint after empty rubric wipe: {}",
                     ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName());
         }
+        // Lecturer offline: re-apply persisted roster into a fresh local term so pack deletion
+        // does not force a manual roster re-import.
+        importService.restoreLecturerRosterIfPresent();
         localUserService.ensureLocalStudent(null);
     }
 

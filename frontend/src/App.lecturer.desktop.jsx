@@ -154,7 +154,6 @@ function LecturerOfflineBulkShell() {
         {rosterStatusKnown && !rosterReady && (
           <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
             Import the Term page <span className="font-semibold">Download roster</span> file before grading.
-            Importing a rubric pack clears the local roster — import roster again after pack import.
           </p>
         )}
 
