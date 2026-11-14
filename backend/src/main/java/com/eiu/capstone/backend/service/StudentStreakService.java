@@ -68,6 +68,12 @@ public class StudentStreakService {
         int petBefore = row.getPetCount();
         action.accept(row);
         DailyStreakRules.awardIfReady(row, today);
+        int earnedTickets = DailyStreakRules.missionTickets(row);
+        int ticketDelta = earnedTickets - row.getMissionTicketsAwarded();
+        if (ticketDelta > 0) {
+            row.setGachaTickets(row.getGachaTickets() + ticketDelta);
+            row.setMissionTicketsAwarded(earnedTickets);
+        }
         boolean missionCompletedNow = DailyStreakRules.missionJustFinished(
                 loggedInBefore, submitBefore, petBefore, row);
         repository.save(row);
@@ -87,6 +93,19 @@ public class StudentStreakService {
     @Transactional
     public StudentStreak save(StudentStreak row) {
         return repository.save(row);
+    }
+
+    @Transactional
+    public StudentStreakView spendGachaTickets(UUID userId, int count) {
+        if (count < 1 || count > 10) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Summon count must be from 1 to 10");
+        }
+        return mutate(userId, row -> {
+            if (row.getGachaTickets() < count) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Not enough gacha tickets");
+            }
+            row.setGachaTickets(row.getGachaTickets() - count);
+        });
     }
 
     @Transactional

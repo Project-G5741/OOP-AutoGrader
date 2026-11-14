@@ -52,6 +52,15 @@ public class StudentStreak {
     @Column(name = "equipped_mascot", nullable = false, length = 32)
     private String equippedMascot = "fox";
 
+    @Column(name = "gacha_tickets", nullable = false)
+    private int gachaTickets;
+
+    @Column(name = "mission_tickets_awarded", nullable = false)
+    private int missionTicketsAwarded;
+
+    @Column(name = "gacha_launch_gift", nullable = false)
+    private boolean gachaLaunchGift;
+
     public UUID getUserId() {
         return userId;
     }
@@ -154,5 +163,29 @@ public class StudentStreak {
 
     public void setEquippedMascot(String equippedMascot) {
         this.equippedMascot = equippedMascot;
+    }
+
+    public int getGachaTickets() {
+        return gachaTickets;
+    }
+
+    public void setGachaTickets(int gachaTickets) {
+        this.gachaTickets = gachaTickets;
+    }
+
+    public int getMissionTicketsAwarded() {
+        return missionTicketsAwarded;
+    }
+
+    public void setMissionTicketsAwarded(int missionTicketsAwarded) {
+        this.missionTicketsAwarded = missionTicketsAwarded;
+    }
+
+    public boolean isGachaLaunchGift() {
+        return gachaLaunchGift;
+    }
+
+    public void setGachaLaunchGift(boolean gachaLaunchGift) {
+        this.gachaLaunchGift = gachaLaunchGift;
     }
 }

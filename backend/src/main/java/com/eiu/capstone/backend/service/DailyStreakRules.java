@@ -46,6 +46,26 @@ public final class DailyStreakRules {
         row.setSubmitCount(0);
         row.setPetCount(0);
         row.setAwardedToday(false);
+        row.setMissionTicketsAwarded(0);
+    }
+
+    /**
+     * Tickets earned from today's missions. Login is 2, two pets is 1 and four pets is 2,
+     * each submit up to three is 1, and finishing all three missions is 1 more.
+     */
+    public static int missionTickets(StudentStreak row) {
+        int tickets = row.isLoggedIn() ? 2 : 0;
+        int pets = row.getPetCount();
+        if (pets >= PET_GOAL) {
+            tickets += 2;
+        } else if (pets >= 2) {
+            tickets += 1;
+        }
+        tickets += Math.min(Math.max(row.getSubmitCount(), 0), SUBMIT_GOAL);
+        if (row.isLoggedIn() && row.getSubmitCount() >= SUBMIT_GOAL && pets >= PET_GOAL) {
+            tickets += 1;
+        }
+        return tickets;
     }
 
     public static void addPet(StudentStreak row) {
@@ -128,6 +148,7 @@ public final class DailyStreakRules {
                 row.getSavedStreak(),
                 canRestore(row, today),
                 row.getEquippedMascot(),
+                row.getGachaTickets(),
                 missionCompletedNow);
     }
 }

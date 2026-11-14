@@ -101,10 +101,24 @@ class DailyStreakRulesTest {
         row.setLastCompletedOn(TODAY.minusDays(1));
         row.setMissionDate(TODAY.minusDays(1));
         row.setPetCount(4);
+        row.setMissionTicketsAwarded(5);
         DailyStreakRules.roll(row, TODAY);
         assertFalse(row.isStreakBroken());
         assertEquals(3, row.getStreakCount());
         assertEquals(0, row.getPetCount());
+        assertEquals(0, row.getMissionTicketsAwarded());
+    }
+
+    @Test
+    void missionTicketsMatchTheDailyMissionSchedule() {
+        StudentStreak row = new StudentStreak();
+        row.setLoggedIn(true);
+        assertEquals(2, DailyStreakRules.missionTickets(row));
+        row.setPetCount(2);
+        assertEquals(3, DailyStreakRules.missionTickets(row));
+        row.setPetCount(4);
+        row.setSubmitCount(3);
+        assertEquals(8, DailyStreakRules.missionTickets(row));
     }
 
     private static StudentStreak ready(LocalDate today) {

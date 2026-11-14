@@ -299,10 +299,37 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const saved = localStorage.getItem('gacha_demo_tickets');
     return saved !== null ? parseInt(saved, 10) : 15;
   });
+  const ticketsRef = useRef(tickets);
 
   const handleTicketsChange = useCallback((val) => {
+    const prev = ticketsRef.current;
+    ticketsRef.current = val;
     setTickets(val);
     localStorage.setItem('gacha_demo_tickets', val);
+    if (IS_DESKTOP_APP || val >= prev) return;
+    const count = prev - val;
+    apiFetch(`${API_BASE}/api/students/streak/gacha-spend`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        ticketsRef.current = prev;
+        setTickets(prev);
+        localStorage.setItem('gacha_demo_tickets', prev);
+        return;
+      }
+      const body = await response.json();
+      if (typeof body.gachaTickets === 'number') {
+        ticketsRef.current = body.gachaTickets;
+        setTickets(body.gachaTickets);
+        localStorage.setItem('gacha_demo_tickets', body.gachaTickets);
+      }
+    }).catch(() => {
+      ticketsRef.current = prev;
+      setTickets(prev);
+      localStorage.setItem('gacha_demo_tickets', prev);
+    });
   }, []);
 
   const handleOwnedMascotsChange = useCallback((val) => {
@@ -337,75 +364,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setAwardPulse((value) => value + 1);
     }
 
-    // Award tickets from Streak missions:
-    // 1. Daily login: +2 tickets
-    // 2. Pet mascot (4 times): +2 tickets (1 ticket per 2 pets)
-    // 3. Lab submissions (3 times): +1 ticket per submit (up to 3)
-    // 4. Streak full completion bonus: +1 ticket
-    // Total daily: 8 tickets = 56 tickets/week (guarantees >= 50 rolls/week)
-    if (next) {
-      const todayStr = new Date().toLocaleDateString('en-CA');
-      const claimKey = `oop_streak_tickets_claimed_${todayStr}`;
-      let claimed = {};
-      try {
-        const savedClaimed = localStorage.getItem(claimKey);
-        if (savedClaimed) claimed = JSON.parse(savedClaimed);
-      } catch {
-        claimed = {};
-      }
-
-      let ticketsEarned = 0;
-      const ticketToasts = [];
-
-      // 1. Daily Login (+2 tickets)
-      if (next.loggedIn && !claimed.login) {
-        ticketsEarned += 2;
-        claimed.login = 2;
-        ticketToasts.push('+2 Vé Roll (Điểm danh)');
-      }
-
-      // 2. Petting Mascot (+2 tickets total: 2 pets = 1 ticket, 4 pets = 2 tickets)
-      const petGoal = next.petGoal ?? 4;
-      const petCount = next.petCount ?? 0;
-      const eligiblePet = petCount >= petGoal ? 2 : petCount >= 2 ? 1 : 0;
-      const prevPet = claimed.pet || 0;
-      if (eligiblePet > prevPet) {
-        const delta = eligiblePet - prevPet;
-        ticketsEarned += delta;
-        claimed.pet = eligiblePet;
-        ticketToasts.push(`+${delta} Vé Roll (Chăm sóc linh vật ${petCount}/${petGoal})`);
-      }
-
-      // 3. Submissions (+1 ticket per submit up to 3)
-      const submitGoal = next.submitGoal ?? 3;
-      const submitCount = next.submitCount ?? 0;
-      const eligibleSubmits = Math.min(submitCount, submitGoal);
-      const prevSubmits = claimed.submits || 0;
-      if (eligibleSubmits > prevSubmits) {
-        const delta = eligibleSubmits - prevSubmits;
-        ticketsEarned += delta;
-        claimed.submits = eligibleSubmits;
-        ticketToasts.push(`+${delta} Vé Roll (Nộp bài tập ${submitCount}/${submitGoal})`);
-      }
-
-      // 4. Full streak completion (+1 ticket bonus)
-      const isComplete = Boolean(next.completedToday) || 
-        (next.loggedIn && submitCount >= submitGoal && petCount >= petGoal);
-      if (isComplete && !claimed.streakBonus) {
-        ticketsEarned += 1;
-        claimed.streakBonus = 1;
-        ticketToasts.push('+1 Vé Roll (Hoàn thành Streak ngày)');
-      }
-
-      if (ticketsEarned > 0) {
-        localStorage.setItem(claimKey, JSON.stringify(claimed));
-        setTickets((curr) => {
-          const nextCount = curr + ticketsEarned;
-          localStorage.setItem('gacha_demo_tickets', nextCount);
-          return nextCount;
-        });
-        showToast(ticketToasts.join(' • '), 'success');
-      }
+    if (typeof next?.gachaTickets === 'number') {
+      ticketsRef.current = next.gachaTickets;
+      setTickets(next.gachaTickets);
+      localStorage.setItem('gacha_demo_tickets', next.gachaTickets);
     }
 
     const serverEquipped = next?.equipped || 'fox';
