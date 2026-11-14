@@ -1,5 +1,6 @@
 //! Start/wait/stop the bundled Java practice backend (parity with former .NET BackendLauncher).
 
+use crate::host_config::HostConfig;
 use serde::Deserialize;
 use std::fs;
 use std::io::{self, Write};
@@ -11,7 +12,6 @@ use std::time::{Duration, Instant, SystemTime};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-const PORT: u16 = 18002;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const HEALTH_INTERVAL: Duration = Duration::from_millis(250);
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(120);
@@ -24,14 +24,15 @@ struct DesktopStatus {
 
 pub struct Backend {
     child: Option<Child>,
+    port: u16,
 }
 
 impl Backend {
-    pub fn app_url() -> String {
-        format!("http://127.0.0.1:{PORT}/")
+    pub fn app_url(port: u16) -> String {
+        format!("http://127.0.0.1:{port}/")
     }
 
-    pub fn start(install_dir: &Path) -> io::Result<Self> {
+    pub fn start(install_dir: &Path, config: &HostConfig) -> io::Result<Self> {
         let backend_jar = install_dir.join("backend.jar");
         if !backend_jar.is_file() {
             return Err(io::Error::new(
@@ -56,7 +57,8 @@ impl Backend {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .env("APP_DESKTOP_HOME", install_dir)
-        .env("SPRING_PROFILES_ACTIVE", "desktop")
+        .env("SPRING_PROFILES_ACTIVE", &config.spring_profile)
+        .env("DESKTOP_SERVER_PORT", config.port.to_string())
         .env("DESKTOP_WORKER_JAVA", &java_exe)
         // Never inherit a cloud SANDBOX_* env into offline practice (local worker.jar only).
         .env("SANDBOX_ENABLED", "false")
@@ -78,11 +80,12 @@ impl Backend {
 
         Ok(Self {
             child: Some(child),
+            port: config.port,
         })
     }
 
     pub fn wait_until_healthy(&mut self) -> io::Result<()> {
-        let status_url = format!("{}api/desktop/status", Self::app_url());
+        let status_url = format!("{}api/desktop/status", Self::app_url(self.port));
         let deadline = Instant::now() + HEALTH_TIMEOUT;
         let agent = ureq::AgentBuilder::new()
             .timeout_connect(Duration::from_secs(2))

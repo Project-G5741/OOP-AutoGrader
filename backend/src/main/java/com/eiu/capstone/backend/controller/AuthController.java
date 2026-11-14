@@ -31,7 +31,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class AuthController {
 
     private final GoogleTokenVerifier googleTokenVerifier;

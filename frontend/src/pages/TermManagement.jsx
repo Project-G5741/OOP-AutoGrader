@@ -9,6 +9,7 @@ import DatePicker from '../components/ui/DatePicker';
 import Modal from '../components/ui/Modal';
 import ModalOverlay from '../components/ui/ModalOverlay';
 import { useToast } from '../components/ui/Toast';
+import { exportRowsAsCsv } from '../components/lecturer/exportRoster';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -534,6 +535,48 @@ export default function TermManagement() {
     }
   };
 
+  const handleDownloadOfflineRoster = async () => {
+    if (!selectedTerm?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      let enrolled = students;
+      if (!Array.isArray(enrolled) || enrolled.length === 0) {
+        const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTerm.id}/roster`, {
+          headers: authHeaders(),
+        });
+        if (!response.ok) {
+          throw new Error(await readFriendlyApiError(response, 'download'));
+        }
+        const data = await response.json();
+        enrolled = Array.isArray(data?.enrolled) ? data.enrolled : [];
+      }
+      const rows = enrolled
+        .map((student) => String(student?.studentCode || '').trim())
+        .filter((code) => /^\d{10}$/.test(code))
+        .filter((code, index, all) => all.indexOf(code) === index)
+        .sort()
+        .map((student_code) => ({ student_code }));
+      if (rows.length === 0) {
+        throw new Error('No 10-digit student IRNs in this quarter’s enrolled roster.');
+      }
+      const year = selectedTerm.yearLabel || 'term';
+      const q = selectedTerm.termNumber != null ? `Q${selectedTerm.termNumber}` : 'roster';
+      // CSV keeps IRNs as text (Excel .xlsx often coerces them to numbers / scientific notation).
+      exportRowsAsCsv(rows, `enrollment_roster_${year}_${q}`);
+      showToast({
+        message: `Downloaded ${rows.length} IRN${rows.length === 1 ? '' : 's'} for offline Bulk Grading.`,
+        type: 'success',
+      });
+    } catch (err) {
+      const message = toFriendlyError(err, 'download');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleEnroll = async () => {
     if (!selectedTermId || selectedStudentIds.length === 0) return;
     setSaving(true);
@@ -944,6 +987,16 @@ export default function TermManagement() {
                   >
                     <Download className="h-4 w-4" />
                     Practice pack
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleDownloadOfflineRoster}
+                    title="CSV of enrolled 10-digit IRNs for offline lecturer Bulk Grading"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Download roster
                   </button>
                   {!selectedTerm.current && (
                     <button

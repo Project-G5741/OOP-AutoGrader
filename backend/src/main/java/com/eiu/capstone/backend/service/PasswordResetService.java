@@ -27,7 +27,7 @@ import com.eiu.capstone.backend.repository.UserAccountRepository;
 import jakarta.transaction.Transactional;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class PasswordResetService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();

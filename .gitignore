@@ -2,7 +2,9 @@ package-lock.json
 node_modules/
 dist/
 dist-desktop/
+dist-desktop-lecturer/
 frontend/dist-desktop/
+frontend/dist-desktop-lecturer/
 .cursor/vendor/
 /Submission/
 .env

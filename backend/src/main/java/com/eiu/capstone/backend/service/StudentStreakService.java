@@ -19,7 +19,7 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 import jakarta.persistence.EntityManager;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentStreakService {
 
     private final StudentStreakRepository repository;

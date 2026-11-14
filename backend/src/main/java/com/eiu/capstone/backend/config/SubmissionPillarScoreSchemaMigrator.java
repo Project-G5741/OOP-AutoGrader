@@ -11,7 +11,7 @@ import jakarta.annotation.PostConstruct;
  * Desktop practice adds the same columns through Hibernate {@code ddl-auto: update}.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SubmissionPillarScoreSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

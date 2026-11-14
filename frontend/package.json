@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:desktop": "vite build --mode desktop",
+    "build:desktop-lecturer": "vite build --mode desktop-lecturer",
     "preview": "vite preview"
   },
   "dependencies": {

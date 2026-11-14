@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackImportService {
 
     private static final Pattern QUARTER_PATTERN =
@@ -46,6 +47,7 @@ public class DesktopPackImportService {
     private final DesktopLocalUserService localUserService;
     private final LabRubricCache labRubricCache;
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectProvider<DesktopRosterImportService> rosterImportService;
 
     public DesktopPackImportService(
             LabRepository labRepository,
@@ -57,7 +59,8 @@ public class DesktopPackImportService {
             DesktopPackStructureMapper structureMapper,
             DesktopLocalUserService localUserService,
             LabRubricCache labRubricCache,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            ObjectProvider<DesktopRosterImportService> rosterImportService) {
         this.labRepository = labRepository;
         this.termRepository = termRepository;
         this.academicYearRepository = academicYearRepository;
@@ -68,6 +71,7 @@ public class DesktopPackImportService {
         this.localUserService = localUserService;
         this.labRubricCache = labRubricCache;
         this.jdbcTemplate = jdbcTemplate;
+        this.rosterImportService = rosterImportService;
     }
 
     @Transactional
@@ -79,6 +83,7 @@ public class DesktopPackImportService {
             importLab(entry, term.getId());
         }
         labRubricCache.invalidateAll();
+        restoreLecturerRosterIfPresent();
     }
 
     /**
@@ -104,6 +109,7 @@ public class DesktopPackImportService {
         }
         importLab(entry, term.getId());
         labRubricCache.invalidateAll();
+        restoreLecturerRosterIfPresent();
     }
 
     public List<LabNameConflict> findLabNameConflicts(DesktopPackInnerPayload payload) {
@@ -130,6 +136,7 @@ public class DesktopPackImportService {
 
     /**
      * Clears all practice labs, enrollments, and terms (same scope as a term-pack import wipe).
+     * Lecturer offline roster IRNs are kept on disk and re-applied after pack import.
      */
     @Transactional
     public void wipePracticeData() {
@@ -140,6 +147,14 @@ public class DesktopPackImportService {
         termEnrollmentRepository.deleteAllInBatch();
         termRepository.deleteAllInBatch();
         labRubricCache.invalidateAll();
+    }
+
+    /** Lecturer offline only: re-apply persisted roster IRNs into the current term. */
+    public void restoreLecturerRosterIfPresent() {
+        DesktopRosterImportService roster = rosterImportService.getIfAvailable();
+        if (roster != null) {
+            roster.restorePersistedRosterIntoCurrentTerm();
+        }
     }
 
     private Term ensureTerm(DesktopPackInnerPayload payload) {

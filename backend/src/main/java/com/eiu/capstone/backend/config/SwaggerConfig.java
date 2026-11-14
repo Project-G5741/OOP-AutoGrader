@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
 @Configuration
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SwaggerConfig {
     
     @Bean

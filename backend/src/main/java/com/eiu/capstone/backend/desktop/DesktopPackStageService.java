@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackSerializer;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackSigningKeys;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackStageService {
 
     private final DesktopPackBootstrapService bootstrapService;
@@ -105,6 +105,12 @@ public class DesktopPackStageService {
     private void rollbackFailedMaterialization() {
         try {
             importService.wipePracticeData();
+        } catch (Exception ignored) {
+            // best effort
+        }
+        try {
+            // Lecturer offline: wipe clears enrollments; re-apply persisted roster IRNs.
+            importService.restoreLecturerRosterIfPresent();
         } catch (Exception ignored) {
             // best effort
         }

@@ -113,6 +113,7 @@ SubmissionController
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
 - Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (default close-on-release; optional positive idle TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
+- Stdout compare canonicalizes CR LF and lone CR to LF before the comparison mode runs, so Windows `println` matches rubric text stored from the Linux web grader. A different character still fails
 - Exception matching: exception class simple name only (not message)
 - Value types v1: primitives, `String`, null, arrays of primitives, `LocalDate` as `yyyy-MM-dd`; ENUM constant-name strings when the param/field/return type is a rubric ENUM (resolved via ClassLoader `Enum.valueOf` at invoke); scenario params may also pass named instances as `{"$instance":"<name>"}`
 - Declaration aliases also apply at OT runtime: FIELD_STATE snapshots try every authored field-name alias per bound invocation but keep the primary name as the result/display key; method, constructor, and explicit receiver-constructor lookup lazily try positional parameter-type aliases and coerce arguments using the combination that bound.

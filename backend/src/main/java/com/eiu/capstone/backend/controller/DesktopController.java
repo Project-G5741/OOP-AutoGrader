@@ -9,7 +9,7 @@ import com.eiu.capstone.backend.desktop.DesktopRuntimeState;
 
 @RestController
 @RequestMapping("/api/desktop")
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopController {
 
     public record DesktopStatusDTO(

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SubmissionRetentionScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(SubmissionRetentionScheduler.class);

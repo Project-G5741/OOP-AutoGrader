@@ -1,5 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL
-  || (import.meta.env.VITE_APP_MODE === 'desktop' ? 'http://127.0.0.1:18002' : 'http://localhost:8002');
+import { desktopApiBase } from './desktopMode';
+
+const API_BASE = desktopApiBase();
 
 /**
  * Desktop pack bootstrap runs after Tomcat accepts traffic. Wait until status reports
