@@ -17,13 +17,15 @@ import { formatNumber, formatText } from '../../utils/formatters';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
 import ExportMenu from './ExportMenu';
-import { exportDataset } from './exportRoster';
+import { exportDataset, exportRowsAsCsv, exportRowsAsExcel } from './exportRoster';
 import { PILLAR_EXPORT_COLUMNS, formatPillarScore, pillarExportFields, pillarsForResultsTab } from './pillarScoreColumns';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
+import { desktopApiBase } from '../../utils/desktopMode';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const API_BASE = desktopApiBase();
 const BULK_RESULTS_PAGE_SIZE = 12;
 const BULK_EXPORT_FORMATS = ['excel', 'pdf', 'csv'];
+const IS_DESKTOP_LECTURER = import.meta.env.VITE_APP_MODE === 'desktop-lecturer';
 
 function resultsTabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -118,7 +120,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [resultsTab, setResultsTab] = useState('overview');
   const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
   const [resultsPage, setResultsPage] = useState(0);
-  /** @type {'loading'|'ready'|'no-quarter'|'error'} */
+  /** @type {'loading'|'ready'|'empty-roster'|'no-quarter'|'error'} */
   const [membershipStatus, setMembershipStatus] = useState('loading');
   const [enrolledIrns, setEnrolledIrns] = useState(() => new Set());
   const [membershipError, setMembershipError] = useState(null);
@@ -145,7 +147,7 @@ export default function BulkGradingPanel({ labs = [] }) {
         const data = await response.json();
         const list = Array.isArray(data?.irns) ? data.irns : [];
         setEnrolledIrns(new Set(list.map((code) => String(code))));
-        setMembershipStatus('ready');
+        setMembershipStatus(list.length > 0 ? 'ready' : 'empty-roster');
       } catch (err) {
         if (cancelled) return;
         setEnrolledIrns(new Set());
@@ -155,6 +157,19 @@ export default function BulkGradingPanel({ labs = [] }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const handleDownloadEnrollmentIrns = useCallback(async (format) => {
+    if (enrolledIrns.size === 0) return;
+    const rows = [...enrolledIrns]
+      .sort()
+      .map((student_code) => ({ student_code }));
+    const fileBase = 'current_term_enrollment_irns';
+    if (format === 'csv') {
+      exportRowsAsCsv(rows, fileBase);
+      return;
+    }
+    await exportRowsAsExcel(rows, fileBase);
+  }, [enrolledIrns]);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -456,6 +471,13 @@ export default function BulkGradingPanel({ labs = [] }) {
             No current quarter is set. Set a current quarter before using Bulk Grading.
           </p>
         )}
+        {membershipStatus === 'empty-roster' && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            {IS_DESKTOP_LECTURER
+              ? 'Import a current-term enrollment roster before using Bulk Grading.'
+              : 'No enrolled students in the current quarter. Enroll students before using Bulk Grading.'}
+          </p>
+        )}
         {membershipStatus === 'error' && membershipError && (
           <p className="rounded-r-xl border-l-4 border-error bg-error-bg px-3.5 py-2.5 text-sm text-error-text">
             {membershipError}
@@ -463,6 +485,27 @@ export default function BulkGradingPanel({ labs = [] }) {
         )}
         {membershipStatus === 'loading' && (
           <p className="text-sm text-foreground-muted">Loading current-quarter student IRNs…</p>
+        )}
+        {membershipStatus === 'ready' && enrolledIrns.size > 0 && !IS_DESKTOP_LECTURER && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium text-foreground-secondary">
+              Offline roster ({enrolledIrns.size} IRNs)
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDownloadEnrollmentIrns('csv')}
+              className="rounded-lg border border-border px-3 py-1.5 font-semibold text-foreground transition-colors hover:bg-surface-secondary"
+            >
+              Download CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownloadEnrollmentIrns('excel')}
+              className="rounded-lg border border-border px-3 py-1.5 font-semibold text-foreground transition-colors hover:bg-surface-secondary"
+            >
+              Download Excel
+            </button>
+          </div>
         )}
 
         <div

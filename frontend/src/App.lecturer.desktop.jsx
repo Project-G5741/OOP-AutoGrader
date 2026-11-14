@@ -3,6 +3,7 @@ import RequireRole from "./components/auth/RequireRole";
 import ThemeToggle from "./components/ThemeToggle";
 import DesktopRubricPackImport from "./components/student/DesktopRubricPackImport";
 import DesktopPracticeStatusBanner from "./components/student/DesktopPracticeStatusBanner";
+import DesktopRosterImport from "./components/lecturer/DesktopRosterImport";
 import { useToast } from "./components/ui/Toast";
 import { persistAuthSession } from "./utils/authRoutes";
 import { quitPracticeApp } from "./utils/desktopQuit";
@@ -51,11 +52,14 @@ function LecturerOfflineBulkShell() {
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        <section className="rounded-lg border border-border bg-surface-secondary p-4">
-          <h2 className="text-sm font-semibold text-navy">Current-term roster</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Import the enrollment file before grading (wired in the next unit).
-          </p>
+        <section className="rounded-lg border border-border bg-surface-secondary p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-navy">Current-term roster</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Import the CSV/Excel enrollment download from the website (student_code column).
+            </p>
+          </div>
+          <DesktopRosterImport onToast={showToast} />
         </section>
         <section className="rounded-lg border border-border bg-surface-secondary p-4">
           <h2 className="text-sm font-semibold text-navy">Grade a folder dump</h2>
