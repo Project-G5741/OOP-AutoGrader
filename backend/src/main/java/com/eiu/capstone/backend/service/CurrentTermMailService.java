@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class CurrentTermMailService {
 
     private static final Logger log = LoggerFactory.getLogger(CurrentTermMailService.class);

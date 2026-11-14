@@ -19,16 +19,22 @@ import { applyBrandFavicon } from './theme/applyBrandFavicon.js'
 
 applyBrandFavicon()
 
-const isDesktopMode = import.meta.env.VITE_APP_MODE === 'desktop'
+const appMode = import.meta.env.VITE_APP_MODE
+const isDesktopMode = appMode === 'desktop'
+const isDesktopLecturerMode = appMode === 'desktop-lecturer'
 
 async function bootstrap() {
-  // Dynamic import so web never evaluates App.desktop.jsx (its module top-level
-  // would overwrite a real JWT with the synthetic desktop-local session).
-  const App = (
-    isDesktopMode
-      ? await import('./App.desktop.jsx')
-      : await import('./App.jsx')
-  ).default
+  // Dynamic import so web never evaluates desktop entry modules (their top-level
+  // session seeds would overwrite a real JWT with a synthetic desktop session).
+  let appModule
+  if (isDesktopLecturerMode) {
+    appModule = await import('./App.lecturer.desktop.jsx')
+  } else if (isDesktopMode) {
+    appModule = await import('./App.desktop.jsx')
+  } else {
+    appModule = await import('./App.jsx')
+  }
+  const App = appModule.default
 
   ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>

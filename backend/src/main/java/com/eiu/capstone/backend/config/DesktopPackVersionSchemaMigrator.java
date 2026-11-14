@@ -11,7 +11,7 @@ import jakarta.annotation.PostConstruct;
  * Nullable — set only for desktop practice attempts; web uploads leave it null.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class DesktopPackVersionSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

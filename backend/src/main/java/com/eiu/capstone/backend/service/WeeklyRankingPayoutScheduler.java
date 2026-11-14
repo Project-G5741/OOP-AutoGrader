@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class WeeklyRankingPayoutScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyRankingPayoutScheduler.class);

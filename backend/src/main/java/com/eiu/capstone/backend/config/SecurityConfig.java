@@ -21,7 +21,7 @@ import com.eiu.capstone.backend.security.JwtAuthenticationFilter;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 
 @Configuration
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;

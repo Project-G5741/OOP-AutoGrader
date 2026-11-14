@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.model.GoogleTokenInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class GoogleTokenVerifier {
 
     private final ObjectMapper objectMapper;

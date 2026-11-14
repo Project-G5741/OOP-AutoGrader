@@ -8,7 +8,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @ConditionalOnProperty(name = "app.mail.provider", havingValue = "smtp", matchIfMissing = true)
 public class SmtpTransactionalEmailSender implements TransactionalEmailSender {
 

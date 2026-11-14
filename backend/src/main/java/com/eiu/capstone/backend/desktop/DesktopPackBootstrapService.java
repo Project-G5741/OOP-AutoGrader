@@ -26,7 +26,7 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackSigningKeys;
 import com.eiu.capstone.backend.repository.TermRepository;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackBootstrapService {
 
     private static final Logger log = LoggerFactory.getLogger(DesktopPackBootstrapService.class);

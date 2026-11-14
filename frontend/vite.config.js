@@ -6,7 +6,12 @@ export default defineConfig(({ mode }) => ({
   // Vercel-style NEXT_PUBLIC_* aliases plus the Vite VITE_* contract.
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   build: {
-    outDir: mode === 'desktop' ? 'dist-desktop' : 'dist',
+    outDir:
+      mode === 'desktop-lecturer'
+        ? 'dist-desktop-lecturer'
+        : mode === 'desktop'
+          ? 'dist-desktop'
+          : 'dist',
   },
   server: {
     port: 5173

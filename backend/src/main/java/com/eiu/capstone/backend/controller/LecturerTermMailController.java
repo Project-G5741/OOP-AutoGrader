@@ -13,7 +13,7 @@ import com.eiu.capstone.backend.service.CurrentTermMailService;
 import jakarta.validation.Valid;
 
 @RestController
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @RequestMapping("/api/lecturer/terms")
 public class LecturerTermMailController {
 

@@ -6,7 +6,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @ConditionalOnProperty(name = "app.deadline-reminder.enabled", havingValue = "true", matchIfMissing = true)
 public class LabDeadlineReminderScheduler {
 

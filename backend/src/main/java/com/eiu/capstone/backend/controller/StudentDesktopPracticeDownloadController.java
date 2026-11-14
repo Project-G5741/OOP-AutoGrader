@@ -21,7 +21,7 @@ import com.eiu.capstone.backend.service.StudentDesktopPracticeBundleService.Bund
 
 @RestController
 @RequestMapping("/api/students")
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentDesktopPracticeDownloadController {
 
     private final JwtAuthHelper jwtAuthHelper;

@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.desktop.DesktopPackStageService.StageResult;
 
 @RestController
 @RequestMapping("/api/desktop/packs")
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackController {
 
     public record ImportConflictDTO(java.util.List<LabNameConflict> conflicts, String message) {}

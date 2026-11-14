@@ -15,7 +15,7 @@ import com.eiu.capstone.backend.repository.LabSubmissionRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentDailySubmissionQuotaService {
 
     private final LabSubmissionRepository labSubmissionRepository;

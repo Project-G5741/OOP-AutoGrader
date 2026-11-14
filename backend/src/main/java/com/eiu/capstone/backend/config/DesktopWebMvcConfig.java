@@ -13,7 +13,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
 @Configuration
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopWebMvcConfig implements WebMvcConfigurer {
 
     private final Path uiRoot;

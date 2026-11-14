@@ -13,7 +13,7 @@ import jakarta.annotation.PostConstruct;
  * child row as a one-element list from the primary column.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class DeclarationAliasListsSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

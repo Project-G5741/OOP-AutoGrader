@@ -37,7 +37,7 @@ import com.eiu.capstone.backend.grading.rubric.RelationRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackStructureMapper {
 
     private final DesktopMasterDataResolver masterData;

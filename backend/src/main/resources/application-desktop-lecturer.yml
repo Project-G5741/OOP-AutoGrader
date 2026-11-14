@@ -1,0 +1,69 @@
+spring:
+  config:
+    activate:
+      on-profile: desktop-lecturer
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  main:
+    lazy-initialization: true
+  jmx:
+    enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+      - org.springframework.boot.autoconfigure.mail.MailSenderValidatorAutoConfiguration
+      - org.springframework.boot.autoconfigure.jmx.JmxAutoConfiguration
+      - org.springframework.boot.autoconfigure.websocket.servlet.WebSocketServletAutoConfiguration
+      - org.springframework.boot.autoconfigure.gson.GsonAutoConfiguration
+  datasource:
+    url: jdbc:h2:file:${app.desktop.install-dir}/data/desktop-db;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    hikari:
+      maximum-pool-size: 2
+      minimum-idle: 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+jwt:
+  secret: ${JWT_SECRET:desktop-local-dev-secret-minimum-32-bytes!!}
+
+server:
+  port: ${DESKTOP_SERVER_PORT:18003}
+
+app:
+  submission:
+    retention:
+      enabled: false
+      backfill-on-startup: false
+  desktop:
+    install-dir: ${APP_DESKTOP_HOME:.}
+    ui-dir: ${APP_DESKTOP_HOME:.}/ui/dist-desktop-lecturer
+    pack-dir: ${APP_DESKTOP_HOME:.}/rubric
+  storage:
+    submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
+  grading:
+    sandbox:
+      enabled: false
+    worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
+    worker-java: ${DESKTOP_WORKER_JAVA:java}
+    worker-xmx: 512m
+    worker-max-metaspace: 256m
+    ot-batch-parallelism: 2
+    parallelism: 8
+    timing-log: false
+  compile:
+    parallelism: 8

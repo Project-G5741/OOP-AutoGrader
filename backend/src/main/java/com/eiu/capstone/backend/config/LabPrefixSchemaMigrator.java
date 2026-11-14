@@ -11,7 +11,7 @@ import jakarta.annotation.PostConstruct;
  * Desktop practice creates the column through Hibernate {@code ddl-auto: update}.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class LabPrefixSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

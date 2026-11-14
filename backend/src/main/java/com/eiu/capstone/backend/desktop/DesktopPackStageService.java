@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.desktop.pack.DesktopPackSerializer;
 import com.eiu.capstone.backend.desktop.pack.DesktopPackSigningKeys;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackStageService {
 
     private final DesktopPackBootstrapService bootstrapService;

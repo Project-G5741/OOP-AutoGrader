@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentAccountExpiryScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(StudentAccountExpiryScheduler.class);

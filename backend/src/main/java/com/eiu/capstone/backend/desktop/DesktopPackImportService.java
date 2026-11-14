@@ -30,7 +30,7 @@ import com.eiu.capstone.backend.service.LabStructureService;
 import com.eiu.capstone.backend.service.TestcaseRubricService;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackImportService {
 
     private static final Pattern QUARTER_PATTERN =

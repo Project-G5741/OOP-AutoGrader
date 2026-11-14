@@ -15,7 +15,7 @@ import jakarta.annotation.PostConstruct;
  */
 @Component
 @Lazy(false)
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopStreakSchemaCleanupMigrator {
 
     private final JdbcTemplate jdbcTemplate;
