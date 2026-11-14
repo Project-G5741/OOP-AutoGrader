@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
@@ -53,6 +54,7 @@ public class UserService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final SessionValidityService sessionValidityService;
     private final TermService termService;
+    private final ObjectProvider<MascotPracticeTokenService> mascotPracticeTokens;
 
     public UserService(UserAccountRepository userRepository,
             RoleRepository roleRepository,
@@ -63,7 +65,8 @@ public class UserService {
             LabDeadlineEmailSentRepository labDeadlineEmailSentRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             SessionValidityService sessionValidityService,
-            TermService termService) {
+            TermService termService,
+            ObjectProvider<MascotPracticeTokenService> mascotPracticeTokens) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -74,6 +77,7 @@ public class UserService {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.sessionValidityService = sessionValidityService;
         this.termService = termService;
+        this.mascotPracticeTokens = mascotPracticeTokens;
     }
 
     @Transactional
@@ -177,6 +181,7 @@ public class UserService {
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        revokeMascotPracticeToken(user.getId());
     }
 
     @Transactional
@@ -273,6 +278,14 @@ public class UserService {
         passwordResetTokenRepository.deleteByUser_Id(userId);
 
         submissionDeletionService.deleteAllSubmissionGraphForUser(userId);
+        revokeMascotPracticeToken(userId);
+    }
+
+    private void revokeMascotPracticeToken(UUID userId) {
+        MascotPracticeTokenService tokens = mascotPracticeTokens.getIfAvailable();
+        if (tokens != null) {
+            tokens.deleteForUser(userId);
+        }
     }
 
     @Transactional
@@ -300,6 +313,7 @@ public class UserService {
         user.setIsActive(active);
         if (!active) {
             sessionValidityService.bumpSessionVersion(user);
+            revokeMascotPracticeToken(user.getId());
         } else {
             userRepository.save(user);
         }

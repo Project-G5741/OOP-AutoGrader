@@ -28,6 +28,7 @@ export default function AppShell({
   hideRanking = true,
   hideSectionLinks = false,
   hideChangePassword = false,
+  showMascotPracticeToken = false,
   showStudentArea = false,
   showLecturerArea = false,
   headerAddon = null,
@@ -49,6 +50,7 @@ export default function AppShell({
             hideRanking={hideRanking}
             hideSectionLinks={hideSectionLinks}
             hideChangePassword={hideChangePassword}
+            showMascotPracticeToken={showMascotPracticeToken}
             showStudentArea={showStudentArea}
             showLecturerArea={showLecturerArea}
             headerAddon={headerAddon}

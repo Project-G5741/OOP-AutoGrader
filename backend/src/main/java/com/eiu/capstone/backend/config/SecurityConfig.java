@@ -19,6 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.eiu.capstone.backend.security.BurstLimitFilter;
 import com.eiu.capstone.backend.security.JwtAuthenticationFilter;
 import com.eiu.capstone.backend.security.JwtRoleNames;
+import com.eiu.capstone.backend.service.JwtService;
 
 @Configuration
 @Profile("!desktop & !desktop-lecturer")
@@ -67,11 +68,16 @@ public class SecurityConfig {
                         .hasAnyRole(JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
                     .requestMatchers("/api/labs/**")
                         .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
+                    .requestMatchers(HttpMethod.GET, "/api/students/mascot-code/**")
+                        .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/students/mascot-snapshot")
+                        .hasAuthority(JwtService.MASCOT_READ_AUTHORITY)
                     .requestMatchers("/api/submissions/**", "/api/students/**")
                         .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.ADMIN)
                     .requestMatchers("/api/feedback/**")
                         .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
-                    .anyRequest().authenticated())
+                    .anyRequest().hasAnyRole(
+                            JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         BurstLimitFilter burst = burstLimitFilter.getIfAvailable();
         if (burst != null) {

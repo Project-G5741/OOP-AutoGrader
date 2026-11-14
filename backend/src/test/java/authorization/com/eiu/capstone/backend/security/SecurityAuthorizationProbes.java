@@ -109,5 +109,15 @@ final class SecurityAuthorizationProbes {
         String ranking() {
             return "ok";
         }
+
+        @GetMapping("/mascot-snapshot")
+        String mascotSnapshot() {
+            return "ok";
+        }
+
+        @GetMapping("/mascot-code/{jti}/bound")
+        String mascotCodeBound(@PathVariable String jti) {
+            return "{\"bound\":true}";
+        }
     }
 }

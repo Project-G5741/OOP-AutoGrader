@@ -45,6 +45,7 @@ public class PasswordResetService {
     private final int expiryMinutes;
     private final String defaultFrontendUrl;
     private final Set<String> allowedResetOrigins;
+    private final MascotPracticeTokenService mascotPracticeTokens;
 
     public PasswordResetService(
             UserAccountRepository userRepository,
@@ -52,7 +53,8 @@ public class PasswordResetService {
             PasswordResetEmailService emailService,
             PasswordEncoder passwordEncoder,
             @Value("${app.password-reset.expiry-minutes:15}") int expiryMinutes,
-            @Value("${app.password-reset.frontend-url}") String frontendUrl) {
+            @Value("${app.password-reset.frontend-url}") String frontendUrl,
+            MascotPracticeTokenService mascotPracticeTokens) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.emailService = emailService;
@@ -60,6 +62,7 @@ public class PasswordResetService {
         this.expiryMinutes = expiryMinutes;
         this.defaultFrontendUrl = resolveConfiguredFrontendUrl(frontendUrl);
         this.allowedResetOrigins = buildAllowedResetOrigins(frontendUrl, this.defaultFrontendUrl);
+        this.mascotPracticeTokens = mascotPracticeTokens;
     }
 
     @Transactional
@@ -119,6 +122,7 @@ public class PasswordResetService {
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        mascotPracticeTokens.deleteForUser(user.getId());
 
         resetToken.setUsedAt(now);
         tokenRepository.save(resetToken);

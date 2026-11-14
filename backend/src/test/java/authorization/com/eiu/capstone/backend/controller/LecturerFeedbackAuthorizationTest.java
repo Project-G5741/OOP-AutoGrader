@@ -63,6 +63,9 @@ class LecturerFeedbackAuthorizationTest {
     private SessionValidityService sessionValidityService;
 
     @MockBean
+    private com.eiu.capstone.backend.service.MascotPracticeTokenService mascotPracticeTokenService;
+
+    @MockBean
     private FeedbackService feedbackService;
 
     @BeforeEach

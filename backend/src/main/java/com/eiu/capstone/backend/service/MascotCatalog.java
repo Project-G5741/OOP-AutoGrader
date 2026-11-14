@@ -21,20 +21,22 @@ public final class MascotCatalog {
             new Offer("panda", "Panda", 999),
             new Offer("penguin", "Penguin", 1111),
             new Offer("bunny", "Bunny", 2222),
-            new Offer("vit", "Vịt", 2444),
+            new Offer("vit", "Duck", 2444),
             new Offer("hamster", "Hamster", 2888),
             new Offer("cat", "Cat", 3333),
-            new Offer("chuot_tui", "Chuột Túi", 3555),
+            new Offer("chuot_tui", "Kangaroo", 3555),
             new Offer("shiba", "Shiba", 3888),
-            new Offer("dai_bang", "Đại Bàng", 4222),
-            new Offer("cho_soi", "Chó Sói", 4888),
-            new Offer("thanh_long", "Thanh Long", 6888),
-            new Offer("bach_ho", "Bạch Hổ", 7888),
-            new Offer("chu_tuoc", "Chu Tước", 8888),
-            new Offer("huyen_vu", "Huyền Vũ", 9888),
+            new Offer("dai_bang", "Eagle", 4222),
+            new Offer("cho_soi", "Wolf", 4888),
+            new Offer("thanh_long", "Thanh Long", 9999),
+            new Offer("bach_ho", "Bạch Hổ", 8888),
+            new Offer("chu_tuoc", "Chu Tước", 7777),
+            new Offer("huyen_vu", "Huyền Vũ", 6666),
             new Offer("zerotwo", "Zero2", 35000),
-            new Offer("con_bang", "Côn Bằng", 35000),
-            new Offer("cung_ky", "Cùng Kỳ", 35000));
+            new Offer("con_bang", "Côn Bằng", 20000),
+            new Offer("cung_ky", "Cùng Kỳ", 20000),
+            new Offer("linh_loc", "Linh Lộc", 40000),
+            new Offer("ki_lan", "Kì Lân", 40000));
 
     private static final Map<String, Offer> BY_ID = FOR_SALE.stream()
             .collect(Collectors.toUnmodifiableMap(Offer::id, Function.identity()));

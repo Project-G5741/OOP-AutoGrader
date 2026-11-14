@@ -72,6 +72,9 @@ class LecturerTermDesktopPackTest {
     @MockBean
     private SessionValidityService sessionValidityService;
 
+    @MockBean
+    private com.eiu.capstone.backend.service.MascotPracticeTokenService mascotPracticeTokenService;
+
     @BeforeEach
     void allowSessions() {
         when(sessionValidityService.isSessionValid(any(), anyInt())).thenReturn(true);
