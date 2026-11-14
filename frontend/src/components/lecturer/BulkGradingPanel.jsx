@@ -24,8 +24,10 @@ import { desktopApiBase } from '../../utils/desktopMode';
 
 const API_BASE = desktopApiBase();
 const BULK_RESULTS_PAGE_SIZE = 12;
-const BULK_EXPORT_FORMATS = ['excel', 'pdf', 'csv'];
 const IS_DESKTOP_LECTURER = import.meta.env.VITE_APP_MODE === 'desktop-lecturer';
+const BULK_EXPORT_FORMATS = IS_DESKTOP_LECTURER
+  ? ['excel', 'csv']
+  : ['excel', 'pdf', 'csv'];
 
 function resultsTabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -124,6 +126,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [membershipStatus, setMembershipStatus] = useState('loading');
   const [enrolledIrns, setEnrolledIrns] = useState(() => new Set());
   const [membershipError, setMembershipError] = useState(null);
+  const [retainedNotice, setRetainedNotice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +161,35 @@ export default function BulkGradingPanel({ labs = [] }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!IS_DESKTOP_LECTURER) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/desktop/bulk-batch`);
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        if (!data?.present || !data.batch || cancelled) return;
+        const batch = data.batch;
+        if (batch.labId != null) setLabId(String(batch.labId));
+        if (batch.mode === 'LAB' || batch.mode === 'EXAM') setMode(batch.mode);
+        if (Array.isArray(batch.rows) && batch.rows.length > 0) {
+          setRows(batch.rows);
+          setGradedCount(batch.rows.length);
+          setRetainedNotice(true);
+        }
+        if (batch.folderLabel) setFolderLabel(String(batch.folderLabel));
+        if (typeof batch.gradingStoppedEarly === 'boolean') {
+          setGradingStoppedEarly(batch.gradingStoppedEarly);
+        }
+        if (batch.resultsTab != null) setResultsTab(batch.resultsTab);
+      } catch {
+        // Retained-batch hydrate is best-effort.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleDownloadEnrollmentIrns = useCallback(async (format) => {
     if (enrolledIrns.size === 0) return;
     const rows = [...enrolledIrns]
@@ -175,6 +207,47 @@ export default function BulkGradingPanel({ labs = [] }) {
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
     [labs, labId],
   );
+
+  const persistFinishedBatch = useCallback(async (finalRows, stoppedEarly) => {
+    if (!IS_DESKTOP_LECTURER || !selectedLab || !finalRows.length) return;
+    try {
+      await fetch(`${API_BASE}/api/desktop/bulk-batch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          labId: String(selectedLab.id),
+          labName: selectedLab.name || selectedLab.labName || '',
+          mode,
+          folderLabel,
+          gradingStoppedEarly: stoppedEarly,
+          resultsTab: 'overview',
+          savedAt: new Date().toISOString(),
+          rows: finalRows,
+        }),
+      });
+      setRetainedNotice(true);
+    } catch {
+      // Persistence failure should not undo on-screen results.
+    }
+  }, [selectedLab, mode, folderLabel]);
+
+  const clearRetainedBatch = useCallback(async () => {
+    if (!IS_DESKTOP_LECTURER) return;
+    try {
+      await fetch(`${API_BASE}/api/desktop/bulk-batch`, { method: 'DELETE' });
+    } catch {
+      // Still clear the local table so the lecturer can continue.
+    }
+    setRows([]);
+    setGradedCount(0);
+    setParseResult(null);
+    setGradeError(null);
+    setGradingStoppedEarly(false);
+    setDrawerStudent(null);
+    setResultsTab('overview');
+    setResultsPage(0);
+    setRetainedNotice(false);
+  }, []);
   const labChallenges = useMemo(
     () => (Array.isArray(selectedLab?.challenges) ? selectedLab.challenges : []),
     [selectedLab],
@@ -386,7 +459,7 @@ export default function BulkGradingPanel({ labs = [] }) {
 
     const withHashes = await attachClientHashes(Object.values(payloadsByIrn));
     const plag = computeWithinBatchPlagiarism(withHashes);
-    setRows(nextRows.map((row) => ({
+    const finalRows = nextRows.map((row) => ({
       ...row,
       plagiarismLabel: plag[row.studentId]?.label || '—',
       plagiarismOverlap: plag[row.studentId]?.overlap ?? null,
@@ -397,9 +470,10 @@ export default function BulkGradingPanel({ labs = [] }) {
               || payloadsByIrn[row.studentId].fileHashes,
           }
         : null,
-    })));
-
+    }));
+    setRows(finalRows);
     setGrading(false);
+    await persistFinishedBatch(finalRows, stoppedEarly);
   };
 
   return (
@@ -659,6 +733,11 @@ export default function BulkGradingPanel({ labs = [] }) {
                 Grading stopped — showing {rows.length} of {gradingTotal} students.
               </p>
             )}
+            {IS_DESKTOP_LECTURER && retainedNotice && (
+              <p className="text-sm text-foreground-muted">
+                Showing the last finished batch retained on this machine.
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
               {labChallenges.length > 0 ? (
@@ -684,7 +763,18 @@ export default function BulkGradingPanel({ labs = [] }) {
               ) : (
                 <span className="text-sm font-semibold text-foreground">Results</span>
               )}
-              <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+              <div className="flex flex-wrap items-center gap-2">
+                {IS_DESKTOP_LECTURER && (
+                  <button
+                    type="button"
+                    onClick={clearRetainedBatch}
+                    className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-secondary"
+                  >
+                    Clear batch
+                  </button>
+                )}
+                <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+              </div>
             </div>
           </div>
 

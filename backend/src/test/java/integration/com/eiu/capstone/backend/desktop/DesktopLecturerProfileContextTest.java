@@ -23,8 +23,10 @@ import com.eiu.capstone.backend.config.DesktopSecurityConfig;
 import com.eiu.capstone.backend.desktop.DesktopAuthenticationFilter;
 import com.eiu.capstone.backend.desktop.DesktopLecturerLocalIdentity;
 import com.eiu.capstone.backend.desktop.DesktopPlagiarismService;
+import com.eiu.capstone.backend.desktop.DesktopRosterImportService;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
+import com.eiu.capstone.backend.service.bulk.LecturerBulkGradingService;
 
 @SpringBootTest(classes = EiuCapstoneBackendApplication.class)
 @ActiveProfiles("desktop-lecturer")
@@ -54,6 +56,8 @@ class DesktopLecturerProfileContextTest {
         assertFalse(environment.acceptsProfiles(org.springframework.core.env.Profiles.of("desktop")));
         assertNotNull(context.getBean(DesktopSecurityConfig.class));
         assertNotNull(context.getBean(DesktopPlagiarismService.class));
+        assertNotNull(context.getBean(DesktopRosterImportService.class));
+        assertNotNull(context.getBean(LecturerBulkGradingService.class));
     }
 
     @Test
