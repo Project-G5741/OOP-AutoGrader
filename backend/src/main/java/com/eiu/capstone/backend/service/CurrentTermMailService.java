@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,21 +51,25 @@ public class CurrentTermMailService {
             return new CurrentTermMailResult(0, 0, 0, 0);
         }
         List<UserAccount> students = userAccountRepository.findAllById(studentIds);
-        int sent = 0;
-        int failed = 0;
         int skippedNoEmail = 0;
+        List<String> recipients = new ArrayList<>();
         for (UserAccount student : students) {
             String email = student.getEmail();
             if (email == null || email.isBlank()) {
                 skippedNoEmail++;
                 continue;
             }
+            recipients.add(email.trim());
+        }
+        int sent = 0;
+        int failed = 0;
+        if (!recipients.isEmpty()) {
             try {
-                emailSender.sendPlainText(email.trim(), subject, body);
-                sent++;
+                failed = emailSender.sendPlainTextEach(recipients, subject, body);
+                sent = recipients.size() - failed;
             } catch (RuntimeException ex) {
-                log.warn("Current-term mail failed for {}", email, ex);
-                failed++;
+                log.warn("Current-term mail failed for {} recipients", recipients.size(), ex);
+                failed = recipients.size();
             }
         }
         return new CurrentTermMailResult(students.size(), sent, failed, skippedNoEmail);

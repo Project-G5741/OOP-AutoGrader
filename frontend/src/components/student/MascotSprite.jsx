@@ -38,12 +38,14 @@ const CLOCKWISE = [
 const SECTOR = (Math.PI * 2) / CLOCKWISE.length;
 const HYSTERESIS = 0.12;
 const DEAD_ZONE = 70;
-const PAYOFFS = ['heart', 'sparkle', 'delighted'];
-const BOOP_PAYOFF = 120;
-const BOOP_END = 560;
+// Every reaction cell, in the order a normal click reveals it.
+// Dizzy stays off this list: it only plays when clicks land in a tight burst.
+const PAYOFFS = ['surprised', 'wink', 'sleepy', 'bashful', 'delighted', 'heart', 'sparkle'];
+const BOOP_PAYOFF = 100;
+const BOOP_END = 720;
 const SQUASH_MS = 420;
 const DIZZY_AFTER = 4;
-const DIZZY_WINDOW = 1600;
+const DIZZY_WINDOW = 420;
 const DIZZY_END = 1100;
 const SQUASH = [
   { transform: 'scale(1, 1)', easing: 'ease-in' },
@@ -164,7 +166,7 @@ export function Mascot({
   const buttonRef = useRef(null);
   const squashRef = useRef(null);
   const timersRef = useRef([]);
-  const boopsRef = useRef({ count: 0, at: 0 });
+  const boopsRef = useRef({ rapid: 0, at: 0, step: 0 });
   const [direction, setDirection] = useState('center');
   const [reaction, setReaction] = useState(null);
   const followPointer = interactive && trackPointer;
@@ -223,15 +225,17 @@ export function Mascot({
     };
     const now = Date.now();
     const boops = boopsRef.current;
-    boops.count = now - boops.at < DIZZY_WINDOW ? boops.count + 1 : 1;
+    boops.rapid = now - boops.at < DIZZY_WINDOW ? boops.rapid + 1 : 1;
     boops.at = now;
-    if (boops.count >= DIZZY_AFTER) {
-      boops.count = 0;
+    if (boops.rapid >= DIZZY_AFTER) {
+      boops.rapid = 0;
       setReaction('dizzy');
       later(DIZZY_END, null);
     } else {
+      const payoff = PAYOFFS[boops.step % PAYOFFS.length];
+      boops.step += 1;
       setReaction('blink');
-      later(BOOP_PAYOFF, PAYOFFS[(boops.count - 1) % PAYOFFS.length]);
+      later(BOOP_PAYOFF, payoff);
       later(BOOP_END, null);
     }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
