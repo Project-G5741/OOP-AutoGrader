@@ -57,4 +57,25 @@ class DesktopMascotSnapshotServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.sync("token"));
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
     }
+
+    @Test
+    void resolveCloudApiUrl_readsFileEachCall_overStartupValue() throws Exception {
+        DesktopMascotSnapshotService service = new DesktopMascotSnapshotService(
+                installDir.toString(), "https://baked.example", new ObjectMapper());
+        assertEquals("https://baked.example", service.resolveCloudApiUrl());
+
+        Files.writeString(installDir.resolve("cloud-api-url.txt"), "  https://oop-autograder.onrender.com/ \n");
+        assertEquals("https://oop-autograder.onrender.com", service.resolveCloudApiUrl());
+
+        Files.writeString(installDir.resolve("cloud-api-url.txt"), "https://oop-autograder-production.up.railway.app");
+        assertEquals("https://oop-autograder-production.up.railway.app", service.resolveCloudApiUrl());
+    }
+
+    @Test
+    void resolveCloudApiUrl_blankFile_fallsBackToStartupValue() throws Exception {
+        Files.writeString(installDir.resolve("cloud-api-url.txt"), "   \n");
+        DesktopMascotSnapshotService service = new DesktopMascotSnapshotService(
+                installDir.toString(), "https://baked.example", new ObjectMapper());
+        assertEquals("https://baked.example", service.resolveCloudApiUrl());
+    }
 }

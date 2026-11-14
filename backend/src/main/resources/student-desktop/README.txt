@@ -1,6 +1,6 @@
 OOP AutoGrader — offline practice (Windows)
 
-This folder runs locally on your PC. Scores here are for practice only and are not submitted to the website. You do not need the website or npm start to open the EXE or grade. Import mascot is the only step that uses the internet (cloud-api-url.txt).
+This folder runs locally on your PC. Scores here are for practice only and are not submitted to the website. You do not need the website or npm start to open the EXE or grade. Import mascot is the only step that uses the internet (cloud-api-url.txt next to the EXE; edit that file and Import again — no restart).
 
 Quick start
 1. Unzip the whole folder to a writable location (e.g. Desktop\OOP-Practice).
