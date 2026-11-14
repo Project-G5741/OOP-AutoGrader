@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,6 +48,7 @@ class CurrentTermMailServiceTest {
     void setUp() {
         mailService = new CurrentTermMailService(
                 termService, termEnrollmentRepository, userAccountRepository, emailSender);
+        lenient().when(userAccountRepository.findActiveAdmins()).thenReturn(List.of());
     }
 
     @Test
@@ -107,5 +109,31 @@ class CurrentTermMailServiceTest {
 
         assertEquals(1, result.sentCount());
         assertEquals(1, result.failedCount());
+    }
+
+    @Test
+    void alsoSendsToActiveAdminsOnce() {
+        UUID termId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        Term term = new Term();
+        term.setId(termId);
+        when(termService.findCurrentTerm()).thenReturn(Optional.of(term));
+        when(termEnrollmentRepository.findActiveStudentIdsByTermId(termId)).thenReturn(List.of(studentId));
+        UserAccount student = new UserAccount();
+        student.setEmail("student@eiu.edu.vn");
+        when(userAccountRepository.findAllById(List.of(studentId))).thenReturn(List.of(student));
+        UserAccount sameAddress = new UserAccount();
+        sameAddress.setEmail(" Student@eiu.edu.vn ");
+        UserAccount admin = new UserAccount();
+        admin.setEmail("admin@eiu.edu.vn");
+        when(userAccountRepository.findActiveAdmins()).thenReturn(List.of(sameAddress, admin));
+
+        CurrentTermMailResult result = mailService.sendToCurrentTerm(
+                new CurrentTermMailRequest("Subject", "Body"));
+
+        assertEquals(2, result.recipientCount());
+        assertEquals(2, result.sentCount());
+        verify(emailSender).sendPlainTextEach(
+                List.of("student@eiu.edu.vn", "admin@eiu.edu.vn"), "Subject", "Body");
     }
 }

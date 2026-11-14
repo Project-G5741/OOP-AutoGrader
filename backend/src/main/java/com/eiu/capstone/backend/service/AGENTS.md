@@ -18,7 +18,7 @@ Business logic layer: submission file handling, Java compilation, authentication
 | `UserService` | CRUD, bulk create, Google upsert, IRN/password auth, role resolution, soft delete, student suspend/restore |
 | `PasswordResetService` | Forgot-password token issuance (15m, single-use) and password reset completion |
 | `PasswordResetEmailService` | Sends reset links via `TransactionalEmailSender` (`smtp` locally, `brevo` on Render free tier) |
-| `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter via `TransactionalEmailSender`. SMTP sends the roster on one connection (`sendPlainTextEach`) |
+| `CurrentTermMailService` | (`!desktop`) Lecturer compose mail to active enrolled students in the current quarter, plus every active Admin, via `TransactionalEmailSender`. An admin address already on the roster is sent once. SMTP sends that list on one connection (`sendPlainTextEach`) |
 | `FeedbackAdminMailService` | (`!desktop`) After a Feedback item is saved, send plain text to every active Admin account email via `TransactionalEmailSender`. Subject `Feedback OOP - AutoGrader`; body is type, author, and the submitted message. Mail failure does not fail create |
 | `LabService` | Lab CRUD helpers (not used by `LabController` currently) |
 | `LabCloneService` | Deep-clone lab rubric+OT into a target term; previous-current clone sources; bulk clone with source-term gate. Member and parameter alias lists keep their order while cloned parent UUIDs (and persisted alias-child UUIDs) are newly allocated |
