@@ -72,6 +72,15 @@ class DesktopMascotSnapshotServiceTest {
     }
 
     @Test
+    void jtiFromCompactToken_readsRegisteredClaim() {
+        String token = "eyJhbGciOiJIUzI1NiJ9."
+                + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"jti\":\"abc-123\",\"typ\":\"mascot_practice\"}".getBytes())
+                + ".sig";
+        assertEquals("abc-123", DesktopMascotSnapshotService.jtiFromCompactToken(token));
+    }
+
+    @Test
     void resolveCloudApiUrl_blankFile_fallsBackToStartupValue() throws Exception {
         Files.writeString(installDir.resolve("cloud-api-url.txt"), "   \n");
         DesktopMascotSnapshotService service = new DesktopMascotSnapshotService(

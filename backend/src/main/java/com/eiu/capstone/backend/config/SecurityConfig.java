@@ -68,7 +68,7 @@ public class SecurityConfig {
                         .hasAnyRole(JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
                     .requestMatchers("/api/labs/**")
                         .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
-                    .requestMatchers(HttpMethod.GET, "/api/students/mascot-code/*/bound")
+                    .requestMatchers(HttpMethod.GET, "/api/students/mascot-code/**")
                         .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/students/mascot-snapshot")
                         .hasAuthority(JwtService.MASCOT_READ_AUTHORITY)

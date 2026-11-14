@@ -77,6 +77,7 @@ class JwtServiceTest {
         assertEquals(JwtService.MASCOT_PRACTICE_TYP, claims.get("typ", String.class));
         assertEquals(JwtService.MASCOT_PRACTICE_SCOPE, claims.get("scope", String.class));
         assertEquals("jti-1", claims.get("jti", String.class));
+        assertEquals("jti-1", claims.getId());
         assertEquals(JwtService.MASCOT_PRACTICE_AUD, claims.getAudience());
         assertNull(claims.get("roles"));
         assertNull(claims.get("sv"));

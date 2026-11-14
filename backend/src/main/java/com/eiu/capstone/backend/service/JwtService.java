@@ -99,6 +99,7 @@ public class JwtService {
                 .claim("email", email)
                 .claim("typ", MASCOT_PRACTICE_TYP)
                 .claim("scope", MASCOT_PRACTICE_SCOPE)
+                .setId(jti)
                 .claim("jti", jti)
                 .setAudience(MASCOT_PRACTICE_AUD)
                 .setIssuedAt(Date.from(now))

@@ -114,7 +114,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void authenticateMascotPractice(Claims claims, String email) {
         String aud = claims.getAudience();
         String scope = claims.get("scope", String.class);
-        String jti = claims.get("jti", String.class);
+        String jti = claims.getId();
+        if (jti == null || jti.isBlank()) {
+            jti = claims.get("jti", String.class);
+        }
         if (!JwtService.MASCOT_PRACTICE_AUD.equals(aud)
                 || !JwtService.MASCOT_PRACTICE_SCOPE.equals(scope)
                 || !mascotPracticeTokenService.isLiveJti(jti)) {
