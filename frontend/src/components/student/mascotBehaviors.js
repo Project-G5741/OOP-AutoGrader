@@ -513,8 +513,9 @@ export function getMascotProfile(id) {
 }
 
 export function getRandomDialogue(mascotId, eventType) {
-  const profile = getMascotProfile(mascotId);
-  const list = profile.dialogues?.[eventType] || MASCOT_PROFILES.fox.dialogues[eventType] || [];
+  const profile = MASCOT_PROFILES[mascotId] || MASCOT_PROFILES.fox;
+  const own = profile.dialogues?.[eventType];
+  const list = own && own.length > 0 ? own : (MASCOT_PROFILES.fox.dialogues[eventType] || []);
   if (list.length === 0) return 'Keep up the great work!';
   return list[Math.floor(Math.random() * list.length)];
 }
