@@ -86,6 +86,7 @@ export const BACKEND_MESSAGE_CONTEXTS = [
   'import',
   'solution-import',
   'feedback',
+  'bulk-grade',
 ];
 
 /**

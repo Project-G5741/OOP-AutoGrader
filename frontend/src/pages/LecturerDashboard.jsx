@@ -768,7 +768,6 @@ export default function LecturerDashboard({ user, onLogout }) {
     { label: 'Completion Rate', value: formatPercent(labStatistics?.completionRate) },
     { label: 'Highest Score', value: formatNumber(labStatistics?.highestScore) },
     { label: 'Lowest Score', value: formatNumber(labStatistics?.lowestScore) },
-    { label: 'Total Submissions', value: formatNumber(labStatistics?.submissionCount) },
     { label: 'Total Attempts', value: formatNumber(labStatistics?.totalAttempts) },
     { label: 'Enrolled Students', value: formatNumber(labStatistics?.studentCount) },
     { label: 'Students Submitted', value: formatNumber(labStatistics?.studentsSubmitted) },

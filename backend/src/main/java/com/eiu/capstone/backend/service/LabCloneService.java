@@ -444,7 +444,9 @@ public class LabCloneService {
                 source.dataType(),
                 source.scopeId(),
                 source.isStatic(),
-                source.isFinal());
+                source.isFinal(),
+                source.names(),
+                source.dataTypes());
     }
 
     private MethodStructureDTO remapMethod(MethodStructureDTO source, IdMap idMap) {
@@ -458,7 +460,9 @@ public class LabCloneService {
                 source.scopeId(),
                 source.isStatic(),
                 source.isAbstract(),
-                parameters);
+                parameters,
+                source.names(),
+                source.returnTypes());
     }
 
     private ConstructorStructureDTO remapConstructor(ConstructorStructureDTO source, IdMap idMap) {
@@ -479,7 +483,9 @@ public class LabCloneService {
                 source.name(),
                 source.dataType(),
                 source.orderIndex(),
-                source.isFinal());
+                source.isFinal(),
+                source.names(),
+                source.dataTypes());
     }
 
     private RelationStructureDTO remapRelation(RelationStructureDTO source, IdMap idMap) {

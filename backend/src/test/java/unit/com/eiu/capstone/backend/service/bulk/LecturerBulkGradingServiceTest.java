@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.BulkCurrentTermStudentIrnsResponse;
 import com.eiu.capstone.backend.DTO.BulkGradeResponse;
 import com.eiu.capstone.backend.grading.GradedChallengeSummary;
 import com.eiu.capstone.backend.grading.GradingOutcome;
@@ -33,8 +35,13 @@ import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.model.Challenge;
 import com.eiu.capstone.backend.model.Lab;
+import com.eiu.capstone.backend.model.Term;
+import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.ChallengeRepository;
 import com.eiu.capstone.backend.repository.LabRepository;
+import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
+import com.eiu.capstone.backend.repository.TermRepository;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.DisclosureMode;
 import com.eiu.capstone.backend.service.SubmissionStorageService;
 import com.eiu.capstone.backend.service.UploadPersistService;
@@ -46,9 +53,13 @@ class LecturerBulkGradingServiceTest {
     private LabRubricCache labRubricCache;
     private SubmissionStorageService submissionStorageService;
     private GradingService gradingService;
+    private TermRepository termRepository;
+    private TermEnrollmentRepository termEnrollmentRepository;
+    private UserAccountRepository userAccountRepository;
     private LecturerBulkGradingService service;
 
     private final UUID labId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private final UUID userId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     @BeforeEach
     void setUp() {
@@ -57,19 +68,57 @@ class LecturerBulkGradingServiceTest {
         labRubricCache = mock(LabRubricCache.class);
         submissionStorageService = mock(SubmissionStorageService.class);
         gradingService = mock(GradingService.class);
+        termRepository = mock(TermRepository.class);
+        termEnrollmentRepository = mock(TermEnrollmentRepository.class);
+        userAccountRepository = mock(UserAccountRepository.class);
         service = new LecturerBulkGradingService(
                 labRepository,
                 challengeRepository,
                 labRubricCache,
                 submissionStorageService,
-                gradingService);
+                gradingService,
+                termRepository,
+                termEnrollmentRepository,
+                userAccountRepository);
+        when(termRepository.findCurrent()).thenReturn(Optional.of(new Term()));
+    }
+
+    private void stubEnrolledIrn(String irn) {
+        UserAccount user = mock(UserAccount.class);
+        when(user.getId()).thenReturn(userId);
+        when(user.getStudentCode()).thenReturn(irn);
+        when(user.getIsActive()).thenReturn(false);
+        when(userAccountRepository.findByStudentCode(irn)).thenReturn(Optional.of(user));
+        when(termEnrollmentRepository.existsByUser_IdAndTerm_CurrentTrue(userId)).thenReturn(true);
+    }
+
+    @Test
+    void listCurrentTermStudentIrns_includesInactiveCodes() {
+        when(termEnrollmentRepository.findStudentCodesEnrolledInCurrentTerm())
+                .thenReturn(List.of("2331200057", "2331200058"));
+
+        BulkCurrentTermStudentIrnsResponse response = service.listCurrentTermStudentIrns();
+
+        assertEquals(List.of("2331200057", "2331200058"), response.getIrns());
+    }
+
+    @Test
+    void listCurrentTermStudentIrns_noCurrentTerm_is409() {
+        when(termRepository.findCurrent()).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.listCurrentTermStudentIrns());
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("No current quarter"));
     }
 
     @Test
     void examModeWithMultiChallengeLab_is400() {
         Lab lab = new Lab();
         lab.setId(labId);
-        when(labRepository.findById(labId)).thenReturn(java.util.Optional.of(lab));
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
                 .thenReturn(List.of(new Challenge(), new Challenge()));
 
@@ -91,14 +140,94 @@ class LecturerBulkGradingServiceTest {
     }
 
     @Test
-    void happyPathExam_gradesWithLecturerDisclosureAndDeletesTemp() throws Exception {
+    void nineDigitIrn_is400_beforeUpload() {
         Lab lab = new Lab();
         lab.setId(labId);
-        when(labRepository.findById(labId)).thenReturn(java.util.Optional.of(lab));
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         Challenge sole = new Challenge();
         sole.setChallengeNumber(1);
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
                 .thenReturn(List.of(sole));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.gradeOne(
+                        labId,
+                        BulkGradeMode.EXAM,
+                        List.of(new MockMultipartFile(
+                                "files",
+                                "233120005_Student/Main.java",
+                                "text/plain",
+                                "class Main {}".getBytes()))));
+
+        assertEquals(400, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("exactly 10 digits"));
+        verify(submissionStorageService, never()).processUpload(anyString(), anyString(), anyList());
+    }
+
+    @Test
+    void notEnrolledIrn_is400_beforeUpload() {
+        Lab lab = new Lab();
+        lab.setId(labId);
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        Challenge sole = new Challenge();
+        sole.setChallengeNumber(1);
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
+                .thenReturn(List.of(sole));
+        when(userAccountRepository.findByStudentCode("2331200099")).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.gradeOne(
+                        labId,
+                        BulkGradeMode.EXAM,
+                        List.of(new MockMultipartFile(
+                                "files",
+                                "2331200099_Student/Main.java",
+                                "text/plain",
+                                "class Main {}".getBytes()))));
+
+        assertEquals(400, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("not enrolled"));
+        verify(submissionStorageService, never()).processUpload(anyString(), anyString(), anyList());
+    }
+
+    @Test
+    void noCurrentTerm_gradeOne_is409_beforeUpload() {
+        when(termRepository.findCurrent()).thenReturn(Optional.empty());
+        Lab lab = new Lab();
+        lab.setId(labId);
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        Challenge sole = new Challenge();
+        sole.setChallengeNumber(1);
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
+                .thenReturn(List.of(sole));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> service.gradeOne(
+                        labId,
+                        BulkGradeMode.EXAM,
+                        List.of(new MockMultipartFile(
+                                "files",
+                                "2331200057_Student/Main.java",
+                                "text/plain",
+                                "class Main {}".getBytes()))));
+
+        assertEquals(409, ex.getStatusCode().value());
+        verify(submissionStorageService, never()).processUpload(anyString(), anyString(), anyList());
+    }
+
+    @Test
+    void happyPathExam_gradesInactiveEnrolledStudentAndDeletesTemp() throws Exception {
+        Lab lab = new Lab();
+        lab.setId(labId);
+        when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
+        Challenge sole = new Challenge();
+        sole.setChallengeNumber(1);
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId))
+                .thenReturn(List.of(sole));
+        stubEnrolledIrn("2331200057");
 
         LabRubricSnapshot rubric = mock(LabRubricSnapshot.class);
         when(labRubricCache.get(lab)).thenReturn(rubric);
@@ -132,9 +261,8 @@ class LecturerBulkGradingServiceTest {
         assertEquals("2331200057", response.getIrn());
         assertEquals("2331200057_Student", response.getStudentFolder());
         verify(submissionStorageService).deleteFolder(temp);
-        // Compile-time / design gate: service must not depend on UploadPersistService
         assertTrue(LecturerBulkGradingService.class.getDeclaredConstructors()[0]
-                .getParameterTypes().length < 6
+                .getParameterTypes().length < 9
                 || !List.of(LecturerBulkGradingService.class.getDeclaredConstructors()[0].getParameterTypes())
                         .contains(UploadPersistService.class));
     }

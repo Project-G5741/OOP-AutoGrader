@@ -408,20 +408,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       }
     }
 
-    const localEquipped = localStorage.getItem('oop_student_equipped_mascot');
-    const effectiveEquipped = localEquipped || next?.equipped || 'fox';
-    if (effectiveEquipped) {
-      setEquippedMascot(effectiveEquipped);
-      localStorage.setItem('oop_student_equipped_mascot', effectiveEquipped);
-    }
-    if (localEquipped && next?.equipped && next.equipped !== localEquipped) {
-      void apiFetch(`${API_BASE}/api/students/mascots/${localEquipped}/equip`, {
-        method: 'POST',
-        headers: authHeaders(),
-      }).catch(() => {});
+    const serverEquipped = next?.equipped || 'fox';
+    if (next) {
+      setEquippedMascot(serverEquipped);
+      localStorage.setItem('oop_student_equipped_mascot', serverEquipped);
     }
 
-    const mergedNext = next ? { ...next, equipped: effectiveEquipped } : next;
+    const mergedNext = next ? { ...next, equipped: serverEquipped } : next;
     streakSnapshot.current = mergedNext;
     setStreak(mergedNext);
   }, [showToast]);

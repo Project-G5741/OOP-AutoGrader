@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Mascot } from 'page-mascot';
+import { Mascot } from './MascotSprite';
 import { Sparkles, Gem, Filter, Coins, Check, Ticket } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import { useToast } from '../ui/Toast';
@@ -368,6 +368,8 @@ export default function MascotShop({
                         label={`${offer.name} mascot`}
                         directions={art.directions}
                         reactions={art.reactions}
+                        interactive={offer.owned}
+                        trackPointer={offer.owned}
                       />
                     </div>
 

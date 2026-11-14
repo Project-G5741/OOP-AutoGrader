@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (persisted in `localStorage` `oop_student_equipped_mascot` and synced with backend streak) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -61,7 +61,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `dashboard` | Grading overview, challenge tabs, `SubmissionTable`, export drawers. Overview cards open `OverviewDetailDialog` from the overview payload | First paint: `GET /api/lecturer/bootstrap/dashboard` (fresh overview). Secondary: labs list, `/api/labs/{id}/statistics`, submissions, plagiarism flags |
 | `score` | Cross-lab `GradeOverviewTable` + Export + row-click submission history | First paint: `GET /api/lecturer/bootstrap/score`. Sort/search/page: `GET /api/lecturer/grade-overview` |
 | `ranking` | Live weekly `RankingBoard` | First paint: `GET /api/lecturer/bootstrap/ranking` |
-| `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list) |
+| `grading` | Bulk grading (`BulkGradingPanel`) | First paint: `GET /api/lecturer/bootstrap/grading` (labs list); panel also loads `GET /api/lecturer/bulk-grading/current-term-student-irns` |
 | `users` | `UserManagement` | First paint: `GET /api/lecturer/bootstrap/users` (full account list — client search/stats; not paged like Score) |
 | `terms` | `TermManagement` | First paint: `GET /api/lecturer/bootstrap/quarters`; roster secondary |
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |

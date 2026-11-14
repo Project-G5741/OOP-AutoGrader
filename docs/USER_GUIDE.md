@@ -69,9 +69,9 @@ The lecturer interface has a top navigation bar with sections including **Dashbo
 | Total Students | Number of students enrolled in the current term |
 | Average Score | Class-wide average across all graded labs |
 | Total Labs | Number of labs configured for the current term |
-| At-Risk Students | Students whose total score is below 70 (missing labs count as 0) |
+| At-Risk Students | Students whose Score total is below 50 (Official labs only; a missing Official lab counts as 0) |
 
-Click a card to open the list behind the number: enrolled students, the lab scores that make the class average, the labs in the quarter, or the students below 70 (name, student ID, and score).
+Click a card to open the list behind the number: enrolled students, the lab scores that make the class average, the labs in the quarter, or the students whose Score total is below 50 (name, student ID, and score).
 
 #### Selecting a Lab
 
@@ -278,7 +278,9 @@ Each lab has one or more **Challenges**. Each challenge defines what the student
 **Adding fields / constructors / methods:**
 1. Click a class in the tree to open the **Class Detail Panel** on the right.
 2. Use the **+ Field**, **+ Constructor**, or **+ Method** buttons.
-3. Fill in the signature details and save.
+3. Fill in the signature details. For member names, datatypes/return types, and parameters, use the last **Add name** or **Add datatype** row to allow another accepted value.
+4. Reorder aliases to choose the primary value shown in expected-result text, or remove aliases while keeping at least one value in each list.
+5. Save the structure. Every authored name × datatype combination is accepted by Declaration and MMD grading.
 
 #### Weights
 

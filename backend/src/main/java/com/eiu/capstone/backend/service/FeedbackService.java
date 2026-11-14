@@ -5,9 +5,12 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +32,8 @@ import com.eiu.capstone.backend.repository.FeedbackItemRepository;
 @Service
 public class FeedbackService {
 
+    private static final Logger log = LoggerFactory.getLogger(FeedbackService.class);
+
     public static final int MAX_FILES = 5;
     public static final long MAX_UPLOAD_BYTES = 25L * 1024 * 1024;
     public static final int MAX_MESSAGE_CHARS = 4000;
@@ -48,14 +53,17 @@ public class FeedbackService {
     private final FeedbackItemRepository itemRepository;
     private final FeedbackAttachmentRepository attachmentRepository;
     private final FeedbackImageConverter imageConverter;
+    private final FeedbackAdminMailService adminMailService;
 
     public FeedbackService(
             FeedbackItemRepository itemRepository,
             FeedbackAttachmentRepository attachmentRepository,
-            FeedbackImageConverter imageConverter) {
+            FeedbackImageConverter imageConverter,
+            Optional<FeedbackAdminMailService> adminMailService) {
         this.itemRepository = itemRepository;
         this.attachmentRepository = attachmentRepository;
         this.imageConverter = imageConverter;
+        this.adminMailService = adminMailService == null ? null : adminMailService.orElse(null);
     }
 
     @Transactional
@@ -111,7 +119,19 @@ public class FeedbackService {
         }
 
         FeedbackItem saved = itemRepository.save(item);
+        notifyAdmins(saved);
         return new FeedbackCreatedDTO(saved.getId(), saved.getItemType(), saved.getStatus(), saved.getCreatedAt());
+    }
+
+    private void notifyAdmins(FeedbackItem item) {
+        if (adminMailService == null) {
+            return;
+        }
+        try {
+            adminMailService.notifyAdmins(item);
+        } catch (RuntimeException ex) {
+            log.warn("Feedback admin mail failed after save", ex);
+        }
     }
 
     @Transactional(readOnly = true)

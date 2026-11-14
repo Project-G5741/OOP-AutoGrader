@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, FlaskConical } from 'lucide-react';
 import Combobox from '../ui/Combobox';
 import Progress from '../ui/Progress';
@@ -12,8 +12,10 @@ import {
 } from '../../utils/bulkFolderParse';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
-import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { formatNumber, formatText } from '../../utils/formatters';
+import { sortRows, toggleSortState } from '../../utils/sort';
+import SortableTableHeader from '../ui/SortableTableHeader';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
 import ExportMenu from './ExportMenu';
@@ -24,6 +26,30 @@ import BulkSubmissionDrawer from './BulkSubmissionDrawer';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const BULK_RESULTS_PAGE_SIZE = 12;
 const BULK_EXPORT_FORMATS = ['excel', 'pdf', 'csv'];
+const RESULTS_HEADER_CLASS = 'px-4 py-3 text-left text-sm font-semibold text-foreground-secondary';
+const RESULTS_SORT_COLUMNS = [
+  { key: 'studentName', label: 'Student' },
+  { key: 'studentId', label: 'ID' },
+  { key: 'score', label: 'Score' },
+  ...PILLAR_EXPORT_COLUMNS,
+];
+
+function numericOrNull(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function bulkResultsSortValue(row, field, resultsTab, challenges) {
+  if (field === 'studentName') return row?.studentName;
+  if (field === 'studentId') return row?.studentId;
+  if (field === 'score') return numericOrNull(scoreForResultsTab(row, resultsTab, challenges));
+  if (field === 'mmdScore' || field === 'declarationScore' || field === 'operationalScore') {
+    if (row?.error) return null;
+    return numericOrNull(pillarsForResultsTab(row, resultsTab, challenges)[field]);
+  }
+  return null;
+}
 
 function resultsTabClass(active) {
   return `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -118,6 +144,44 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [resultsTab, setResultsTab] = useState('overview');
   const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
   const [resultsPage, setResultsPage] = useState(0);
+  const [resultsSort, setResultsSort] = useState({ field: 'studentName', direction: 'asc' });
+  /** @type {'loading'|'ready'|'no-quarter'|'error'} */
+  const [membershipStatus, setMembershipStatus] = useState('loading');
+  const [enrolledIrns, setEnrolledIrns] = useState(() => new Set());
+  const [membershipError, setMembershipError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setMembershipStatus('loading');
+      setMembershipError(null);
+      try {
+        const response = await apiFetch(
+          `${API_BASE}/api/lecturer/bulk-grading/current-term-student-irns`,
+          { headers: authHeaders() },
+        );
+        if (cancelled) return;
+        if (response.status === 409) {
+          setEnrolledIrns(new Set());
+          setMembershipStatus('no-quarter');
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(await readFriendlyApiError(response, 'bulk-grade'));
+        }
+        const data = await response.json();
+        const list = Array.isArray(data?.irns) ? data.irns : [];
+        setEnrolledIrns(new Set(list.map((code) => String(code))));
+        setMembershipStatus('ready');
+      } catch (err) {
+        if (cancelled) return;
+        setEnrolledIrns(new Set());
+        setMembershipStatus('error');
+        setMembershipError(toFriendlyError(err, 'bulk-grade'));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -159,21 +223,38 @@ export default function BulkGradingPanel({ labs = [] }) {
     : gradingStoppedEarly && !grading
       ? 'bg-warning'
       : 'bg-success';
+  const sortedRows = useMemo(
+    () => sortRows(rows, resultsSort.field, resultsSort.direction, (row) => (
+      bulkResultsSortValue(row, resultsSort.field, resultsTab, labChallenges)
+    )),
+    [rows, resultsSort, resultsTab, labChallenges],
+  );
+
   const resultsPagination = useMemo(() => {
-    const total = rows.length;
+    const total = sortedRows.length;
     const totalPages = Math.max(Math.ceil(total / BULK_RESULTS_PAGE_SIZE), 1);
     const page = Math.min(Math.max(resultsPage, 0), totalPages - 1);
     return { page, size: BULK_RESULTS_PAGE_SIZE, total, totalPages };
-  }, [rows.length, resultsPage]);
+  }, [sortedRows.length, resultsPage]);
 
   const pagedRows = useMemo(() => {
     const start = resultsPagination.page * BULK_RESULTS_PAGE_SIZE;
-    return rows.slice(start, start + BULK_RESULTS_PAGE_SIZE);
-  }, [rows, resultsPagination.page]);
+    return sortedRows.slice(start, start + BULK_RESULTS_PAGE_SIZE);
+  }, [sortedRows, resultsPagination.page]);
 
   const showResultsPagination =
-    rows.length > 0
+    sortedRows.length > 0
     && (resultsPagination.totalPages > 1 || resultsPagination.total > resultsPagination.size);
+
+  const handleResultsSort = useCallback((field) => {
+    setResultsSort((current) => toggleSortState(current, field));
+    setResultsPage(0);
+  }, []);
+
+  const handleResultsTab = useCallback((tab) => {
+    setResultsTab(tab);
+    setResultsPage(0);
+  }, []);
 
   const bulkResultsTabLabel = useMemo(() => {
     if (resultsTab === 'overview') return 'Overview';
@@ -184,7 +265,7 @@ export default function BulkGradingPanel({ labs = [] }) {
 
   const handleExportBulkResults = useCallback(async (format) => {
     if (!rows.length) return;
-    const exportRows = rows.map((row) => ({
+    const exportRows = sortedRows.map((row) => ({
       Student: formatText(row.studentName),
       ID: row.studentId,
       Score: row.error
@@ -203,10 +284,14 @@ export default function BulkGradingPanel({ labs = [] }) {
       title: `Bulk Grading — ${formatText(selectedLab?.name)} — ${bulkResultsTabLabel}`,
       fileBase: `bulk_grading_${labSlug}_${tabSlug}`,
     });
-  }, [rows, resultsTab, labChallenges, selectedLab, bulkResultsTabLabel]);
+  }, [sortedRows, resultsTab, labChallenges, selectedLab, bulkResultsTabLabel]);
+
+  const membershipReady = membershipStatus === 'ready';
+  const dropBlocked = !membershipReady || grading || !modeOk;
 
   const applyEntries = useCallback((entries, label) => {
-    const result = parseBulkMainFolder(entries, mode);
+    if (membershipStatus !== 'ready') return;
+    const result = parseBulkMainFolder(entries, mode, { enrolledIrns });
     setParseResult(result);
     setFolderLabel(label || 'dropped folder');
     setRows([]);
@@ -216,9 +301,11 @@ export default function BulkGradingPanel({ labs = [] }) {
     setDrawerStudent(null);
     setResultsTab('overview');
     setResultsPage(0);
-  }, [mode]);
+    setResultsSort({ field: 'studentName', direction: 'asc' });
+  }, [mode, enrolledIrns, membershipStatus]);
 
   const handleInputFiles = (fileList) => {
+    if (dropBlocked) return;
     const collected = Array.from(fileList).map((file) => ({
       file,
       relativePath: file.webkitRelativePath || file.name,
@@ -231,6 +318,7 @@ export default function BulkGradingPanel({ labs = [] }) {
   const handleDrop = async (event) => {
     event.preventDefault();
     setIsDragging(false);
+    if (dropBlocked) return;
     const items = event.dataTransfer?.items;
     if (!items?.length) return;
     const topLevel = Array.from(items).map((item) => item.webkitGetAsEntry()).filter(Boolean);
@@ -242,7 +330,8 @@ export default function BulkGradingPanel({ labs = [] }) {
   };
 
   const canStart =
-    modeOk
+    membershipReady
+    && modeOk
     && !grading
     && parseResult
     && parseResult.accepted.length > 0;
@@ -262,6 +351,7 @@ export default function BulkGradingPanel({ labs = [] }) {
     setDrawerStudent(null);
     setResultsTab('overview');
     setResultsPage(0);
+    setResultsSort({ field: 'studentName', direction: 'asc' });
 
     const accepted = parseResult.accepted;
     const nextRows = [];
@@ -285,7 +375,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           },
         );
         if (!response.ok) {
-          throw new Error(await friendlyLoadErrorFromResponse(response));
+          throw new Error(await readFriendlyApiError(response, 'bulk-grade'));
         }
         const data = await response.json();
         const score = data.score ?? data.totalScore ?? null;
@@ -314,7 +404,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           studentName: student.studentName,
           score: null,
           plagiarismLabel: '—',
-          error: toFriendlyError(err, 'upload'),
+          error: toFriendlyError(err, 'bulk-grade'),
           payload: null,
         });
       }
@@ -364,6 +454,8 @@ export default function BulkGradingPanel({ labs = [] }) {
                 setRows([]);
                 setGradedCount(0);
                 setResultsTab('overview');
+                setResultsPage(0);
+                setResultsSort({ field: 'studentName', direction: 'asc' });
               }}
             />
           </div>
@@ -381,6 +473,8 @@ export default function BulkGradingPanel({ labs = [] }) {
                     setParseResult(null);
                     setRows([]);
                     setResultsTab('overview');
+                    setResultsPage(0);
+                    setResultsSort({ field: 'studentName', direction: 'asc' });
                   }}
                   className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${
                     mode === m
@@ -407,12 +501,33 @@ export default function BulkGradingPanel({ labs = [] }) {
           </p>
         )}
 
+        {membershipStatus === 'no-quarter' && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            No current quarter is set. Set a current quarter before using Bulk Grading.
+          </p>
+        )}
+        {membershipStatus === 'error' && membershipError && (
+          <p className="rounded-r-xl border-l-4 border-error bg-error-bg px-3.5 py-2.5 text-sm text-error-text">
+            {membershipError}
+          </p>
+        )}
+        {membershipStatus === 'loading' && (
+          <p className="text-sm text-foreground-muted">Loading current-quarter student IRNs…</p>
+        )}
+
         <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!dropBlocked) setIsDragging(true);
+          }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           className={`rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-            isDragging ? 'border-primary bg-primary-light' : 'border-border bg-surface-secondary/70'
+            dropBlocked
+              ? 'border-border bg-surface-secondary/40 opacity-60'
+              : isDragging
+                ? 'border-primary bg-primary-light'
+                : 'border-border bg-surface-secondary/70'
           }`}
         >
           <div className="mx-auto mb-2 h-16 w-16">
@@ -426,7 +541,7 @@ export default function BulkGradingPanel({ labs = [] }) {
           </p>
           <button
             type="button"
-            disabled={grading || !modeOk}
+            disabled={dropBlocked}
             onClick={() => inputRef.current?.click()}
             className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
@@ -440,6 +555,7 @@ export default function BulkGradingPanel({ labs = [] }) {
             webkitdirectory=""
             directory=""
             multiple
+            disabled={dropBlocked}
             onChange={(e) => handleInputFiles(e.target.files || [])}
           />
         </div>
@@ -468,6 +584,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                   setGradingStoppedEarly(false);
                   setResultsTab('overview');
                   setResultsPage(0);
+                  setResultsSort({ field: 'studentName', direction: 'asc' });
                 }}
                 className="rounded-lg border border-border px-3 py-2 text-sm text-foreground-secondary hover:bg-surface-secondary"
               >
@@ -556,7 +673,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                 <div className="flex min-w-0 flex-wrap gap-2 sm:gap-3">
                   <button
                     type="button"
-                    onClick={() => setResultsTab('overview')}
+                    onClick={() => handleResultsTab('overview')}
                     className={resultsTabClass(resultsTab === 'overview')}
                   >
                     Overview
@@ -565,7 +682,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                     <button
                       key={challenge.id}
                       type="button"
-                      onClick={() => setResultsTab(challenge.id)}
+                      onClick={() => handleResultsTab(challenge.id)}
                       className={resultsTabClass(String(resultsTab) === String(challenge.id))}
                     >
                       {challengeTabLabel(challenge, index)}
@@ -583,14 +700,25 @@ export default function BulkGradingPanel({ labs = [] }) {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-foreground-secondary">
-                  <th className="px-4 py-3 font-semibold">Student</th>
-                  <th className="px-4 py-3 font-semibold">ID</th>
-                  <th className="px-4 py-3 font-semibold">Score</th>
-                  {PILLAR_EXPORT_COLUMNS.map((column) => (
-                    <th key={column.key} className="px-4 py-3 text-center font-semibold whitespace-nowrap">{column.label}</th>
+                  {RESULTS_SORT_COLUMNS.map((column) => (
+                    <SortableTableHeader
+                      key={column.key}
+                      label={column.label}
+                      field={column.key}
+                      activeField={resultsSort.field}
+                      direction={resultsSort.direction}
+                      onSort={handleResultsSort}
+                      className={
+                        column.key === 'mmdScore'
+                          || column.key === 'declarationScore'
+                          || column.key === 'operationalScore'
+                          ? `${RESULTS_HEADER_CLASS} text-center`
+                          : RESULTS_HEADER_CLASS
+                      }
+                    />
                   ))}
-                  <th className="px-4 py-3 font-semibold">Plagiarism</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
+                  <SortableTableHeader label="Plagiarism" sortable={false} className={RESULTS_HEADER_CLASS} />
+                  <SortableTableHeader label="Action" sortable={false} className={RESULTS_HEADER_CLASS} />
                 </tr>
               </thead>
               <tbody>

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.DTO.rubric.testcase.AssertionStructureDTO;
@@ -22,9 +23,18 @@ import com.eiu.capstone.backend.service.TestcaseRubricService;
 public class TestcaseRubricAssembler {
 
     private final TestcaseRubricService testcaseRubricService;
+    private final LabRubricCache labRubricCache;
 
     public TestcaseRubricAssembler(TestcaseRubricService testcaseRubricService) {
+        this(testcaseRubricService, null);
+    }
+
+    @Autowired
+    public TestcaseRubricAssembler(
+            TestcaseRubricService testcaseRubricService,
+            LabRubricCache labRubricCache) {
         this.testcaseRubricService = testcaseRubricService;
+        this.labRubricCache = labRubricCache;
     }
 
     public TestcaseRubric assemble(UUID challengeId, TestcaseStructureDTO dto) {
@@ -38,11 +48,14 @@ public class TestcaseRubricAssembler {
     public TestcaseRubric assemble(UUID labId, UUID challengeId, TestcaseStructureDTO dto) {
         testcaseRubricService.validatePayload(labId, challengeId, dto);
         RubricMemberMaps maps = testcaseRubricService.dryRunMemberMaps(labId, challengeId);
+        ChallengeRubric aliasSource = labId != null && labRubricCache != null
+                ? labRubricCache.get(labId).challengeById(challengeId).orElse(null)
+                : null;
         UUID testcaseId = dto.id() != null ? dto.id() : UUID.randomUUID();
 
         List<InvocationStructureDTO> steps = TestcaseRubricService.resolvedInvocations(dto);
         List<InvocationRubric> invocationRubrics = steps.stream()
-                .map(step -> toInvocationRubric(step, maps))
+                .map(step -> toInvocationRubric(step, maps, aliasSource))
                 .toList();
         InvocationRubric singular = invocationRubrics.isEmpty() ? null : invocationRubrics.get(0);
         Map<UUID, InvocationRubric> invocationById = invocationRubrics.stream()
@@ -63,7 +76,7 @@ public class TestcaseRubricAssembler {
                 .toList();
 
         List<AssertionRubric> assertions = dto.assertions() == null ? List.of() : dto.assertions().stream()
-                .map(a -> toAssertionRubric(a, maps, singular, invocationById))
+                .map(a -> toAssertionRubric(a, maps, aliasSource, singular, invocationById))
                 .toList();
 
         OopPrincipleTag tag = dto.oopPrincipleTag();
@@ -84,9 +97,11 @@ public class TestcaseRubricAssembler {
 
     private AssertionRubric toAssertionRubric(AssertionStructureDTO dto,
                                               RubricMemberMaps maps,
+                                              ChallengeRubric aliasSource,
                                               InvocationRubric singular,
                                               Map<UUID, InvocationRubric> invocationById) {
         Field field = dto.fieldId() != null ? maps.fieldById().get(dto.fieldId()) : null;
+        FieldRubric fieldAliases = findField(aliasSource, dto.fieldId());
         UUID invocationId = dto.invocationId() != null && invocationById.containsKey(dto.invocationId())
                 ? dto.invocationId()
                 : (singular != null ? singular.id() : null);
@@ -99,10 +114,14 @@ public class TestcaseRubricAssembler {
                 field != null ? field.getFieldDeclaration().getDataType() : null,
                 dto.expectedValue(),
                 dto.comparisonMode(),
-                dto.orderIndex());
+                dto.orderIndex(),
+                fieldAliases != null ? fieldAliases.names() : null);
     }
 
-    private InvocationRubric toInvocationRubric(InvocationStructureDTO dto, RubricMemberMaps maps) {
+    private InvocationRubric toInvocationRubric(
+            InvocationStructureDTO dto,
+            RubricMemberMaps maps,
+            ChallengeRubric aliasSource) {
         UUID invocationId = dto.id() != null ? dto.id() : UUID.randomUUID();
         UUID dispatchClassId = dto.dispatchClassId();
         String dispatchClassName = dispatchClassId != null ? maps.classNameByClassId().get(dispatchClassId) : null;
@@ -114,6 +133,7 @@ public class TestcaseRubricAssembler {
             String className = implicitDefault
                     ? maps.classNameByClassId().get(dispatchClassId)
                     : maps.classNameByConstructorId().get(constructorId);
+            ConstructorRubric constructorAliases = findConstructor(aliasSource, constructorId);
             int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
             return new InvocationRubric(
                     invocationId,
@@ -134,11 +154,18 @@ public class TestcaseRubricAssembler {
                     dispatchClassId,
                     dispatchClassName,
                     InvocationRubric.resultTypeNameForConstructor(className),
-                    1);
+                    1,
+                    null,
+                    constructorAliases != null
+                            ? constructorAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
+                            : null,
+                    null);
         }
         UUID methodId = dto.methodId();
         Method method = maps.methodById().get(methodId);
+        MethodRubric methodAliases = findMethod(aliasSource, methodId);
         UUID receiverConstructorId = dto.receiverConstructorId();
+        ConstructorRubric receiverAliases = findConstructor(aliasSource, receiverConstructorId);
         int repeat = TestcaseRubricService.normalizedRepeatCount(dto.repeatCount());
         return new InvocationRubric(
                 invocationId,
@@ -160,6 +187,46 @@ public class TestcaseRubricAssembler {
                 dispatchClassId,
                 dispatchClassName,
                 InvocationRubric.resultTypeNameForMethod(method),
-                repeat);
+                repeat,
+                methodAliases != null ? methodAliases.names() : null,
+                methodAliases != null
+                        ? methodAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
+                        : null,
+                receiverAliases != null
+                        ? receiverAliases.parameters().stream().map(ParameterRubric::dataTypes).toList()
+                        : null);
+    }
+
+    private static FieldRubric findField(ChallengeRubric challenge, UUID fieldId) {
+        if (challenge == null || fieldId == null) {
+            return null;
+        }
+        return challenge.classes().stream()
+                .flatMap(cls -> cls.fields().stream())
+                .filter(field -> fieldId.equals(field.id()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static MethodRubric findMethod(ChallengeRubric challenge, UUID methodId) {
+        if (challenge == null || methodId == null) {
+            return null;
+        }
+        return challenge.classes().stream()
+                .flatMap(cls -> cls.methods().stream())
+                .filter(method -> methodId.equals(method.id()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static ConstructorRubric findConstructor(ChallengeRubric challenge, UUID constructorId) {
+        if (challenge == null || constructorId == null) {
+            return null;
+        }
+        return challenge.classes().stream()
+                .flatMap(cls -> cls.constructors().stream())
+                .filter(constructor -> constructorId.equals(constructor.id()))
+                .findFirst()
+                .orElse(null);
     }
 }

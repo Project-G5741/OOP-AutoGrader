@@ -21,7 +21,23 @@ public class InvocationRunner {
         this.jsonValueCoercer = jsonValueCoercer;
     }
 
-    public record BatchItem(List<InvocationRubric> steps, List<String> snapshotFieldNames) {}
+    public record BatchItem(
+            List<InvocationRubric> steps,
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases,
+            Map<java.util.UUID, Map<String, List<String>>> snapshotFieldAliasesByInvocation) {
+
+        public BatchItem(List<InvocationRubric> steps, List<String> snapshotFieldNames) {
+            this(steps, snapshotFieldNames, Map.of(), Map.of());
+        }
+
+        public BatchItem(
+                List<InvocationRubric> steps,
+                List<String> snapshotFieldNames,
+                Map<String, List<String>> snapshotFieldAliases) {
+            this(steps, snapshotFieldNames, snapshotFieldAliases, Map.of());
+        }
+    }
 
     public InvocationOutcome invokeSingle(ChallengeGradingContext context,
                                           InvocationRubric invocation,
@@ -66,7 +82,10 @@ public class InvocationRunner {
             List<WorkerIpc.ScenarioStepSpec> steps = new ArrayList<>();
             if (item != null && item.steps() != null) {
                 for (InvocationRubric step : item.steps()) {
-                    steps.add(WorkerSessionHandle.toScenarioStep(step));
+                    Map<String, List<String>> scoped = item.snapshotFieldAliasesByInvocation().get(step.id());
+                    steps.add(scoped != null
+                            ? WorkerSessionHandle.toScenarioStep(step, List.copyOf(scoped.keySet()), scoped)
+                            : WorkerSessionHandle.toScenarioStep(step));
                 }
             }
             String classesDir = context.classesDir() != null
@@ -75,7 +94,8 @@ public class InvocationRunner {
             specs.add(new WorkerIpc.BatchItemSpec(
                     steps,
                     item == null ? List.of() : item.snapshotFieldNames(),
-                    classesDir));
+                    classesDir,
+                    item == null ? Map.of() : item.snapshotFieldAliases()));
         }
         SerializedInvocationOutcome serialized = handle.batch(
                 context.classesDir().toAbsolutePath().toString(), specs);
@@ -98,16 +118,20 @@ public class InvocationRunner {
         List<WorkerIpc.BatchItemSpec> specs = new ArrayList<>(items.size());
         for (LabBatchItem item : items) {
             if (item == null || item.classesDir() == null || item.classesDir().isBlank()) {
-                specs.add(new WorkerIpc.BatchItemSpec(List.of(), List.of(), null));
+                specs.add(new WorkerIpc.BatchItemSpec(List.of(), List.of(), null, Map.of()));
                 continue;
             }
             List<WorkerIpc.ScenarioStepSpec> steps = new ArrayList<>();
             if (item.steps() != null) {
                 for (InvocationRubric step : item.steps()) {
-                    steps.add(WorkerSessionHandle.toScenarioStep(step));
+                    Map<String, List<String>> scoped = item.snapshotFieldAliasesByInvocation().get(step.id());
+                    steps.add(scoped != null
+                            ? WorkerSessionHandle.toScenarioStep(step, List.copyOf(scoped.keySet()), scoped)
+                            : WorkerSessionHandle.toScenarioStep(step));
                 }
             }
-            specs.add(new WorkerIpc.BatchItemSpec(steps, item.snapshotFieldNames(), item.classesDir()));
+            specs.add(new WorkerIpc.BatchItemSpec(
+                    steps, item.snapshotFieldNames(), item.classesDir(), item.snapshotFieldAliases()));
         }
         SerializedInvocationOutcome serialized = handle.batch(null, specs, batchParallelism);
         return toBatchOutcomes(serialized, items.size());
@@ -116,7 +140,25 @@ public class InvocationRunner {
     public record LabBatchItem(
             String classesDir,
             List<InvocationRubric> steps,
-            List<String> snapshotFieldNames) {}
+            List<String> snapshotFieldNames,
+            Map<String, List<String>> snapshotFieldAliases,
+            Map<java.util.UUID, Map<String, List<String>>> snapshotFieldAliasesByInvocation) {
+
+        public LabBatchItem(
+                String classesDir,
+                List<InvocationRubric> steps,
+                List<String> snapshotFieldNames) {
+            this(classesDir, steps, snapshotFieldNames, Map.of(), Map.of());
+        }
+
+        public LabBatchItem(
+                String classesDir,
+                List<InvocationRubric> steps,
+                List<String> snapshotFieldNames,
+                Map<String, List<String>> snapshotFieldAliases) {
+            this(classesDir, steps, snapshotFieldNames, snapshotFieldAliases, Map.of());
+        }
+    }
 
     private List<List<InvocationOutcome>> toBatchOutcomes(SerializedInvocationOutcome serialized, int expected) {
         if (serialized == null) {
