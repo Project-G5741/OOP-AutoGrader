@@ -31,8 +31,13 @@ public class WeeklyRankingSchemaMigrator {
                     rank         INTEGER NOT NULL,
                     total        NUMERIC(10, 2) NOT NULL,
                     gift_points  INTEGER NOT NULL,
+                    gift_tickets INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (week_end, user_id)
                 )
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE weekly_ranking_entry
+                    ADD COLUMN IF NOT EXISTS gift_tickets INTEGER NOT NULL DEFAULT 0
                 """);
     }
 }

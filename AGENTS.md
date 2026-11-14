@@ -103,7 +103,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
 | `docs/sql/2026-10-20-student-daily-streak.sql` | Operator-run: `student_daily_streak` (daily missions, streak, reward points). Startup migrator applies the same `CREATE TABLE IF NOT EXISTS` on PostgreSQL |
 | `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
-| `docs/sql/2026-10-21-weekly-ranking-payout.sql` | Operator-run: `weekly_ranking_week` + `weekly_ranking_entry` (Sunday freeze ledger). Startup migrator applies the same statements on PostgreSQL |
+| `docs/sql/2026-10-21-weekly-ranking-payout.sql` | Operator-run: `weekly_ranking_week` + `weekly_ranking_entry` (Sunday freeze ledger, including `gift_tickets`). Startup migrator applies the same statements on PostgreSQL |
 | `docs/sql/2026-10-21-lab-prefix.sql` | Operator-run: `lab.prefix` (`Official` or `Practice`, default `Official`). Startup migrator applies the same `ADD COLUMN IF NOT EXISTS` on PostgreSQL |
 | `docs/sql/2026-10-28-field-declaration-modifiers.sql` | Operator-run: `field_declaration.is_static` and `field_declaration.is_final` (default false). Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-10-31-declaration-alias-lists.sql` | Operator-run: ordered name/type alias child tables for field/method declarations and parameters (primary stays on parent columns). Startup migrator `DeclarationAliasListsSchemaMigrator` applies the same CREATE + backfill on PostgreSQL |
@@ -114,6 +114,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-11-04-drop-lab4-tea-default-constructors.sql` | Operator-run on Supabase: retarget Lab 4 tea composition steps to the default constructor and delete the four inserted no-arg constructor rows |
 | `docs/sql/2026-11-12-submission-pillar-scores.sql` | Operator-run: `lab_submission` and `submission_challenge_result` MMD / Declaration / Operational percentages. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-tickets.sql` | Operator-run: `student_daily_streak` gacha ticket balance, today's mission-ticket counter, and the one-time 100-ticket launch gift flag. Startup migrator applies the same columns on PostgreSQL |
+| `docs/sql/2026-11-14-gacha-crystals.sql` | Operator-run: `student_daily_streak.crystals` balance. Startup migrator applies the same column on PostgreSQL. Shop exchange pays 4000 points per crystal |
+| `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 
 ### Project facts

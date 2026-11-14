@@ -117,9 +117,9 @@ const RANDOM_MASCOT_POOL = [
   'thanh_long',
   'bach_ho',
   'chu_tuoc',
-  'huyen_vu'
+  'huyen_vu',
 ];
-const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky'];
+const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
 
 export default function MascotGachaModal({
   open,
@@ -256,7 +256,7 @@ export default function MascotGachaModal({
           type: 'crystal',
           crystalAmount: 1,
           pointsRefund: 0,
-          description: 'Bảo vật tối thượng dùng để đổi các Mascot Legendary trong shop!',
+          description: 'Bảo vật tối thượng. Đổi mascot Legendary trong shop, hoặc 4.000 điểm mỗi viên.',
         },
         nextPity: 0, // Reset pity
         wasPity: isHardPity,
@@ -716,6 +716,7 @@ export default function MascotGachaModal({
                       label={`${showcaseItem.name} mascot`}
                       directions={mascotArt(showcaseItem.mascotId).directions}
                       reactions={mascotArt(showcaseItem.mascotId).reactions}
+                      tier={mascotArt(showcaseItem.mascotId).tier}
                       trackPointer
                     />
                   )}

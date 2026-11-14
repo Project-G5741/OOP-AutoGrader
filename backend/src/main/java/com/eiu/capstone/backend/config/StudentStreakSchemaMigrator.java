@@ -55,6 +55,10 @@ public class StudentStreakSchemaMigrator {
                     ADD COLUMN IF NOT EXISTS gacha_launch_gift BOOLEAN NOT NULL DEFAULT FALSE
                 """);
         jdbcTemplate.execute("""
+                ALTER TABLE student_daily_streak
+                    ADD COLUMN IF NOT EXISTS crystals INTEGER NOT NULL DEFAULT 0
+                """);
+        jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS student_mascot_purchase (
                     user_id       UUID NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
                     mascot_id     VARCHAR(32) NOT NULL,

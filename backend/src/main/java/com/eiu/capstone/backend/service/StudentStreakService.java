@@ -109,12 +109,59 @@ public class StudentStreakService {
     }
 
     @Transactional
+    public StudentStreakView grantCrystals(UUID userId, int count) {
+        if (count < 1 || count > 10) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Crystal count must be from 1 to 10");
+        }
+        return mutate(userId, row -> row.setCrystals(row.getCrystals() + count));
+    }
+
+    @Transactional
+    public StudentStreakView spendCrystals(UUID userId, int count) {
+        if (count < 1 || count > CrystalExchange.MAX_COUNT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Crystal count must be from 1 to 99");
+        }
+        return mutate(userId, row -> {
+            if (row.getCrystals() < count) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Not enough crystals");
+            }
+            row.setCrystals(row.getCrystals() - count);
+        });
+    }
+
+    @Transactional
+    public StudentStreakView exchangeCrystals(UUID userId, int count) {
+        return mutate(userId, row -> {
+            try {
+                CrystalExchange.exchange(row, count);
+            } catch (IllegalArgumentException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Crystal count must be from 1 to 99");
+            } catch (IllegalStateException ex) {
+                String message = "points".equals(ex.getMessage())
+                        ? "Point balance is full"
+                        : "Not enough crystals";
+                throw new ResponseStatusException(HttpStatus.CONFLICT, message);
+            }
+        });
+    }
+
+    @Transactional
     public void addPoints(UUID userId, int amount) {
         if (userId == null || amount <= 0) {
             return;
         }
         StudentStreak row = locked(userId);
         row.setPoints(row.getPoints() + amount);
+        repository.save(row);
+    }
+
+    @Transactional
+    public void addGachaTickets(UUID userId, int amount) {
+        if (userId == null || amount <= 0) {
+            return;
+        }
+        StudentStreak row = locked(userId);
+        row.setGachaTickets(row.getGachaTickets() + amount);
         repository.save(row);
     }
 

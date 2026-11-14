@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,6 +69,9 @@ class SecurityAuthorizationTest {
 
     @MockBean
     private SessionValidityService sessionValidityService;
+
+    @MockBean
+    private com.eiu.capstone.backend.service.MascotPracticeTokenService mascotPracticeTokenService;
 
     @BeforeEach
     void allowSessions() {
@@ -303,6 +307,51 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/labs/" + LAB_ID + "/statistics")
                         .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void sessionJwt_mascotSnapshot_is403() throws Exception {
+        mockMvc.perform(get("/api/students/mascot-snapshot")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousMascotSnapshot_is401() throws Exception {
+        mockMvc.perform(get("/api/students/mascot-snapshot"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void practiceJwt_mascotSnapshot_isNotDenied() throws Exception {
+        when(mascotPracticeTokenService.isLiveJti("live-jti")).thenReturn(true);
+        mockMvc.perform(get("/api/students/mascot-snapshot")
+                        .header("Authorization", "Bearer " + practiceToken("live-jti")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void practiceJwt_labList_is403() throws Exception {
+        when(mascotPracticeTokenService.isLiveJti("live-jti")).thenReturn(true);
+        mockMvc.perform(get("/api/labs/list")
+                        .header("Authorization", "Bearer " + practiceToken("live-jti")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void revokedPracticeJwt_mascotSnapshot_is401() throws Exception {
+        when(mascotPracticeTokenService.isLiveJti("dead-jti")).thenReturn(false);
+        mockMvc.perform(get("/api/students/mascot-snapshot")
+                        .header("Authorization", "Bearer " + practiceToken("dead-jti")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private String practiceToken(String jti) {
+        return jwtService.createMascotPracticeToken(
+                "user@eiu.edu.vn",
+                UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                jti,
+                Instant.now().plusSeconds(3600));
     }
 
     private String bearer(List<String> roles) {

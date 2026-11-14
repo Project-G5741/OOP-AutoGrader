@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.MascotOfferView;
 import com.eiu.capstone.backend.DTO.MascotShopView;
+import com.eiu.capstone.backend.DTO.MascotSnapshotView;
 import com.eiu.capstone.backend.model.StudentMascotPurchase;
 import com.eiu.capstone.backend.model.StudentMascotPurchaseKey;
 import com.eiu.capstone.backend.model.StudentStreak;
@@ -39,6 +40,13 @@ public class StudentMascotService {
         int points = row == null ? 0 : row.getPoints();
         String equipped = row == null ? MascotCatalog.STARTER_ID : row.getEquippedMascot();
         return toView(points, equipped, ownedIds(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public MascotSnapshotView snapshot(UUID userId) {
+        StudentStreak row = streakService.find(userId).orElse(null);
+        String equipped = row == null ? MascotCatalog.STARTER_ID : row.getEquippedMascot();
+        return new MascotSnapshotView(equipped, List.copyOf(ownedIds(userId)));
     }
 
     /**

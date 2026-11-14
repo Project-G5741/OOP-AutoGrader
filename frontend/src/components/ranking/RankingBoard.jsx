@@ -56,23 +56,27 @@ function compareRows(left, right, field, direction) {
     return mul * (numeric(left.total) - numeric(right.total));
   }
   if (field === 'gift') {
-    return mul * (numeric(left.giftPoints) - numeric(right.giftPoints));
+    const points = numeric(left.giftPoints) - numeric(right.giftPoints);
+    if (points !== 0) return mul * points;
+    return mul * (numeric(left.giftTickets) - numeric(right.giftTickets));
   }
   return mul * (numeric(left.rank) - numeric(right.rank));
 }
 
-function GiftChip({ points }) {
+function GiftChip({ points, tickets }) {
   const n = numeric(points);
-  if (n <= 0) {
+  const t = numeric(tickets);
+  if (n <= 0 && t <= 0) {
     return (
       <span className="inline-flex items-center justify-center rounded-full bg-surface-secondary px-2.5 py-1 text-xs font-medium tabular-nums text-foreground-muted">
         —
       </span>
     );
   }
+  const label = t > 0 ? `${formatNumber(n)} pts + ${formatNumber(t)} vé` : `${formatNumber(n)} pts`;
   return (
     <span className="inline-flex items-center justify-center rounded-full bg-success-bg px-2.5 py-1 text-xs font-semibold tabular-nums text-success-text">
-      {formatNumber(n)} pts
+      {label}
     </span>
   );
 }
@@ -131,7 +135,7 @@ function RankingRow({ row, highlight = false }) {
         {formatNumber(row.total)}
       </td>
       <td className="h-11 px-3 align-middle">
-        <GiftChip points={row.giftPoints} />
+        <GiftChip points={row.giftPoints} tickets={row.giftTickets} />
       </td>
     </tr>
   );
@@ -190,10 +194,10 @@ function ColumnWidths() {
   return (
     <colgroup>
       <col className="w-[10%]" />
-      <col className="w-[30%]" />
-      <col className="w-[20%]" />
-      <col className="w-[20%]" />
-      <col className="w-[20%]" />
+      <col className="w-[26%]" />
+      <col className="w-[16%]" />
+      <col className="w-[16%]" />
+      <col className="w-[32%]" />
     </colgroup>
   );
 }

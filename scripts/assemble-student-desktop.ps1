@@ -114,9 +114,11 @@ function New-PortableJdkImage {
         }
     }
     # Always keep compiler + common Spring/H2 modules jdeps may omit.
+    # jdk.crypto.ec: Ed25519 KeyFactory for desktop pack verify (jdeps does not see it).
     foreach ($required in @(
             "java.compiler", "jdk.compiler", "jdk.zipfs",
-            "java.logging", "java.xml", "java.sql", "java.naming")) {
+            "java.logging", "java.xml", "java.sql", "java.naming",
+            "jdk.crypto.ec")) {
         if ($moduleDeps -notmatch [regex]::Escape($required)) {
             $moduleDeps = "$moduleDeps,$required"
         }
@@ -184,6 +186,21 @@ $launcherSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\O
 $readmeSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\README.txt"
 Copy-Item $launcherSrc (Join-Path $OutputDir "OOP-AutoGrader-Practice.bat") -Force
 Copy-Item $readmeSrc (Join-Path $OutputDir "README.txt") -Force
+
+$cloudApiUrl = $env:APP_DESKTOP_CLOUD_API_URL
+if (-not $cloudApiUrl) {
+    $cloudApiUrl = $env:VITE_API_URL
+}
+$cloudApiUrl = if ($cloudApiUrl) { $cloudApiUrl.Trim().TrimEnd('/') } else { "" }
+Set-Content -LiteralPath (Join-Path $OutputDir "cloud-api-url.txt") -Value $cloudApiUrl -NoNewline -Encoding ascii
+if ($cloudApiUrl) {
+    Write-Host "Baked mascot cloud API URL: $cloudApiUrl (used only on Import mascot; practice stays offline otherwise)"
+    if ($cloudApiUrl -match 'localhost|127\.0\.0\.1') {
+        Write-Warning "Cloud URL is local. Import mascot then needs that API running; the EXE itself still runs offline."
+    }
+} else {
+    Write-Warning "APP_DESKTOP_CLOUD_API_URL (or VITE_API_URL) is empty. Desktop mascot import will fail until that file is set. The EXE still runs offline."
+}
 
 $jdkHome = Resolve-JdkHome
 $runtimeJdk = Join-Path $OutputDir "runtime\jdk"

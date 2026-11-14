@@ -362,6 +362,54 @@ export const MASCOT_PROFILES = {
       ],
     },
   },
+  linh_loc: {
+    dialogues: {
+      perfect: [
+        'Linh Lộc ban phúc! Bách hoa khai mở, đắc đạo 100/100 tuyệt đối! 🦌✨🌸',
+        'Tiên căn bất phàm! Thuật toán của bạn trong trẻo như ngọc bích thiên hà! 🦌💎',
+      ],
+      good: [
+        'Tiên khí phiêu dạt! Chỉ một bước ngộ đạo nữa thôi là chạm đỉnh 100! 🦌✨',
+        'Ánh ngọc lấp lánh soi đường, kiên trì hoàn thiện những điều kiện biên cuối cùng!',
+      ],
+      retry: [
+        'Tu tiên ắt gặp thiên kiếp! Tĩnh tâm đả tọa, phá tan mọi bug trần thế! 🦌🧘‍♂️',
+        'Tường vân che chở, Linh Lộc trao bạn linh đan trí tuệ để vượt qua compile error!',
+      ],
+      pet: [
+        'Gạc vàng khẽ chạm vào tay bạn, chuông ngọc reo vang khúc nhạc thần tiên! 🦌❤️',
+        'Linh Lộc cảm nhận được tâm hồn thanh khiết của bạn. Tiên vận hanh thông!',
+      ],
+      idle: [
+        'Dải lụa tiên và mây ngũ sắc đang lượn quanh bàn phím của bạn... 🦌☁️',
+        'Tâm tĩnh như nước thì code tự khắc hanh thông, vạn sự viên mãn.',
+      ],
+    },
+  },
+  ki_lan: {
+    dialogues: {
+      perfect: [
+        'Kỳ Lân xuất thế! Điềm lành 100/100 rực rỡ chiếu sáng toàn tam giới! 🦄✨🎉',
+        'Thần uy chấn nhiếp muôn loài! Mã nguồn của bạn đạt cảnh giới viên mãn! 🦄🔥',
+      ],
+      good: [
+        'Tường thụy ngập tràn! Độc giác hoàng kim đang soi sáng đường tới điểm 100! 🦄✨',
+        'Khí phách hiên ngang! Hãy tung đòn dứt điểm để đạt tuyệt đỉnh công phu!',
+      ],
+      retry: [
+        'Thần thú tôi luyện qua lôi kiếp! Đứng dậy chỉnh sửa và đột phá cảnh giới! 🦄⚡',
+        'Lửa thiêng trừ tà! Đốt cháy mọi Exception và bug ẩn nấp!',
+      ],
+      pet: [
+        'Râu rồng uốn lượn, bờm mây áp vào lòng bàn tay ấm áp... 🦄❤️',
+        'Kỳ Lân trao cho bạn phúc khí và sự may mắn vô tận trên con đường lập trình!',
+      ],
+      idle: [
+        'Đạp mây canh giữ dự án, xua tan mọi tà khí và bug hiểm độc! 🦄☁️',
+        'Người có chí lớn tất thành đại sự. Cứ vững bước tiến lên!',
+      ],
+    },
+  },
   cung_ky: {
     dialogues: {
       perfect: [

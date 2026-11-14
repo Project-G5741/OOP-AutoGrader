@@ -50,6 +50,7 @@ class WeeklyRankingPayoutServiceTest {
 
         verify(weeklyRankingService, never()).boardAsOf(any(), any());
         verify(studentStreakService, never()).addPoints(any(), any(int.class));
+        verify(studentStreakService, never()).addGachaTickets(any(), any(int.class));
     }
 
     @Test
@@ -68,8 +69,8 @@ class WeeklyRankingPayoutServiceTest {
         when(weeklyRankingService.boardAsOf(weekEnd, weekEnd)).thenReturn(new WeeklyRankingBoardResponse(
                 weekEnd,
                 weekEnd,
-                List.of(new WeeklyRankingRow(1, userId, "A", "IRN1", new BigDecimal("100"), 100))));
-        when(jdbcTemplate.update(contains("weekly_ranking_entry"), any(), any(), any(), any(), any()))
+                List.of(new WeeklyRankingRow(1, userId, "A", "IRN1", new BigDecimal("100"), 1000, 50))));
+        when(jdbcTemplate.update(contains("weekly_ranking_entry"), any(), any(), any(), any(), any(), any()))
                 .thenReturn(0);
         when(jdbcTemplate.update(contains("paid_at"), any(Timestamp.class), any(Timestamp.class))).thenReturn(1);
 
@@ -77,6 +78,7 @@ class WeeklyRankingPayoutServiceTest {
                 .payWeekEnding(weekEnd);
 
         verify(studentStreakService, never()).addPoints(any(), any(int.class));
+        verify(studentStreakService, never()).addGachaTickets(any(), any(int.class));
     }
 
     @Test
@@ -95,14 +97,15 @@ class WeeklyRankingPayoutServiceTest {
         when(weeklyRankingService.boardAsOf(weekEnd, weekEnd)).thenReturn(new WeeklyRankingBoardResponse(
                 weekEnd,
                 weekEnd,
-                List.of(new WeeklyRankingRow(1, userId, "A", "IRN1", new BigDecimal("100"), 100))));
-        when(jdbcTemplate.update(contains("weekly_ranking_entry"), any(), any(), any(), any(), any()))
+                List.of(new WeeklyRankingRow(1, userId, "A", "IRN1", new BigDecimal("100"), 1000, 50))));
+        when(jdbcTemplate.update(contains("weekly_ranking_entry"), any(), any(), any(), any(), any(), any()))
                 .thenReturn(1);
         when(jdbcTemplate.update(contains("paid_at"), any(Timestamp.class), any(Timestamp.class))).thenReturn(1);
 
         new WeeklyRankingPayoutService(jdbcTemplate, weeklyRankingService, studentStreakService)
                 .payWeekEnding(weekEnd);
 
-        verify(studentStreakService).addPoints(userId, 100);
+        verify(studentStreakService).addPoints(userId, 1000);
+        verify(studentStreakService).addGachaTickets(userId, 50);
     }
 }

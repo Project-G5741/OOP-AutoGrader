@@ -80,13 +80,16 @@ Mỗi nhân vật được chia thành 2 prompt tương ứng với 2 tấm spri
 > **Yêu cầu nhất quán nhân vật (Character Consistency)**:
 > Khi sinh Reaction Sheet, **bắt buộc** phải cung cấp đường dẫn ảnh Direction Sheet (cụ thể là ô chính diện trung tâm) làm tham chiếu (`ImagePaths: [...]`). Tuyệt đối không để lệch model giữa 2 sheet (ví dụ: Direction là chim ưng thần dũng mãnh nhưng Reaction lại biến thành gà con chibi).
 
-### Bước 2: Bóc tách nền thông minh (Exterior Seed Flood-Fill)
+### Bước 2: Bóc tách nền thông minh & Định vị khe rãnh động (Dynamic Seam & Exterior Seed Flood-Fill)
 Không dùng phương pháp đổi màu đơn giản (`white -> transparent`) vì sẽ làm thủng mắt trắng, răng trắng, sừng bạc hoặc trang phục trắng của nhân vật.
 Thuật toán chuẩn:
-1. **Quét hạt giống viền ngoài (Exterior Seeds)**: Lấy mẫu tại 4 cạnh biên `(x, 0)`, `(x, h-1)`, `(0, y)`, `(w-1, y)`. Nếu màu tiệm cận trắng ($R, G, B \ge 242$ và độ lệch $\le 16$), đưa vào hàng đợi BFS.
-2. **Khóa chặn đáy cổ (Chest Barrier Lock)**: Tìm tọa độ đáy của nhân vật. Khóa một dải hàng rào chắn ngang phần ngực/cổ để thuật toán loang màu không đi xuyên từ dưới đáy lọt vào áo trắng hay lông bụng.
-3. **Loang màu viền ngoài**: BFS chỉ loang qua các pixel thuộc nền trống bên ngoài.
-4. **Làm mềm viền (Alpha Smoothing / Feathering)**: Tạo vùng bán trong suốt chuyển tiếp $1 - 2\text{ px}$ giữa biên nhân vật và nền trong suốt, triệt tiêu hoàn toàn viền trắng (white halo/fringing).
+1. **Định vị khe rãnh động (Dynamic Valley-Midpoint Seam Finding)**:
+   - Các linh thú có đặc điểm hình thể đặc thù (tai dài như Chuột Túi, Thỏ, hoặc bờm cánh cao như Đại Bàng) thường không nằm gọn tuyệt đối ở các mốc chia đều $1/3$ ($341\text{ px}$). Nếu cắt cứng theo $H/3$, vết cắt sẽ chém ngang qua chóp tai của hàng dưới.
+   - **Giải pháp**: Quét lược đồ mật độ điểm ảnh (row/column dark pixel projections) dọc theo các vùng biên khả dĩ ($24\% - 42\%$ và $56\% - 74\%$). Tìm dải rãnh trắng tuyệt đối và chọn tâm điểm rãnh (valley midpoint) làm đường cắt cell. Đảm bảo $100\%$ tai và bờm nguyên vẹn trước khi chuyển sang bước flood-fill.
+2. **Quét hạt giống viền ngoài (Exterior Seeds)**: Lấy mẫu tại 4 cạnh biên `(x, 0)`, `(x, h-1)`, `(0, y)`, `(w-1, y)`. Nếu màu tiệm cận trắng ($R, G, B \ge 242$ và độ lệch $\le 16$), đưa vào hàng đợi BFS.
+3. **Khóa chặn đáy cổ (Chest Barrier Lock)**: Tìm tọa độ đáy của nhân vật. Khóa một dải hàng rào chắn ngang phần ngực/cổ để thuật toán loang màu không đi xuyên từ dưới đáy lọt vào áo trắng hay lông bụng.
+4. **Loang màu viền ngoài**: BFS chỉ loang qua các pixel thuộc nền trống bên ngoài.
+5. **Làm mềm viền (Alpha Smoothing / Feathering)**: Tạo vùng bán trong suốt chuyển tiếp $1 - 2\text{ px}$ giữa biên nhân vật và nền trong suốt, triệt tiêu hoàn toàn viền trắng (white halo/fringing).
 
 ### Bước 3: Căn chỉnh trục tâm mặt (Face-Band Alignment)
 Nếu căn giữa theo toàn bộ bounding box, khi nhân vật có các hiệu ứng bay nhảy (như sừng dài, tia sét, vương miện lửa, quả cầu năng lượng, Zzz) thì khuôn mặt sẽ bị giật qua lại.
@@ -125,17 +128,32 @@ Nhân vật dạng avatar bán thân cần hòa trộn tự nhiên vào giao di�
 [ (2,0) Tây Nam - SW ]   [ (2,1) Nam - S (Nhìn xuống) ] [ (2,2) Đông Nam - SE ]
 ```
 
-### 4.2. Quy tắc 9 ô Cảm xúc (Reactions Matrix)
-Tất cả 9 ô reaction đều giữ **hướng mặt nhìn thẳng về phía trước**, chỉ thay đổi biểu cảm và hiệu ứng nguyên tố:
-- **Ô 0 (Hàng 1, Cột 1 - Blink)**: Nhắm mắt nhẹ nhàng / Thiền định tĩnh tại.
-- **Ô 1 (Hàng 1, Cột 2 - Core / Love)**: Trái tim / Lõi nguyên tố / Tình cảm thân thiện.
-- **Ô 2 (Hàng 1, Cột 3 - Aura / Crown)**: Vương miện / Hào quang / Lấp lánh năng lượng.
-- **Ô 3 (Hàng 2, Cột 1 - Roar / Cry)**: Gầm gừ / Tiếng gáy / Sóng âm xung kích.
-- **Ô 4 (Hàng 2, Cột 2 - Smirk)**: Cười đắc thắng / Nụ cười tự tin thương hiệu.
-- **Ô 5 (Hàng 2, Cột 3 - Wrath)**: Thịnh nộ / Mắt rực lửa / Trạng thái nộ cuồng bạo.
-- **Ô 6 (Hàng 3, Cột 1 - Slumber)**: Ngủ say / Cuộn tròn ấm áp / Chữ Zzz.
-- **Ô 7 (Hàng 3, Cột 2 - Dizzy)**: Mắt xoắn ốc hoa mắt / Chóng mặt khi bị gõ đầu (boop).
-- **Ô 8 (Hàng 3, Cột 3 - Burst)**: Tuyệt chiêu nguyên tố bùng nổ (phun lửa / lốc xoáy / sóng băng).
+### 4.2. Quy tắc 9 ô Cảm xúc (Reactions Matrix) Theo Phẩm Chất (Tiers)
+Tất cả 9 ô reaction đều giữ **hướng mặt nhìn thẳng về phía trước**, chỉ thay đổi biểu cảm và hoạt động.
+
+#### A. Phẩm chất NORMAL (Dành cho Cáo, Gấu, Panda, Cánh cụt):
+Bộ hoạt động thú cưng dễ thương, đời thường:
+- **Ô 0 (Hàng 1, Cột 1 - `blink`)**: Nhắm mắt nhẹ nhàng / Thiền định tĩnh tại.
+- **Ô 1 (Hàng 1, Cột 2 - `heart`)**: Trái tim tình cảm thân thiện.
+- **Ô 2 (Hàng 1, Cột 3 - `sparkle`)**: Ngôi sao lấp lánh vui mừng.
+- **Ô 3 (Hàng 2, Cột 1 - `surprised`)**: Mắt tròn xoe ngạc nhiên khi được chạm.
+- **Ô 4 (Hàng 2, Cột 2 - `wink`)**: Nháy mắt tinh nghịch.
+- **Ô 5 (Hàng 2, Cột 3 - `bashful`)**: E thẹn, lấy tay/cánh che mắt ngại ngùng.
+- **Ô 6 (Hàng 3, Cột 1 - `sleepy`)**: Ngủ say cuộn tròn ấm áp cùng chữ Zzz.
+- **Ô 7 (Hàng 3, Cột 2 - `dizzy`)**: Mắt xoắn ốc hoa mắt khi bị click liên tục (boop rapid).
+- **Ô 8 (Hàng 3, Cột 3 - `delighted`)**: Cười tít mắt vui vẻ tột độ.
+
+#### B. Phẩm chất RARE (Dành cho Thỏ, Mèo, Vịt, Hamster, Chuột túi, Shiba, Đại bàng, Chó sói):
+Bộ hoạt động đồng đội lập trình thực chiến (Coder Adventure & Partner) năng động, cá tính:
+- **Ô 0 (Hàng 1, Cột 1 - `focus`)**: Đeo kính trí tuệ / kính lập trình viên soi bug tập trung cao độ.
+- **Ô 1 (Hàng 1, Cột 2 - `celebration`)**: Thổi kèn tiệc & pháo hoa giấy confetti ăn mừng bài nộp thành công.
+- **Ô 2 (Hàng 1, Cột 3 - `trophy`)**: Cúp vàng $5\star$ / Huy hiệu lập trình viên danh dự.
+- **Ô 3 (Hàng 2, Cột 1 - `battle_cry`)**: Gầm / Kêu xung trận, quyết tâm tiêu diệt lỗi logic và edge-cases.
+- **Ô 4 (Hàng 2, Cột 2 - `pro_smirk`)**: Đeo kính râm đen ngầu nhếch mép kiểu Pro Coder (*"Code 1 lần ăn ngay!"*).
+- **Ô 5 (Hàng 2, Cột 3 - `fire_spirit`)**: Đôi mắt bừng sáng ngọn lửa chiến ý, quyết tâm đua deadline đến cùng.
+- **Ô 6 (Hàng 3, Cột 1 - `coffee_break`)**: Cầm ly cà phê takeaway bốc khói / snack nạp năng lượng sau giờ code.
+- **Ô 7 (Hàng 3, Cột 2 - `glitch_dizzy`)**: Mắt xoắn ốc hoa văn glitch điện tử vi mạch, đầu bốc khói vì quá tải hệ thống.
+- **Ô 8 (Hàng 3, Cột 3 - `rare_burst`)**: Bùng nổ hào quang năng lượng xanh Cyan (`#38BDF8`), ăn mừng thăng hạng rực rỡ.
 
 ---
 

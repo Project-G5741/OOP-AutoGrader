@@ -58,6 +58,7 @@ impl Backend {
         .env("APP_DESKTOP_HOME", install_dir)
         .env("SPRING_PROFILES_ACTIVE", "desktop")
         .env("DESKTOP_WORKER_JAVA", &java_exe)
+        .env("APP_DESKTOP_CLOUD_API_URL", read_cloud_api_url(install_dir))
         // Never inherit a cloud SANDBOX_* env into offline practice (local worker.jar only).
         .env("SANDBOX_ENABLED", "false")
         .env("APP_GRADING_SANDBOX_ENABLED", "false")
@@ -149,6 +150,15 @@ impl Drop for Backend {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+fn read_cloud_api_url(install_dir: &Path) -> String {
+    let path = install_dir.join("cloud-api-url.txt");
+    fs::read_to_string(path)
+        .ok()
+        .map(|raw| raw.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default()
 }
 
 fn resolve_java(install_dir: &Path) -> String {

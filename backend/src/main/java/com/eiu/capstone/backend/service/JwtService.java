@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -24,6 +25,11 @@ import io.jsonwebtoken.security.Keys;
 public class JwtService {
 
     private static final int MIN_HS256_KEY_BYTES = 32;
+    public static final String MASCOT_PRACTICE_TYP = "mascot_practice";
+    public static final String MASCOT_PRACTICE_AUD = "desktop-mascot";
+    public static final String MASCOT_PRACTICE_SCOPE = "mascot:read";
+    public static final String MASCOT_READ_AUTHORITY = "MASCOT_READ";
+    public static final long MASCOT_PRACTICE_TTL_SECONDS = 90L * 24L * 60L * 60L;
 
     private final SecretKey signingKey;
     private final JwtParser jwtParser;
@@ -84,6 +90,25 @@ public class JwtService {
                 .setExpiration(Date.from(now.plusSeconds(validitySeconds)))
                 .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public String createMascotPracticeToken(String email, UUID userId, String jti, Instant expiresAt) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .setSubject(userId.toString())
+                .claim("email", email)
+                .claim("typ", MASCOT_PRACTICE_TYP)
+                .claim("scope", MASCOT_PRACTICE_SCOPE)
+                .claim("jti", jti)
+                .setAudience(MASCOT_PRACTICE_AUD)
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(expiresAt))
+                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public static boolean isMascotPractice(Claims claims) {
+        return claims != null && MASCOT_PRACTICE_TYP.equals(claims.get("typ", String.class));
     }
 
     public Claims parseToken(String token) {

@@ -15,7 +15,7 @@ Shared live weekly ranking table for student and lecturer Ranking screens.
 - Data is passed in (`weekStart`, `weekEnd`, `rows`); parents fetch
 - Table shows ranks 1–20 only; pagination is 10 rows per page
 - Column labels: Ranking, Fullname, IRN, Total, Gift
-- Gift `0` displays as a muted `—` chip; positive gifts as `N pts` (example: `100 pts`)
+- Gift `0` points and `0` tickets displays as a muted `—` chip. A paid band shows `N pts + M vé` (example: `1000 pts + 50 vé`). Points-only rows still show `N pts`
 - Totals use `formatNumber` (floor)
 - Client-side header sort applies to the top 20; default Ranking ascending; sort resets to page 1
 - The ranking card fills remaining viewport height down to the footer. Extra space is inside the card, below the table; pagination and **Your ranking** stay at the bottom of the card. Lecturer omits `viewerUserId` and the footer
