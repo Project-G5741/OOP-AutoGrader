@@ -152,11 +152,18 @@ if (-not (Test-Path $workerJar)) {
     throw "Expected worker artifact missing after package: $workerJar"
 }
 
-if (-not (Test-Path $frontendDist)) {
-    Write-Host "Building lecturer desktop frontend..."
-    Push-Location (Join-Path $repoRoot "frontend")
-    npm run build:desktop-lecturer
+# Always rebuild lecturer SPA so shell changes (roster import, Bulk panel) are not skipped
+# when an older dist-desktop-lecturer folder already exists.
+Write-Host "Building lecturer desktop frontend..."
+Push-Location (Join-Path $repoRoot "frontend")
+npm run build:desktop-lecturer
+if ($LASTEXITCODE -ne 0) {
     Pop-Location
+    throw "npm run build:desktop-lecturer failed"
+}
+Pop-Location
+if (-not (Test-Path $frontendDist)) {
+    throw "Expected lecturer UI missing after build: $frontendDist"
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
