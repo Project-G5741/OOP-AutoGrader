@@ -22,7 +22,9 @@ import ExportMenu from './ExportMenu';
 import { exportDataset } from './exportRoster';
 import { PILLAR_EXPORT_COLUMNS, formatPillarScore, pillarExportFields, pillarsForResultsTab } from './pillarScoreColumns';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
+import LecturerOfflineBulkDownload from './LecturerOfflineBulkDownload';
 import { desktopApiBase } from '../../utils/desktopMode';
+import { useToast } from '../ui/Toast';
 
 const API_BASE = desktopApiBase();
 const BULK_RESULTS_PAGE_SIZE = 12;
@@ -135,6 +137,7 @@ function buildStudentMultipart(student) {
 }
 
 export default function BulkGradingPanel({ labs = [] }) {
+  const showToast = useToast();
   const inputRef = useRef(null);
   const cancelGradingRef = useRef(false);
   const [labId, setLabId] = useState('');
@@ -592,6 +595,12 @@ export default function BulkGradingPanel({ labs = [] }) {
             <p className="pb-2 text-xs font-medium text-foreground-muted">
               Challenges: {challengeCount}
             </p>
+          )}
+
+          {!IS_DESKTOP_LECTURER && (
+            <div className="ml-auto flex items-end pb-0.5">
+              <LecturerOfflineBulkDownload onToast={showToast} />
+            </div>
           )}
         </div>
 

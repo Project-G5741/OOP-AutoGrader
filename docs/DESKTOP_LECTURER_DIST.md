@@ -24,7 +24,7 @@ LecturerBulk/
 
 ## Run
 
-1. Unzip the lecturer folder (IT assemble zip or `backend/target/OOP-AutoGrader-LecturerBulk.zip`).
+1. Unzip the lecturer folder (website **Bulk folder** download on Grading, GitHub Release asset, IT assemble zip, or `backend/target/OOP-AutoGrader-LecturerBulk.zip`). Web download uses public URL `LECTURER_BULK_BUNDLE_URL` (default `…/releases/download/grading-bundle-v1/OOP-AutoGrader-LecturerBulk.zip`) — browser-owned, same UX as student Practice folder.
 2. Start **`OOP-AutoGrader-LecturerBulk.exe`** (or `.bat`).
 3. Import pack + roster → Lab/Exam Bulk Grading → results with plagiarism + drawer.
 4. Last finished batch is retained across restart until a new completed run or **Clear batch**.
