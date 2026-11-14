@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -24,7 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class DesktopMascotSnapshotService {
 
     private final Path snapshotFile;
-    private final String cloudApiUrl;
+    private final Path cloudApiUrlFile;
+    private final String configuredCloudApiUrl;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -32,8 +34,10 @@ public class DesktopMascotSnapshotService {
             @Value("${app.desktop.install-dir:.}") String installDir,
             @Value("${app.desktop.cloud-api-url:}") String cloudApiUrl,
             ObjectMapper objectMapper) {
-        this.snapshotFile = Path.of(installDir).resolve("data").resolve("mascot-snapshot.json");
-        this.cloudApiUrl = cloudApiUrl == null ? "" : cloudApiUrl.trim();
+        Path home = Path.of(installDir);
+        this.snapshotFile = home.resolve("data").resolve("mascot-snapshot.json");
+        this.cloudApiUrlFile = home.resolve("cloud-api-url.txt");
+        this.configuredCloudApiUrl = cloudApiUrl == null ? "" : cloudApiUrl.trim();
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
@@ -53,12 +57,18 @@ public class DesktopMascotSnapshotService {
         if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Practice token is required");
         }
-        if (cloudApiUrl.isEmpty()) {
+        String base = resolveCloudApiUrl();
+        if (base.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Cloud API URL is not configured");
         }
-        String base = cloudApiUrl.endsWith("/") ? cloudApiUrl.substring(0, cloudApiUrl.length() - 1) : cloudApiUrl;
+        URI uri;
+        try {
+            uri = URI.create(base + "/api/students/mascot-snapshot");
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cloud API URL is invalid");
+        }
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(base + "/api/students/mascot-snapshot"))
+                .uri(uri)
                 .timeout(Duration.ofSeconds(10))
                 .header("Authorization", "Bearer " + token.trim())
                 .GET()
@@ -83,5 +93,33 @@ public class DesktopMascotSnapshotService {
         } catch (IOException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save mascot snapshot");
         }
+    }
+
+    /** Live file wins over the URL baked at assemble / process start. */
+    public String resolveCloudApiUrl() {
+        if (Files.isRegularFile(cloudApiUrlFile)) {
+            try {
+                String fromFile = Files.readString(cloudApiUrlFile, StandardCharsets.UTF_8)
+                        .replace("\uFEFF", "")
+                        .trim();
+                if (!fromFile.isEmpty()) {
+                    return stripTrailingSlash(fromFile);
+                }
+            } catch (IOException ignored) {
+                // fall through to the startup value
+            }
+        }
+        return stripTrailingSlash(configuredCloudApiUrl);
+    }
+
+    private static String stripTrailingSlash(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        String trimmed = url.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 }
