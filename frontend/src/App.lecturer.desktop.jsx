@@ -41,6 +41,8 @@ function LecturerOfflineBulkShell() {
   const [labsError, setLabsError] = useState(null);
   const [labsLoading, setLabsLoading] = useState(true);
   const [membershipEpoch, setMembershipEpoch] = useState(0);
+  const [rosterReady, setRosterReady] = useState(false);
+  const [rosterStatusKnown, setRosterStatusKnown] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +84,15 @@ function LecturerOfflineBulkShell() {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <DesktopRubricPackImport onToast={showToast} />
+          <DesktopRosterImport
+            compact
+            onToast={showToast}
+            onRosterChange={(ready) => {
+              setRosterReady(Boolean(ready));
+              setRosterStatusKnown(true);
+              setMembershipEpoch((value) => value + 1);
+            }}
+          />
           <ThemeToggle />
           <button
             type="button"
@@ -93,18 +104,13 @@ function LecturerOfflineBulkShell() {
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        <section className="space-y-3 rounded-lg border border-border bg-surface-secondary p-4">
-          <div>
-            <h2 className="text-sm font-semibold text-navy">Current-term roster</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Import the CSV/Excel enrollment download from the website (student_code column).
-            </p>
-          </div>
-          <DesktopRosterImport
-            onToast={showToast}
-            onRosterChange={() => setMembershipEpoch((value) => value + 1)}
-          />
-        </section>
+        {rosterStatusKnown && (
+          <p className={`text-sm ${rosterReady ? 'text-success' : 'text-warning-text'}`}>
+            {rosterReady
+              ? 'Current-term roster ready for Bulk Grading.'
+              : 'No usable roster — import the Term page roster download before grading.'}
+          </p>
+        )}
         <section className="space-y-3 rounded-lg border border-border bg-surface-secondary p-4">
           <div>
             <h2 className="text-sm font-semibold text-navy">Grade a folder dump</h2>

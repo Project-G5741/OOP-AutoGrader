@@ -6,7 +6,11 @@ import { isSpreadsheetFile, parseOfflineRosterFile } from '../../utils/offlineRo
 
 const API_BASE = desktopApiBase();
 
-export default function DesktopRosterImport({ onToast, onRosterChange }) {
+/**
+ * @param {{ onToast?: Function, onRosterChange?: (ready: boolean) => void, compact?: boolean }} props
+ * compact=true → header button only (next to Import rubric pack)
+ */
+export default function DesktopRosterImport({ onToast, onRosterChange, compact = false }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -94,8 +98,8 @@ export default function DesktopRosterImport({ onToast, onRosterChange }) {
     }
   };
 
-  return (
-    <div className="flex flex-wrap items-center gap-3">
+  const button = (
+    <>
       <input
         ref={inputRef}
         type="file"
@@ -107,11 +111,22 @@ export default function DesktopRosterImport({ onToast, onRosterChange }) {
         type="button"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
-        className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-secondary disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-light px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-light/80 disabled:opacity-50"
+        title="Import current-term enrollment CSV/Excel (student_code column)"
       >
-        <Upload className="h-4 w-4" aria-hidden />
+        <Upload className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} aria-hidden />
         {busy ? 'Importing…' : 'Import roster'}
       </button>
+    </>
+  );
+
+  if (compact) {
+    return button;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {button}
       {statusLoaded && (
         <p className={`text-sm ${ready ? 'text-success' : 'text-warning-text'}`}>
           {ready

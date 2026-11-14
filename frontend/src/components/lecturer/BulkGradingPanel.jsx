@@ -17,7 +17,7 @@ import { formatNumber, formatText } from '../../utils/formatters';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
 import { SUCCESS_ACTION_BUTTON } from '../../theme/statusClasses';
 import ExportMenu from './ExportMenu';
-import { exportDataset, exportRowsAsCsv, exportRowsAsExcel } from './exportRoster';
+import { exportDataset } from './exportRoster';
 import { PILLAR_EXPORT_COLUMNS, formatPillarScore, pillarExportFields, pillarsForResultsTab } from './pillarScoreColumns';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
 import { desktopApiBase } from '../../utils/desktopMode';
@@ -189,19 +189,6 @@ export default function BulkGradingPanel({ labs = [] }) {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  const handleDownloadEnrollmentIrns = useCallback(async (format) => {
-    if (enrolledIrns.size === 0) return;
-    const rows = [...enrolledIrns]
-      .sort()
-      .map((student_code) => ({ student_code }));
-    const fileBase = 'current_term_enrollment_irns';
-    if (format === 'csv') {
-      exportRowsAsCsv(rows, fileBase);
-      return;
-    }
-    await exportRowsAsExcel(rows, fileBase);
-  }, [enrolledIrns]);
 
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
@@ -559,27 +546,6 @@ export default function BulkGradingPanel({ labs = [] }) {
         )}
         {membershipStatus === 'loading' && (
           <p className="text-sm text-foreground-muted">Loading current-quarter student IRNs…</p>
-        )}
-        {membershipStatus === 'ready' && enrolledIrns.size > 0 && !IS_DESKTOP_LECTURER && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium text-foreground-secondary">
-              Offline roster ({enrolledIrns.size} IRNs)
-            </span>
-            <button
-              type="button"
-              onClick={() => handleDownloadEnrollmentIrns('csv')}
-              className="rounded-lg border border-border px-3 py-1.5 font-semibold text-foreground transition-colors hover:bg-surface-secondary"
-            >
-              Download CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownloadEnrollmentIrns('excel')}
-              className="rounded-lg border border-border px-3 py-1.5 font-semibold text-foreground transition-colors hover:bg-surface-secondary"
-            >
-              Download Excel
-            </button>
-          </div>
         )}
 
         <div
