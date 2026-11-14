@@ -101,7 +101,12 @@ export default function StudentFoxMascot({
   const [localSpeech, setLocalSpeech] = useState(null);
   const speechTimerRef = useRef(null);
 
-  const currentSpeech = speech || localSpeech;
+  const matchingSpeech = speech?.mascotId === mascotId ? speech : null;
+  const currentSpeech = matchingSpeech || localSpeech;
+
+  useEffect(() => {
+    setLocalSpeech(null);
+  }, [mascotId]);
 
   // Auto clear speech after 5 seconds
   useEffect(() => {
@@ -119,9 +124,10 @@ export default function StudentFoxMascot({
   }
 
   const handleContainerClick = () => {
+    onClearSpeech?.();
     onPet?.();
     const quote = getRandomDialogue(mascotId, 'pet');
-    setLocalSpeech({ text: quote, type: 'pet' });
+    setLocalSpeech({ text: quote, type: 'pet', mascotId });
   };
 
   return (

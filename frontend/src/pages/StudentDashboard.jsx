@@ -369,12 +369,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, []);
 
   const handleOwnedMascotsChange = useCallback((val) => {
-    setOwnedMascots(val);
-    localStorage.setItem('oop_student_owned_mascots', JSON.stringify(val));
+    setOwnedMascots((prev) => {
+      const incoming = Array.isArray(val) ? val : [];
+      const next = Array.from(new Set(['fox', ...prev, ...incoming].filter(Boolean)));
+      localStorage.setItem('oop_student_owned_mascots', JSON.stringify(next));
+      return next;
+    });
   }, []);
   const [equippedMascot, setEquippedMascot] = useState(() => {
     return localStorage.getItem('oop_student_equipped_mascot') || 'fox';
   });
+  const equippedMascotRef = useRef(equippedMascot);
+  equippedMascotRef.current = equippedMascot;
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
   const [mascotSpeech, setMascotSpeech] = useState(null);
   const [activeMascotSkill, setActiveMascotSkill] = useState(null);
@@ -382,6 +388,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [awardPulse, setAwardPulse] = useState(0);
   const [restoringStreak, setRestoringStreak] = useState(false);
   const streakSnapshot = useRef(null);
+
+  useEffect(() => {
+    setMascotSpeech(null);
+  }, [equippedMascot]);
 
   const applyStreak = useCallback((next) => {
     const prev = streakSnapshot.current;
@@ -488,10 +498,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const petFox = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
-    const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
-    const speechText = getRandomDialogue(equippedId, 'pet');
-    setMascotSpeech({ text: speechText, type: 'pet' });
-
     const goal = streakSnapshot.current?.petGoal ?? 4;
     if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
     try {
@@ -1195,25 +1201,25 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
     // Trigger tier-specific mascot reaction & dialogue based on submission score
     if (!IS_DESKTOP_APP) {
-      const equippedId = equippedMascot || streakSnapshot.current?.equipped || 'fox';
+      const equippedId = equippedMascotRef.current || streakSnapshot.current?.equipped || 'fox';
       const hasCompileErr = labResultHasCompileError(labResult);
 
       const profile = getMascotProfile(equippedId);
       if (score === 100) {
         const speechText = getRandomDialogue(equippedId, 'perfect');
-        setMascotSpeech({ text: speechText, type: 'perfect' });
+        setMascotSpeech({ text: speechText, type: 'perfect', mascotId: equippedId });
         if (profile?.skillType) {
           setActiveMascotSkill(profile.skillType);
         }
       } else if (score != null && score >= 75) {
         const speechText = getRandomDialogue(equippedId, 'good');
-        setMascotSpeech({ text: speechText, type: 'good' });
+        setMascotSpeech({ text: speechText, type: 'good', mascotId: equippedId });
         if (profile?.skillType) {
           setActiveMascotSkill(profile.skillType);
         }
       } else if ((score != null && score < 75) || hasCompileErr) {
         const speechText = getRandomDialogue(equippedId, 'retry');
-        setMascotSpeech({ text: speechText, type: 'retry' });
+        setMascotSpeech({ text: speechText, type: 'retry', mascotId: equippedId });
         if (profile?.skillType) {
           setActiveMascotSkill(profile.skillType);
         }
@@ -1398,10 +1404,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
+    const prev = streakSnapshot.current;
     const equipped = shop.equipped || prev?.equipped || 'fox';
     localStorage.setItem('oop_student_equipped_mascot', equipped);
     setEquippedMascot(equipped);
-    const prev = streakSnapshot.current;
     const next = {
       ...(prev || {}),
       points: shop.points,
@@ -1409,7 +1415,32 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     };
     streakSnapshot.current = next;
     setStreak(next);
-  }, []);
+    const ownedFromShop = (shop.mascots || [])
+      .filter((mascot) => mascot?.owned && mascot?.id)
+      .map((mascot) => mascot.id);
+    if (equipped) ownedFromShop.push(equipped);
+    handleOwnedMascotsChange(ownedFromShop);
+  }, [handleOwnedMascotsChange]);
+
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return undefined;
+    let cancelled = false;
+    apiFetch(`${API_BASE}/api/students/mascots/list`, { headers: authHeaders() })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json();
+      })
+      .then((shop) => {
+        if (cancelled || !shop) return;
+        applyShop(shop);
+      })
+      .catch(() => {
+        /* gacha still uses the local owned cache when the shop list fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyShop]);
 
   if (view === 'dashboard' && !inCurrentTerm) {
     return <Navigate to={ROUTES.studentHistory} replace />;

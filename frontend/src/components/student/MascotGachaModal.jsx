@@ -17,6 +17,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
+import { useToast } from '../ui/Toast';
 import { formatNumber } from '../../utils/formatters';
 import { Mascot } from './MascotSprite';
 import { MASCOT_TIERS, STUDENT_MASCOTS, mascotArt } from './studentMascots';
@@ -120,6 +121,36 @@ const RANDOM_MASCOT_POOL = [
   'huyen_vu',
 ];
 const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
+const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
+const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
+
+function vietnamTodayKey() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: VIETNAM_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function readGachaPointsSpendPref() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GACHA_POINTS_SPEND_PREF_KEY) || 'null');
+    if (!raw || raw.date !== vietnamTodayKey() || typeof raw.allow !== 'boolean') {
+      return null;
+    }
+    return raw.allow;
+  } catch {
+    return null;
+  }
+}
+
+function writeGachaPointsSpendPref(allow) {
+  localStorage.setItem(
+    GACHA_POINTS_SPEND_PREF_KEY,
+    JSON.stringify({ date: vietnamTodayKey(), allow }),
+  );
+}
 
 export default function MascotGachaModal({
   open,
@@ -171,6 +202,9 @@ export default function MascotGachaModal({
   const [showcaseCountdown, setShowcaseCountdown] = useState(5);
   const [showOddsModal, setShowOddsModal] = useState(false);
   const [demoBannerOpen, setDemoBannerOpen] = useState(true);
+  const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
+  const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
+  const showToast = useToast();
 
   const countdownTimerRef = useRef(null);
 
@@ -208,6 +242,10 @@ export default function MascotGachaModal({
       }
     };
   }, [phase]);
+
+  useEffect(() => {
+    if (!open) setPointsSpendPrompt(null);
+  }, [open]);
 
   if (!open) return null;
 
@@ -309,8 +347,7 @@ export default function MascotGachaModal({
     };
   };
 
-  // Execute rolls
-  const triggerGacha = (count) => {
+  const executeGacha = (count) => {
     const useTickets = tickets >= count;
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
@@ -414,6 +451,51 @@ export default function MascotGachaModal({
     }, 1300);
   };
 
+  const triggerGacha = (count) => {
+    const useTickets = tickets >= count;
+    const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
+
+    if (useTickets) {
+      executeGacha(count);
+      return;
+    }
+
+    if (points < requiredPoints) {
+      alert(`Bạn không đủ Vé Roll hoặc Points! Cần ${requiredPoints} Points hoặc ${count} Vé.`);
+      return;
+    }
+
+    const pref = readGachaPointsSpendPref();
+    if (pref === true) {
+      executeGacha(count);
+      return;
+    }
+    if (pref === false) {
+      showToast('Hôm nay bạn đã chọn không dùng điểm để quay.', 'warning');
+      return;
+    }
+
+    setRememberPointsChoice(false);
+    setPointsSpendPrompt({ count, cost: requiredPoints });
+  };
+
+  const confirmPointsSpend = () => {
+    if (!pointsSpendPrompt) return;
+    const { count } = pointsSpendPrompt;
+    if (rememberPointsChoice) {
+      writeGachaPointsSpendPref(true);
+    }
+    setPointsSpendPrompt(null);
+    executeGacha(count);
+  };
+
+  const declinePointsSpend = () => {
+    if (rememberPointsChoice) {
+      writeGachaPointsSpendPref(false);
+    }
+    setPointsSpendPrompt(null);
+  };
+
   const skipShowcase = () => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
@@ -444,9 +526,6 @@ export default function MascotGachaModal({
               <h2 id="gacha-title" className="text-lg font-bold text-foreground">
                 Vòng Quay Tinh Thể (Lucky Summon)
               </h2>
-              <p className="text-xs text-foreground-muted">
-                Dùng Vé Nhiệm Vụ hoặc Points để săn Đá Crystal & Mascot Thần Thoại
-              </p>
             </div>
           </div>
 
@@ -583,9 +662,11 @@ export default function MascotGachaModal({
                     onClick={() => triggerGacha(10)}
                     className="group relative flex min-h-[56px] min-w-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-primary bg-primary px-8 py-2.5 text-white shadow-lg transition-all hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
                   >
-                    <span className="absolute -top-2.5 right-4 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-text shadow-sm border border-warning-border">
-                      Giảm 10%
-                    </span>
+                    {tickets < 10 && (
+                      <span className="absolute -top-2.5 right-4 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-text shadow-sm border border-warning-border">
+                        Giảm 10%
+                      </span>
+                    )}
                     <span className="text-sm font-bold text-white">Quay 10 Lần</span>
                     <span className="mt-0.5 flex items-center gap-1 text-xs text-white/90">
                       {tickets >= 10 ? (
@@ -1140,6 +1221,57 @@ export default function MascotGachaModal({
                 className="min-h-9 cursor-pointer rounded-xl bg-primary px-4 text-xs font-semibold text-white hover:bg-primary-hover"
               >
                 Đã hiểu
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {pointsSpendPrompt && (
+        <ModalOverlay onBackdropClick={declinePointsSpend}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="gacha-points-title"
+            aria-describedby="gacha-points-body"
+            className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="gacha-points-title" className="text-lg font-bold text-foreground">
+              Dùng điểm để quay?
+            </h3>
+            <p id="gacha-points-body" className="mt-1.5 text-xs text-foreground-secondary">
+              Không đủ vé. Quay {pointsSpendPrompt.count} lần sẽ trừ{' '}
+              <span className="font-semibold text-foreground">
+                {formatNumber(pointsSpendPrompt.cost)} điểm
+              </span>
+              . Số dư hiện có: {formatNumber(points)} pts.
+            </p>
+            <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={rememberPointsChoice}
+                onChange={(event) => setRememberPointsChoice(event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
+              />
+              <span>
+                Remember my choice.
+              </span>
+            </label>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={declinePointsSpend}
+                className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmPointsSpend}
+                className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Dùng điểm
               </button>
             </div>
           </div>

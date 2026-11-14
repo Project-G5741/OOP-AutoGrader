@@ -74,7 +74,9 @@ export default function MascotShop({
         return response.json();
       })
       .then((next) => {
-        if (!cancelled) setShop(next);
+        if (cancelled) return;
+        setShop(next);
+        onUpdated?.(next);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -86,7 +88,7 @@ export default function MascotShop({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, onUpdated]);
 
   // Combine backend shop list with catalog definitions
   const displayedMascots = useMemo(() => {
@@ -278,9 +280,6 @@ export default function MascotShop({
                 Mascot shop & Gacha
               </h2>
             </div>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Đổi linh vật bằng Điểm Thưởng hoặc Đá Crystal kiếm được từ Vòng Quay Tinh Thể.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
