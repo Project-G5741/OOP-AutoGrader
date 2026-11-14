@@ -1,7 +1,9 @@
 package com.eiu.capstone.backend.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -51,16 +53,30 @@ public class CurrentTermMailService {
             return new CurrentTermMailResult(0, 0, 0, 0);
         }
         List<UserAccount> students = userAccountRepository.findAllById(studentIds);
+        List<UserAccount> admins = userAccountRepository.findActiveAdmins();
         int skippedNoEmail = 0;
+        int recipientCount = 0;
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
         List<String> recipients = new ArrayList<>();
-        for (UserAccount student : students) {
-            String email = student.getEmail();
-            if (email == null || email.isBlank()) {
+        for (UserAccount account : students) {
+            recipientCount++;
+            addRecipient(account, seen, recipients);
+        }
+        for (UserAccount admin : admins) {
+            String email = normalizeEmail(admin.getEmail());
+            if (email == null) {
                 skippedNoEmail++;
+                recipientCount++;
                 continue;
             }
-            recipients.add(email.trim());
+            if (seen.contains(email)) {
+                continue;
+            }
+            recipientCount++;
+            seen.add(email);
+            recipients.add(email);
         }
+        skippedNoEmail += students.size() - countAddresses(students);
         int sent = 0;
         int failed = 0;
         if (!recipients.isEmpty()) {
@@ -72,6 +88,31 @@ public class CurrentTermMailService {
                 failed = recipients.size();
             }
         }
-        return new CurrentTermMailResult(students.size(), sent, failed, skippedNoEmail);
+        return new CurrentTermMailResult(recipientCount, sent, failed, skippedNoEmail);
+    }
+
+    private static void addRecipient(UserAccount account, LinkedHashSet<String> seen, List<String> recipients) {
+        String email = normalizeEmail(account.getEmail());
+        if (email == null || !seen.add(email)) {
+            return;
+        }
+        recipients.add(email);
+    }
+
+    private static int countAddresses(List<UserAccount> accounts) {
+        int count = 0;
+        for (UserAccount account : accounts) {
+            if (normalizeEmail(account.getEmail()) != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

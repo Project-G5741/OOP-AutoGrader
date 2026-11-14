@@ -1243,6 +1243,7 @@ export default function TermManagement() {
                   ) : null}
                   , using their AutoGrader account email
                   {mailingCurrentRoster ? ` (${mailableStudents.length} recipient${mailableStudents.length === 1 ? '' : 's'}).` : '.'}
+                  {' '}Active admins receive a copy too.
                 </p>
               </div>
             </div>
