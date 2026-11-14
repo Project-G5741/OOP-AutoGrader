@@ -24,8 +24,13 @@ public class MascotPracticeTokenSchemaMigrator {
                     jti            VARCHAR(64) NOT NULL,
                     compact_token  VARCHAR(2048) NOT NULL,
                     expires_at     TIMESTAMPTZ NOT NULL,
-                    created_at     TIMESTAMPTZ NOT NULL
+                    created_at     TIMESTAMPTZ NOT NULL,
+                    used_at        TIMESTAMPTZ
                 )
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE student_mascot_practice_token
+                    ADD COLUMN IF NOT EXISTS used_at TIMESTAMPTZ
                 """);
         jdbcTemplate.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS student_mascot_practice_token_jti_idx

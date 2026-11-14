@@ -48,7 +48,7 @@ In the practice EXE, the header shows an **Exit** button (no profile/account men
 1. Unzip the practice folder (website download or lecturer bundle).
 2. Start **`OOP-AutoGrader-Practice.exe`** (or `.bat` if the exe is missing). The EXE opens a practice window immediately (no console), starts the **local** backend on port **18002**, then loads the UI when ready; the `.bat` fallback keeps a visible Java console by design. The website / `npm start` is **not** required to open or grade.
 3. Use the local dashboard like the web submit view. Scores stay on your PC only.
-4. Optional — **Import mascot**: copy **Copy practice code** from the website (same API host as `cloud-api-url.txt`), then paste in the EXE. That one request needs internet. After a successful import, disconnect; the mascot stays in `data/mascot-snapshot.json`. Changing `cloud-api-url.txt` takes effect on the next Import (no EXE restart).
+4. Optional — **Import mascot**: copy **Copy Mascot Code** from the website (same API host as `cloud-api-url.txt`), then paste in the EXE. Each code imports once. **New Mascot Code** revokes the old `jti`; the next local snapshot read (app open) checks `{jti}/bound` and returns Fox if unbound. Changing `cloud-api-url.txt` takes effect on the next Import (no EXE restart).
 
 ## Student: import or update rubrics
 

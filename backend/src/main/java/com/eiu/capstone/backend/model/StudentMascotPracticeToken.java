@@ -28,6 +28,9 @@ public class StudentMascotPracticeToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "used_at")
+    private Instant usedAt;
+
     public UUID getUserId() {
         return userId;
     }
@@ -66,5 +69,13 @@ public class StudentMascotPracticeToken {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getUsedAt() {
+        return usedAt;
+    }
+
+    public void setUsedAt(Instant usedAt) {
+        this.usedAt = usedAt;
     }
 }

@@ -13,7 +13,7 @@ export default function DesktopMascotImport({ onToast, onSynced }) {
   const sync = async () => {
     const trimmed = token.trim();
     if (!trimmed) {
-      onToast?.({ message: 'Paste the practice code from the web avatar menu.', type: 'error' });
+      onToast?.({ message: 'Paste the mascot code from the web avatar menu.', type: 'error' });
       return;
     }
     setBusy(true);
@@ -45,7 +45,7 @@ export default function DesktopMascotImport({ onToast, onSynced }) {
         disabled={busy}
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary-light px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-light/80 disabled:opacity-50"
-        title="Paste the web practice code to show your equipped mascot here"
+        title="Paste the web mascot code to show your equipped mascot here"
       >
         <PawPrint className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />
         Import mascot
@@ -59,7 +59,7 @@ export default function DesktopMascotImport({ onToast, onSynced }) {
           <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-5 shadow-lg">
             <h2 className="text-base font-semibold text-foreground">Import mascot</h2>
             <p className="mt-2 text-sm text-foreground-muted">
-              On the website, open the avatar menu, copy the practice code, then paste it here.
+              On the website, open the avatar menu, copy the mascot code, then paste it here.
               Scores stay on this PC.
             </p>
             <textarea
@@ -67,7 +67,7 @@ export default function DesktopMascotImport({ onToast, onSynced }) {
               onChange={(event) => setToken(event.target.value)}
               rows={4}
               className="mt-3 w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
-              placeholder="Paste practice code"
+              placeholder="Paste mascot code"
               autoComplete="off"
               spellCheck={false}
             />

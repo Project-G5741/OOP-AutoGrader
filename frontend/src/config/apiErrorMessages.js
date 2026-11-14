@@ -87,6 +87,7 @@ export const BACKEND_MESSAGE_CONTEXTS = [
   'solution-import',
   'feedback',
   'bulk-grade',
+  'mascot-code',
 ];
 
 /**

@@ -3,6 +3,7 @@ package unit.com.eiu.capstone.backend.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -28,6 +29,9 @@ import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.repository.StudentMascotPracticeTokenRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MascotPracticeTokenService;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class MascotPracticeTokenServiceTest {
@@ -103,6 +107,42 @@ class MascotPracticeTokenServiceTest {
         assertFalse(service.isLiveJti("expired"));
         assertFalse(service.isLiveJti("missing"));
         assertFalse(service.isLiveJti(" "));
+    }
+
+    @Test
+    void issue_copyAfterUse_is409() {
+        StudentMascotPracticeToken row = liveRow("compact-live", Instant.now().plusSeconds(3600));
+        row.setUsedAt(Instant.now());
+        when(tokens.findById(userId)).thenReturn(Optional.of(row));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.issue(user, false));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(jwtService, never()).createMascotPracticeToken(any(), any(), any(), any());
+    }
+
+    @Test
+    void isLiveJti_rejectsUsedCode() {
+        StudentMascotPracticeToken used = liveRow("x", Instant.now().plusSeconds(60));
+        used.setUsedAt(Instant.now());
+        when(tokens.findByJti("used")).thenReturn(Optional.of(used));
+        assertFalse(service.isLiveJti("used"));
+        assertTrue(service.isBoundJti("used"));
+    }
+
+    @Test
+    void regenerate_clearsUsedAt() {
+        StudentMascotPracticeToken row = liveRow("compact-live", Instant.now().plusSeconds(3600));
+        row.setUsedAt(Instant.now());
+        when(tokens.findById(userId)).thenReturn(Optional.of(row));
+        when(jwtService.createMascotPracticeToken(any(), any(), any(), any())).thenReturn("replacement");
+        when(tokens.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.issue(user, true);
+
+        ArgumentCaptor<StudentMascotPracticeToken> captor =
+                ArgumentCaptor.forClass(StudentMascotPracticeToken.class);
+        verify(tokens).save(captor.capture());
+        assertEquals(null, captor.getValue().getUsedAt());
     }
 
     private StudentMascotPracticeToken liveRow(String compact, Instant expiresAt) {
