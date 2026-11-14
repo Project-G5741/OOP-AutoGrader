@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,7 +54,7 @@ class CurrentTermMailServiceTest {
         when(termService.findCurrentTerm()).thenReturn(Optional.empty());
         assertThrows(ResponseStatusException.class, () -> mailService.sendToCurrentTerm(
                 new CurrentTermMailRequest("Hello", "Body")));
-        verify(emailSender, never()).sendPlainText(any(), any(), any());
+        verify(emailSender, never()).sendPlainTextEach(any(), any(), any());
     }
 
     @Test
@@ -82,7 +81,7 @@ class CurrentTermMailServiceTest {
         assertEquals(1, result.sentCount());
         assertEquals(0, result.failedCount());
         assertEquals(1, result.skippedNoEmail());
-        verify(emailSender).sendPlainText("student@eiu.edu.vn", "Lab notice", "Please submit.");
+        verify(emailSender).sendPlainTextEach(List.of("student@eiu.edu.vn"), "Lab notice", "Please submit.");
     }
 
     @Test
@@ -100,14 +99,13 @@ class CurrentTermMailServiceTest {
         UserAccount b = new UserAccount();
         b.setEmail("b@eiu.edu.vn");
         when(userAccountRepository.findAllById(List.of(first, second))).thenReturn(List.of(a, b));
-        doThrow(new RuntimeException("brevo down"))
-                .when(emailSender).sendPlainText(eq("a@eiu.edu.vn"), any(), any());
+        when(emailSender.sendPlainTextEach(eq(List.of("a@eiu.edu.vn", "b@eiu.edu.vn")), eq("Subject"), eq("Body")))
+                .thenReturn(1);
 
         CurrentTermMailResult result = mailService.sendToCurrentTerm(
                 new CurrentTermMailRequest("Subject", "Body"));
 
         assertEquals(1, result.sentCount());
         assertEquals(1, result.failedCount());
-        verify(emailSender).sendPlainText(eq("b@eiu.edu.vn"), eq("Subject"), eq("Body"));
     }
 }
