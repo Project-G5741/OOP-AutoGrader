@@ -19,7 +19,7 @@ LecturerBulk/
 ## Prerequisites before grading
 
 1. **Rubric pack** — same signed practice packs (`Rubric_{year}_Q{n}.agpack` / `Rubric_{labName}.agpack`). Import from the app header (restart after Okay).
-2. **Current-term roster** — on the website Term / Quarters page, **Download roster** (next to Practice pack) for enrolled 10-digit IRNs; in the offline app header, **Import roster**. Empty successful import clears membership and blocks Bulk.
+2. **Current-term roster** — on the website Term / Quarters page, **Download roster** (CSV, next to Practice pack); in the offline app header, **Import roster**. Import **replaces** any previous local roster (not a merge). Empty successful import clears membership and blocks Bulk. Importing a rubric pack also wipes local enrollments — import roster again after pack import/restart.
 3. Without a usable roster, drop / Start Grading stay blocked.
 
 ## Run

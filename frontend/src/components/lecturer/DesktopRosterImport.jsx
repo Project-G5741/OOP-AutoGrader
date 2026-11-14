@@ -81,7 +81,7 @@ export default function DesktopRosterImport({ onToast, onRosterChange, compact =
       onRosterChange?.(nextReady);
       if (nextReady) {
         onToast?.({
-          message: `Imported ${body.importedCount} enrolled IRN${body.importedCount === 1 ? '' : 's'}.`,
+          message: `Replaced local roster with ${body.importedCount} enrolled IRN${body.importedCount === 1 ? '' : 's'}.`,
           type: 'success',
         });
       } else {

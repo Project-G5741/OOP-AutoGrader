@@ -149,8 +149,11 @@ export default function BulkGradingPanel({ labs = [] }) {
         }
         const data = await response.json();
         const list = Array.isArray(data?.irns) ? data.irns : [];
-        setEnrolledIrns(new Set(list.map((code) => String(code))));
-        setMembershipStatus(list.length > 0 ? 'ready' : 'empty-roster');
+        const normalized = list
+          .map((code) => String(code ?? '').trim())
+          .filter((code) => /^\d{10}$/.test(code));
+        setEnrolledIrns(new Set(normalized));
+        setMembershipStatus(normalized.length > 0 ? 'ready' : 'empty-roster');
       } catch (err) {
         if (cancelled) return;
         setEnrolledIrns(new Set());

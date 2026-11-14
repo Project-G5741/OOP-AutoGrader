@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Check, X } from "lucide-react";
 import RequireRole from "./components/auth/RequireRole";
 import ThemeToggle from "./components/ThemeToggle";
 import DesktopRubricPackImport from "./components/student/DesktopRubricPackImport";
-import DesktopPracticeStatusBanner from "./components/student/DesktopPracticeStatusBanner";
 import DesktopRosterImport from "./components/lecturer/DesktopRosterImport";
 import BulkGradingPanel from "./components/lecturer/BulkGradingPanel";
 import { useToast } from "./components/ui/Toast";
@@ -34,6 +34,29 @@ function applyDesktopLecturerSession() {
 }
 
 applyDesktopLecturerSession();
+
+function ReadyBadge({ label, ready, known }) {
+  const readyState = known ? ready : false;
+  const Icon = readyState ? Check : X;
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+      <span
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
+          readyState ? "bg-success-bg text-success-text" : "bg-warning-bg text-warning-text"
+        }`}
+        aria-hidden
+      >
+        <Icon className="h-4 w-4" strokeWidth={2.5} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{label}</p>
+        <p className={`text-sm font-semibold ${readyState ? "text-success" : "text-warning-text"}`}>
+          {!known ? "Checking…" : readyState ? "Ready" : "Not ready"}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function LecturerOfflineBulkShell() {
   const showToast = useToast();
@@ -74,10 +97,11 @@ function LecturerOfflineBulkShell() {
     return () => { cancelled = true; };
   }, []);
 
+  const rubricReady = !labsLoading && !labsError && labs.length > 0;
+
   return (
     <div className="min-h-screen bg-surface text-text">
-      <DesktopPracticeStatusBanner />
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div>
           <p className="text-xs uppercase tracking-wide text-text-secondary">Offline lecturer</p>
           <h1 className="text-lg font-semibold text-navy">Bulk Grading</h1>
@@ -103,38 +127,40 @@ function LecturerOfflineBulkShell() {
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        {rosterStatusKnown && (
-          <p className={`text-sm ${rosterReady ? 'text-success' : 'text-warning-text'}`}>
-            {rosterReady
-              ? 'Current-term roster ready for Bulk Grading.'
-              : 'No usable roster — import the Term page roster download before grading.'}
+      <main className="space-y-5 px-4 py-5 sm:px-6">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ReadyBadge
+            label="Current-term roster"
+            ready={rosterReady}
+            known={rosterStatusKnown}
+          />
+          <ReadyBadge
+            label="Lab rubric"
+            ready={rubricReady}
+            known={!labsLoading}
+          />
+        </div>
+
+        {labsError && (
+          <p className="rounded-r-xl border-l-4 border-error bg-error-bg px-3.5 py-2.5 text-sm text-error-text">
+            {labsError}
           </p>
         )}
-        <section className="space-y-3 rounded-lg border border-border bg-surface-secondary p-4">
-          <div>
-            <h2 className="text-sm font-semibold text-navy">Grade a folder dump</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Same Lab/Exam Bulk Grading flow as the website. Results stay on this machine only.
-            </p>
-          </div>
-          {labsLoading && (
-            <p className="text-sm text-text-secondary">Loading labs from imported packs…</p>
-          )}
-          {labsError && (
-            <p className="rounded-r-xl border-l-4 border-error bg-error-bg px-3.5 py-2.5 text-sm text-error-text">
-              {labsError}
-            </p>
-          )}
-          {!labsLoading && !labsError && labs.length === 0 && (
-            <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
-              Import a rubric pack before Bulk Grading. Labs appear here after pack import and restart.
-            </p>
-          )}
-          {!labsLoading && labs.length > 0 && (
-            <BulkGradingPanel key={membershipEpoch} labs={labs} />
-          )}
-        </section>
+        {!labsLoading && !labsError && labs.length === 0 && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            Import a rubric pack in the header, then restart. Labs appear here after that.
+          </p>
+        )}
+        {rosterStatusKnown && !rosterReady && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            Import the Term page <span className="font-semibold">Download roster</span> file before grading.
+            Importing a rubric pack clears the local roster — import roster again after pack import.
+          </p>
+        )}
+
+        {!labsLoading && labs.length > 0 && (
+          <BulkGradingPanel key={membershipEpoch} labs={labs} />
+        )}
       </main>
     </div>
   );

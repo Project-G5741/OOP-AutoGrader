@@ -9,7 +9,7 @@ import DatePicker from '../components/ui/DatePicker';
 import Modal from '../components/ui/Modal';
 import ModalOverlay from '../components/ui/ModalOverlay';
 import { useToast } from '../components/ui/Toast';
-import { exportRowsAsExcel } from '../components/lecturer/exportRoster';
+import { exportRowsAsCsv } from '../components/lecturer/exportRoster';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -562,7 +562,8 @@ export default function TermManagement() {
       }
       const year = selectedTerm.yearLabel || 'term';
       const q = selectedTerm.termNumber != null ? `Q${selectedTerm.termNumber}` : 'roster';
-      await exportRowsAsExcel(rows, `enrollment_roster_${year}_${q}`);
+      // CSV keeps IRNs as text (Excel .xlsx often coerces them to numbers / scientific notation).
+      exportRowsAsCsv(rows, `enrollment_roster_${year}_${q}`);
       showToast({
         message: `Downloaded ${rows.length} IRN${rows.length === 1 ? '' : 's'} for offline Bulk Grading.`,
         type: 'success',
@@ -991,7 +992,7 @@ export default function TermManagement() {
                     type="button"
                     disabled={saving}
                     onClick={handleDownloadOfflineRoster}
-                    title="Excel of enrolled 10-digit IRNs for offline lecturer Bulk Grading"
+                    title="CSV of enrolled 10-digit IRNs for offline lecturer Bulk Grading"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
                   >
                     <FileSpreadsheet className="h-4 w-4" />
