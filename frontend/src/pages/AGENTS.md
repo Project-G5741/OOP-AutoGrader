@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header points open the mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -112,12 +112,13 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/students/ranking/current` | `StudentRankingPage.jsx` |
 | `GET /api/lecturer/bootstrap/ranking` | `LecturerDashboard.jsx` (`activeNav === 'ranking'`) |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
+| `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` from `GET /api/students/streak` |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
-| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — **Email quarter** on the Quarters page; body `{ subject, body }`; one email per active student enrolled in the current quarter |
+| `POST /api/lecturer/terms/mail` | `TermManagement.jsx` — **Email quarter** on the Quarters page; body `{ subject, body }`; one email per active student enrolled in the current quarter, plus every active Admin |
 | `DELETE /api/lecturer/terms/{termId}` | `TermManagement.jsx` — delete non-current quarter (must have no labs) |
 | `GET /api/lecturer/labs/clone-sources` | `SolutionManagement.jsx` — previous-current quarter labs for Copy lab |
 | `POST /api/lecturer/labs/clone` | `SolutionManagement.jsx` — body `{ sourceLabIds, targetTermId }` deep-copies rubric + OT |
@@ -169,7 +170,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Manual role-based navigation after login
 - Lecturer user CRUD round-trip
 - Student lab sidebar list populated from API; click selects the lab for upload/results
-- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; **Email quarter** (page header and current-quarter toolbar) sends subject+body to current-quarter account emails
+- Lecturer Terms: create year + term, set current, **Sync labs** into the selected quarter from any other quarter, enroll/remove students, import Excel by IRN or email (drag/drop or click); import warnings open a popup with **Show details** (not in system vs already enrolled); search available and enrolled rosters; suspend/restore student-only accounts from the roster; **Email quarter** (page header and current-quarter toolbar) sends subject+body to current-quarter student emails and every active Admin
 - Lecturer Users: suspend/restore student-only accounts; suspended students cannot log in. Delete User keeps the confirm dialog open with a spinner until the server finishes
 - Lecturer Solution Management: pick a lab in Structure, choose a date in the Flatpickr calendar (`DatePicker`), click **Save deadline** (or **Clear deadline**); requires backend CORS `PATCH`.
 

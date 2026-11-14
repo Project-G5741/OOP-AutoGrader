@@ -48,7 +48,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 
 - `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`). Pass an **array** of toast objects to show a stacked batch (e.g. upload score + compile error); `showToast(null)` clears all
 - Persist mutations (create/update/save/delete/suspend/enroll) show success or error. Excel import warnings use `persist: true` so they stay until dismissed; **Show details** lists missing vs already-enrolled students.
-- Toast portals to `document.body` at `z-[110]` so it stays visible over modals (`z-[100]`)
+- Toast portals to `document.body` at `fixed right-6 bottom-20 z-[110]` so it stays visible over modals (`z-[100]`) and floats cleanly above the feedback FAB without colliding with the top-right header mascot or speech bubbles
 
 ### Button, Card, Select, DatePicker
 

@@ -75,4 +75,11 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
             ORDER BY u.fullName
             """)
     List<UserAccount> findActiveStudents();
+
+    @Query("""
+            SELECT DISTINCT u FROM UserAccount u
+            JOIN u.roles r
+            WHERE u.is_active = true AND LOWER(r.name) = 'admin'
+            """)
+    List<UserAccount> findActiveAdmins();
 }

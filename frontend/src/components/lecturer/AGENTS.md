@@ -21,7 +21,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 | `DashboardSection.jsx` | Borderless grading overview section wrapper (`flex-1` compatible) with Corporate Navy title bar; child panels render single-level stage cards directly |
 
 | `OverviewPanel.jsx` | Clickable `StageCard3D` summary KPI cards with Phosphor Duotone wells & `AnimatedCounter`; **View list** opens `OverviewDetailDialog` |
-| `OverviewDetailDialog.jsx` | Dialog for the four overview cards: enrolled students, at-risk students (total under 70), labs, and qualifying scores behind the average |
+| `OverviewDetailDialog.jsx` | Dialog for the four overview cards: enrolled students, at-risk students (Score total under 50), labs, and qualifying scores behind the average |
 | `LecturerOverviewCard.jsx` | `StageCard3D` summary stat card primitive |
 
 | `SubmissionTable.jsx` | Single-card lab submitter roster / challenge submission table with flush 4-column `RosterSummaryBar` strip (`Submitted`, `Enrolled`, `Completion`, `Plagiarism`) |
@@ -78,7 +78,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 
 - `LecturerDashboard.jsx` fetches overview, lab statistics, submitter roster (`GET /api/labs/{labId}/submissions`), per-challenge roster (`GET /api/labs/{labId}/challenges/{challengeId}/students`), and grade overview (`GET /api/lecturer/grade-overview`)
 - Lab Overview **Total Attempts** uses `totalAttempts` (sum of each student's highest `attempt_number` on the lab — lifetime uploads). It does not show remaining `lab_submission` row count or `student_lab_progress.attempts_count` after retention.
-- Overview card click uses `students`, `labs`, and `scoreRows` already on `GET /api/lecturer/overview` (no second request). At-risk rows are `atRisk` (total under 70, missing labs as 0).
+- Overview card click uses `students`, `labs`, and `scoreRows` already on `GET /api/lecturer/overview` (no second request). At-risk rows are `atRisk` (Score total under 50; Official labs only, missing Official labs as 0).
 - Lecturer dashboard does not display scoring weights
 - Lecturers set challenge / class / MMD / operational-testcase weights only in Solution Management (`Save Lab Structure`); defaults are 1. Labs have no weight.
 
@@ -107,7 +107,7 @@ Grading dashboard widgets used by `LecturerDashboard.jsx`.
 - Score tab pagination is **12** students per page (`GET /api/lecturer/grade-overview?size=12`)
 - Score tab row click selects a student and loads `GET /api/analytics/student/{studentId}` → `GradeOverviewSubmissionHistory` (all submissions; lab filter; client-side column-header sort; client-side pagination **12** rows per page after filter/sort; filter/sort/student change resets to page 0)
 - Bulk **Grading** tab (`BulkGradingPanel`) fetches current-quarter student IRNs on mount (`GET /api/lecturer/bulk-grading/current-term-student-irns`; 409 → single block message). On drop, `parseBulkMainFolder` skips IRNs that are not exactly 10 digits or not in that set. Posts each accepted student to `POST /api/lecturer/labs/{labId}/bulk-grade?mode=LAB|EXAM` (server re-checks IRN/enrollment); holds `lab_result` in memory for `BulkSubmissionDrawer`; within-batch plagiarism via client Jaccard on file hashes (server may return `fileHashes`)
-- Bulk results show **Overview** + one tab per lab challenge (Dashboard-style labels); Overview Score = lab total; challenge tab Score = that challenge’s `lab_result` total; **MMD**, **Declaration test**, and **Operational Testcase** follow the active tab (overview = weighted lab rollup of applicable pillars; challenge tab = that challenge's pillar scores; `--` when the pillar does not apply); Plagiarism is within-batch and tab-invariant; View Submission passes `initialChallengeId` from the active results tab; results table paginates **12** student rows per page (client-side; resets on new folder or grading run); **Export** (`ExportMenu`) downloads the full results list for the active tab as Excel, PDF, or CSV (Student, ID, Score, MMD, Declaration test, Operational Testcase, Plagiarism, Error)
+- Bulk results show **Overview** + one tab per lab challenge (Dashboard-style labels); Overview Score = lab total; challenge tab Score = that challenge’s `lab_result` total; **MMD**, **Declaration test**, and **Operational Testcase** follow the active tab (overview = weighted lab rollup of applicable pillars; challenge tab = that challenge's pillar scores; `--` when the pillar does not apply); Plagiarism is within-batch and tab-invariant; View Submission passes `initialChallengeId` from the active results tab; results table paginates **12** student rows per page (client-side; resets on new folder, grading run, tab change, or column sort); **clickable column headers** sort Student, ID, Score, MMD, Declaration test, and Operational Testcase client-side (`SortableTableHeader`, default `studentName,asc`; click toggles asc/desc; `--`/error scores sort last); **Export** (`ExportMenu`) downloads the full results list for the active tab in the current sort order as Excel, PDF, or CSV (Student, ID, Score, MMD, Declaration test, Operational Testcase, Plagiarism, Error)
 
 
 

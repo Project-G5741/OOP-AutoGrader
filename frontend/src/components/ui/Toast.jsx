@@ -67,7 +67,7 @@ export default function Toast({
   return (
     <div
       role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
-      className={`${stacked ? 'w-full' : 'fixed right-10 top-16 z-[110]'} max-w-sm rounded-xl border px-4 py-3 text-sm shadow-stage-2 ${
+      className={`${stacked ? 'w-full' : 'fixed right-6 bottom-20 z-[110]'} max-w-sm rounded-xl border px-4 py-3 text-sm shadow-stage-2 ${
         exiting ? 'animate-toast-out' : 'animate-toast-in'
       } ${VARIANTS[type] || VARIANTS.success}`}
     >
@@ -140,7 +140,7 @@ export function ToastProvider({ children }) {
       {children}
       {toasts.length > 0 && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed right-10 top-16 z-[110] flex w-full max-w-sm flex-col gap-2">
+            <div className="fixed right-6 bottom-20 z-[110] flex w-full max-w-sm flex-col gap-2 pointer-events-none [&>*]:pointer-events-auto">
               {toasts.map((toast) => (
                 <Toast
                   key={toast.id}

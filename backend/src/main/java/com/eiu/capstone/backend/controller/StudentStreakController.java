@@ -4,9 +4,11 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.eiu.capstone.backend.DTO.GachaSpendRequest;
 import com.eiu.capstone.backend.DTO.StudentStreakView;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
@@ -42,5 +44,13 @@ public class StudentStreakController {
     public StudentStreakView restore(@AuthenticationPrincipal JwtUserPrincipal principal) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         return studentStreakService.restore(user.getId());
+    }
+
+    @PostMapping("/gacha-spend")
+    public StudentStreakView spendGacha(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSpendRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.spendGachaTickets(user.getId(), request.count());
     }
 }

@@ -24,7 +24,7 @@ Students upload folders of Java source (`.java`) and Mermaid class diagrams (`.m
 - Create and edit lab rubrics — challenges, classes, fields, methods, constructors, relations, and operational testcases
 - Set per-lab deadlines; students see urgency indicators on the lab list
 - Manage academic terms — enroll students, import rosters from Excel, set the current term
-- Monitor class performance, cross-lab grade matrices, and at-risk students (&lt; 70%)
+- Monitor class performance, cross-lab grade matrices, and at-risk students (Score total &lt; 50)
 - Review plagiarism flags (git history, metadata, and file-hash similarity)
 - Manage user accounts (CRUD, bulk import, suspend/restore students)
 - View analytics dashboards and export rosters

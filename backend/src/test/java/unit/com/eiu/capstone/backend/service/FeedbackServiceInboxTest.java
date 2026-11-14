@@ -47,7 +47,7 @@ class FeedbackServiceInboxTest {
 
     @BeforeEach
     void setUp() {
-        service = new FeedbackService(itemRepository, attachmentRepository, imageConverter);
+        service = new FeedbackService(itemRepository, attachmentRepository, imageConverter, Optional.empty());
     }
 
     @Test

@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +48,7 @@ class CurrentTermMailServiceTest {
     void setUp() {
         mailService = new CurrentTermMailService(
                 termService, termEnrollmentRepository, userAccountRepository, emailSender);
+        lenient().when(userAccountRepository.findActiveAdmins()).thenReturn(List.of());
     }
 
     @Test
@@ -55,7 +56,7 @@ class CurrentTermMailServiceTest {
         when(termService.findCurrentTerm()).thenReturn(Optional.empty());
         assertThrows(ResponseStatusException.class, () -> mailService.sendToCurrentTerm(
                 new CurrentTermMailRequest("Hello", "Body")));
-        verify(emailSender, never()).sendPlainText(any(), any(), any());
+        verify(emailSender, never()).sendPlainTextEach(any(), any(), any());
     }
 
     @Test
@@ -82,7 +83,7 @@ class CurrentTermMailServiceTest {
         assertEquals(1, result.sentCount());
         assertEquals(0, result.failedCount());
         assertEquals(1, result.skippedNoEmail());
-        verify(emailSender).sendPlainText("student@eiu.edu.vn", "Lab notice", "Please submit.");
+        verify(emailSender).sendPlainTextEach(List.of("student@eiu.edu.vn"), "Lab notice", "Please submit.");
     }
 
     @Test
@@ -100,14 +101,39 @@ class CurrentTermMailServiceTest {
         UserAccount b = new UserAccount();
         b.setEmail("b@eiu.edu.vn");
         when(userAccountRepository.findAllById(List.of(first, second))).thenReturn(List.of(a, b));
-        doThrow(new RuntimeException("brevo down"))
-                .when(emailSender).sendPlainText(eq("a@eiu.edu.vn"), any(), any());
+        when(emailSender.sendPlainTextEach(eq(List.of("a@eiu.edu.vn", "b@eiu.edu.vn")), eq("Subject"), eq("Body")))
+                .thenReturn(1);
 
         CurrentTermMailResult result = mailService.sendToCurrentTerm(
                 new CurrentTermMailRequest("Subject", "Body"));
 
         assertEquals(1, result.sentCount());
         assertEquals(1, result.failedCount());
-        verify(emailSender).sendPlainText(eq("b@eiu.edu.vn"), eq("Subject"), eq("Body"));
+    }
+
+    @Test
+    void alsoSendsToActiveAdminsOnce() {
+        UUID termId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        Term term = new Term();
+        term.setId(termId);
+        when(termService.findCurrentTerm()).thenReturn(Optional.of(term));
+        when(termEnrollmentRepository.findActiveStudentIdsByTermId(termId)).thenReturn(List.of(studentId));
+        UserAccount student = new UserAccount();
+        student.setEmail("student@eiu.edu.vn");
+        when(userAccountRepository.findAllById(List.of(studentId))).thenReturn(List.of(student));
+        UserAccount sameAddress = new UserAccount();
+        sameAddress.setEmail(" Student@eiu.edu.vn ");
+        UserAccount admin = new UserAccount();
+        admin.setEmail("admin@eiu.edu.vn");
+        when(userAccountRepository.findActiveAdmins()).thenReturn(List.of(sameAddress, admin));
+
+        CurrentTermMailResult result = mailService.sendToCurrentTerm(
+                new CurrentTermMailRequest("Subject", "Body"));
+
+        assertEquals(2, result.recipientCount());
+        assertEquals(2, result.sentCount());
+        verify(emailSender).sendPlainTextEach(
+                List.of("student@eiu.edu.vn", "admin@eiu.edu.vn"), "Subject", "Body");
     }
 }
