@@ -13,6 +13,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,6 +26,23 @@ import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 
 class ReflectionClassParserLeasedSessionTest {
+
+    @Test
+    void failedLeaseFallsBackToInProcessParse(@TempDir Path tempDir) throws Exception {
+        Path classesDir = tempDir.resolve("classes");
+        Files.createDirectories(classesDir);
+        Path source = tempDir.resolve("Box.java");
+        Files.writeString(source, "public class Box {}\n");
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        assertEquals(0, compiler.run(null, null, null, "-d", classesDir.toString(), source.toString()));
+
+        ReflectionClassParser parser = new ReflectionClassParser(null);
+        List<ParsedClass> parsed = parser.parseClasses(
+                classesDir, WorkerSessionHandle.failedRemote("sandbox down", 0));
+
+        assertEquals(1, parsed.size());
+        assertEquals("Box", parsed.get(0).simpleName);
+    }
 
     @Test
     void leasedSessionReflectDoesNotAcquireWorkerSlot(@TempDir Path tempDir) throws Exception {

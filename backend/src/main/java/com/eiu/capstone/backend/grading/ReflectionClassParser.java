@@ -36,8 +36,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Parses compiled student classes into {@link ParsedClass} DTOs. Production prefers a one-shot
- * worker JVM ({@code --reflect}) so student types never enter the API Metaspace. Falls back to
- * in-process reflection when the worker jar is unavailable or the reflect child fails
+ * worker JVM ({@code --reflect}) so student types never enter the API Metaspace; under an OT
+ * host lease it uses session IPC {@code reflect} instead. Falls back to in-process reflection
+ * when the worker jar is unavailable, the lease is dead, or reflect fails
  * (unit tests / misconfigured local / transient worker errors).
  */
 @Component
@@ -103,13 +104,12 @@ public class ReflectionClassParser {
                 String message = outcome != null && outcome.errorMessage() != null
                         ? outcome.errorMessage()
                         : "empty reflect payload";
-                throw new SubmissionProcessingException(
-                        "Class reflect on leased worker failed for " + classesDir + ": " + message);
+                log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
+                        classesDir, message);
+                return parseInProcess(classesDir);
             }
             ParsedClass[] parsed = MAPPER.readValue(outcome.returnValueJson(), ParsedClass[].class);
             return parsed == null ? List.of() : Arrays.asList(parsed);
-        } catch (SubmissionProcessingException e) {
-            throw e;
         } catch (Exception e) {
             log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
                     classesDir, e.toString());
