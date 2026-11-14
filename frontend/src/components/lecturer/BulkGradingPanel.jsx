@@ -27,6 +27,8 @@ import { desktopApiBase } from '../../utils/desktopMode';
 const API_BASE = desktopApiBase();
 const BULK_RESULTS_PAGE_SIZE = 12;
 const IS_DESKTOP_LECTURER = import.meta.env.VITE_APP_MODE === 'desktop-lecturer';
+/** Offline lecturer only: how many students may be in-flight at once. Web stays sequential (1). */
+const DESKTOP_BULK_STUDENT_CONCURRENCY = 4;
 const BULK_EXPORT_FORMATS = IS_DESKTOP_LECTURER
   ? ['excel', 'csv']
   : ['excel', 'pdf', 'csv'];
@@ -433,16 +435,13 @@ export default function BulkGradingPanel({ labs = [] }) {
     setResultsSort({ field: 'studentName', direction: 'asc' });
 
     const accepted = parseResult.accepted;
-    const nextRows = [];
     const payloadsByIrn = {};
-    let stoppedEarly = false;
+    const concurrency = IS_DESKTOP_LECTURER ? DESKTOP_BULK_STUDENT_CONCURRENCY : 1;
+    const rowSlots = new Array(accepted.length);
+    let completedCount = 0;
+    let nextIndex = 0;
 
-    for (let i = 0; i < accepted.length; i += 1) {
-      if (cancelGradingRef.current) {
-        stoppedEarly = true;
-        break;
-      }
-      const student = accepted[i];
+    const gradeOne = async (student) => {
       try {
         const form = buildStudentMultipart(student);
         const response = await apiFetch(
@@ -469,30 +468,51 @@ export default function BulkGradingPanel({ labs = [] }) {
           fileHashes,
           challenges: labChallenges,
         };
-        nextRows.push({
+        return {
           studentId: student.studentId,
           studentName: student.studentName,
           score,
           plagiarismLabel: '—',
           error: null,
           payload: payloadsByIrn[student.studentId],
-        });
+        };
       } catch (err) {
-        nextRows.push({
+        return {
           studentId: student.studentId,
           studentName: student.studentName,
           score: null,
           plagiarismLabel: '—',
           error: toFriendlyError(err, 'bulk-grade'),
           payload: null,
-        });
+        };
       }
-      setGradedCount(i + 1);
-    }
+    };
 
+    const worker = async () => {
+      while (true) {
+        if (cancelGradingRef.current) {
+          return;
+        }
+        const i = nextIndex;
+        nextIndex += 1;
+        if (i >= accepted.length) {
+          return;
+        }
+        rowSlots[i] = await gradeOne(accepted[i]);
+        completedCount += 1;
+        setGradedCount(completedCount);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, accepted.length) }, () => worker()),
+    );
+
+    const stoppedEarly = cancelGradingRef.current && completedCount < accepted.length;
     if (stoppedEarly) {
       setGradingStoppedEarly(true);
     }
+    const nextRows = rowSlots.filter(Boolean);
 
     const withHashes = await attachClientHashes(Object.values(payloadsByIrn));
     const plag = computeWithinBatchPlagiarism(withHashes);

@@ -40,7 +40,7 @@ $env:JWT_SECRET = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 mvn spring-boot:run
 ```
 
-Build UI: `cd frontend && npm run build:desktop-lecturer` → `frontend/dist-desktop-lecturer/`.
+Build UI: `cd frontend && npm run build:desktop-lecturer` → `frontend/dist-desktop-lecturer/` (local build output, gitignored; assemble copies it into the install).
 
 ## Assemble
 
@@ -52,4 +52,4 @@ Uses the same desktop classifier JAR and Rust host binary as student practice; l
 
 ## Grading parity
 
-Grading logic matches student dashboard uploads, web Bulk Grading, and student offline practice. Lecturer offline only changes distribution, membership source (imported roster), and local retention/export — not the grader engine.
+Grading logic matches student dashboard uploads, web Bulk Grading, and student offline practice. Lecturer offline only changes distribution, membership source (imported roster), local retention/export, and **client-side** Batch concurrency (up to 4 students in flight vs web’s one-at-a-time) — not the grader engine.
