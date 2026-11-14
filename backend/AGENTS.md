@@ -146,7 +146,7 @@ Grading tuning properties (`application.properties`):
 | `app.grading.testcase-invoke-timeout-seconds` | `3` | Per-invocation timeout for operational testcases; tree-kills the worker JVM |
 | `app.grading.worker-jar` | `/app/worker.jar` | Thin isolated worker JAR (`WORKER_JAR`). Local Maven: `target/backend-1.0.0-worker.jar`. Docker/Render image sets `/app/worker.jar`; if the configured path is missing, `WorkerProcessClient` falls back to `/app/worker.jar` then the local Maven path (so a Render env copied from local `target/...` still works). |
 | `app.grading.worker-java` | `java` | Java binary used to spawn the worker (`WORKER_JAVA`) |
-| `app.grading.worker-idle-ttl-ms` | `0` | Local worker park TTL; `0` closes on release (no warm reuse). Positive values reuse one idle handle. |
+| `app.grading.worker-idle-ttl-ms` | `5000` (`WORKER_IDLE_TTL_MS`) | Local worker clean park TTL; also parks when `workerJvmSlot` has waiters. Dirty/hang and sandbox never park. `0` closes on release unless demand. |
 | `app.grading.dry-run-compile-idle-ttl-ms` | `5000` | Dry-run compiled classes dir reuse TTL |
 | `app.grading.sandbox.enabled` | `false` | Route testcase invoke/dry-run through remote `sandbox-runner` (`SANDBOX_ENABLED`). Desktop profile forces `false`; practice host also clears `SANDBOX_ENABLED` / `APP_GRADING_SANDBOX_ENABLED`. Local worker IPC failures use `Operational test worker unavailable`, not the sandbox message |
 | `app.grading.sandbox.runner-url` | _(empty)_ | Runner base URL (`SANDBOX_RUNNER_URL`) |

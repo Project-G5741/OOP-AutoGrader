@@ -20,6 +20,8 @@ public final class WorkerIpc {
     public static final String OP_INVOKE = "invoke";
     public static final String OP_SCENARIO = "scenario";
     public static final String OP_BATCH = "batch";
+    /** Parse student classes on a live worker session (OT host lease). */
+    public static final String OP_REFLECT = "reflect";
 
     private static final ObjectMapper MAPPER = createMapper();
     private static final WorkerInvokeEngine ENGINE = new WorkerInvokeEngine();
@@ -62,6 +64,7 @@ public final class WorkerIpc {
                         request.timeoutSeconds() > 0 ? request.timeoutSeconds() : 3,
                         stdoutCap,
                         request.batchParallelism());
+                case OP_REFLECT -> reflectClasses(classesDir);
                 default -> SerializedInvocationOutcome.error("Unknown IPC op");
             };
         } catch (Exception e) {
@@ -81,6 +84,28 @@ public final class WorkerIpc {
      * After a hang timeout the invoke thread may ignore interrupt; the process must exit
      * so the API can respawn a clean worker for remaining work.
      */
+    private static SerializedInvocationOutcome reflectClasses(Path classesDir) {
+        if (classesDir == null || !java.nio.file.Files.isDirectory(classesDir)) {
+            return SerializedInvocationOutcome.error("Missing compiled classes directory");
+        }
+        try {
+            var classes = WorkerClassReflector.parseClasses(classesDir);
+            String json = MAPPER.writeValueAsString(classes);
+            return new SerializedInvocationOutcome(
+                    SerializedInvocationOutcome.KIND_NORMAL,
+                    json,
+                    "",
+                    false,
+                    Map.of(),
+                    null,
+                    List.of(),
+                    null,
+                    null);
+        } catch (Exception e) {
+            return SerializedInvocationOutcome.error("Worker reflect failed");
+        }
+    }
+
     public static boolean shouldAbortSession(SerializedInvocationOutcome outcome) {
         if (outcome == null || outcome.kind() == null) {
             return false;

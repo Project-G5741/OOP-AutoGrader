@@ -186,7 +186,7 @@ public class TestcaseDryRunService {
                         "total", System.currentTimeMillis() - totalStarted);
                 return result;
             } finally {
-                sharedLocalWorkerCache.release(workerSessionFactory, workerSession);
+                sharedLocalWorkerCache.release(workerSessionFactory, workerSession, workerJvmSlot);
                 workerJvmSlot.release();
             }
         } catch (ResponseStatusException ex) {
