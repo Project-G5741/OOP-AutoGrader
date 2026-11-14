@@ -139,17 +139,17 @@ function New-PortableJdkImage {
     }
 }
 
-if (-not (Test-Path $desktopBackendJar) -or -not (Test-Path $workerJar)) {
-    Write-Host "Building backend (desktop-dist)..."
-    Push-Location (Join-Path $repoRoot "backend")
-    mvn -q -DskipTests package -Pdesktop-dist
-    Pop-Location
-    if (-not (Test-Path $desktopBackendJar)) {
-        throw "Expected desktop artifact missing after mvn -Pdesktop-dist package: $desktopBackendJar"
-    }
-    if (-not (Test-Path $workerJar)) {
-        throw "Expected worker artifact missing after package: $workerJar"
-    }
+# Always rebuild desktop classifier so profile/code changes are not shipped from a stale jar
+# (desktop-lecturer exclusions live in that artifact; an old `!desktop`-only build fails at launch).
+Write-Host "Building backend (desktop-dist)..."
+Push-Location (Join-Path $repoRoot "backend")
+mvn -q -DskipTests package -Pdesktop-dist
+Pop-Location
+if (-not (Test-Path $desktopBackendJar)) {
+    throw "Expected desktop artifact missing after mvn -Pdesktop-dist package: $desktopBackendJar"
+}
+if (-not (Test-Path $workerJar)) {
+    throw "Expected worker artifact missing after package: $workerJar"
 }
 
 if (-not (Test-Path $frontendDist)) {
