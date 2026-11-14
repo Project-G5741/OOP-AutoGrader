@@ -15,3 +15,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS student_mascot_practice_token_jti_idx
 
 ALTER TABLE student_mascot_practice_token
     ADD COLUMN IF NOT EXISTS used_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS student_mascot_practice_revoked_jti (
+    jti         VARCHAR(64) PRIMARY KEY,
+    revoked_at  TIMESTAMPTZ NOT NULL
+);

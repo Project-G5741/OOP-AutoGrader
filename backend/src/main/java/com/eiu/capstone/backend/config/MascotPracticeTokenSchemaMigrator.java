@@ -36,5 +36,11 @@ public class MascotPracticeTokenSchemaMigrator {
                 CREATE UNIQUE INDEX IF NOT EXISTS student_mascot_practice_token_jti_idx
                     ON student_mascot_practice_token (jti)
                 """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS student_mascot_practice_revoked_jti (
+                    jti         VARCHAR(64) PRIMARY KEY,
+                    revoked_at  TIMESTAMPTZ NOT NULL
+                )
+                """);
     }
 }

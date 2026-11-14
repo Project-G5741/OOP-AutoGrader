@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.MascotCodeBoundView;
 import com.eiu.capstone.backend.DTO.MascotSnapshotView;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -89,6 +91,13 @@ public class DesktopMascotSnapshotService {
         }
         try {
             MascotSnapshotView view = objectMapper.readValue(response.body(), MascotSnapshotView.class);
+            String jti = view.jti() != null && !view.jti().isBlank()
+                    ? view.jti()
+                    : jtiFromCompactToken(token.trim());
+            view = new MascotSnapshotView(
+                    view.equipped() != null ? view.equipped() : "fox",
+                    view.owned() != null ? view.owned() : List.of(),
+                    jti);
             Files.createDirectories(snapshotFile.getParent());
             objectMapper.writeValue(snapshotFile.toFile(), view);
             return view;
@@ -147,6 +156,24 @@ public class DesktopMascotSnapshotService {
             }
         }
         return stripTrailingSlash(configuredCloudApiUrl);
+    }
+
+    public static String jtiFromCompactToken(String token) {
+        if (token == null) {
+            return null;
+        }
+        String[] parts = token.split("\\.");
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+            JsonNode node = new ObjectMapper().readTree(payload);
+            String jti = node.path("jti").asText(null);
+            return jti == null || jti.isBlank() ? null : jti;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private static String stripTrailingSlash(String url) {

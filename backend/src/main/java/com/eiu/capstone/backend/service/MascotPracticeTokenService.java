@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.eiu.capstone.backend.DTO.MascotPracticeTokenView;
+import com.eiu.capstone.backend.model.MascotPracticeRevokedJti;
 import com.eiu.capstone.backend.model.StudentMascotPracticeToken;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.repository.MascotPracticeRevokedJtiRepository;
 import com.eiu.capstone.backend.repository.StudentMascotPracticeTokenRepository;
 import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
@@ -21,10 +23,15 @@ import com.eiu.capstone.backend.security.JwtUserPrincipal;
 public class MascotPracticeTokenService {
 
     private final StudentMascotPracticeTokenRepository tokens;
+    private final MascotPracticeRevokedJtiRepository revoked;
     private final JwtService jwtService;
 
-    public MascotPracticeTokenService(StudentMascotPracticeTokenRepository tokens, JwtService jwtService) {
+    public MascotPracticeTokenService(
+            StudentMascotPracticeTokenRepository tokens,
+            MascotPracticeRevokedJtiRepository revoked,
+            JwtService jwtService) {
         this.tokens = tokens;
+        this.revoked = revoked;
         this.jwtService = jwtService;
     }
 
@@ -60,7 +67,7 @@ public class MascotPracticeTokenService {
     }
 
     public boolean isLiveJti(String jti) {
-        if (jti == null || jti.isBlank()) {
+        if (jti == null || jti.isBlank() || revoked.existsById(jti)) {
             return false;
         }
         return tokens.findByJti(jti)
@@ -71,7 +78,7 @@ public class MascotPracticeTokenService {
 
     /** True while this jti is still the student's current code (even after the one import). */
     public boolean isBoundJti(String jti) {
-        if (jti == null || jti.isBlank()) {
+        if (jti == null || jti.isBlank() || revoked.existsById(jti)) {
             return false;
         }
         return tokens.findByJti(jti).isPresent();
@@ -93,13 +100,16 @@ public class MascotPracticeTokenService {
         String jti = UUID.randomUUID().toString();
         String compact = jwtService.createMascotPracticeToken(user.getEmail(), user.getId(), jti, expiresAt);
         StudentMascotPracticeToken row = tokens.findById(user.getId()).orElseGet(StudentMascotPracticeToken::new);
+        if (row.getJti() != null && !row.getJti().isBlank()) {
+            revoked.save(new MascotPracticeRevokedJti(row.getJti(), now));
+        }
         row.setUserId(user.getId());
         row.setJti(jti);
         row.setCompactToken(compact);
         row.setExpiresAt(expiresAt);
         row.setCreatedAt(now);
         row.setUsedAt(null);
-        tokens.save(row);
+        tokens.saveAndFlush(row);
         return new MascotPracticeTokenView(compact, expiresAt);
     }
 }

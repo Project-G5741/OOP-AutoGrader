@@ -15,7 +15,7 @@ public interface StudentMascotPracticeTokenRepository extends JpaRepository<Stud
 
     Optional<StudentMascotPracticeToken> findByJti(String jti);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update StudentMascotPracticeToken t set t.usedAt = :now where t.jti = :jti and t.usedAt is null")
     int markUsedIfUnused(@Param("jti") String jti, @Param("now") Instant now);
 }

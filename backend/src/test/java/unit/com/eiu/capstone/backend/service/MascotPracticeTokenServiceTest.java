@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.eiu.capstone.backend.DTO.MascotPracticeTokenView;
 import com.eiu.capstone.backend.model.StudentMascotPracticeToken;
 import com.eiu.capstone.backend.model.UserAccount;
+import com.eiu.capstone.backend.repository.MascotPracticeRevokedJtiRepository;
 import com.eiu.capstone.backend.repository.StudentMascotPracticeTokenRepository;
 import com.eiu.capstone.backend.service.JwtService;
 import com.eiu.capstone.backend.service.MascotPracticeTokenService;
@@ -40,6 +42,9 @@ class MascotPracticeTokenServiceTest {
     private StudentMascotPracticeTokenRepository tokens;
 
     @Mock
+    private MascotPracticeRevokedJtiRepository revoked;
+
+    @Mock
     private JwtService jwtService;
 
     private MascotPracticeTokenService service;
@@ -48,7 +53,8 @@ class MascotPracticeTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MascotPracticeTokenService(tokens, jwtService);
+        service = new MascotPracticeTokenService(tokens, revoked, jwtService);
+        lenient().when(revoked.existsById(anyString())).thenReturn(false);
         userId = UUID.fromString("44444444-4444-4444-4444-444444444444");
         user = mock(UserAccount.class);
         lenient().when(user.getId()).thenReturn(userId);
@@ -71,14 +77,14 @@ class MascotPracticeTokenServiceTest {
         StudentMascotPracticeToken row = liveRow("old", Instant.now().minusSeconds(10));
         when(tokens.findById(userId)).thenReturn(Optional.of(row));
         when(jwtService.createMascotPracticeToken(any(), any(), any(), any())).thenReturn("fresh");
-        when(tokens.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokens.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MascotPracticeTokenView view = service.issue(user, false);
 
         assertEquals("fresh", view.token());
         ArgumentCaptor<StudentMascotPracticeToken> captor =
                 ArgumentCaptor.forClass(StudentMascotPracticeToken.class);
-        verify(tokens).save(captor.capture());
+        verify(tokens).saveAndFlush(captor.capture());
         assertNotEquals("old", captor.getValue().getCompactToken());
     }
 
@@ -87,12 +93,13 @@ class MascotPracticeTokenServiceTest {
         StudentMascotPracticeToken row = liveRow("compact-live", Instant.now().plusSeconds(3600));
         when(tokens.findById(userId)).thenReturn(Optional.of(row));
         when(jwtService.createMascotPracticeToken(any(), any(), any(), any())).thenReturn("replacement");
-        when(tokens.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokens.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MascotPracticeTokenView view = service.issue(user, true);
 
         assertEquals("replacement", view.token());
         verify(jwtService).createMascotPracticeToken(any(), any(), any(), any());
+        verify(revoked).save(any());
     }
 
     @Test
@@ -107,6 +114,9 @@ class MascotPracticeTokenServiceTest {
         assertFalse(service.isLiveJti("expired"));
         assertFalse(service.isLiveJti("missing"));
         assertFalse(service.isLiveJti(" "));
+        when(revoked.existsById("revoked")).thenReturn(true);
+        assertFalse(service.isLiveJti("revoked"));
+        assertFalse(service.isBoundJti("revoked"));
     }
 
     @Test
@@ -135,13 +145,13 @@ class MascotPracticeTokenServiceTest {
         row.setUsedAt(Instant.now());
         when(tokens.findById(userId)).thenReturn(Optional.of(row));
         when(jwtService.createMascotPracticeToken(any(), any(), any(), any())).thenReturn("replacement");
-        when(tokens.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokens.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.issue(user, true);
 
         ArgumentCaptor<StudentMascotPracticeToken> captor =
                 ArgumentCaptor.forClass(StudentMascotPracticeToken.class);
-        verify(tokens).save(captor.capture());
+        verify(tokens).saveAndFlush(captor.capture());
         assertEquals(null, captor.getValue().getUsedAt());
     }
 
