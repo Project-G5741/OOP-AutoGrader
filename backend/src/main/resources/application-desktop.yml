@@ -54,6 +54,7 @@ app:
     install-dir: ${APP_DESKTOP_HOME:.}
     ui-dir: ${APP_DESKTOP_HOME:.}/ui/dist-desktop
     pack-dir: ${APP_DESKTOP_HOME:.}/rubric
+    cloud-api-url: ${APP_DESKTOP_CLOUD_API_URL:}
   storage:
     submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
   grading:

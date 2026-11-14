@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Desktop: default fox only (local pet reactions); no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Avatar menu **Copy practice code** / **New practice code** mint a mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -90,7 +90,7 @@ Same bar and buttons as the lecturer shell, on its own row under the header. Stu
 
 ### Header commands (`Header.jsx` → `onCommand`)
 
-Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build replaces the profile/account menu with a direct **Exit** button and omits Ranking from the nav. On web, **Logout** is the last account-menu item, under Change Password, and the student header shop button shows the point balance and opens the mascot shop.
+Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePasswordModal`). Student web shell also sends `copyMascotPracticeToken` / `regenerateMascotPracticeToken` (below Change Password; regenerate confirms first). Lecturer shell hides **History** and **Ranking** in the avatar menu (`hideHistory`; `hideRanking` default true — lecturers use NavBar Ranking) and keeps **Home** there. Student shell sets `hideSectionLinks`, so Home, History, and Ranking are only in `NavBar`. Logo still uses `hideHome` when the student is out of term (opens History). Desktop practice build replaces the profile/account menu with a direct **Exit** button and omits Ranking from the nav. On web, **Logout** is the last account-menu item, under Change Password, and the student header shop button shows the point balance and opens the mascot shop.
 
 ### API endpoints used from pages
 
@@ -111,8 +111,15 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
 | `GET /api/students/ranking/current` | `StudentRankingPage.jsx` |
 | `GET /api/lecturer/bootstrap/ranking` | `LecturerDashboard.jsx` (`activeNav === 'ranking'`) |
+| `POST /api/students/mascot-practice-token` | `StudentDashboard.jsx` — copy live desktop mascot-read code |
+| `POST /api/students/mascot-practice-token/regenerate` | `StudentDashboard.jsx` — replace that code |
+| `GET /api/desktop/mascot/snapshot` | `StudentDashboard.jsx` (desktop) — last pulled equipped/owned ids |
+| `POST /api/desktop/mascot/sync` | `DesktopMascotImport.jsx` — body `{ token }` |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
 | `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` from `GET /api/students/streak` |
+| `POST /api/students/streak/crystals/exchange` | `MascotShop.jsx` — body `{ count }` 1–99; spends crystals and adds 4000 points each |
+| `POST /api/students/streak/crystals/grant` | `StudentDashboard.jsx` — body `{ count }` 1–10; credits crystals won from gacha (or a one-time import of a previous browser balance) |
+| `POST /api/students/streak/crystals/spend` | `StudentDashboard.jsx` — body `{ count }` 1–99; spends crystals when a legendary mascot is paid with crystals |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |

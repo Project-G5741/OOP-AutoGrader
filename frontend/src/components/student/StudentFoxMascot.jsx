@@ -22,6 +22,8 @@ const MASCOT_EMOJIS = {
   bach_ho: '🐅',
   chu_tuoc: '🪶',
   huyen_vu: '🐢',
+  linh_loc: '🦌',
+  ki_lan: '🦄',
   zerotwo: '🌸',
   con_bang: '🐋',
   cung_ky: '🦁',
@@ -134,6 +136,7 @@ export default function StudentFoxMascot({
         directions={art.directions}
         reactions={art.reactions}
         trackPointer
+        tier={art.tier}
       />
 
       {/* Interactive Speech Bubble: Floats cleanly BELOW the mascot icon */}

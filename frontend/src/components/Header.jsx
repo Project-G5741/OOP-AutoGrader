@@ -1,4 +1,4 @@
-import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation } from 'lucide-react';
+import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation, KeyRound } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import ThemeToggle from './ThemeToggle';
 import { useEffect, useRef, useState } from 'react';
@@ -19,6 +19,7 @@ export default function Header({
   hideRanking = false,
   hideSectionLinks = false,
   hideChangePassword = false,
+  showMascotPracticeToken = false,
   showStudentArea = false,
   showLecturerArea = false,
   headerAddon = null,
@@ -191,6 +192,25 @@ export default function Header({
                     <button onClick={() => handleMenu('changePassword')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary">
                       <Lock className="h-4 w-4 text-foreground-secondary" /> Change Password
                     </button>
+                    )}
+                    {showMascotPracticeToken && (
+                    <>
+                    <button onClick={() => handleMenu('copyMascotPracticeToken')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary">
+                      <KeyRound className="h-4 w-4 text-foreground-secondary" /> Copy practice code
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm('Replace the current practice code? The old code stops working on desktop.')) {
+                          return;
+                        }
+                        handleMenu('regenerateMascotPracticeToken');
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary"
+                    >
+                      <KeyRound className="h-4 w-4 text-foreground-secondary" /> New practice code
+                    </button>
+                    </>
                     )}
                     <div className="my-1 border-t border-border-subtle" />
                     <button

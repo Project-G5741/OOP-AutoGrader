@@ -47,6 +47,9 @@ class PasswordResetServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private MascotPracticeTokenService mascotPracticeTokens;
+
     private PasswordResetService passwordResetService;
 
     private UserAccount activeUser;
@@ -60,7 +63,8 @@ class PasswordResetServiceTest {
                 emailService,
                 passwordEncoder,
                 15,
-                "http://localhost:5173");
+                "http://localhost:5173",
+                mascotPracticeTokens);
 
         userId = UUID.randomUUID();
         activeUser = mock(UserAccount.class);

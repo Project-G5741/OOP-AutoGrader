@@ -185,6 +185,18 @@ $readmeSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\REA
 Copy-Item $launcherSrc (Join-Path $OutputDir "OOP-AutoGrader-Practice.bat") -Force
 Copy-Item $readmeSrc (Join-Path $OutputDir "README.txt") -Force
 
+$cloudApiUrl = $env:APP_DESKTOP_CLOUD_API_URL
+if (-not $cloudApiUrl) {
+    $cloudApiUrl = $env:VITE_API_URL
+}
+$cloudApiUrl = if ($cloudApiUrl) { $cloudApiUrl.Trim().TrimEnd('/') } else { "" }
+Set-Content -LiteralPath (Join-Path $OutputDir "cloud-api-url.txt") -Value $cloudApiUrl -NoNewline -Encoding ascii
+if ($cloudApiUrl) {
+    Write-Host "Baked mascot cloud API URL: $cloudApiUrl"
+} else {
+    Write-Warning "APP_DESKTOP_CLOUD_API_URL (or VITE_API_URL) is empty. Desktop mascot import will fail until that file is set."
+}
+
 $jdkHome = Resolve-JdkHome
 $runtimeJdk = Join-Path $OutputDir "runtime\jdk"
 if ($jdkHome) {

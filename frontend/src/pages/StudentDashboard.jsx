@@ -17,6 +17,7 @@ import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
 import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
+import DesktopMascotImport from '../components/student/DesktopMascotImport';
 import { useToast } from '../components/ui/Toast';
 import { getAccessToken, hasRole, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
@@ -281,6 +282,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const saved = localStorage.getItem('gacha_demo_crystals');
     return saved !== null ? parseInt(saved, 10) : 0;
   });
+  const crystalsRef = useRef(crystals);
+  const crystalImportRef = useRef(false);
+  const crystalImportingRef = useRef(false);
   const [ownedMascots, setOwnedMascots] = useState(() => {
     try {
       const saved = localStorage.getItem('oop_student_owned_mascots');
@@ -290,10 +294,42 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   });
 
-  const handleCrystalsChange = useCallback((val) => {
-    setCrystals(val);
-    localStorage.setItem('gacha_demo_crystals', val);
+  const applyCrystalBalance = useCallback((val) => {
+    const parsed = Number(val);
+    const next = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    crystalsRef.current = next;
+    setCrystals(next);
+    localStorage.setItem('gacha_demo_crystals', String(next));
   }, []);
+
+  const postCrystalCount = useCallback(async (action, count) => {
+    const response = await apiFetch(`${API_BASE}/api/students/streak/crystals/${action}`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+    });
+    if (!response.ok) {
+      throw new Error(await friendlyLoadErrorFromResponse(response));
+    }
+    return response.json();
+  }, []);
+
+  const handleCrystalsChange = useCallback((val) => {
+    const prev = crystalsRef.current;
+    const parsed = Number(val);
+    const next = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    applyCrystalBalance(next);
+    if (IS_DESKTOP_APP || next === prev) return;
+    const delta = next - prev;
+    postCrystalCount(delta > 0 ? 'grant' : 'spend', Math.abs(delta))
+      .then((body) => {
+        if (typeof body.crystals === 'number') applyCrystalBalance(body.crystals);
+      })
+      .catch(() => {
+        applyCrystalBalance(prev);
+        if (delta < 0) showToast('Không đủ Đá Crystal.', 'error');
+      });
+  }, [applyCrystalBalance, postCrystalCount, showToast]);
 
   const [tickets, setTickets] = useState(() => {
     const saved = localStorage.getItem('gacha_demo_tickets');
@@ -370,6 +406,37 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       localStorage.setItem('gacha_demo_tickets', next.gachaTickets);
     }
 
+    if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
+      const serverCrystals = next.crystals;
+      const localCrystals = crystalsRef.current;
+      if (!crystalImportRef.current && localCrystals > serverCrystals) {
+        crystalImportRef.current = true;
+        crystalImportingRef.current = true;
+        const extra = localCrystals - serverCrystals;
+        (async () => {
+          let pending = extra;
+          let latest = serverCrystals;
+          try {
+            while (pending > 0) {
+              const count = Math.min(10, pending);
+              const body = await postCrystalCount('grant', count);
+              latest = typeof body.crystals === 'number' ? body.crystals : latest + count;
+              pending -= count;
+            }
+            applyCrystalBalance(latest);
+          } catch {
+            crystalImportRef.current = false;
+            applyCrystalBalance(serverCrystals);
+          } finally {
+            crystalImportingRef.current = false;
+          }
+        })();
+      } else {
+        crystalImportRef.current = true;
+        applyCrystalBalance(serverCrystals);
+      }
+    }
+
     const serverEquipped = next?.equipped || 'fox';
     if (next) {
       setEquippedMascot(serverEquipped);
@@ -379,7 +446,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const mergedNext = next ? { ...next, equipped: serverEquipped } : next;
     streakSnapshot.current = mergedNext;
     setStreak(mergedNext);
-  }, [showToast]);
+  }, [applyCrystalBalance, postCrystalCount, showToast]);
 
   const refreshStreak = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
@@ -397,6 +464,27 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   useEffect(() => {
     refreshStreak();
   }, [refreshStreak]);
+
+  useEffect(() => {
+    if (!IS_DESKTOP_APP) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/desktop/mascot/snapshot`);
+        if (!response.ok || cancelled) return;
+        const body = await response.json();
+        if (typeof body?.equipped === 'string' && body.equipped) {
+          setEquippedMascot(body.equipped);
+          localStorage.setItem('oop_student_equipped_mascot', body.equipped);
+        }
+      } catch {
+        /* keep the last equipped cache or fox */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const petFox = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
@@ -1279,12 +1367,38 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setShowChangePassword(true);
     } else if (cmd === 'mascotShop' && !IS_DESKTOP_APP) {
       setShowMascotShop(true);
+    } else if ((cmd === 'copyMascotPracticeToken' || cmd === 'regenerateMascotPracticeToken')
+        && !IS_DESKTOP_APP) {
+      copyMascotPracticeToken(cmd === 'regenerateMascotPracticeToken');
+    }
+  };
+
+  const copyMascotPracticeToken = async (regenerate) => {
+    try {
+      const path = regenerate
+        ? '/api/students/mascot-practice-token/regenerate'
+        : '/api/students/mascot-practice-token';
+      const response = await apiFetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(await friendlyLoadErrorFromResponse(response));
+      }
+      const body = await response.json();
+      if (!body?.token) {
+        throw new Error('Practice code was empty');
+      }
+      await navigator.clipboard.writeText(body.token);
+      showToast(regenerate ? 'New practice code copied.' : 'Practice code copied.', 'success');
+    } catch (err) {
+      showToast(toFriendlyError(err, 'generic'), 'error');
     }
   };
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
-    const equipped = shop.equipped || 'fox';
+    const equipped = shop.equipped || prev?.equipped || 'fox';
     localStorage.setItem('oop_student_equipped_mascot', equipped);
     setEquippedMascot(equipped);
     const prev = streakSnapshot.current;
@@ -1319,10 +1433,21 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         hideSectionLinks
         hideHome={!inCurrentTerm}
         hideChangePassword={IS_DESKTOP_APP}
+        showMascotPracticeToken={!IS_DESKTOP_APP}
         showLecturerArea={!IS_DESKTOP_APP && hasRole(user?.roles, 'ADMIN')}
         className={showRanking ? 'flex min-h-0 flex-1 flex-col' : ''}
         headerUserSlot={IS_DESKTOP_APP && !showHistory && !showRanking ? (
-          <DesktopRubricPackImport onToast={showToast} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DesktopMascotImport
+              onToast={showToast}
+              onSynced={(equipped) => {
+                const next = equipped || 'fox';
+                setEquippedMascot(next);
+                localStorage.setItem('oop_student_equipped_mascot', next);
+              }}
+            />
+            <DesktopRubricPackImport onToast={showToast} />
+          </div>
         ) : null}
         headerBeforeUserMenu={!IS_DESKTOP_APP ? (
           <div className="flex shrink-0 items-center gap-1.5">
@@ -1368,7 +1493,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         ) : null}
         headerAddon={IS_DESKTOP_APP ? (
           <div className="-my-1 shrink-0">
-            <StudentFoxMascot size={56} mascotId="fox" />
+            <StudentFoxMascot size={56} mascotId={equippedMascot || 'fox'} />
           </div>
         ) : (
           <div className="relative -my-1 shrink-0 flex items-center">
@@ -1441,6 +1566,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           onOpenGacha={() => setShowGacha(true)}
           crystals={crystals}
           onCrystalsChange={handleCrystalsChange}
+          onCrystalsReconcile={applyCrystalBalance}
           tickets={tickets}
           ownedMascots={ownedMascots}
           onOwnedMascotsChange={handleOwnedMascotsChange}

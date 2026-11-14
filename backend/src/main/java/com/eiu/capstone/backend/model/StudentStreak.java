@@ -55,6 +55,9 @@ public class StudentStreak {
     @Column(name = "gacha_tickets", nullable = false)
     private int gachaTickets;
 
+    @Column(name = "crystals", nullable = false)
+    private int crystals;
+
     @Column(name = "mission_tickets_awarded", nullable = false)
     private int missionTicketsAwarded;
 
@@ -171,6 +174,14 @@ public class StudentStreak {
 
     public void setGachaTickets(int gachaTickets) {
         this.gachaTickets = gachaTickets;
+    }
+
+    public int getCrystals() {
+        return crystals;
+    }
+
+    public void setCrystals(int crystals) {
+        this.crystals = crystals;
     }
 
     public int getMissionTicketsAwarded() {

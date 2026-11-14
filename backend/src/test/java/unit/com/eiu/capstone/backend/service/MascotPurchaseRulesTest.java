@@ -55,10 +55,12 @@ class MascotPurchaseRulesTest {
         assertEquals(3888, MascotCatalog.forSale("shiba").price());
         assertEquals(4222, MascotCatalog.forSale("dai_bang").price());
         assertEquals(4888, MascotCatalog.forSale("cho_soi").price());
-        assertEquals(6888, MascotCatalog.forSale("thanh_long").price());
-        assertEquals(7888, MascotCatalog.forSale("bach_ho").price());
-        assertEquals(8888, MascotCatalog.forSale("chu_tuoc").price());
-        assertEquals(9888, MascotCatalog.forSale("huyen_vu").price());
+        assertEquals(9999, MascotCatalog.forSale("thanh_long").price());
+        assertEquals(8888, MascotCatalog.forSale("bach_ho").price());
+        assertEquals(7777, MascotCatalog.forSale("chu_tuoc").price());
+        assertEquals(6666, MascotCatalog.forSale("huyen_vu").price());
+        assertEquals(8888, MascotCatalog.forSale("linh_loc").price());
+        assertEquals(8888, MascotCatalog.forSale("ki_lan").price());
         assertEquals(35000, MascotCatalog.forSale("zerotwo").price());
         assertEquals(35000, MascotCatalog.forSale("con_bang").price());
         assertEquals(35000, MascotCatalog.forSale("cung_ky").price());

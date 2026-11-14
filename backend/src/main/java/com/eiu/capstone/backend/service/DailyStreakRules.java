@@ -149,6 +149,7 @@ public final class DailyStreakRules {
                 canRestore(row, today),
                 row.getEquippedMascot(),
                 row.getGachaTickets(),
+                row.getCrystals(),
                 missionCompletedNow);
     }
 }

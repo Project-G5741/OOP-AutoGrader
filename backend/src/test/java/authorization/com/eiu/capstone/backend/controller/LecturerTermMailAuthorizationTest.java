@@ -62,6 +62,9 @@ class LecturerTermMailAuthorizationTest {
     private SessionValidityService sessionValidityService;
 
     @MockBean
+    private com.eiu.capstone.backend.service.MascotPracticeTokenService mascotPracticeTokenService;
+
+    @MockBean
     private CurrentTermMailService currentTermMailService;
 
     @BeforeEach

@@ -10,6 +10,7 @@ import { formatNumber } from '../../utils/formatters';
 import { mascotArt, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const POINTS_PER_CRYSTAL = 4000;
 
 function shopFailure(code) {
   if (code === 'INSUFFICIENT_POINTS') return 'Not enough points for this mascot.';
@@ -39,6 +40,7 @@ export default function MascotShop({
   onOpenGacha,
   crystals = 0,
   onCrystalsChange,
+  onCrystalsReconcile,
   tickets,
   ownedMascots = ['fox'],
   onOwnedMascotsChange,
@@ -52,10 +54,13 @@ export default function MascotShop({
   const [busy, setBusy] = useState(false);
   const [selectedTier, setSelectedTier] = useState('all'); // 'all' | 'normal' | 'rare' | 'epic' | 'legendary'
   const [localEquipped, setLocalEquipped] = useState(null);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeCount, setExchangeCount] = useState(1);
 
   useEffect(() => {
     if (!open) {
       setPending(null);
+      setExchangeOpen(false);
       return undefined;
     }
     let cancelled = false;
@@ -199,6 +204,38 @@ export default function MascotShop({
     }
   };
 
+  const confirmCrystalExchange = async () => {
+    if (busy || exchangeCount < 1 || crystals < exchangeCount) return;
+    setBusy(true);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/crystals/exchange`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: exchangeCount }),
+      });
+      if (!response.ok) {
+        const message = response.status === 409
+          ? 'Không đủ Đá Crystal.'
+          : await friendlyLoadErrorFromResponse(response);
+        showToast(message, 'error');
+        return;
+      }
+      const body = await response.json();
+      if (typeof body.crystals === 'number') onCrystalsReconcile?.(body.crystals);
+      const nextShop = {
+        ...(shop || {}),
+        points: body.points,
+        equipped: shop?.equipped,
+      };
+      setExchangeOpen(false);
+      apply(nextShop, `Đã đổi ${exchangeCount} Crystal lấy ${formatNumber(exchangeCount * POINTS_PER_CRYSTAL)} điểm.`);
+    } catch (error) {
+      showToast(toFriendlyError(error), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const equip = async (offer) => {
     if (busy || offer.equipped) return;
     setBusy(true);
@@ -274,11 +311,20 @@ export default function MascotShop({
               <span>{formatNumber(points)} pts</span>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-full border border-warning-border bg-warning-bg px-3 py-1.5 text-sm font-bold text-warning-text shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setExchangeCount(crystals > 0 ? 1 : 0);
+                setExchangeOpen(true);
+              }}
+              className="flex cursor-pointer items-center gap-1.5 rounded-full border border-warning-border bg-warning-bg px-3 py-1.5 text-sm font-bold text-warning-text shadow-sm hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              title="Đổi Crystal lấy điểm"
+            >
               <Gem className="h-4 w-4" />
               <span className="tabular-nums">{crystals}</span>
               <span className="text-xs uppercase">Crystal</span>
-            </div>
+              <span className="text-[11px] font-semibold">Đổi điểm</span>
+            </button>
 
             <button
               type="button"
@@ -537,6 +583,78 @@ export default function MascotShop({
                 className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               >
                 {busy ? 'Đang xử lý…' : 'Xác Nhận'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {exchangeOpen && (
+        <ModalOverlay onBackdropClick={busy ? undefined : () => setExchangeOpen(false)}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="crystal-exchange-title"
+            className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="crystal-exchange-title" className="text-lg font-bold text-foreground">
+              Đổi Crystal lấy điểm
+            </h3>
+            <p className="mt-1.5 text-xs text-foreground-secondary">
+              1 Đá Crystal = {formatNumber(POINTS_PER_CRYSTAL)} điểm. Số dư hiện có: {crystals} Crystal.
+            </p>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy || exchangeCount <= 1}
+                  onClick={() => setExchangeCount((count) => Math.max(1, count - 1))}
+                  className="h-11 w-11 cursor-pointer rounded-xl border border-border bg-surface-secondary text-lg font-bold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  −
+                </button>
+                <span className="min-w-10 text-center text-lg font-bold tabular-nums text-foreground">{exchangeCount}</span>
+                <button
+                  type="button"
+                  disabled={busy || exchangeCount >= Math.min(crystals, 99)}
+                  onClick={() => setExchangeCount((count) => Math.min(99, crystals, count + 1))}
+                  className="h-11 w-11 cursor-pointer rounded-xl border border-border bg-surface-secondary text-lg font-bold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                disabled={busy || crystals < 1}
+                onClick={() => setExchangeCount(Math.min(crystals, 99))}
+                className="min-h-11 cursor-pointer rounded-xl border border-border px-3 text-xs font-semibold text-foreground hover:bg-surface-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Tất cả
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm font-semibold text-warning-text">
+              Nhận {formatNumber(Math.max(exchangeCount, 0) * POINTS_PER_CRYSTAL)} điểm
+            </p>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setExchangeOpen(false)}
+                className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={busy || crystals < 1 || exchangeCount < 1 || exchangeCount > Math.min(crystals, 99)}
+                onClick={confirmCrystalExchange}
+                className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+              >
+                {busy ? 'Đang xử lý…' : 'Đổi'}
               </button>
             </div>
           </div>
