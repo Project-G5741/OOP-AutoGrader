@@ -1,6 +1,9 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import RequireRole from "./components/auth/RequireRole";
 import ThemeToggle from "./components/ThemeToggle";
+import DesktopRubricPackImport from "./components/student/DesktopRubricPackImport";
+import DesktopPracticeStatusBanner from "./components/student/DesktopPracticeStatusBanner";
+import { useToast } from "./components/ui/Toast";
 import { persistAuthSession } from "./utils/authRoutes";
 import { quitPracticeApp } from "./utils/desktopQuit";
 
@@ -25,14 +28,18 @@ function applyDesktopLecturerSession() {
 applyDesktopLecturerSession();
 
 function LecturerOfflineBulkShell() {
+  const showToast = useToast();
+
   return (
     <div className="min-h-screen bg-surface text-text">
-      <header className="flex items-center justify-between border-b border-border px-4 py-3">
+      <DesktopPracticeStatusBanner />
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-text-secondary">Offline lecturer</p>
           <h1 className="text-lg font-semibold text-navy">Bulk Grading</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <DesktopRubricPackImport onToast={showToast} />
           <ThemeToggle />
           <button
             type="button"
@@ -45,15 +52,9 @@ function LecturerOfflineBulkShell() {
       </header>
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
         <section className="rounded-lg border border-border bg-surface-secondary p-4">
-          <h2 className="text-sm font-semibold text-navy">Rubric packs</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Import practice <code className="font-mono text-xs">.agpack</code> files (wired in a later unit).
-          </p>
-        </section>
-        <section className="rounded-lg border border-border bg-surface-secondary p-4">
           <h2 className="text-sm font-semibold text-navy">Current-term roster</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            Import the enrollment file before grading (wired in a later unit).
+            Import the enrollment file before grading (wired in the next unit).
           </p>
         </section>
         <section className="rounded-lg border border-border bg-surface-secondary p-4">
