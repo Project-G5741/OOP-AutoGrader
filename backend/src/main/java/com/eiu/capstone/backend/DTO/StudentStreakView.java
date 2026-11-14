@@ -14,5 +14,6 @@ public record StudentStreakView(
         boolean canRestore,
         String equipped,
         int gachaTickets,
+        int crystals,
         boolean missionCompletedNow) {
 }

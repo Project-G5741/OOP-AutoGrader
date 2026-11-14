@@ -9,5 +9,6 @@ public record WeeklyRankingRow(
         String fullName,
         String irn,
         BigDecimal total,
-        int giftPoints) {
+        int giftPoints,
+        int giftTickets) {
 }

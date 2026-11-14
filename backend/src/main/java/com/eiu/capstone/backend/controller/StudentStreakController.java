@@ -53,4 +53,28 @@ public class StudentStreakController {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         return studentStreakService.spendGachaTickets(user.getId(), request.count());
     }
+
+    @PostMapping("/crystals/grant")
+    public StudentStreakView grantCrystals(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSpendRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.grantCrystals(user.getId(), request.count());
+    }
+
+    @PostMapping("/crystals/spend")
+    public StudentStreakView spendCrystals(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSpendRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.spendCrystals(user.getId(), request.count());
+    }
+
+    @PostMapping("/crystals/exchange")
+    public StudentStreakView exchangeCrystals(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSpendRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.exchangeCrystals(user.getId(), request.count());
+    }
 }

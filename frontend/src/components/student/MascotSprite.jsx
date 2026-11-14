@@ -24,6 +24,18 @@ const REACTIONS = [
   'delighted',
 ];
 
+const REACTIONS_RARE = [
+  'focus',
+  'celebration',
+  'trophy',
+  'battle_cry',
+  'pro_smirk',
+  'fire_spirit',
+  'coffee_break',
+  'glitch_dizzy',
+  'rare_burst',
+];
+
 const CLOCKWISE = [
   'right',
   'down-right',
@@ -38,9 +50,11 @@ const CLOCKWISE = [
 const SECTOR = (Math.PI * 2) / CLOCKWISE.length;
 const HYSTERESIS = 0.12;
 const DEAD_ZONE = 70;
-// Every reaction cell, in the order a normal click reveals it.
-// Dizzy stays off this list: it only plays when clicks land in a tight burst.
+// Normal tier payoffs
 const PAYOFFS = ['surprised', 'wink', 'sleepy', 'bashful', 'delighted', 'heart', 'sparkle'];
+// Rare tier payoffs: distinctive Coder Adventure & Partner actions
+const RARE_PAYOFFS = ['celebration', 'pro_smirk', 'coffee_break', 'battle_cry', 'trophy', 'fire_spirit', 'rare_burst'];
+
 const BOOP_PAYOFF = 100;
 const BOOP_END = 720;
 const SQUASH_MS = 420;
@@ -53,6 +67,15 @@ const SQUASH = [
   { transform: 'scale(0.95, 1.08)', offset: 0.45, easing: 'ease-in-out' },
   { transform: 'scale(1.03, 0.97)', offset: 0.72, easing: 'ease-in-out' },
   { transform: 'scale(1, 1)' },
+];
+
+// Double elastic spring physics with subtle rotation for Rare tier
+const SQUASH_RARE = [
+  { transform: 'scale(1, 1) rotate(0deg)', easing: 'ease-in' },
+  { transform: 'scale(1.14, 0.88) rotate(-2deg)', offset: 0.16, easing: 'ease-out' },
+  { transform: 'scale(0.92, 1.10) rotate(2deg)', offset: 0.42, easing: 'ease-in-out' },
+  { transform: 'scale(1.05, 0.96) rotate(-1deg)', offset: 0.70, easing: 'ease-in-out' },
+  { transform: 'scale(1, 1) rotate(0deg)' },
 ];
 
 const spriteImages = new Map();
@@ -162,6 +185,7 @@ export function Mascot({
   label = 'mascot',
   trackPointer = false,
   interactive = true,
+  tier = 'normal',
 }) {
   const buttonRef = useRef(null);
   const squashRef = useRef(null);
@@ -227,23 +251,39 @@ export function Mascot({
     const boops = boopsRef.current;
     boops.rapid = now - boops.at < DIZZY_WINDOW ? boops.rapid + 1 : 1;
     boops.at = now;
+
+    const isRare = tier === 'rare';
+    const activePayoffs = isRare ? RARE_PAYOFFS : PAYOFFS;
+    const dizzyReaction = isRare ? 'glitch_dizzy' : 'dizzy';
+    const blinkReaction = isRare ? 'focus' : 'blink';
+    const squashAnim = isRare ? SQUASH_RARE : SQUASH;
+    const squashDuration = isRare ? 400 : SQUASH_MS;
+
     if (boops.rapid >= DIZZY_AFTER) {
       boops.rapid = 0;
-      setReaction('dizzy');
+      setReaction(dizzyReaction);
       later(DIZZY_END, null);
     } else {
-      const payoff = PAYOFFS[boops.step % PAYOFFS.length];
+      const payoff = activePayoffs[boops.step % activePayoffs.length];
       boops.step += 1;
-      setReaction('blink');
+      setReaction(blinkReaction);
       later(BOOP_PAYOFF, payoff);
       later(BOOP_END, null);
     }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    squashRef.current?.animate(SQUASH, { duration: SQUASH_MS, easing: 'linear' });
+    squashRef.current?.animate(squashAnim, { duration: squashDuration, easing: 'linear' });
   };
 
+  const isRare = tier === 'rare';
+  const activeReactions = isRare ? REACTIONS_RARE : REACTIONS;
   const directionIndex = interactive ? DIRECTIONS.indexOf(direction) : DIRECTIONS.indexOf('center');
-  const reactionIndex = REACTIONS.indexOf(reaction ?? 'blink');
+  const reactionIndex = reaction != null
+    ? (activeReactions.indexOf(reaction) !== -1
+        ? activeReactions.indexOf(reaction)
+        : (REACTIONS.indexOf(reaction) !== -1
+            ? REACTIONS.indexOf(reaction)
+            : (REACTIONS_RARE.indexOf(reaction) !== -1 ? REACTIONS_RARE.indexOf(reaction) : 0)))
+    : 0;
   const boxStyle = {
     position: 'relative',
     display: 'block',

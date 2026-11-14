@@ -402,7 +402,11 @@ public class LabStructureService {
         }
         long syncMs = System.currentTimeMillis() - syncStartedAt;
 
-        assertChallengesHaveApplicablePillars(challengePayloads, replacedSet, ctx);
+        // Insert-only (clone / desktop pack) persists OT after this save, and packs
+        // may replay historical challenges with all pillars off.
+        if (!insertOnly) {
+            assertChallengesHaveApplicablePillars(challengePayloads, replacedSet, ctx);
+        }
 
         if (payload.name() != null && !payload.name().isBlank()) {
             lab.setName(com.eiu.capstone.backend.desktop.pack.LabNameRules.requireValid(payload.name()));
@@ -626,6 +630,10 @@ public class LabStructureService {
 
     /** Empty tree + master data only — clone insert path skips empty Neon lookups. */
     private SaveContext emptySaveContextForInsert() {
+        // Desktop pack import creates SCOPE/DECLARING_TYPE rows in this same TX
+        // immediately before insert-only save. Flush so findAll sees those ids
+        // (otherwise: 400 Invalid scope id: 1001).
+        entityManager.flush();
         Map<Integer, MasterData> masterDataById = masterDataRepository.findAll().stream()
                 .collect(Collectors.toMap(MasterData::getId, Function.identity()));
         return new SaveContext(
@@ -1746,7 +1754,7 @@ public class LabStructureService {
             if (!keptIds.add(parameter.getId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate parameter id");
             }
-            List<String> names = requireAliases(dto.names(), dto.name(), "Parameter names", false);
+            List<String> names = requireAliases(dto.names(), dto.name(), "Parameter names", false, true);
             List<String> dataTypes = requireAliases(dto.dataTypes(), dto.dataType(), "Parameter types", false);
             parameter.setMethod(method);
             parameter.setConstructorEntity(constructor);
@@ -1870,6 +1878,15 @@ public class LabStructureService {
             String legacyValue,
             String label,
             boolean allowNullPrimary) {
+        return requireAliases(aliases, legacyValue, label, allowNullPrimary, false);
+    }
+
+    private static List<String> requireAliases(
+            List<String> aliases,
+            String legacyValue,
+            String label,
+            boolean allowNullPrimary,
+            boolean allowBlankPrimary) {
         List<String> source = aliases != null
                 ? aliases
                 : java.util.Collections.singletonList(legacyValue);
@@ -1882,10 +1899,19 @@ public class LabStructureService {
                 normalized.add(null);
                 continue;
             }
+            if (allowBlankPrimary && (value == null || value.isBlank())) {
+                continue;
+            }
             if (value == null || value.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " cannot contain blank values");
             }
             normalized.add(value.trim());
+        }
+        if (normalized.isEmpty() && allowBlankPrimary) {
+            return List.of("");
+        }
+        if (normalized.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " must contain at least one value");
         }
         return java.util.Collections.unmodifiableList(normalized);
     }

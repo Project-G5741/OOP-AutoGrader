@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.eiu.capstone.backend.service.JwtService;
+import com.eiu.capstone.backend.service.MascotPracticeTokenService;
 import com.eiu.capstone.backend.service.SessionValidityService;
 
 import io.jsonwebtoken.Claims;
@@ -28,10 +29,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final SessionValidityService sessionValidityService;
+    private final MascotPracticeTokenService mascotPracticeTokenService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, SessionValidityService sessionValidityService) {
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            SessionValidityService sessionValidityService,
+            MascotPracticeTokenService mascotPracticeTokenService) {
         this.jwtService = jwtService;
         this.sessionValidityService = sessionValidityService;
+        this.mascotPracticeTokenService = mascotPracticeTokenService;
     }
 
     /**
@@ -49,20 +55,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parseToken(rawToken);
                 String email = claims.get("email", String.class);
-                Integer sessionVersion = readSessionVersion(claims);
-                if (sessionValidityService.isSessionValid(email, sessionVersion)) {
-                    JwtUserPrincipal principal = new JwtUserPrincipal(
-                            email,
-                            claims.get("irn", String.class),
-                            extractRoles(claims));
-                    Collection<SimpleGrantedAuthority> authorities = principal.roles().stream()
-                            .map(name -> new SimpleGrantedAuthority("ROLE_" + name))
-                            .toList();
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (JwtService.isMascotPractice(claims)) {
+                    authenticateMascotPractice(claims, email);
                 } else {
-                    SecurityContextHolder.clearContext();
+                    Integer sessionVersion = readSessionVersion(claims);
+                    if (sessionValidityService.isSessionValid(email, sessionVersion)) {
+                        JwtUserPrincipal principal = new JwtUserPrincipal(
+                                email,
+                                claims.get("irn", String.class),
+                                extractRoles(claims));
+                        Collection<SimpleGrantedAuthority> authorities = principal.roles().stream()
+                                .map(name -> new SimpleGrantedAuthority("ROLE_" + name))
+                                .toList();
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        SecurityContextHolder.clearContext();
+                    }
                 }
             } catch (JwtException | IllegalArgumentException ignored) {
                 SecurityContextHolder.clearContext();
@@ -99,6 +109,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             path = path.substring(contextPath.length());
         }
         return DESKTOP_PRACTICE_BUNDLE_PATH.equals(path);
+    }
+
+    private void authenticateMascotPractice(Claims claims, String email) {
+        String aud = claims.getAudience();
+        String scope = claims.get("scope", String.class);
+        String jti = claims.getId();
+        if (jti == null || jti.isBlank()) {
+            jti = claims.get("jti", String.class);
+        }
+        if (!JwtService.MASCOT_PRACTICE_AUD.equals(aud)
+                || !JwtService.MASCOT_PRACTICE_SCOPE.equals(scope)
+                || !mascotPracticeTokenService.isLiveJti(jti)) {
+            SecurityContextHolder.clearContext();
+            return;
+        }
+        JwtUserPrincipal principal = new JwtUserPrincipal(email, null, List.of());
+        Collection<SimpleGrantedAuthority> authorities =
+                List.of(new SimpleGrantedAuthority(JwtService.MASCOT_READ_AUTHORITY));
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(principal, null, authorities);
+        authentication.setDetails(jti);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
     private static Integer readSessionVersion(Claims claims) {

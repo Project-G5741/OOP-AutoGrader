@@ -77,6 +77,9 @@ class UserServiceTest {
     private TermService termService;
 
     @Mock
+    private org.springframework.beans.factory.ObjectProvider<MascotPracticeTokenService> mascotPracticeTokens;
+
+    @Mock
     private UserAccount existingUser;
 
     private UserService userService;
@@ -95,7 +98,8 @@ class UserServiceTest {
                 labDeadlineEmailSentRepository,
                 passwordResetTokenRepository,
                 sessionValidityService,
-                termService);
+                termService,
+                mascotPracticeTokens);
         userId = UUID.randomUUID();
         when(existingUser.getId()).thenReturn(userId);
         when(existingUser.getEmail()).thenReturn("student@eiu.edu.vn");

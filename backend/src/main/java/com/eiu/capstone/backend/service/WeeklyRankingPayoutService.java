@@ -68,17 +68,19 @@ public class WeeklyRankingPayoutService {
     private void creditIfNew(Timestamp weekTs, WeeklyRankingRow row) {
         int inserted = jdbcTemplate.update(
                 """
-                INSERT INTO weekly_ranking_entry (week_end, user_id, rank, total, gift_points)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO weekly_ranking_entry (week_end, user_id, rank, total, gift_points, gift_tickets)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (week_end, user_id) DO NOTHING
                 """,
                 weekTs,
                 row.userId(),
                 row.rank(),
                 row.total(),
-                row.giftPoints());
-        if (inserted == 1 && row.giftPoints() > 0) {
+                row.giftPoints(),
+                row.giftTickets());
+        if (inserted == 1) {
             studentStreakService.addPoints(row.userId(), row.giftPoints());
+            studentStreakService.addGachaTickets(row.userId(), row.giftTickets());
         }
     }
 

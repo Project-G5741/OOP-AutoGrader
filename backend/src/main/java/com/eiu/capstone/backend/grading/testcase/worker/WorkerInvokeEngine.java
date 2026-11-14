@@ -276,7 +276,8 @@ public final class WorkerInvokeEngine {
     private static void beginStdoutCapture(BoundedStdout stdout) {
         synchronized (STDOUT_INSTALL_LOCK) {
             if (delegatingStdout == null) {
-                delegatingStdout = new java.io.PrintStream(new DelegatingStdout(), true);
+                delegatingStdout = new java.io.PrintStream(
+                        new DelegatingStdout(), true, java.nio.charset.StandardCharsets.UTF_8);
             }
             if (System.out != delegatingStdout) {
                 originalStdout = System.out;

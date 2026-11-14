@@ -54,7 +54,8 @@ public class WeeklyRankingService {
                     source.fullName(),
                     source.irn(),
                     source.total(),
-                    WeeklyRankingRules.giftPointsForRank(rank)));
+                    WeeklyRankingRules.giftPointsForRank(rank),
+                    WeeklyRankingRules.giftTicketsForRank(rank)));
             rank++;
         }
         return rows;

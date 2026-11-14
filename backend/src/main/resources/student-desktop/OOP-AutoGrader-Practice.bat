@@ -25,6 +25,9 @@ if exist "%APP_DESKTOP_HOME%\runtime\jdk\bin\java.exe" (
   )
 )
 set "DESKTOP_WORKER_JAVA=%JAVA_EXE%"
+if exist "%APP_DESKTOP_HOME%\cloud-api-url.txt" (
+  set /p APP_DESKTOP_CLOUD_API_URL=<"%APP_DESKTOP_HOME%\cloud-api-url.txt"
+)
 rem Offline practice always uses local worker.jar — do not inherit cloud sandbox env.
 set "SANDBOX_ENABLED=false"
 set "APP_GRADING_SANDBOX_ENABLED=false"
