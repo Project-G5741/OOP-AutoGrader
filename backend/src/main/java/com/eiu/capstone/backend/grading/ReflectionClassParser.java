@@ -28,8 +28,10 @@ import org.springframework.stereotype.Component;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
 import com.eiu.capstone.backend.grading.testcase.ProcessTreeKiller;
+import com.eiu.capstone.backend.grading.testcase.SerializedInvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.WorkerEnvironment;
 import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
+import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -63,10 +65,21 @@ public class ReflectionClassParser {
     }
 
     public List<ParsedClass> parseClasses(Path classesDir) {
+        return parseClasses(classesDir, null);
+    }
+
+    /**
+     * When {@code leasedSession} is non-null (OT host lease), reflect over that session and do not
+     * acquire {@code workerJvmSlot} or spawn a one-shot reflect process.
+     */
+    public List<ParsedClass> parseClasses(Path classesDir, WorkerSessionHandle leasedSession) {
         if (classesDir == null || !Files.isDirectory(classesDir)) {
             return List.of();
         }
         try {
+            if (leasedSession != null) {
+                return parseViaLeasedSession(classesDir, leasedSession);
+            }
             if (workerProcessClient != null && workerJarAvailable()) {
                 return parseViaWorker(classesDir);
             }
@@ -75,6 +88,32 @@ public class ReflectionClassParser {
             throw e;
         } catch (Exception e) {
             throw new SubmissionProcessingException("Could not parse compiled classes in " + classesDir, e);
+        }
+    }
+
+    private List<ParsedClass> parseViaLeasedSession(Path classesDir, WorkerSessionHandle leasedSession)
+            throws Exception {
+        try {
+            SerializedInvocationOutcome outcome = leasedSession.reflect(
+                    classesDir.toAbsolutePath().normalize().toString());
+            if (outcome == null
+                    || !SerializedInvocationOutcome.KIND_NORMAL.equals(outcome.kind())
+                    || outcome.returnValueJson() == null
+                    || outcome.returnValueJson().isBlank()) {
+                String message = outcome != null && outcome.errorMessage() != null
+                        ? outcome.errorMessage()
+                        : "empty reflect payload";
+                throw new SubmissionProcessingException(
+                        "Class reflect on leased worker failed for " + classesDir + ": " + message);
+            }
+            ParsedClass[] parsed = MAPPER.readValue(outcome.returnValueJson(), ParsedClass[].class);
+            return parsed == null ? List.of() : Arrays.asList(parsed);
+        } catch (SubmissionProcessingException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
+                    classesDir, e.toString());
+            return parseInProcess(classesDir);
         }
     }
 

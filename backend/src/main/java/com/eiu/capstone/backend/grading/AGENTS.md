@@ -23,8 +23,8 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/testcase/RemoteWorkerSessionClient.java` | Tar submission root, `POST /sessions` to sandbox-runner |
 | `grading/testcase/transport/*` | `ProcessWorkerTransport` (local NDJSON, chunked line reads) or `HttpWorkerTransport` (remote REST invoke) |
 | `grading/testcase/ProcessTreeKiller.java` | Descendants-first `destroyForcibly` then root |
-| `grading/testcase/WorkerSessionHandle.java` | Worker JVM session; respawn keeps the host slot |
-| `grading/testcase/SharedLocalWorkerCache.java` | Optional idle local worker reuse (`app.grading.worker-idle-ttl-ms`, default 0 = close on release); sandbox never cached |
+| `grading/testcase/WorkerSessionHandle.java` | Worker JVM session; session `reflect` + batch; dirty-bit on hang/abort; transport wait `⌈T/P⌉×τ+30`; respawn keeps the host slot |
+| `grading/testcase/SharedLocalWorkerCache.java` | Local worker warm park (`app.grading.worker-idle-ttl-ms`, default 5000); park on demand (`workerJvmSlot` waiters) or clean TTL; dirty/hang and sandbox never parked |
 | `grading/testcase/worker/WorkerClassReflector.java` | One-shot `--reflect` class parse in the worker JVM (keeps student types out of API Metaspace) |
 | `grading/rubric/DryRunChallengeCatalogCache.java` | One Neon load per challenge caches validate membership + assemble maps (60s); cleared on rubric invalidate |
 | `grading/rubric/RubricMemberMaps.java` | Lookup maps built from challenge members for OT rubric assembly |
@@ -53,7 +53,7 @@ Grade lab submissions: Java `.class` reflection and MMD diagram comparison on st
 | `grading/rubric/TestcaseRubricAssembler.java` | Build `TestcaseRubric` from lecturer testcase DTOs (dry-run + validation) |
 | `grading/rubric/RubricParameterMaps.java` | Group rubric parameters by constructor/method id for assembler, lab load, and lecturer save validation |
 | `service/TestcaseRubricService.java` | Lecturer testcase CRUD; referenced by structure save delete guard |
-| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local worker via `SharedLocalWorkerCache` (default close-on-release) |
+| `service/TestcaseDryRunService.java` | Compile pasted reference Java + `TestcaseGrader.gradeSingle()` preview (no persistence); light challenge access check; local worker via `SharedLocalWorkerCache` (same demand/TTL park policy as upload) |
 
 ## Local Contracts
 
@@ -66,8 +66,8 @@ SubmissionController
   → SubmissionStorageService.processUpload()
   → assign lab_submission.id in memory
       → GradingService.gradeSubmission()   (compute + assemble only)
-          → When any challenge has OT: parallel `gradeClassAndMmd()` per folder, then `workerJvmSlot` + `SharedLocalWorkerCache.borrow`, then one lab-wide `completeOperationalTestcasesLabWide` (`TestcaseGrader.gradeLab` / one `batch` IPC)
-              → Otherwise `gradeChallenge()` per folder: ClassReflectionGrader → MmdPillarGrader (no worker)
+          → When any challenge has OT: early `workerJvmSlot` + `SharedLocalWorkerCache.borrow`, parallel `gradeClassAndMmd(..., leasedSession)` (session `reflect` IPC), then one lab-wide `completeOperationalTestcasesLabWide` (`TestcaseGrader.gradeLab` / one `batch` IPC) on the same handle, then release/park
+              → Otherwise `gradeChallenge()` per folder: one-shot `--reflect` / in-process parse → ClassReflectionGrader → MmdPillarGrader (no OT lease)
           → LabResultAssembler.assemble() from in-memory LabRubricSnapshot (no loadChallengeStructures)
               → skip MMD/testcase trees when pillar not applicable
   → UploadPersistService.persist()     (one JDBC statement: insert MAX+1 + scores + progress)
@@ -86,7 +86,7 @@ SubmissionController
 - **Lab percentage** = weighted mean across rubric challenges using `challenge.weight`; missing challenges count as 0%
 - **Score rounding** = always down (`RoundingMode.DOWN` / `Math.floor`): two-decimal stored percentages and integer display scores never round up
 - **Operational testcases** pass only when every assertion passes (binary per testcase; there is no per-testcase weight)
-- Student upload / bulk grade run lab-wide OT (`gradeLab`) and acquire `workerJvmSlot` when any OT challenge has `classFileCount > 0`; lecturer dry-run uses `gradeSingle` with the same slot + shared warm cache
+- Student upload / bulk grade take one **OT host lease** (`workerJvmSlot` + borrow) before class+MMD when any OT challenge has `classFileCount > 0`, run session `reflect` then lab-wide OT (`gradeLab`) on that handle; lecturer dry-run uses `gradeSingle` with the same slot + shared warm cache
 - No compiled classes short-circuit every testcase on that challenge to `FAILED` before invoke. Compile errors short-circuit only when `compileError` is catastrophic I/O/setup: all testcases for that challenge → `ERROR` before invoke. Mixed javac marks ERROR only for testcases whose invoked types are in `failedClassNames`; independent targets still invoke
 
 ### Operational testcase grading
@@ -96,11 +96,11 @@ SubmissionController
 - Nested rubric classes use binary invoke names (`Outer$Inner`) from `RubricMemberMaps.invokeBinaryName`; the worker also resolves dotted / simple nested names via `JavaTypeResolver.loadStudentClass`
 - Lecturer save 422s over 44 steps / 10 named instances, unknown/later `$instance` refs, Unit object args / equals(); Unit `receiver_constructor_id` only when the method is declared on a heritage ancestor of that constructor’s class
 - `LabRubricService` groups invocations by testcase, sorts by `order_index`, and copies `instanceName` onto `InvocationRubric` / `TestcaseRubric`
-- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 3) bounds **student code execution** per batch item inside the worker; transport wait adds 30s return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API respawns and continues remaining batch items / later challenges.
-- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; Class-tab parse uses worker `--reflect` (serialized on `workerJvmSlot`) with in-process fallback. Local IPC/spawn fallbacks use `LocalWorkerInfraErrors.STUDENT_MESSAGE`; remote sandbox failures use `SandboxInfraErrors.STUDENT_MESSAGE`. Desktop profile forces sandbox off (`application-desktop.yml` + practice host/bat clear `SANDBOX_*`)
+- Timeout: `app.grading.testcase-invoke-timeout-seconds` (default 3) bounds **student code execution** per batch item inside the worker; host transport wait is `⌈itemCount / poolSize⌉ × timeout + 30s` return slack. On hang, the worker halts after returning `TIMED_OUT` (kills zombie tight-loop threads); the API marks the session dirty, respawns, and continues remaining batch items / later challenges.
+- Isolated worker: thin `worker.jar`, env allowlist, stdout cap 65536, platform-parent student loader; OT-lease class parse uses session IPC `reflect`; Class-tab GET / no-OT uploads keep one-shot `--reflect` (serialized on `workerJvmSlot`) with in-process fallback. Local IPC/spawn fallbacks use `LocalWorkerInfraErrors.STUDENT_MESSAGE`; remote sandbox failures use `SandboxInfraErrors.STUDENT_MESSAGE`. Desktop profile forces sandbox off (`application-desktop.yml` + practice host/bat clear `SANDBOX_*`)
 - IPC NDJSON is UTF-8; the API decodes worker response lines as UTF-8 bytes (not Latin-1) and caps them at `WorkerIpc.MAX_LINE_BYTES`
-- IPC ops: `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (list of scenarios; each item may carry its own `classesDir` for lab-wide OT). `compare` is not used. Upload/bulk: one lab-wide `batch` round-trip; dry-run: one-item batch
-- In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default; desktop profile sets **2** to avoid Midterm-size parallel ClassLoader OOMs). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1
+- IPC ops: `reflect` (class parse on a live session), `invoke` (one call), `scenario` (ordered steps + request-local named instances), `batch` (list of scenarios; each item may carry its own `classesDir` for lab-wide OT). `compare` is not used. Upload/bulk: one lab-wide `batch` round-trip on the leased session; dry-run: one-item batch
+- In-worker batch pool size is `max(1, min(itemCount, availableProcessors()))`, optionally capped by `app.grading.ot-batch-parallelism` (0 = CPU default; desktop profile sets **2** to avoid Midterm-size parallel ClassLoader OOMs). Each concurrent item uses its own student `URLClassLoader`. Host `workerJvmSlot` stays capacity 1. Clean local release parks when slot waiters exist or within `app.grading.worker-idle-ttl-ms` (default 5000); dirty and sandbox never park
 - Whole-scenario execution timeout uses `app.grading.testcase-invoke-timeout-seconds` as one budget per batch item; on hang the worker stops that batch slice and halts; the API respawns and continues remaining items
 - Worker facts are untrusted; `kind` is a string; the worker never emits `passed`
 - Any step `THREW`, `ERROR`, or `TIMED_OUT` omits later steps. Assertions on later steps fail as not executed (not SKIPPED). An accepted EXCEPTION assertion still evaluates stdout/field/return on that same step
@@ -111,7 +111,7 @@ SubmissionController
 - Scenario primary **expected/actual** is the first failing step (kind priority only among that step's failing asserts). All-pass uses kind priority among assertions on the last run step. **Input** lists every authored step (newline-separated)
 - Lecturer dry-run I/O cards have no type labels (Unit/Composition appear only on the lecturer editor list; students never see them)
 - Mixed javac `failedClassNames` covers every step's `className`, receiver class, parameter types, and `dispatchClassName`
-- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (default close-on-release; optional positive idle TTL) shared with upload/bulk. Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
+- Lecturer dry-run uses `TestcaseGrader.gradeSingle()` and acquires `workerJvmSlot`; local path uses `SharedLocalWorkerCache` (same demand + short clean TTL park as upload/bulk). Dry-run uses `requireChallengeAccessible` (not a full OT graph load).
 - Process-tree kill returns as soon as the worker is dead; it does not block the full grace period on a successful exit
 - Stdout compare canonicalizes CR LF and lone CR to LF before the comparison mode runs, so Windows `println` matches rubric text stored from the Linux web grader. A different character still fails
 - Exception matching: exception class simple name only (not message)
@@ -136,7 +136,7 @@ Keyed `challenge_<N>`. Each bundle contains `class`, `mmd`, `testcases` (operati
 
 ## Work Guidance
 
-- Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` only; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
+- Parsed classes come from `ReflectionClassParser.parseClasses(classesDir)` or `parseClasses(classesDir, leasedSession)` under an OT host lease; loads top-level and one-level nested (`Outer$Inner`) classes; rubric nested entries match by qualified name (`Outer.Inner`) via `ClassRubric.qualifiedName()`; nested rubric rows may set `is_static` to grade static nested vs non-static inner
 - Upload `lab_result` assemble and student GET Class/MMD/Testcase tabs must not call `loadChallengeStructures`; lecturer structure GET still uses the JPA bundle load
 - Do not grade source `.java` files directly; compilation must succeed first
 - Inheritance and realization (`class_relation`) also feed the Java class shell via declared superclass/interfaces; other relation kinds stay MMD-only. Java grades a set Extends/Implements pair even when `has_mmd=false`

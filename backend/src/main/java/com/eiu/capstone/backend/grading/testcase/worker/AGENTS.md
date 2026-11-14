@@ -10,7 +10,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 |---|---|
 | `WorkerMain.java` | `main`; retains stdin/stdout for IPC before any `System.setOut`; `--reflect` entry |
 | `WorkerClassReflector.java` | One-shot class parse for `--reflect` (ParsedClass-shaped DTOs) |
-| `WorkerIpc.java` | NDJSON ops `invoke`, `scenario`, `batch`; request/response records |
+| `WorkerIpc.java` | NDJSON ops `reflect`, `invoke`, `scenario`, `batch`; request/response records |
 | `WorkerInvokeEngine.java` | Reflection invoke and named-instance scenario |
 
 ## Local Contracts
@@ -22,7 +22,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - Default path is the NDJSON IPC loop (`WorkerIpc` → `WorkerInvokeEngine`). Student classes load only in this JVM.
 - IPC stdout is UTF-8 NDJSON; one request line in, one response line out (up to `WorkerIpc.MAX_LINE_BYTES`, 4MiB for lab-wide OT). The API `ProcessWorkerTransport` reads lines in chunks (not one byte at a time).
 - Worker JAR must not contain `org.springframework` types.
-- Ops: `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios; each item may carry its own `classesDir` for lab-wide OT; pool size capped by CPUs / `batchParallelism`; each item gets its own student `URLClassLoader` and named-instance registry). `compare` is unused.
+- Ops: `reflect` (class parse via `WorkerClassReflector` on a live session; return JSON in `returnValueJson`), `invoke` (one constructor/method), `scenario` (ordered steps sharing a request-local name → live object registry on one ClassLoader), `batch` (ordered list of scenarios; each item may carry its own `classesDir` for lab-wide OT; pool size capped by CPUs / `batchParallelism`; each item gets its own student `URLClassLoader` and named-instance registry). `compare` is unused.
 - `System.setOut` capture in `executeStep` routes each thread to its own `BoundedStdout` (one delegating stream). A timed-out item that ignores interrupt never releases its thread-local, and must not hold a monitor later invokes need. Desktop still caps `ot-batch-parallelism` at 2.
 - `scenario` looks up a method on `dispatchClassName` when set, then `invoke`s it on the named receiver so dynamic dispatch runs. Without dispatch, concrete lookup uses declared methods on the concrete class then walks Extends superclasses (not interfaces).
 - Class load uses `JavaTypeResolver.loadStudentClass` so nested types resolve from binary, dotted, or unambiguous simple nested names.
@@ -32,7 +32,7 @@ Process entry for operational testcase invoke. Runs in a separate JVM from the A
 - Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 - Any step `THREW`, `ERROR`, or `TIMED_OUT`: omit later steps. Completed scenario top-level `kind` is `NORMAL` (facts in `steps`) or `ERROR`/`TIMED_OUT` for whole-op failure.
 - Worker facts for object checks: `objectTypeSimpleName`, `objectFieldSnapshotsJson` (one-level literals), `equalsNamed` (this object vs other registry names). A name that already holds this same instance is included; `equals` still runs, so a second singleton `getInstance()` matches the earlier product.
-- Whole-scenario / per-batch-item execution timeout is enforced inside the worker (`Future.get` on `timeoutSeconds` from the request, fixed pool sized by item count × CPU cap). On hang timeout the worker **stops the batch**, writes the partial response, then `Runtime.halt(0)` so interrupt-immune tight loops die with the process. The API transport wait is `itemCount × timeoutSeconds + 30s` return slack; after a timeout abort it respawns (local, or remote reopen) and continues remaining items.
+- Whole-scenario / per-batch-item execution timeout is enforced inside the worker (`Future.get` on `timeoutSeconds` from the request, fixed pool sized by item count × CPU cap). On hang timeout the worker **stops the batch**, writes the partial response, then `Runtime.halt(0)` so interrupt-immune tight loops die with the process. The API transport wait is `⌈itemCount / poolSize⌉ × timeoutSeconds + 30s` return slack; after a timeout abort it marks dirty, respawns (local, or remote reopen), and continues remaining items.
 - Never emit `passed`. Wire `kind` is a string (`KIND_NORMAL`), not the API enum.
 
 ## Work Guidance

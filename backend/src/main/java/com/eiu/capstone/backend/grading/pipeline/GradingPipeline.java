@@ -57,7 +57,7 @@ public class GradingPipeline {
             List<MultipartFile> mmdFiles,
             WorkerSessionHandle workerSession) {
 
-        ClassMmdPhaseResult phase = gradeClassAndMmd(rubric, folderResult, mmdFiles);
+        ClassMmdPhaseResult phase = gradeClassAndMmd(rubric, folderResult, mmdFiles, workerSession);
         if (phase == null) {
             return null;
         }
@@ -78,6 +78,17 @@ public class GradingPipeline {
             LabRubricSnapshot rubric,
             SubmissionStorageService.ChallengeResult folderResult,
             List<MultipartFile> mmdFiles) {
+        return gradeClassAndMmd(rubric, folderResult, mmdFiles, null);
+    }
+
+    /**
+     * When {@code workerSession} is non-null (OT host lease), class parse uses that session.
+     */
+    public ClassMmdPhaseResult gradeClassAndMmd(
+            LabRubricSnapshot rubric,
+            SubmissionStorageService.ChallengeResult folderResult,
+            List<MultipartFile> mmdFiles,
+            WorkerSessionHandle workerSession) {
 
         Integer challengeNumber = extractChallengeNumber(folderResult.challengeName);
         if (challengeNumber == null) {
@@ -98,7 +109,7 @@ public class GradingPipeline {
         Path classesDir = folderResult.folder.resolve("classes");
         long parseStart = System.currentTimeMillis();
         List<com.eiu.capstone.backend.grading.ParsedClass> parsedClasses = Files.exists(classesDir)
-                ? reflectionClassParser.parseClasses(classesDir)
+                ? reflectionClassParser.parseClasses(classesDir, workerSession)
                 : List.of();
         long parseMs = System.currentTimeMillis() - parseStart;
 
