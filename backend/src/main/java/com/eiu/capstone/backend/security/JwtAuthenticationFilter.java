@@ -126,6 +126,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 List.of(new SimpleGrantedAuthority(JwtService.MASCOT_READ_AUTHORITY));
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(principal, null, authorities);
+        authentication.setDetails(jti);
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 

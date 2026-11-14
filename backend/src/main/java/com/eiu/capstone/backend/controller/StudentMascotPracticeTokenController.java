@@ -1,11 +1,15 @@
 package com.eiu.capstone.backend.controller;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.eiu.capstone.backend.DTO.MascotCodeBoundView;
 import com.eiu.capstone.backend.DTO.MascotPracticeTokenView;
 import com.eiu.capstone.backend.DTO.MascotSnapshotView;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -13,8 +17,6 @@ import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.MascotPracticeTokenService;
 import com.eiu.capstone.backend.service.StudentMascotService;
-
-import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/api/students")
@@ -49,8 +51,20 @@ public class StudentMascotPracticeTokenController {
     }
 
     @GetMapping("/mascot-snapshot")
-    public MascotSnapshotView snapshot(@AuthenticationPrincipal JwtUserPrincipal principal) {
+    public MascotSnapshotView snapshot(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            Authentication authentication) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
-        return studentMascotService.snapshot(user.getId());
+        String jti = authentication != null && authentication.getDetails() instanceof String details
+                ? details
+                : null;
+        practiceTokens.consume(jti);
+        MascotSnapshotView view = studentMascotService.snapshot(user.getId());
+        return new MascotSnapshotView(view.equipped(), view.owned(), jti);
+    }
+
+    @GetMapping("/mascot-code/{jti}/bound")
+    public MascotCodeBoundView bound(@PathVariable String jti) {
+        return new MascotCodeBoundView(practiceTokens.isBoundJti(jti));
     }
 }

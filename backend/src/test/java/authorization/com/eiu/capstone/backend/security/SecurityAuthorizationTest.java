@@ -339,6 +339,13 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void anonymousMascotCodeBound_is200() throws Exception {
+        when(mascotPracticeTokenService.isBoundJti("live-jti")).thenReturn(true);
+        mockMvc.perform(get("/api/students/mascot-code/live-jti/bound"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void revokedPracticeJwt_mascotSnapshot_is401() throws Exception {
         when(mascotPracticeTokenService.isLiveJti("dead-jti")).thenReturn(false);
         mockMvc.perform(get("/api/students/mascot-snapshot")

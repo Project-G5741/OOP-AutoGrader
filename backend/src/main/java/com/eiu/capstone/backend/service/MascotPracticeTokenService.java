@@ -42,6 +42,11 @@ public class MascotPracticeTokenService {
         Instant now = Instant.now();
         StudentMascotPracticeToken row = tokens.findById(user.getId()).orElse(null);
         if (!regenerate && row != null && row.getExpiresAt().isAfter(now)) {
+            if (row.getUsedAt() != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This mascot code was already used. Click New Mascot Code.");
+            }
             return new MascotPracticeTokenView(row.getCompactToken(), row.getExpiresAt());
         }
         return replace(user, now);
@@ -60,7 +65,27 @@ public class MascotPracticeTokenService {
         }
         return tokens.findByJti(jti)
                 .filter(row -> row.getExpiresAt().isAfter(Instant.now()))
+                .filter(row -> row.getUsedAt() == null)
                 .isPresent();
+    }
+
+    /** True while this jti is still the student's current code (even after the one import). */
+    public boolean isBoundJti(String jti) {
+        if (jti == null || jti.isBlank()) {
+            return false;
+        }
+        return tokens.findByJti(jti).isPresent();
+    }
+
+    @Transactional
+    public void consume(String jti) {
+        if (jti == null || jti.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
+        }
+        int updated = tokens.markUsedIfUnused(jti, Instant.now());
+        if (updated != 1) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "This mascot code was already used");
+        }
     }
 
     private MascotPracticeTokenView replace(UserAccount user, Instant now) {
@@ -73,6 +98,7 @@ public class MascotPracticeTokenService {
         row.setCompactToken(compact);
         row.setExpiresAt(expiresAt);
         row.setCreatedAt(now);
+        row.setUsedAt(null);
         tokens.save(row);
         return new MascotPracticeTokenView(compact, expiresAt);
     }

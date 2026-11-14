@@ -22,7 +22,7 @@ import { useToast } from '../components/ui/Toast';
 import { getAccessToken, hasRole, isInCurrentTerm, patchStoredUser, ROUTES } from '../utils/authRoutes';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
-import { friendlyLoadErrorFromResponse, toFriendlyError } from '../utils/apiError';
+import { friendlyLoadErrorFromResponse, readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
 import { labResultHasCompileError } from '../utils/compileErrors';
@@ -1383,16 +1383,16 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         headers: authHeaders(),
       });
       if (!response.ok) {
-        throw new Error(await friendlyLoadErrorFromResponse(response));
+        throw new Error(await readFriendlyApiError(response, 'mascot-code'));
       }
       const body = await response.json();
       if (!body?.token) {
-        throw new Error('Practice code was empty');
+        throw new Error('Mascot code was empty');
       }
       await navigator.clipboard.writeText(body.token);
-      showToast(regenerate ? 'New practice code copied.' : 'Practice code copied.', 'success');
+      showToast(regenerate ? 'New Mascot Code copied.' : 'Mascot code copied.', 'success');
     } catch (err) {
-      showToast(toFriendlyError(err, 'generic'), 'error');
+      showToast(toFriendlyError(err, 'mascot-code'), 'error');
     }
   };
 

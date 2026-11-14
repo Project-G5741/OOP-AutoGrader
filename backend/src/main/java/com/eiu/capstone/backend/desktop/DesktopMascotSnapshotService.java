@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.MascotCodeBoundView;
 import com.eiu.capstone.backend.DTO.MascotSnapshotView;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,7 +48,8 @@ public class DesktopMascotSnapshotService {
             return new MascotSnapshotView("fox", List.of());
         }
         try {
-            return objectMapper.readValue(snapshotFile.toFile(), MascotSnapshotView.class);
+            MascotSnapshotView view = objectMapper.readValue(snapshotFile.toFile(), MascotSnapshotView.class);
+            return revertIfCodeUnbound(view);
         } catch (IOException ex) {
             return new MascotSnapshotView("fox", List.of());
         }
@@ -92,6 +94,41 @@ public class DesktopMascotSnapshotService {
             return view;
         } catch (IOException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not save mascot snapshot");
+        }
+    }
+
+    private MascotSnapshotView revertIfCodeUnbound(MascotSnapshotView view) {
+        if (view == null || view.jti() == null || view.jti().isBlank()) {
+            return view == null ? new MascotSnapshotView("fox", List.of()) : view;
+        }
+        String base = resolveCloudApiUrl();
+        if (base.isEmpty()) {
+            return view;
+        }
+        try {
+            URI uri = URI.create(base + "/api/students/mascot-code/" + view.jti().trim() + "/bound");
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(3))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return view;
+            }
+            MascotCodeBoundView bound = objectMapper.readValue(response.body(), MascotCodeBoundView.class);
+            if (bound != null && bound.bound()) {
+                return view;
+            }
+            MascotSnapshotView fox = new MascotSnapshotView("fox", List.of());
+            Files.createDirectories(snapshotFile.getParent());
+            objectMapper.writeValue(snapshotFile.toFile(), fox);
+            return fox;
+        } catch (IOException | InterruptedException | IllegalArgumentException ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            return view;
         }
     }
 

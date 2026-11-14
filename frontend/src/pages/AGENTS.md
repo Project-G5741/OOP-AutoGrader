@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Avatar menu **Copy practice code** / **New practice code** mint a mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -111,8 +111,8 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/students/term-access` | `StudentDashboard.jsx` |
 | `GET /api/students/ranking/current` | `StudentRankingPage.jsx` |
 | `GET /api/lecturer/bootstrap/ranking` | `LecturerDashboard.jsx` (`activeNav === 'ranking'`) |
-| `POST /api/students/mascot-practice-token` | `StudentDashboard.jsx` — copy live desktop mascot-read code |
-| `POST /api/students/mascot-practice-token/regenerate` | `StudentDashboard.jsx` — replace that code |
+| `POST /api/students/mascot-practice-token` | `StudentDashboard.jsx` — copy unused mascot code (409 if already imported) |
+| `POST /api/students/mascot-practice-token/regenerate` | `StudentDashboard.jsx` — replace that code; desktops that imported the old `jti` show fox |
 | `GET /api/desktop/mascot/snapshot` | `StudentDashboard.jsx` (desktop) — last pulled equipped/owned ids |
 | `POST /api/desktop/mascot/sync` | `DesktopMascotImport.jsx` — body `{ token }` |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
