@@ -32,11 +32,11 @@ public final class MascotCatalog {
             new Offer("bach_ho", "Bạch Hổ", 8888),
             new Offer("chu_tuoc", "Chu Tước", 7777),
             new Offer("huyen_vu", "Huyền Vũ", 6666),
-            new Offer("linh_loc", "Linh Lộc", 8888),
-            new Offer("ki_lan", "Kì Lân", 8888),
             new Offer("zerotwo", "Zero2", 35000),
-            new Offer("con_bang", "Côn Bằng", 35000),
-            new Offer("cung_ky", "Cùng Kỳ", 35000));
+            new Offer("con_bang", "Côn Bằng", 20000),
+            new Offer("cung_ky", "Cùng Kỳ", 20000),
+            new Offer("linh_loc", "Linh Lộc", 40000),
+            new Offer("ki_lan", "Kì Lân", 40000));
 
     private static final Map<String, Offer> BY_ID = FOR_SALE.stream()
             .collect(Collectors.toUnmodifiableMap(Offer::id, Function.identity()));

@@ -118,10 +118,8 @@ const RANDOM_MASCOT_POOL = [
   'bach_ho',
   'chu_tuoc',
   'huyen_vu',
-  'linh_loc',
-  'ki_lan'
 ];
-const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky'];
+const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
 
 export default function MascotGachaModal({
   open,
