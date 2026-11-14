@@ -23,7 +23,7 @@ class DesktopMasterDataResolverTest {
         MasterData privateScope = row(1001, "SCOPE", "PRIVATE");
         MasterDataRepository repo = mock(MasterDataRepository.class);
         when(repo.findAll()).thenReturn(List.of(publicScope, privateScope));
-        when(repo.save(any(MasterData.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repo.saveAndFlush(any(MasterData.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // New resolver instance = process restart with file H2 master_data retained.
         DesktopMasterDataResolver resolver = new DesktopMasterDataResolver(repo);
@@ -32,7 +32,7 @@ class DesktopMasterDataResolverTest {
 
         assertEquals(1002, compositionId);
         assertEquals(1000, resolver.scopeId("PUBLIC"));
-        verify(repo).save(argThat(saved ->
+        verify(repo).saveAndFlush(argThat(saved ->
                 saved.getId() == 1002
                         && "RELATION_TYPE".equals(saved.getCategory())
                         && "COMPOSITION".equals(saved.getName())));
@@ -42,7 +42,7 @@ class DesktopMasterDataResolverTest {
     void resolve_emptyDatabase_startsAt1000() {
         MasterDataRepository repo = mock(MasterDataRepository.class);
         when(repo.findAll()).thenReturn(List.of());
-        when(repo.save(any(MasterData.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repo.saveAndFlush(any(MasterData.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DesktopMasterDataResolver resolver = new DesktopMasterDataResolver(repo);
 
