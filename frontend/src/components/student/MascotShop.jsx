@@ -1,7 +1,20 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Mascot } from './MascotSprite';
-import { Sparkles, Gem, Filter, Coins, Ticket, Search, ArrowUpDown } from 'lucide-react';
+import {
+  Sparkles,
+  Gem,
+  Filter,
+  Coins,
+  Ticket,
+  Search,
+  ArrowUpDown,
+  ArrowUp01,
+  ArrowDown01,
+  ArrowDownAZ,
+  ArrowUpZA,
+} from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
+import Combobox from '../ui/Combobox';
 import { useToast } from '../ui/Toast';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
@@ -13,10 +26,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const POINTS_PER_CRYSTAL = 4000;
 
 const SORT_OPTIONS = [
-  { id: 'price-asc', label: 'Price: Low → High' },
-  { id: 'price-desc', label: 'Price: High → Low' },
-  { id: 'name-asc', label: 'Name: A → Z' },
-  { id: 'name-desc', label: 'Name: Z → A' },
+  { value: 'price-asc', label: 'Price: Low → High', icon: ArrowUp01 },
+  { value: 'price-desc', label: 'Price: High → Low', icon: ArrowDown01 },
+  { value: 'name-asc', label: 'Name: A → Z', icon: ArrowDownAZ },
+  { value: 'name-desc', label: 'Name: Z → A', icon: ArrowUpZA },
 ];
 
 function compareShopOffers(a, b, sortBy) {
@@ -416,21 +429,17 @@ export default function MascotShop({
                 className="min-h-10 w-full rounded-xl border border-border bg-surface pl-9 pr-3 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </label>
-            <label className="flex min-w-[12rem] items-center gap-2">
-              <span className="sr-only">Sort mascots</span>
-              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-foreground-muted" aria-hidden="true" />
-              <select
+            <div className="w-full sm:w-auto sm:min-w-[13.5rem]">
+              <Combobox
+                aria-label="Sort mascots"
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                className="min-h-10 w-full cursor-pointer rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setSortBy}
+                options={SORT_OPTIONS}
+                allowEmpty={false}
+                icon={ArrowUpDown}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
 

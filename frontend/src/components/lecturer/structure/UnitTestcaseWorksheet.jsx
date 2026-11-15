@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
 import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
+import Combobox from '../../ui/Combobox';
 import {
   allowedAssertionKinds,
   applyUnitTarget,
@@ -23,6 +24,16 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
   const blocked = unitMemberBlockedReason(target, catalog);
   const parameters = displayStepParameters(step, catalog, referenceSources);
 
+  const memberOptions = useMemo(() => {
+    return unitSelectableGroups(catalog).map((group) => ({
+      group: group.className,
+      items: group.items.map((item) => ({
+        value: item.unitKey,
+        label: item.label,
+      })),
+    }));
+  }, [catalog]);
+
   const patchStep = (nextStep, extra = {}) => {
     onUpdate({
       invocations: [nextStep],
@@ -35,13 +46,17 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
 
   return (
     <div className="min-w-0 space-y-3">
-      <label className="block text-xs text-foreground-muted">
-        Member
-        <select
-          className={FIELD_CLASS}
+      <div className="block text-xs text-foreground-muted">
+        <span className="mb-1 block">Member</span>
+        <Combobox
+          aria-label="Member"
+          placeholder="Select constructor or method"
+          emptyLabel="Select constructor or method"
+          allowEmpty
+          searchable
           value={unitTargetKey(step, catalog)}
-          onChange={(e) => {
-            const nextStep = applyUnitTarget(step, e.target.value, catalog);
+          onChange={(val) => {
+            const nextStep = applyUnitTarget(step, val, catalog);
             const kinds = allowedAssertionKinds(nextStep, catalog, 'UNIT');
             const allowedFields = fieldsForStepAssertion(nextStep, catalog);
             const allowedFieldIds = new Set(allowedFields.map((f) => f.id));
@@ -61,19 +76,10 @@ export default function UnitTestcaseWorksheet({ tc, catalog, onUpdate, reference
               }),
             });
           }}
-        >
-          <option value="">Select constructor or method</option>
-          {unitSelectableGroups(catalog).map((group) => (
-            <optgroup key={group.classId} label={group.className}>
-              {group.items.map((item) => (
-                <option key={item.unitKey} value={item.unitKey}>
-                  {item.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+          options={memberOptions}
+          className="w-full min-w-0"
+        />
+      </div>
 
       {step?.invocationKind === 'METHOD' && step.methodId && (
         <label className="block text-xs text-foreground-muted">
