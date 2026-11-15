@@ -17,21 +17,28 @@ WORKDIR /app
 COPY --from=build /build/target/backend-1.0.0.jar app.jar
 COPY --from=build /build/target/backend-1.0.0-worker.jar worker.jar
 
-# Optional: public URL → /app/OOP-AutoGrader-Practice.zip. Setup: DEPLOY_RENDER.md step 8.
+# Optional public URLs copied into the image. Setup: DEPLOY_RENDER.md steps 8–9.
 ARG PRACTICE_BUNDLE_URL=""
+ARG LECTURER_BULK_BUNDLE_URL=""
 RUN set -eu; \
-    if [ -z "$PRACTICE_BUNDLE_URL" ]; then \
-      echo "PRACTICE_BUNDLE_URL is unset; /app/OOP-AutoGrader-Practice.zip will be absent"; \
+    if [ -z "$PRACTICE_BUNDLE_URL" ] && [ -z "$LECTURER_BULK_BUNDLE_URL" ]; then \
+      echo "Bundle URLs unset; practice and lecturer zips will be absent"; \
     else \
       export DEBIAN_FRONTEND=noninteractive; \
       apt-get update; \
       apt-get install -y --no-install-recommends curl ca-certificates; \
-      curl -fL --retry 3 --retry-delay 2 -o /app/OOP-AutoGrader-Practice.zip "$PRACTICE_BUNDLE_URL" || exit 1; \
+      fetch() { \
+        name="$1"; url="$2"; \
+        if [ -z "$url" ]; then return 0; fi; \
+        curl -fL --retry 3 --retry-delay 2 -o "/app/$name" "$url" || exit 1; \
+        magic=$(od -An -tx1 -N2 "/app/$name" | tr -d ' \t\n'); \
+        [ "$magic" = "504b" ] || exit 1; \
+        [ "$(stat -c%s "/app/$name")" -gt 1000000 ] || exit 1; \
+      }; \
+      fetch OOP-AutoGrader-Practice.zip "$PRACTICE_BUNDLE_URL"; \
+      fetch OOP-AutoGrader-LecturerBulk.zip "$LECTURER_BULK_BUNDLE_URL"; \
       apt-get purge -y curl; \
       rm -rf /var/lib/apt/lists/*; \
-      magic=$(od -An -tx1 -N2 /app/OOP-AutoGrader-Practice.zip | tr -d ' \t\n'); \
-      [ "$magic" = "504b" ] || exit 1; \
-      [ "$(stat -c%s /app/OOP-AutoGrader-Practice.zip)" -gt 1000000 ] || exit 1; \
     fi
 
 EXPOSE 8080

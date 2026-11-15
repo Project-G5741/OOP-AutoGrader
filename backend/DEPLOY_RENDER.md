@@ -12,6 +12,7 @@ Render deployment steps (Docker)
    - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
    - `JAVA_OPTS` = same as `backend/Dockerfile` (default `-Xmx192m`, Metaspace `96m`, code cache `32m`, G1 periodic GC). Do **not** set `-Xmx512m`. Railway notes: [DEPLOY_RAILWAY.md](./DEPLOY_RAILWAY.md).
    - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); build-time only
+   - `LECTURER_BULK_BUNDLE_URL` = public GitHub Release asset URL (step 9); build-time only. This is an API image arg, not a frontend variable.
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
@@ -37,11 +38,16 @@ Render deployment steps (Docker)
    `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/<tag>/OOP-AutoGrader-Practice.zip`
 
    The URL must download with no login (public repo/asset). Do not put a token in the URL. The Dockerfile copies it to `/app/OOP-AutoGrader-Practice.zip` and fails the build if the file is not a zip larger than 1MB. Unset → student download returns 503.
-9. Deploy. Check logs for successful startup.
+9. **Offline lecturer zip (Bulk folder):** Assemble on Windows (`scripts/assemble-lecturer-desktop.ps1`) → `backend/target/OOP-AutoGrader-LecturerBulk.zip` (do not commit). Publish it as a **GitHub Release** asset. Set `LECTURER_BULK_BUNDLE_URL` to that asset URL on the **API** service (same kind of value as `PRACTICE_BUNDLE_URL`), then **rebuild** the image. Example:
 
-Local image (omit `--build-arg` to skip the practice zip; `mvn test` runs in the build stage):
+   `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/grading-bundle-v2/OOP-AutoGrader-LecturerBulk.zip`
+
+   The Dockerfile copies it to `/app/OOP-AutoGrader-LecturerBulk.zip` with the same zip checks. Unset → Bulk folder returns 503. A new tag needs a new URL and a new image build. The website button does not embed the tag.
+10. Deploy. Check logs for successful startup.
+
+Local image (omit either `--build-arg` to skip that zip; `mvn test` runs in the build stage):
 ```
 cd backend
-docker build --build-arg PRACTICE_BUNDLE_URL=<release-asset-url> -t eiu-backend:latest .
+docker build --build-arg PRACTICE_BUNDLE_URL=<practice-asset-url> --build-arg LECTURER_BULK_BUNDLE_URL=<lecturer-asset-url> -t eiu-backend:latest .
 docker run -e DB_USERNAME=<user> -e DB_PASSWORD=<pass> -e SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/<db>?sslmode=require" -e JWT_SECRET="<at-least-32-byte-secret>" -e PORT=8002 -p 8002:8002 eiu-backend:latest
 ```

@@ -1,29 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Download } from 'lucide-react';
 import { toFriendlyError } from '../../utils/apiError';
+import { getAccessToken } from '../../utils/authRoutes';
 import '../student/StudentOfflinePracticeDownload.css';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
 /** Optimistic UI only — transfer progress belongs to the browser download bar. */
 const BUSY_VISIBLE_MS = 2200;
 const DONE_VISIBLE_MS = 1800;
 
-const DEFAULT_BUNDLE_URL =
-  'https://github.com/Project-G5741/OOP-AutoGrader/releases/download/grading-bundle-v1/OOP-AutoGrader-LecturerBulk.zip';
-
 /**
- * Web lecturer Bulk Grading: same animated pill as student Practice folder, but the
- * browser navigates a public release URL (no JWT / API stream).
+ * Web lecturer Bulk Grading: same animated pill as student Practice folder.
+ * Hands `GET /api/lecturer/desktop-bulk-bundle` to the browser via `?access_token=`
+ * so the server streams the zip baked into the API image.
  *
- * @param {{ onToast?: Function, className?: string, href?: string }} props
- * `href` overrides `LECTURER_BULK_BUNDLE_URL` / built-in default.
+ * @param {{ onToast?: Function, className?: string }} props
  */
-export default function LecturerOfflineBulkDownload({ onToast, className = '', href }) {
-  const configured =
-    (typeof href === 'string' && href.trim())
-    || (typeof import.meta.env.LECTURER_BULK_BUNDLE_URL === 'string'
-      && import.meta.env.LECTURER_BULK_BUNDLE_URL.trim())
-    || DEFAULT_BUNDLE_URL;
-
+export default function LecturerOfflineBulkDownload({ onToast, className = '' }) {
   const [downloading, setDownloading] = useState(false);
   const [complete, setComplete] = useState(false);
   const inputRef = useRef(null);
@@ -53,17 +47,20 @@ export default function LecturerOfflineBulkDownload({ onToast, className = '', h
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const startBrowserDownload = useCallback(() => {
-    const url = configured.trim();
-    if (!url) {
-      throw new Error('Offline Bulk download URL is not configured.');
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error('Please sign in again to download.');
     }
+    const url =
+      `${API_BASE}/api/lecturer/desktop-bulk-bundle` +
+      `?access_token=${encodeURIComponent(token)}`;
     const link = document.createElement('a');
     link.href = url;
     link.rel = 'noopener';
     document.body.appendChild(link);
     link.click();
     link.remove();
-  }, [configured]);
+  }, []);
 
   const handleLabelClick = (event) => {
     if (downloading || inFlightRef.current) {
@@ -112,10 +109,6 @@ export default function LecturerOfflineBulkDownload({ onToast, className = '', h
       handleLabelClick(event);
     }
   };
-
-  if (!configured.trim()) {
-    return null;
-  }
 
   return (
     <div className={`practice-folder-download ${className}`.trim()}>

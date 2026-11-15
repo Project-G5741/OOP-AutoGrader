@@ -49,6 +49,11 @@ final class SecurityAuthorizationProbes {
             return "ok";
         }
 
+        @GetMapping("/desktop-bulk-bundle")
+        String desktopBulkBundle() {
+            return "ok";
+        }
+
         @PostMapping("/labs/{labId}/solution-import")
         String solutionImport(@PathVariable UUID labId) {
             return "ok";
