@@ -490,10 +490,10 @@ If you are active but not enrolled in the current term, an amber warning banner 
 
 The **bell icon** (🔔) in the top-right of the student dashboard shows a red dot when you have unread notifications.
 
-- Click the bell to open the notification dropdown. Opening it marks every current notification as read; you do not need to click each item.
-- Notifications indicate labs where you have not submitted yet (based on your submission history vs. the lab list).
+- Click the bell to open the notification dropdown. Click a notification row to mark that item as read (opening the bell alone does not mark items read).
+- Notifications indicate labs where you have not submitted yet (based on your submission history vs. the lab list), plus deadline countdown reminders.
 - When a lecturer replies to your resolved Feedback item, that short note also appears here.
-- After you open the list, the red dot disappears for the current session until a new notification appears.
+- Once you mark an item read, it stays read across tab close and re-login until a new logical notification appears.
 
 ---
 

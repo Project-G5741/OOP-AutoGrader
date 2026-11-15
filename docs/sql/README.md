@@ -57,6 +57,7 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-14-gacha-tickets.sql` | `StudentStreakSchemaMigrator` | Ticket columns |
 | `2026-11-14-gacha-crystals.sql` | `StudentStreakSchemaMigrator` | `crystals` |
 | `2026-11-14-mascot-practice-token.sql` | `MascotPracticeTokenSchemaMigrator` | Practice JWT tables |
+| `2026-11-15-student-notification-read.sql` | `StudentNotificationReadSchemaMigrator` | Durable bell read-receipt keys |
 
 ## Cloud migrator catalog (regression)
 

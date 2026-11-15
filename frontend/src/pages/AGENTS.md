@@ -156,6 +156,8 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `PATCH /api/lecturer/feedback/{id}/status` | `FeedbackInbox.jsx` |
 | `PATCH /api/lecturer/feedback/{id}/response` | `FeedbackInbox.jsx` — short reply on Resolved; student notification |
 | `GET /api/feedback/replies` | `StudentNotificationBell.jsx` |
+| `GET /api/students/notification-reads/list` | `StudentNotificationBell.jsx` — durable read keys |
+| `POST /api/students/notification-reads/mark` | `StudentNotificationBell.jsx` — mark one key read |
 | `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved only; soft-archives when a reply exists, else hard-deletes |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.

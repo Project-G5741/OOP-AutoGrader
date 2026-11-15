@@ -8,9 +8,10 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
 /**
- * Offline practice does not run streak/missions/shop. Hibernate {@code ddl-auto: update}
- * may still create empty {@code student_daily_streak} / {@code student_mascot_purchase}
- * from shared entities; drop them after schema update so leftover installs lose that state.
+ * Offline practice does not run streak/missions/shop or the web notification bell.
+ * Hibernate {@code ddl-auto: update} may still create empty {@code student_daily_streak} /
+ * {@code student_mascot_purchase} / {@code student_notification_read} from shared entities;
+ * drop them after schema update so leftover installs lose that state.
  * {@code @Lazy(false)} is required because desktop enables {@code spring.main.lazy-initialization}.
  */
 @Component
@@ -26,6 +27,7 @@ public class DesktopStreakSchemaCleanupMigrator {
 
     @PostConstruct
     void dropStreakAndShopTables() {
+        jdbcTemplate.execute("DROP TABLE IF EXISTS student_notification_read");
         jdbcTemplate.execute("DROP TABLE IF EXISTS student_mascot_purchase");
         jdbcTemplate.execute("DROP TABLE IF EXISTS student_daily_streak");
     }

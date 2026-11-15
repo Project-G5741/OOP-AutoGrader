@@ -118,6 +118,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-11-14-gacha-tickets.sql` | Operator-run: `student_daily_streak` gacha ticket balance, today's mission-ticket counter, and the one-time 100-ticket launch gift flag. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-crystals.sql` | Operator-run: `student_daily_streak.crystals` balance. Startup migrator applies the same column on PostgreSQL. Shop exchange pays 4000 points per crystal |
 | `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
+| `docs/sql/2026-11-15-student-notification-read.sql` | Operator-run: `student_notification_read` (durable web student bell read-receipt keys). Startup migrator `StudentNotificationReadSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 
 ### Project facts

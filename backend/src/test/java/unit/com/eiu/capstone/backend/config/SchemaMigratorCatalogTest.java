@@ -26,6 +26,7 @@ class SchemaMigratorCatalogTest {
             "com.eiu.capstone.backend.config.MmdOutcomesSchemaMigrator",
             "com.eiu.capstone.backend.config.ScoringWeightSchemaMigrator",
             "com.eiu.capstone.backend.config.SessionVersionSchemaMigrator",
+            "com.eiu.capstone.backend.config.StudentNotificationReadSchemaMigrator",
             "com.eiu.capstone.backend.config.StudentStreakSchemaMigrator",
             "com.eiu.capstone.backend.config.SubmissionPillarScoreSchemaMigrator",
             "com.eiu.capstone.backend.config.TestcaseSchemaMigrator",

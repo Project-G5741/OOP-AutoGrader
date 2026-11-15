@@ -9,6 +9,8 @@ import {
 } from '../../utils/studentNotifications';
 import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
+import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
+import { useToast } from '../ui/Toast';
 import {
   consumeFeedbackRepliesOnLeave,
   setFeedbackReplyIdsSource,
@@ -16,21 +18,7 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
-
-const READ_STORAGE_KEY = 'oop-student-notif-read';
-
-function loadReadIds() {
-  try {
-    const parsed = JSON.parse(sessionStorage.getItem(READ_STORAGE_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistReadIds(ids) {
-  sessionStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...ids]));
-}
+const READS_BASE = `${API_BASE}/api/students/notification-reads`;
 
 export default function StudentNotificationBell({
   labs = [],
@@ -40,7 +28,8 @@ export default function StudentNotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const reducedMotion = useReducedMotion();
-  const [readIds, setReadIds] = useState(() => new Set(loadReadIds()));
+  const showToast = useToast();
+  const [readIds, setReadIds] = useState(() => new Set());
   const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
   const feedbackRepliesRef = useRef(feedbackReplies);
@@ -49,6 +38,27 @@ export default function StudentNotificationBell({
   const labNotifications = buildStudentNotifications(labs, labSummariesById, now);
   const replyNotifications = buildFeedbackReplyNotifications(feedbackReplies);
   const notifications = [...replyNotifications, ...labNotifications];
+
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiFetch(`${READS_BASE}/list`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const data = await response.json();
+        const keys = Array.isArray(data?.keys) ? data.keys : [];
+        if (!cancelled) {
+          setReadIds(new Set(keys.filter((id) => typeof id === 'string')));
+        }
+      } catch {
+        // Silent degrade: leave empty Set (same as failed feedback replies fetch).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (IS_DESKTOP_APP) return undefined;
@@ -104,14 +114,37 @@ export default function StudentNotificationBell({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
 
-  function markOneRead(id) {
+  async function markOneRead(id) {
+    if (typeof id !== 'string' || id.length === 0) return;
     setReadIds((prev) => {
       if (prev.has(id)) return prev;
       const next = new Set(prev);
       next.add(id);
-      persistReadIds(next);
       return next;
     });
+    if (IS_DESKTOP_APP) return;
+    try {
+      const response = await apiFetch(`${READS_BASE}/mark`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: id }),
+      });
+      if (!response.ok) {
+        setReadIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        showToast(await readFriendlyApiError(response, 'default'), 'error');
+      }
+    } catch (error) {
+      setReadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      showToast(toFriendlyError(error), 'error');
+    }
   }
 
   function handleBellClick() {
