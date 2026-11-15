@@ -14,6 +14,14 @@ public final class WorkerMain {
     private WorkerMain() {}
 
     public static void main(String[] args) throws Exception {
+        if (Boolean.getBoolean(StudentDenyPolicy.SYSPROP)) {
+            try {
+                StudentDenyPolicy.install();
+            } catch (Throwable installFailure) {
+                System.err.println("student-deny-install-failed");
+                System.exit(1);
+            }
+        }
         PrintStream ipcOut = new PrintStream(System.out, true, StandardCharsets.UTF_8);
         InputStream ipcIn = System.in;
         String mode = args != null && args.length > 0 ? args[0] : "";

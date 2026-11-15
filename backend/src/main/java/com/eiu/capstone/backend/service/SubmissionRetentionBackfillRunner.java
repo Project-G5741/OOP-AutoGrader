@@ -15,7 +15,7 @@ import com.eiu.capstone.backend.analytics.cache.LecturerOverviewCache;
  * Does not block HTTP startup; runs on a dedicated daemon thread (not {@code persistExecutor}).
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SubmissionRetentionBackfillRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SubmissionRetentionBackfillRunner.class);

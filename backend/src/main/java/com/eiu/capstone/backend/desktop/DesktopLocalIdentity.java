@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public final class DesktopLocalIdentity {
 
     public static final UUID USER_ID = UUID.fromString("00000000-0000-4000-8000-000000000001");

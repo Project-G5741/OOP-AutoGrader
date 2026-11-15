@@ -15,7 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.eiu.capstone.backend.desktop.DesktopAuthenticationFilter;
 
 @Configuration
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopSecurityConfig {
 
     private final DesktopAuthenticationFilter desktopAuthenticationFilter;

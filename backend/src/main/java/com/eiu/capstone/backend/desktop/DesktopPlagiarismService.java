@@ -23,7 +23,7 @@ import com.eiu.capstone.backend.repository.SubmissionPlagiarismMatchRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPlagiarismService extends PlagiarismService {
 
     public DesktopPlagiarismService(

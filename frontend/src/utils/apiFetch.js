@@ -2,7 +2,9 @@ import { clearSessionAndRedirectToLogin } from './authHeaders';
 import { ROUTES } from './authRoutes';
 import { enterRateLimitJail } from './rateLimitJail';
 
-const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
+import { isDesktopLocalMode } from './desktopMode';
+
+const IS_DESKTOP_APP = isDesktopLocalMode();
 
 /**
  * Authenticated API fetch. 401 clears the session and returns to login.

@@ -33,6 +33,7 @@ import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.model.TestcaseResultStatus;
 import com.eiu.capstone.backend.model.TestcaseType;
 import com.eiu.capstone.backend.grading.testcase.InvocationErrorMessage;
+import com.eiu.capstone.backend.grading.testcase.worker.StudentDenyPolicy;
 import com.eiu.capstone.backend.service.compile.CompileErrorMessage;
 import com.eiu.capstone.backend.utility.TimingLog;
 
@@ -293,6 +294,10 @@ public class TestcaseGrader {
         }
         for (int i = 0; i < outcomes.size(); i++) {
             InvocationOutcome outcome = outcomes.get(i);
+            if (isBlockedCall(outcome)) {
+                InvocationRubric step = i < steps.size() ? steps.get(i) : steps.get(0);
+                return blockedCall(testcase, step);
+            }
             if (outcome != null && (outcome.kind() == InvocationOutcomeKind.TIMED_OUT
                     || outcome.kind() == InvocationOutcomeKind.ERROR)) {
                 InvocationRubric step = i < steps.size() ? steps.get(i) : steps.get(0);
@@ -574,6 +579,27 @@ public class TestcaseGrader {
                 null,
                 null,
                 null,
+                List.of()));
+    }
+
+    private static boolean isBlockedCall(InvocationOutcome outcome) {
+        return outcome != null
+                && outcome.kind() == InvocationOutcomeKind.ERROR
+                && StudentDenyPolicy.BLOCKED_MESSAGE.equals(outcome.errorMessage());
+    }
+
+    private Evaluation blockedCall(TestcaseRubric testcase, InvocationRubric step) {
+        String message = StudentDenyPolicy.BLOCKED_MESSAGE;
+        String input = step != null
+                ? displayFormatter.formatInput(testcase, step)
+                : displayFormatter.formatInput(testcase);
+        return new Evaluation(0, new PendingTestcaseResult(
+                testcase.id(),
+                TestcaseResultStatus.FAILED,
+                message,
+                input,
+                null,
+                message,
                 List.of()));
     }
 

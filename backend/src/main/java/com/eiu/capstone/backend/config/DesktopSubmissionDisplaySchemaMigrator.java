@@ -12,7 +12,7 @@ import jakarta.annotation.PostConstruct;
  * persist transaction — so Declaration/OT/MMD fallbacks lose member flags too. Widen to TEXT.
  */
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopSubmissionDisplaySchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

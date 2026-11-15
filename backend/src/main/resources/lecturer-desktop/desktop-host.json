@@ -1,0 +1,7 @@
+{
+  "springProfile": "desktop-lecturer",
+  "port": 18003,
+  "windowTitle": "OOP AutoGrader — Bulk Grading",
+  "startingTitle": "OOP AutoGrader — Starting…",
+  "fatalCaption": "OOP AutoGrader Bulk Grading"
+}

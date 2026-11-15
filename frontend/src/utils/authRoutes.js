@@ -63,6 +63,9 @@ export function isAccessTokenCurrentlyValid(token) {
   if (token === 'desktop-local') {
     return import.meta.env.VITE_APP_MODE === 'desktop';
   }
+  if (token === 'desktop-lecturer-local') {
+    return import.meta.env.VITE_APP_MODE === 'desktop-lecturer';
+  }
   const parts = String(token).split('.');
   if (parts.length !== 3) return false;
   try {

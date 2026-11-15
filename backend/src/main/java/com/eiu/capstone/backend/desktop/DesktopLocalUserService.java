@@ -25,7 +25,7 @@ import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.service.StudentTermAccessService;
 
 @Service
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopLocalUserService {
 
     private final UserAccountRepository userAccountRepository;

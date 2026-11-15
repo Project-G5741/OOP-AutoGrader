@@ -168,8 +168,11 @@ public class AssertionEvaluator {
         if (precondition.isPresent()) {
             return precondition.get();
         }
-        String actual = outcome.stdout() != null ? outcome.stdout() : "";
+        String actual = normalizeStdoutNewlines(outcome.stdout() != null ? outcome.stdout() : "");
         Object expected = jsonValueCoercer.coerceExpectedValue(assertion.expectedValueJson(), STRING_TYPE);
+        if (expected instanceof String expectedText) {
+            expected = normalizeStdoutNewlines(expectedText);
+        }
         boolean passed = ValueComparator.matches(actual, expected, assertion.comparisonMode());
         return passed
                 ? success(assertion, actual, "Stdout matches")
@@ -205,6 +208,14 @@ public class AssertionEvaluator {
             return Optional.of(failure(assertion, null, InvocationErrorMessage.forStudent(message)));
         }
         return Optional.empty();
+    }
+
+    /** Windows {@code println} writes CR LF. Rubric stdout is stored with LF, matching the Linux web grader. */
+    static String normalizeStdoutNewlines(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     static boolean matchesExceptionType(String simpleName, List<String> superNames, String expectedSimpleName) {

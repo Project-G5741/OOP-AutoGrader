@@ -26,7 +26,6 @@ import {
 } from "./utils/authRoutes";
 import { leavePresence } from "./utils/presence";
 import { clearLecturerBootstrapStore } from "./utils/lecturerBootstrapStore";
-import { consumeFeedbackRepliesOnLeave } from "./utils/feedbackReplyConsume";
 import { isWebMaintenanceMode } from "./utils/maintenanceMode";
 import { clearLecturerLoginGate, markLecturerLogin } from "./utils/studentAreaGate";
 
@@ -62,7 +61,6 @@ export default function App() {
     if (!user || hasRole(user.roles, "LECTURER")) {
       return undefined;
     }
-    consumeFeedbackRepliesOnLeave();
     leavePresence();
     clearAuthSession();
     clearLecturerBootstrapStore();
@@ -85,7 +83,6 @@ export default function App() {
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
-    consumeFeedbackRepliesOnLeave();
     leavePresence();
     clearAuthSession();
     clearLecturerBootstrapStore();

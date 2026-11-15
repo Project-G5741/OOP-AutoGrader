@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class WeeklyRankingSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

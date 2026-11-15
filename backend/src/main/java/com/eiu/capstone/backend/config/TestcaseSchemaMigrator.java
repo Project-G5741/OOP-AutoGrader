@@ -14,7 +14,7 @@ import jakarta.annotation.PostConstruct;
  * weight schema and rewrites testcase types to UNIT / COMPOSITION.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class TestcaseSchemaMigrator {
 
     private static final String ASSERTION_KIND_STAGING_COLUMN = "assertion_kind_staging";

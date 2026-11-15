@@ -6,9 +6,11 @@ import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { isSpreadsheetFile, parseStudentImportFile } from '../utils/studentImport';
 import { getOrFetchLecturerBootstrap, invalidateLecturerBootstrap } from '../utils/lecturerBootstrapStore';
 import DatePicker from '../components/ui/DatePicker';
+import Combobox from '../components/ui/Combobox';
 import Modal from '../components/ui/Modal';
 import ModalOverlay from '../components/ui/ModalOverlay';
 import { useToast } from '../components/ui/Toast';
+import { exportRowsAsCsv } from '../components/lecturer/exportRoster';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -534,6 +536,48 @@ export default function TermManagement() {
     }
   };
 
+  const handleDownloadOfflineRoster = async () => {
+    if (!selectedTerm?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      let enrolled = students;
+      if (!Array.isArray(enrolled) || enrolled.length === 0) {
+        const response = await apiFetch(`${API_BASE}/api/lecturer/terms/${selectedTerm.id}/roster`, {
+          headers: authHeaders(),
+        });
+        if (!response.ok) {
+          throw new Error(await readFriendlyApiError(response, 'download'));
+        }
+        const data = await response.json();
+        enrolled = Array.isArray(data?.enrolled) ? data.enrolled : [];
+      }
+      const rows = enrolled
+        .map((student) => String(student?.studentCode || '').trim())
+        .filter((code) => /^\d{10}$/.test(code))
+        .filter((code, index, all) => all.indexOf(code) === index)
+        .sort()
+        .map((student_code) => ({ student_code }));
+      if (rows.length === 0) {
+        throw new Error('No 10-digit student IRNs in this quarter’s enrolled roster.');
+      }
+      const year = selectedTerm.yearLabel || 'term';
+      const q = selectedTerm.termNumber != null ? `Q${selectedTerm.termNumber}` : 'roster';
+      // CSV keeps IRNs as text (Excel .xlsx often coerces them to numbers / scientific notation).
+      exportRowsAsCsv(rows, `enrollment_roster_${year}_${q}`);
+      showToast({
+        message: `Downloaded ${rows.length} IRN${rows.length === 1 ? '' : 's'} for offline Bulk Grading.`,
+        type: 'success',
+      });
+    } catch (err) {
+      const message = toFriendlyError(err, 'download');
+      setError(message);
+      showToast({ message, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleEnroll = async () => {
     if (!selectedTermId || selectedStudentIds.length === 0) return;
     setSaving(true);
@@ -748,19 +792,22 @@ export default function TermManagement() {
                 onChange={(e) => setForm((prev) => ({ ...prev, yearLabel: e.target.value }))}
               />
             </label>
-            <label className="block text-sm">
+            <div className="block text-sm">
               <span className="mb-1 block text-xs text-foreground-muted">Quarter</span>
-              <select
-                className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground"
+              <Combobox
+                aria-label="Quarter"
                 value={form.termNumber}
-                onChange={(e) => setForm((prev) => ({ ...prev, termNumber: e.target.value }))}
-              >
-                <option value="1">Quarter 1</option>
-                <option value="2">Quarter 2</option>
-                <option value="3">Quarter 3</option>
-                <option value="4">Quarter 4 (Summer Quarter)</option>
-              </select>
-            </label>
+                onChange={(val) => setForm((prev) => ({ ...prev, termNumber: val }))}
+                allowEmpty={false}
+                options={[
+                  { value: '1', label: 'Quarter 1' },
+                  { value: '2', label: 'Quarter 2' },
+                  { value: '3', label: 'Quarter 3' },
+                  { value: '4', label: 'Quarter 4 (Summer Quarter)' },
+                ]}
+                className="w-full"
+              />
+            </div>
             <label className="block text-sm">
               <span className="mb-1 block text-xs text-foreground-muted">Start date (optional)</span>
               <DatePicker
@@ -852,26 +899,28 @@ export default function TermManagement() {
                 />
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <select
-                  value={termFilter}
-                  onChange={(e) => setTermFilter(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                <Combobox
                   aria-label="Filter quarters by year"
-                >
-                  <option value="all">All quarters</option>
-                  {termYearOptions.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-                <select
-                  value={termSortOrder}
-                  onChange={(e) => setTermSortOrder(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={termFilter}
+                  onChange={setTermFilter}
+                  allowEmpty={false}
+                  options={[
+                    { value: 'all', label: 'All quarters' },
+                    ...termYearOptions.map((year) => ({ value: year, label: String(year) })),
+                  ]}
+                  className="w-full"
+                />
+                <Combobox
                   aria-label="Sort quarters"
-                >
-                  <option value="desc">Descending</option>
-                  <option value="asc">Ascending</option>
-                </select>
+                  value={termSortOrder}
+                  onChange={setTermSortOrder}
+                  allowEmpty={false}
+                  options={[
+                    { value: 'desc', label: 'Descending' },
+                    { value: 'asc', label: 'Ascending' },
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
           )}
@@ -944,6 +993,16 @@ export default function TermManagement() {
                   >
                     <Download className="h-4 w-4" />
                     Practice pack
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={handleDownloadOfflineRoster}
+                    title="CSV of enrolled 10-digit IRNs for offline lecturer Bulk Grading"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-surface-secondary disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Download roster
                   </button>
                   {!selectedTerm.current && (
                     <button

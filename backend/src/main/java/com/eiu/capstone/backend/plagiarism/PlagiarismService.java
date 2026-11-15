@@ -35,7 +35,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class PlagiarismService {
 
     public static final String ROLE_ORIGINAL = "ORIGINAL";

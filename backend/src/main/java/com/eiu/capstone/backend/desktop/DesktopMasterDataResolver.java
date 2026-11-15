@@ -12,7 +12,7 @@ import com.eiu.capstone.backend.model.MasterData;
 import com.eiu.capstone.backend.repository.MasterDataRepository;
 
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopMasterDataResolver {
 
     private static final int DEFAULT_START_ID = 1000;

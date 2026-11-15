@@ -16,7 +16,7 @@ import com.eiu.capstone.backend.analytics.dto.WeeklyRankingRow;
 import com.eiu.capstone.backend.analytics.service.WeeklyRankingService;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class WeeklyRankingPayoutService {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyRankingPayoutService.class);

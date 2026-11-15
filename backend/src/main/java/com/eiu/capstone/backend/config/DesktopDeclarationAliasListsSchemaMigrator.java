@@ -14,7 +14,7 @@ import jakarta.annotation.PostConstruct;
  * primary column when children are missing; backfill keeps H2 aligned with cloud.
  */
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopDeclarationAliasListsSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

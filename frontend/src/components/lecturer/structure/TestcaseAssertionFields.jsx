@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
+import Combobox from '../../ui/Combobox';
 import {
   allowedAssertionKinds,
   comparisonModeLabel,
@@ -45,19 +46,22 @@ function EqualsExpected({ assertion, namedInstances, onChange }) {
   const instance = current?.instance || '';
 
   return (
-    <select
-      className={`${FIELD_CLASS_COMPACT} sm:col-span-2`}
-      value={instance}
-      onChange={(e) => onChange({
-        ...assertion,
-        expectedValue: writeObjectCheck('EQUALS', { instance: e.target.value }),
-      })}
-    >
-      <option value="">Named instance</option>
-      {namedInstances.map((item) => (
-        <option key={item.name} value={item.name}>{item.name}</option>
-      ))}
-    </select>
+    <div className="sm:col-span-2">
+      <Combobox
+        aria-label="Equals named instance"
+        placeholder="Named instance"
+        emptyLabel="Named instance"
+        allowEmpty
+        size="sm"
+        value={instance}
+        onChange={(val) => onChange({
+          ...assertion,
+          expectedValue: writeObjectCheck('EQUALS', { instance: val }),
+        })}
+        options={namedInstances.map((item) => ({ value: item.name, label: item.name }))}
+        className="w-full min-w-0"
+      />
+    </div>
   );
 }
 
@@ -75,19 +79,20 @@ function FieldExpected({
 
   if (showNamedInstancePicker) {
     return (
-      <select
-        className={FIELD_CLASS_COMPACT}
+      <Combobox
+        aria-label="Field named instance"
+        placeholder="Named instance"
+        emptyLabel="Named instance"
+        allowEmpty
+        size="sm"
         value={instanceName}
-        onChange={(e) => onChange({
+        onChange={(val) => onChange({
           ...assertion,
-          expectedValue: JSON.stringify({ $instance: e.target.value }),
+          expectedValue: JSON.stringify({ $instance: val }),
         })}
-      >
-        <option value="">Named instance</option>
-        {namedInstances.map((item) => (
-          <option key={item.name} value={item.name}>{item.name}</option>
-        ))}
-      </select>
+        options={namedInstances.map((item) => ({ value: item.name, label: item.name }))}
+        className="w-full min-w-0"
+      />
     );
   }
 
@@ -138,11 +143,12 @@ export default function TestcaseAssertionFields({
 
   return (
     <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-3">
-      <select
-        className={FIELD_CLASS_COMPACT}
+      <Combobox
+        aria-label="Assertion kind"
         value={kinds.includes(assertion.assertionKind) ? assertion.assertionKind : kinds[0]}
-        onChange={(e) => {
-          const nextKind = e.target.value;
+        allowEmpty={false}
+        size="sm"
+        onChange={(nextKind) => {
           const objectEquals = nextKind === 'RETURN_VALUE' && allowEquals && objectReturn;
           onChange({
             ...assertion,
@@ -151,18 +157,20 @@ export default function TestcaseAssertionFields({
             expectedValue: defaultExpectedValue(nextKind, objectEquals),
           });
         }}
-      >
-        {kinds.map((kind) => (
-          <option key={kind} value={kind}>{kind}</option>
-        ))}
-      </select>
+        options={kinds.map((kind) => ({ value: kind, label: kind }))}
+        className="w-full min-w-0"
+      />
 
       {assertion.assertionKind === 'FIELD_STATE' && (
-        <select
-          className={FIELD_CLASS_COMPACT}
+        <Combobox
+          aria-label="Field"
+          placeholder="Field"
+          emptyLabel="Field"
+          allowEmpty
+          size="sm"
           value={assertion.fieldId || ''}
-          onChange={(e) => {
-            const fieldId = e.target.value || null;
+          onChange={(val) => {
+            const fieldId = val || null;
             let expectedValue = assertion.expectedValue;
             if (allowFieldInstanceRef && fieldId) {
               const field = catalog.fieldsById.get(fieldId);
@@ -176,12 +184,9 @@ export default function TestcaseAssertionFields({
             }
             onChange({ ...assertion, fieldId, expectedValue });
           }}
-        >
-          <option value="">Field</option>
-          {fieldOptions.map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
-          ))}
-        </select>
+          options={fieldOptions.map((opt) => ({ value: opt.id, label: opt.label }))}
+          className="w-full min-w-0"
+        />
       )}
 
       {showEqualsReturn && (
@@ -228,17 +233,18 @@ export default function TestcaseAssertionFields({
       )}
 
       {showComparison && (
-        <select
-          className={FIELD_CLASS_COMPACT}
+        <Combobox
+          aria-label="Comparison mode"
           value={comparisonMode}
-          onChange={(e) => onChange({ ...assertion, comparisonMode: e.target.value })}
-        >
-          {comparisonModes.map((mode) => (
-            <option key={mode} value={mode}>
-              {comparisonModeLabel(mode)}
-            </option>
-          ))}
-        </select>
+          allowEmpty={false}
+          size="sm"
+          onChange={(mode) => onChange({ ...assertion, comparisonMode: mode })}
+          options={comparisonModes.map((mode) => ({
+            value: mode,
+            label: comparisonModeLabel(mode),
+          }))}
+          className="w-full min-w-0"
+        />
       )}
 
       {canRemove && (

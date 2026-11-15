@@ -20,7 +20,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * Web-only global API burst guard. Runs after {@link JwtAuthenticationFilter}.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class BurstLimitFilter extends OncePerRequestFilter {
 
     private final BurstBudgetService burstBudgetService;

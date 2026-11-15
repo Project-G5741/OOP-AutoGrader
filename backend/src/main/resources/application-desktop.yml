@@ -58,8 +58,8 @@ app:
   storage:
     submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
   grading:
-    # Offline practice never uses the remote container sandbox (local worker.jar only).
-    sandbox:
+    # Offline practice stays on the open worker. Render sets STUDENT_DENY_ENABLED.
+    student-deny:
       enabled: false
     worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
     worker-java: ${DESKTOP_WORKER_JAVA:java}

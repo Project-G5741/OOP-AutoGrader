@@ -25,7 +25,7 @@ import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.FeedbackService;
 
 @RestController
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @RequestMapping("/api/feedback")
 public class FeedbackController {
 

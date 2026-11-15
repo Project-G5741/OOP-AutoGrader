@@ -2,8 +2,10 @@
 //! Thin Rust + WebView2 practice host (replaces self-contained .NET launcher).
 
 mod backend;
+mod host_config;
 
 use backend::Backend;
+use host_config::load as load_host_config;
 use std::env;
 use std::error::Error;
 use std::io;
@@ -22,7 +24,6 @@ use std::os::windows::process::CommandExt;
 
 const PRACTICE_QUIT: &str = "practice-quit";
 const PRACTICE_RESTART: &str = "practice-restart";
-const BACKEND_PORT: u16 = 18002;
 const PORT_FREE_TIMEOUT: Duration = Duration::from_secs(15);
 const PORT_FREE_POLL: Duration = Duration::from_millis(100);
 
@@ -40,20 +41,22 @@ enum UserEvent {
 fn main() {
     if let Err(err) = run() {
         let install_dir = install_dir_from_exe();
+        let config = load_host_config(&install_dir);
         let message = err.to_string();
         backend::append_error_log(&install_dir, &message);
         let hint = if is_missing_backend(err.as_ref()) {
-            format!("{message}\n\nTry OOP-AutoGrader-Practice.bat to see Java errors.")
+            format!("{message}\n\nTry the .bat launcher in this folder to see Java errors.")
         } else {
             message
         };
-        show_fatal(&hint);
+        show_fatal(&hint, &config.fatal_caption);
         process::exit(1);
     }
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
     let install_dir = install_dir_from_exe();
+    let config = load_host_config(&install_dir);
 
     // Show a real HWND before starting Java. A GUI-subsystem host with no
     // visible window is Efficiency-Mode throttled on Windows 11, which roughly
@@ -63,19 +66,19 @@ fn run() -> Result<(), Box<dyn Error>> {
     let proxy = event_loop.create_proxy();
 
     let window = WindowBuilder::new()
-        .with_title("OOP AutoGrader — Starting…")
+        .with_title(&config.starting_title)
         .with_inner_size(tao::dpi::LogicalSize::new(1280.0, 800.0))
         .with_visible(true)
         .build(&event_loop)?;
     force_window_interactive(&window);
 
-    let mut backend = Backend::start(&install_dir)?;
+    let mut backend = Backend::start(&install_dir, &config)?;
     if let Err(err) = backend.wait_until_healthy() {
         backend.stop();
         return Err(err.into());
     }
 
-    window.set_title("OOP AutoGrader — Practice");
+    window.set_title(&config.window_title);
 
     let ipc_handler = move |req: Request<String>| {
         match host_ipc_type(req.body()) {
@@ -90,7 +93,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     };
 
     let builder = WebViewBuilder::new()
-        .with_url(Backend::app_url())
+        .with_url(Backend::app_url(config.port))
         .with_ipc_handler(ipc_handler)
         .with_devtools(false);
 
@@ -108,6 +111,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut backend = Some(backend);
     let mut webview = Some(webview);
     let install_dir_for_restart = install_dir.clone();
+    let restart_port = config.port;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -124,7 +128,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             }
             Event::UserEvent(UserEvent::PracticeRestart) => {
                 backend.take();
-                let _ = wait_until_port_free(BACKEND_PORT, PORT_FREE_TIMEOUT);
+                let _ = wait_until_port_free(restart_port, PORT_FREE_TIMEOUT);
                 relaunch_self(&install_dir_for_restart);
                 webview.take();
                 *control_flow = ControlFlow::Exit;
@@ -222,7 +226,7 @@ fn force_window_interactive(window: &tao::window::Window) {
 fn force_window_interactive(_window: &tao::window::Window) {}
 
 #[cfg(windows)]
-fn show_fatal(message: &str) {
+fn show_fatal(message: &str, caption: &str) {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use std::ptr;
@@ -244,7 +248,7 @@ fn show_fatal(message: &str) {
     const MB_OK: u32 = 0x0000_0000;
     const MB_ICONERROR: u32 = 0x0000_0010;
     let text = wide(message);
-    let caption = wide("OOP AutoGrader Practice");
+    let caption = wide(caption);
     unsafe {
         MessageBoxW(
             ptr::null_mut(),
@@ -256,6 +260,6 @@ fn show_fatal(message: &str) {
 }
 
 #[cfg(not(windows))]
-fn show_fatal(message: &str) {
-    eprintln!("OOP AutoGrader Practice: {message}");
+fn show_fatal(message: &str, caption: &str) {
+    eprintln!("{caption}: {message}");
 }

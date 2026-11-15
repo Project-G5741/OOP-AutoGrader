@@ -255,7 +255,7 @@ export default function ThemeToggle({ className = '' }) {
                 transition={reducedMotion ? { duration: 0.01 } : { duration: 0.16, delay: 0.06 }}
                 className="theme-page-pill"
                 aria-label={`Next theme group (page ${page + 1} of ${totalPages})`}
-                title="Cuộn chuột hoặc bấm để xem 3 theme tiếp theo"
+                title="Scroll or click to see the next 3 themes"
               >
                 <span>{groupHint}</span>
                 <span className="theme-page-count">

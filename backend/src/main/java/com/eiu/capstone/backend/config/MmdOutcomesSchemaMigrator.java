@@ -10,7 +10,7 @@ import jakarta.annotation.PostConstruct;
  * Ensures {@code submission_challenge_result.mmd_outcomes} exists on older databases.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class MmdOutcomesSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

@@ -10,7 +10,7 @@ import jakarta.annotation.PostConstruct;
  * Ensures {@code user_account.session_version} exists on older databases.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class SessionVersionSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

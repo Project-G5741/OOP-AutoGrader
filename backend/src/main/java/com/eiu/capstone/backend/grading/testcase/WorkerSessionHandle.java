@@ -11,6 +11,7 @@ import java.util.function.UnaryOperator;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
 import com.eiu.capstone.backend.model.InvocationKind;
 import com.eiu.capstone.backend.grading.testcase.transport.WorkerTransport;
+import com.eiu.capstone.backend.grading.testcase.worker.WorkerInvokeEngine;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 
 /**
@@ -32,6 +33,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
     private UnaryOperator<String> classesDirMapper;
     private final boolean remote;
     private final Supplier<RemoteSessionParts> remoteReopen;
+    private volatile boolean dirty;
 
     private WorkerSessionHandle(WorkerProcessClient client,
                                 int timeoutSeconds,
@@ -126,6 +128,28 @@ public final class WorkerSessionHandle implements AutoCloseable {
         }
     }
 
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void markDirty() {
+        dirty = true;
+    }
+
+    /**
+     * Class parse on this live session (OT host lease). Does not spawn a second JVM.
+     */
+    public SerializedInvocationOutcome reflect(String classesDir) {
+        WorkerIpc.Request request = new WorkerIpc.Request(
+                WorkerIpc.OP_REFLECT,
+                classesDirMapper.apply(classesDir),
+                null,
+                null,
+                null,
+                WorkerIpc.DEFAULT_STDOUT_CAP);
+        return roundTrip(request, Math.max(1, timeoutSeconds) + RETURN_SLACK_SECONDS);
+    }
+
     public SerializedInvocationOutcome invoke(String classesDir,
                                               InvocationRubric invocation,
                                               List<String> snapshotFieldNames) {
@@ -138,6 +162,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 WorkerIpc.DEFAULT_STDOUT_CAP);
         SerializedInvocationOutcome outcome = roundTrip(request, transportWaitSeconds(1));
         if (WorkerIpc.shouldAbortSession(outcome)) {
+            markDirty();
             synchronized (lock) {
                 clearSessionLocked();
                 respawnLocked();
@@ -165,6 +190,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 specs);
         SerializedInvocationOutcome outcome = roundTrip(request, transportWaitSeconds(1));
         if (WorkerIpc.shouldAbortSession(outcome)) {
+            markDirty();
             synchronized (lock) {
                 clearSessionLocked();
                 respawnLocked();
@@ -202,7 +228,8 @@ public final class WorkerSessionHandle implements AutoCloseable {
                     slice,
                     Math.max(1, timeoutSeconds),
                     Math.max(0, batchParallelism));
-            SerializedInvocationOutcome partial = roundTrip(request, transportWaitSeconds(slice.size()));
+            SerializedInvocationOutcome partial = roundTrip(
+                    request, transportWaitSeconds(slice.size(), timeoutSeconds, batchParallelism));
             if (partial == null) {
                 return SerializedInvocationOutcome.error(infraFallbackMessage());
             }
@@ -223,6 +250,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
                 while (merged.size() < items.size()) {
                     merged.add(SerializedInvocationOutcome.timedOut("", false));
                 }
+                markDirty();
                 synchronized (lock) {
                     clearSessionLocked();
                     respawnLocked();
@@ -236,6 +264,7 @@ public final class WorkerSessionHandle implements AutoCloseable {
             if (!timedOut) {
                 break;
             }
+            markDirty();
             synchronized (lock) {
                 clearSessionLocked();
                 if (offset >= items.size()) {
@@ -272,12 +301,22 @@ public final class WorkerSessionHandle implements AutoCloseable {
         return mapped;
     }
 
-    static int transportWaitSeconds(int itemCount, int timeoutSeconds) {
-        return Math.max(1, Math.max(1, itemCount) * Math.max(1, timeoutSeconds) + RETURN_SLACK_SECONDS);
+    public static int transportWaitSeconds(int itemCount, int timeoutSeconds) {
+        return transportWaitSeconds(itemCount, timeoutSeconds, 0);
+    }
+
+    /**
+     * Host wait uses in-worker pool slices {@code ⌈T/P⌉ × τ + slack}, not serial {@code T × τ}.
+     */
+    public static int transportWaitSeconds(int itemCount, int timeoutSeconds, int batchParallelism) {
+        int pool = WorkerInvokeEngine.resolveBatchPoolSize(itemCount, batchParallelism);
+        int items = Math.max(1, itemCount);
+        int slices = (items + pool - 1) / pool;
+        return Math.max(1, slices * Math.max(1, timeoutSeconds) + RETURN_SLACK_SECONDS);
     }
 
     private int transportWaitSeconds(int itemCount) {
-        return transportWaitSeconds(itemCount, timeoutSeconds);
+        return transportWaitSeconds(itemCount, timeoutSeconds, 0);
     }
 
     private SerializedInvocationOutcome roundTrip(WorkerIpc.Request request, int waitSeconds) {

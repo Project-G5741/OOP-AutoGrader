@@ -30,7 +30,7 @@ import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.wi
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withTransaction;
 
 @Component
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class H2GradingResultJdbcWriter implements GradingResultJdbcWriter {
 
     private static final LabDeadlineHelper DEADLINE = new LabDeadlineHelper();

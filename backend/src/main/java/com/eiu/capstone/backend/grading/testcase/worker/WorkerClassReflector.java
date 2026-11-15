@@ -31,6 +31,7 @@ public final class WorkerClassReflector {
         if (classFiles.isEmpty()) {
             return List.of();
         }
+        StudentDenyPolicy.allowClassRoot(classesDir);
         List<ReflectClass> result = new ArrayList<>();
         try (URLClassLoader loader = new URLClassLoader(
                 new URL[] { classesDir.toUri().toURL() }, ClassLoader.getPlatformClassLoader())) {

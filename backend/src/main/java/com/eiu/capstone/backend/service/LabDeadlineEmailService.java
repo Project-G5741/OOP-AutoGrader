@@ -19,7 +19,7 @@ import com.eiu.capstone.backend.repository.TermEnrollmentRepository;
 import com.eiu.capstone.backend.repository.UserAccountRepository;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class LabDeadlineEmailService {
 
     private static final DateTimeFormatter DEADLINE_FORMAT =

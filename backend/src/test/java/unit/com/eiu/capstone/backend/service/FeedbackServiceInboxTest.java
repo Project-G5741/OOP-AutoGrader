@@ -179,27 +179,18 @@ class FeedbackServiceInboxTest {
     }
 
     @Test
-    void consumeRepliesHardDeletesOwnedRepliedItems() {
-        UUID userId = UUID.randomUUID();
-        UUID replyId = UUID.randomUUID();
+    void consumeRepliesDoesNotHardDelete() {
         UserAccount user = mock(UserAccount.class);
-        when(user.getId()).thenReturn(userId);
-        FeedbackItem archived = item("RESOLVED", "1", "A", "done");
-        archived.setLecturerResponse("Fixed in lab 3");
-        archived.setArchivedAt(OffsetDateTime.parse("2026-10-20T03:00:00Z"));
-        when(itemRepository.findByIdInAndUser_IdAndLecturerResponseIsNotNull(List.of(replyId), userId))
-                .thenReturn(List.of(archived));
+        service.consumeRepliesForAuthor(user, List.of(UUID.randomUUID()));
 
-        service.consumeRepliesForAuthor(user, List.of(replyId));
-
-        verify(itemRepository).deleteAll(List.of(archived));
+        verify(itemRepository, never()).deleteAll(any());
+        verify(itemRepository, never()).findByIdInAndUser_IdAndLecturerResponseIsNotNull(any(), any());
+        verify(itemRepository, never()).save(any());
     }
 
     @Test
     void consumeRepliesWithEmptyIdsIsNoOp() {
         UserAccount user = mock(UserAccount.class);
-        when(user.getId()).thenReturn(UUID.randomUUID());
-
         service.consumeRepliesForAuthor(user, List.of());
 
         verify(itemRepository, never()).deleteAll(any());
@@ -221,6 +212,66 @@ class FeedbackServiceInboxTest {
         List<FeedbackAuthorReplyDTO> replies = service.listRepliesForAuthor(user);
         assertEquals(1, replies.size());
         assertEquals("Fixed in lab 3", replies.get(0).lecturerResponse());
+    }
+
+    @Test
+    void listRepliesOmitsClearedSnapshotUntilNewerReply() {
+        UUID userId = UUID.randomUUID();
+        UserAccount user = mock(UserAccount.class);
+        when(user.getId()).thenReturn(userId);
+        OffsetDateTime snapshotA = OffsetDateTime.parse("2026-10-20T02:00:00Z");
+        FeedbackItem cleared = item("RESOLVED", "1", "A", "done");
+        cleared.setLecturerResponse("Fixed in lab 3");
+        cleared.setResponseAt(snapshotA);
+        cleared.setAuthorReplyClearedAt(snapshotA);
+        when(itemRepository.findByUser_IdAndLecturerResponseIsNotNullOrderByResponseAtDesc(userId))
+                .thenReturn(List.of(cleared));
+
+        assertEquals(0, service.listRepliesForAuthor(user).size());
+
+        OffsetDateTime snapshotB = OffsetDateTime.parse("2026-10-21T02:00:00Z");
+        cleared.setResponseAt(snapshotB);
+        cleared.setLecturerResponse("Updated fix");
+        assertEquals(1, service.listRepliesForAuthor(user).size());
+        assertEquals("Updated fix", service.listRepliesForAuthor(user).get(0).lecturerResponse());
+    }
+
+    @Test
+    void clearAuthorReplySnapshotFromMatchingNotifKey() {
+        UUID userId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        OffsetDateTime snapshotA = OffsetDateTime.parse("2026-10-20T02:00:00Z");
+        FeedbackItem owned = item("RESOLVED", "1", "A", "done");
+        owned.setLecturerResponse("Fixed in lab 3");
+        owned.setResponseAt(snapshotA);
+        when(itemRepository.findByIdAndUser_Id(itemId, userId)).thenReturn(Optional.of(owned));
+        when(itemRepository.save(owned)).thenReturn(owned);
+
+        String key = "feedback-reply-" + itemId + "-" + snapshotA;
+        service.clearAuthorReplySnapshotFromNotifKey(userId, key);
+
+        assertEquals(snapshotA, owned.getAuthorReplyClearedAt());
+        verify(itemRepository).save(owned);
+    }
+
+    @Test
+    void clearAuthorReplySnapshotIgnoresStaleOrForeignKeys() {
+        UUID userId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        OffsetDateTime snapshotA = OffsetDateTime.parse("2026-10-20T02:00:00Z");
+        OffsetDateTime snapshotB = OffsetDateTime.parse("2026-10-21T02:00:00Z");
+        FeedbackItem owned = item("RESOLVED", "1", "A", "done");
+        owned.setLecturerResponse("Fixed");
+        owned.setResponseAt(snapshotB);
+        when(itemRepository.findByIdAndUser_Id(itemId, userId)).thenReturn(Optional.of(owned));
+
+        service.clearAuthorReplySnapshotFromNotifKey(userId, "feedback-reply-" + itemId + "-" + snapshotA);
+        verify(itemRepository).findByIdAndUser_Id(itemId, userId);
+        verify(itemRepository, never()).save(any());
+
+        service.clearAuthorReplySnapshotFromNotifKey(userId, "deadline-countdown-x");
+        verify(itemRepository).findByIdAndUser_Id(itemId, userId);
+        verify(itemRepository, never()).save(any());
     }
 
     @Test

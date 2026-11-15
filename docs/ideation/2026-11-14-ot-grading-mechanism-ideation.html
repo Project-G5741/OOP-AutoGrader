@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ideation: OT grading mechanism improvements</title>
+  <style>
+    :root {
+      --bg: #f7f4ef;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --card: #fffdf9;
+      --line: #d6d3d1;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --warn: #9a3412;
+      --chip: #e7e5e4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, #dbeafe 0, transparent 40%),
+        radial-gradient(circle at 90% 10%, #ccfbf1 0, transparent 35%),
+        var(--bg);
+      line-height: 1.5;
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    header h1 { font-size: 1.75rem; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
+    .meta { color: var(--muted); font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .meta span { display: inline-block; margin-right: 1rem; }
+    nav.toc {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin: 1rem 0 1.75rem; padding: 0.75rem;
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    }
+    nav.toc a {
+      text-decoration: none; color: var(--accent); font-size: 0.9rem;
+      padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--accent-soft);
+    }
+    h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 0.35rem; }
+    ul.axes { columns: 2; gap: 1.5rem; }
+    @media (max-width: 640px) { ul.axes { columns: 1; } }
+    .jump { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1.25rem; }
+    .jump a { color: var(--ink); text-decoration: none; background: var(--chip); padding: 0.25rem 0.55rem; border-radius: 6px; font-size: 0.85rem; }
+    article.idea {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 1rem 1.1rem 1.15rem; margin: 0 0 1rem;
+    }
+    article.idea h3 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 0.75rem; }
+    .chip {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+      background: var(--chip); padding: 0.15rem 0.45rem; border-radius: 4px; color: var(--muted);
+    }
+    .chip.axis { background: var(--accent-soft); color: var(--accent); }
+    .basis { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; background: #f5f5f4; padding: 0.65rem 0.75rem; border-radius: 8px; overflow-x: auto; }
+    .downsides { color: var(--warn); }
+    table.reject { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    table.reject th, table.reject td { border: 1px solid var(--line); padding: 0.45rem 0.55rem; text-align: left; vertical-align: top; }
+    table.reject th { background: #e7e5e4; }
+    footer.composition-signal { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; }
+    svg.diagram { width: 100%; max-width: 680px; height: auto; display: block; margin: 0.75rem 0; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Ideation: OT grading mechanism improvements</h1>
+    <div class="meta">
+      <span><strong>Date:</strong> <time datetime="2026-11-14">2026-11-14</time></span>
+      <span><strong>Topic:</strong> ot-grading-mechanism</span>
+      <span><strong>Focus:</strong> OT upload wall-clock / throughput mechanisms</span>
+      <span><strong>Mode:</strong> repo-grounded</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#grounding">Grounding</a>
+    <a href="#axes">Axes</a>
+    <a href="#ideas">Ranked ideas</a>
+    <a href="#rejection">Rejection summary</a>
+  </nav>
+
+  <section id="grounding">
+    <h2>Grounding Context</h2>
+    <p><strong>Codebase context.</strong> After class+MMD, upload/bulk OT runs as one lab-wide <code>OP_BATCH</code> behind host <code>workerJvmSlot</code> (<code>Semaphore(1)</code>). Local warm reuse exists (<code>SharedLocalWorkerCache</code>) but default <code>worker-idle-ttl-ms=0</code> closes on release. In-worker pool is <code>min(items, CPUs, ot-batch-parallelism)</code>; host transport wait is <code>items×timeout+30s</code>. Class <code>--reflect</code>, OT, and dry-run share the same unfair slot. Desktop keeps the same <code>TestcaseGrader</code>/<code>worker.jar</code> path, forces sandbox off, and caps OT pool at 2.</p>
+    <p><strong>Past learnings.</strong> Rejected: student invoke in API JVM; per-testcase remote RTT; nested grading-executor joins; inventing a second student OT runner. Kept: batch IPC + execution-only timeout; hang → halt → respawn remaining; desktop/web/bulk scoring-logic parity.</p>
+    <p><strong>External context.</strong> Online judges prefer warm-then-destroy sandboxes and process-as-kill-boundary. PrairieLearn zygote is the Python warm pattern; HotSpot cannot fork safely. Reflection-based OT (live student heap) is a published gap — batch IPC buys warmth and couples timeout, contamination, crash, and slot occupancy.</p>
+    <p><em>Note: codebase-scan subagent was blocked once; grounding used in-thread AGENTS/docs + four evidence dossiers. Verifier ran fresh-context.</em></p>
+  </section>
+
+  <section id="axes">
+    <h2>Topic Axes</h2>
+    <ul class="axes">
+      <li>Worker lifecycle / warm reuse</li>
+      <li>Lab-wide batch IPC &amp; in-worker parallelism</li>
+      <li>Host slot fairness / serialization</li>
+      <li>Isolation &amp; kill boundary</li>
+      <li>Desktop / offline parity</li>
+    </ul>
+  </section>
+
+  <section id="ideas">
+    <h2>Ranked Ideas</h2>
+    <div class="jump">
+      <a href="#i1">1. Reflect vs OT slot</a>
+      <a href="#i2">2. Parallel transport lease</a>
+      <a href="#i3">3. Dirty-bit warm park</a>
+      <a href="#i4">4. Priority admission</a>
+      <a href="#i5">5. Chunked OP_BATCH</a>
+      <a href="#i6">6. Heap/Metaspace pool governor</a>
+      <a href="#i7">7. Shootdown→SCRAM ladder</a>
+    </div>
+
+    <article class="idea" id="i1">
+      <h3>1. Detach <code>--reflect</code> from the OT host slot (or fold it into one OT lease)</h3>
+      <div class="chips">
+        <span class="chip axis">Host slot fairness</span>
+        <span class="chip">Confidence 88%</span>
+        <span class="chip">Complexity Medium</span>
+      </div>
+      <p>Class-tab <code>--reflect</code> already acquires <code>workerJvmSlot</code> during class+MMD (untimed), then OT acquires again and often cold-opens a second JVM. Either give reflect its own short lane, or hold one lease that runs reflect IPC then <code>OP_BATCH</code> on the same session — so declaration parsing stops stealing OT’s only host worker.</p>
+      <p class="basis"><strong>basis</strong> direct: <code>ReflectionClassParser</code> acquires the same unfair <code>Semaphore(1)</code> as OT/dry-run; OT only borrows <code>SharedLocalWorkerCache</code> after class+MMD. Verifier: sound.</p>
+      <p><strong>rationale.</strong> Slot=1 was meant to bound OT isolation; today it also serializes Metaspace-safe parse and can inflate <code>worker_slot_wait_ms</code> for students while lecturer dry-runs barge.</p>
+      <p class="downsides"><strong>downsides.</strong> A second reflect process raises concurrent RSS briefly; a unified lease lengthens hold time if reflect is slow. Must keep student types out of the API JVM.</p>
+      <svg class="diagram" viewBox="0 0 640 160" role="img" aria-label="Today vs proposed slot ownership">
+        <rect x="10" y="20" width="300" height="120" rx="8" fill="#fff" stroke="#a8a29e"/>
+        <text x="20" y="42" font-size="12" fill="#57534e">Today</text>
+        <text x="20" y="70" font-size="12">class+MMD: reflect holds slot</text>
+        <text x="20" y="92" font-size="12">release → OT acquire → cold open</text>
+        <text x="20" y="114" font-size="12">dry-run may barge (unfair)</text>
+        <rect x="330" y="20" width="300" height="120" rx="8" fill="#ccfbf1" stroke="#0f766e"/>
+        <text x="340" y="42" font-size="12" fill="#0f766e">Proposed</text>
+        <text x="340" y="70" font-size="12">reflect off-slot OR</text>
+        <text x="340" y="92" font-size="12">one lease: reflect → OP_BATCH</text>
+        <text x="340" y="114" font-size="12">OT lane stays exclusive</text>
+      </svg>
+    </article>
+
+    <article class="idea" id="i2">
+      <h3>2. Parallelism-aware transport lease (stop paying serial for a parallel batch)</h3>
+      <div class="chips">
+        <span class="chip axis">Lab-wide batch IPC &amp; in-worker parallelism</span>
+        <span class="chip">Confidence 90%</span>
+        <span class="chip">Complexity Low</span>
+      </div>
+      <p>Host wait is <code>itemCount × timeout + 30s</code> even though the worker already runs up to P items concurrently. Size the lease as <code>⌈T/P⌉ × timeout + slack</code> (optionally shrink as items complete via heartbeats) so one Midterm lab does not monopolize <code>workerJvmSlot</code> for a serial-pessimistic ceiling.</p>
+      <p class="basis"><strong>basis</strong> direct: <code>WorkerSessionHandle.transportWaitSeconds</code> ignores pool size; <code>WorkerInvokeEngine.resolveBatchPoolSize</code> already parallelizes. Verifier: sound.</p>
+      <p><strong>rationale.</strong> Upload pain is often slot occupancy for other waiters, not just student-code CPU.</p>
+      <p class="downsides"><strong>downsides.</strong> Under-budgeted waits risk false outer timeouts if the pool stalls; need careful slack and hang detection.</p>
+    </article>
+
+    <article class="idea" id="i3">
+      <h3>3. Dirty-bit / demand-gated warm park (use the cache you already shipped)</h3>
+      <div class="chips">
+        <span class="chip axis">Worker lifecycle / warm reuse</span>
+        <span class="chip">Confidence 92%</span>
+        <span class="chip">Complexity Low</span>
+      </div>
+      <p>Default TTL 0 always closes after OT/dry-run, so every upload pays cold <code>ProcessBuilder</code> spawn. Keep RSS-safe defaults, but park when the slot has queued waiters (or after clean batches), and destroy only when hang dirt marks the session — “warm pool, destroy dirty,” not “always bank the furnace.”</p>
+      <p class="basis"><strong>basis</strong> direct: <code>SharedLocalWorkerCache</code> already parks for positive TTL and never caches sandbox; tests cover reuse. External: warm-then-destroy sandboxes. Verifier: sound.</p>
+      <p><strong>rationale.</strong> Highest leverage-per-LOC: the mechanism exists; the policy defaults it off on the bottleneck path.</p>
+      <p class="downsides"><strong>downsides.</strong> Parked RSS on small hosts; must never park sandbox/remote sessions; dirty-bit bugs could reuse a contaminated JVM.</p>
+    </article>
+
+    <article class="idea" id="i4">
+      <h3>4. Priority / fair admission on <code>workerJvmSlot</code></h3>
+      <div class="chips">
+        <span class="chip axis">Host slot fairness</span>
+        <span class="chip">Confidence 85%</span>
+        <span class="chip">Complexity Medium</span>
+      </div>
+      <p>Replace unfair <code>Semaphore(1)</code> with a fair (or priority) admission queue: STUDENT_UPLOAD / BULK &gt; DRY_RUN &gt; REFLECT, fair within band. Capacity stays 1 — fairness is queueing, not multi-tenant concurrency. Time waits for every path, including reflect.</p>
+      <p class="basis"><strong>basis</strong> direct: <code>TestcaseInvokeExecutorConfig</code> builds unfair <code>new Semaphore(1)</code>; three contenders documented. External: boarding groups / PriorityClass under a single gate. Verifier: sound.</p>
+      <p><strong>rationale.</strong> Capacity-1 is intentional; barging makes student latency a lottery under lecturer dry-run bursts.</p>
+      <p class="downsides"><strong>downsides.</strong> Lecturer UX can feel “stuck” behind uploads; needs clear metrics and maybe aging so dry-run is not starved forever.</p>
+    </article>
+
+    <article class="idea" id="i5">
+      <h3>5. Challenge-chunked <code>OP_BATCH</code> under one borrowed session</h3>
+      <div class="chips">
+        <span class="chip axis">Lab-wide batch IPC &amp; in-worker parallelism</span>
+        <span class="chip">Confidence 80%</span>
+        <span class="chip">Complexity Medium</span>
+      </div>
+      <p>Keep one session and one <code>TestcaseGrader</code>, but send per-challenge (or fixed-size) batches instead of one lab-wide megabatch. Smaller transport leases, smaller hang blast radius, less 4MiB line pressure — without returning to per-testcase RTT.</p>
+      <p class="basis"><strong>basis</strong> direct: <code>gradeLab</code> flattens all runnable OT into one invoke; handle already slices/respawns after hang. Learning: batch not per-testcase RTT. Verifier: sound.</p>
+      <p><strong>rationale.</strong> Lab-wide batch won RTT; it also couples wait formula and hang radius to whole-lab size.</p>
+      <p class="downsides"><strong>downsides.</strong> More IPC round-trips; must preserve identical scoring/order semantics; careful with composition state that is per-item today.</p>
+    </article>
+
+    <article class="idea" id="i6">
+      <h3>6. Metaspace / heap governor for OT pool size (one math, many envelopes)</h3>
+      <div class="chips">
+        <span class="chip axis">Desktop / offline parity</span>
+        <span class="chip">Confidence 78%</span>
+        <span class="chip">Complexity Medium</span>
+      </div>
+      <p>Desktop hard-codes <code>ot-batch-parallelism=2</code> against Midterm parallel <code>URLClassLoader</code> OOMs while giving a fat heap; cloud uses CPU count. Replace profile folklore with one <code>resolveBatchPoolSize</code> that takes free heap/Metaspace + item count — same jars, different resource envelopes, same scores.</p>
+      <p class="basis"><strong>basis</strong> direct: desktop YAML cap vs cloud <code>0</code>=CPU; each concurrent item owns a loader. Project rule: grading logic must match; resource caps may differ. Verifier marked literal “unify to 2” weak — this survivor is the Metaspace-unit reframing, not forcing cloud to 2.</p>
+      <p><strong>rationale.</strong> Turns “desktop is slow by leftover OOM fear” into a measurable sizing policy that keeps parity honest.</p>
+      <p class="downsides"><strong>downsides.</strong> Estimation wrong → OOM or under-parallelism; needs golden Midterm soak tests on both profiles.</p>
+    </article>
+
+    <article class="idea" id="i7">
+      <h3>7. Soft shootdown, then SCRAM (hang isolation ladder)</h3>
+      <div class="chips">
+        <span class="chip axis">Isolation &amp; kill boundary</span>
+        <span class="chip">Confidence 62%</span>
+        <span class="chip">Complexity High</span>
+      </div>
+      <p>Today first <code>TIMED_OUT</code> cancels siblings and <code>Runtime.halt(0)</code>s the worker. Keep SCRAM as the hard trip for interrupt-immune loops, but first try ClassLoader/thread-local shootdown (or process-per-suspect for the toxic item) so healthy siblings finish without a full respawn tax.</p>
+      <p class="basis"><strong>basis</strong> direct: cancel-rest + halt on TIMED_OUT; worker AGENTS note interrupt-immune loops. External: process-per-test kill boundary; TLB-shootdown analogy. Verifier: weak vs current poison contract — kept as ambitious isolation direction, not a quick win.</p>
+      <p><strong>rationale.</strong> One hung Midterm item currently taxes the whole lab’s remaining work via respawn under slot=1.</p>
+      <p class="downsides"><strong>downsides.</strong> Soft isolation is hard to prove safe; false “clean” reuse is a security/reliability footgun; high design cost.</p>
+    </article>
+  </section>
+
+  <section id="rejection">
+    <h2>Rejection Summary</h2>
+    <table class="reject">
+      <thead><tr><th>Idea / cluster</th><th>Why cut</th></tr></thead>
+      <tbody>
+        <tr><td>Raise <code>workerJvmSlot</code> / Metaspace token-bucket slot&gt;1</td><td>Refuted — durable contracts pin capacity at 1</td></tr>
+        <tr><td>CRaC / zygote snapshot as primary local open</td><td>Weak — no in-repo hooks; warm park already exists; high platform cost</td></tr>
+        <tr><td>Timing stages as closed-loop policy bus alone</td><td>Weak / below floor as a standalone product move</td></tr>
+        <tr><td>Force cloud OT pool to desktop’s 2</td><td>Weak — fights deliberate cloud CPU default; wrong direction for latency</td></tr>
+        <tr><td>“Just set positive idle TTL”</td><td>Duplicate of dirty-bit/demand-gated park (weaker)</td></tr>
+        <tr><td>Always-on sandbox protocol on desktop</td><td>Interesting but topology churn vs resource-envelope clarity</td></tr>
+        <tr><td>Analogy-only cards (blast furnace, lyophilized vaccine, etc.)</td><td>Folded into survivors; metaphors without new mechanism cut</td></tr>
+        <tr><td>~30 other frame duplicates</td><td>Merged into the seven ranked cards</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer class="composition-signal">
+    Composed 2026-11-14 by ce-ideate from conversation focus “OT most time-consuming — propose mechanism improvements”
+    (run 1509384c; ~40 raw → 7 survivors).
+  </footer>
+</main>
+</body>
+</html>

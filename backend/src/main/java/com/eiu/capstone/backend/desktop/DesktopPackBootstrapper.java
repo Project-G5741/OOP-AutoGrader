@@ -11,7 +11,7 @@ import com.eiu.capstone.backend.repository.TermRepository;
 
 @Component
 @Lazy(false)
-@Profile("desktop")
+@Profile({"desktop", "desktop-lecturer"})
 public class DesktopPackBootstrapper {
 
     private final DesktopPackBootstrapService bootstrapService;

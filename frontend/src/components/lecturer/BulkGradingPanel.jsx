@@ -22,10 +22,18 @@ import ExportMenu from './ExportMenu';
 import { exportDataset } from './exportRoster';
 import { PILLAR_EXPORT_COLUMNS, formatPillarScore, pillarExportFields, pillarsForResultsTab } from './pillarScoreColumns';
 import BulkSubmissionDrawer from './BulkSubmissionDrawer';
+import LecturerOfflineBulkDownload from './LecturerOfflineBulkDownload';
+import { desktopApiBase } from '../../utils/desktopMode';
+import { useToast } from '../ui/Toast';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
+const API_BASE = desktopApiBase();
 const BULK_RESULTS_PAGE_SIZE = 12;
-const BULK_EXPORT_FORMATS = ['excel', 'pdf', 'csv'];
+const IS_DESKTOP_LECTURER = import.meta.env.VITE_APP_MODE === 'desktop-lecturer';
+/** Offline lecturer only: how many students may be in-flight at once. Web stays sequential (1). */
+const DESKTOP_BULK_STUDENT_CONCURRENCY = 4;
+const BULK_EXPORT_FORMATS = IS_DESKTOP_LECTURER
+  ? ['excel', 'csv']
+  : ['excel', 'pdf', 'csv'];
 const RESULTS_HEADER_CLASS = 'px-4 py-3 text-left text-sm font-semibold text-foreground-secondary';
 const RESULTS_SORT_COLUMNS = [
   { key: 'studentName', label: 'Student' },
@@ -129,6 +137,7 @@ function buildStudentMultipart(student) {
 }
 
 export default function BulkGradingPanel({ labs = [] }) {
+  const showToast = useToast();
   const inputRef = useRef(null);
   const cancelGradingRef = useRef(false);
   const [labId, setLabId] = useState('');
@@ -145,10 +154,11 @@ export default function BulkGradingPanel({ labs = [] }) {
   const [gradingStoppedEarly, setGradingStoppedEarly] = useState(false);
   const [resultsPage, setResultsPage] = useState(0);
   const [resultsSort, setResultsSort] = useState({ field: 'studentName', direction: 'asc' });
-  /** @type {'loading'|'ready'|'no-quarter'|'error'} */
+  /** @type {'loading'|'ready'|'empty-roster'|'no-quarter'|'error'} */
   const [membershipStatus, setMembershipStatus] = useState('loading');
   const [enrolledIrns, setEnrolledIrns] = useState(() => new Set());
   const [membershipError, setMembershipError] = useState(null);
+  const [retainedNotice, setRetainedNotice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,8 +181,11 @@ export default function BulkGradingPanel({ labs = [] }) {
         }
         const data = await response.json();
         const list = Array.isArray(data?.irns) ? data.irns : [];
-        setEnrolledIrns(new Set(list.map((code) => String(code))));
-        setMembershipStatus('ready');
+        const normalized = list
+          .map((code) => String(code ?? '').trim())
+          .filter((code) => /^\d{10}$/.test(code));
+        setEnrolledIrns(new Set(normalized));
+        setMembershipStatus(normalized.length > 0 ? 'ready' : 'empty-roster');
       } catch (err) {
         if (cancelled) return;
         setEnrolledIrns(new Set());
@@ -183,10 +196,81 @@ export default function BulkGradingPanel({ labs = [] }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!IS_DESKTOP_LECTURER) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/desktop/bulk-batch`);
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        if (!data?.present || !data.batch || cancelled) return;
+        const batch = data.batch;
+        if (batch.labId != null) setLabId(String(batch.labId));
+        if (batch.mode === 'LAB' || batch.mode === 'EXAM') setMode(batch.mode);
+        if (Array.isArray(batch.rows) && batch.rows.length > 0) {
+          setRows(batch.rows);
+          setGradedCount(batch.rows.length);
+          setRetainedNotice(true);
+        }
+        if (batch.folderLabel) setFolderLabel(String(batch.folderLabel));
+        if (typeof batch.gradingStoppedEarly === 'boolean') {
+          setGradingStoppedEarly(batch.gradingStoppedEarly);
+        }
+        if (batch.resultsTab != null) setResultsTab(batch.resultsTab);
+      } catch {
+        // Retained-batch hydrate is best-effort.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const selectedLab = useMemo(
     () => labs.find((lab) => String(lab.id) === String(labId)) || null,
     [labs, labId],
   );
+
+  const persistFinishedBatch = useCallback(async (finalRows, stoppedEarly) => {
+    if (!IS_DESKTOP_LECTURER || !selectedLab || !finalRows.length) return;
+    try {
+      await fetch(`${API_BASE}/api/desktop/bulk-batch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          labId: String(selectedLab.id),
+          labName: selectedLab.name || selectedLab.labName || '',
+          mode,
+          folderLabel,
+          gradingStoppedEarly: stoppedEarly,
+          resultsTab: 'overview',
+          savedAt: new Date().toISOString(),
+          rows: finalRows,
+        }),
+      });
+      setRetainedNotice(true);
+    } catch {
+      // Persistence failure should not undo on-screen results.
+    }
+  }, [selectedLab, mode, folderLabel]);
+
+  const clearRetainedBatch = useCallback(async () => {
+    if (!IS_DESKTOP_LECTURER) return;
+    try {
+      await fetch(`${API_BASE}/api/desktop/bulk-batch`, { method: 'DELETE' });
+    } catch {
+      // Still clear the local table so the lecturer can continue.
+    }
+    setRows([]);
+    setGradedCount(0);
+    setParseResult(null);
+    setGradeError(null);
+    setGradingStoppedEarly(false);
+    setDrawerStudent(null);
+    setResultsTab('overview');
+    setResultsPage(0);
+    setResultsSort({ field: 'studentName', direction: 'asc' });
+    setRetainedNotice(false);
+  }, []);
   const labChallenges = useMemo(
     () => (Array.isArray(selectedLab?.challenges) ? selectedLab.challenges : []),
     [selectedLab],
@@ -354,16 +438,13 @@ export default function BulkGradingPanel({ labs = [] }) {
     setResultsSort({ field: 'studentName', direction: 'asc' });
 
     const accepted = parseResult.accepted;
-    const nextRows = [];
     const payloadsByIrn = {};
-    let stoppedEarly = false;
+    const concurrency = IS_DESKTOP_LECTURER ? DESKTOP_BULK_STUDENT_CONCURRENCY : 1;
+    const rowSlots = new Array(accepted.length);
+    let completedCount = 0;
+    let nextIndex = 0;
 
-    for (let i = 0; i < accepted.length; i += 1) {
-      if (cancelGradingRef.current) {
-        stoppedEarly = true;
-        break;
-      }
-      const student = accepted[i];
+    const gradeOne = async (student) => {
       try {
         const form = buildStudentMultipart(student);
         const response = await apiFetch(
@@ -390,34 +471,55 @@ export default function BulkGradingPanel({ labs = [] }) {
           fileHashes,
           challenges: labChallenges,
         };
-        nextRows.push({
+        return {
           studentId: student.studentId,
           studentName: student.studentName,
           score,
           plagiarismLabel: '—',
           error: null,
           payload: payloadsByIrn[student.studentId],
-        });
+        };
       } catch (err) {
-        nextRows.push({
+        return {
           studentId: student.studentId,
           studentName: student.studentName,
           score: null,
           plagiarismLabel: '—',
           error: toFriendlyError(err, 'bulk-grade'),
           payload: null,
-        });
+        };
       }
-      setGradedCount(i + 1);
-    }
+    };
 
+    const worker = async () => {
+      while (true) {
+        if (cancelGradingRef.current) {
+          return;
+        }
+        const i = nextIndex;
+        nextIndex += 1;
+        if (i >= accepted.length) {
+          return;
+        }
+        rowSlots[i] = await gradeOne(accepted[i]);
+        completedCount += 1;
+        setGradedCount(completedCount);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, accepted.length) }, () => worker()),
+    );
+
+    const stoppedEarly = cancelGradingRef.current && completedCount < accepted.length;
     if (stoppedEarly) {
       setGradingStoppedEarly(true);
     }
+    const nextRows = rowSlots.filter(Boolean);
 
     const withHashes = await attachClientHashes(Object.values(payloadsByIrn));
     const plag = computeWithinBatchPlagiarism(withHashes);
-    setRows(nextRows.map((row) => ({
+    const finalRows = nextRows.map((row) => ({
       ...row,
       plagiarismLabel: plag[row.studentId]?.label || '—',
       plagiarismOverlap: plag[row.studentId]?.overlap ?? null,
@@ -428,9 +530,10 @@ export default function BulkGradingPanel({ labs = [] }) {
               || payloadsByIrn[row.studentId].fileHashes,
           }
         : null,
-    })));
-
+    }));
+    setRows(finalRows);
     setGrading(false);
+    await persistFinishedBatch(finalRows, stoppedEarly);
   };
 
   return (
@@ -493,6 +596,12 @@ export default function BulkGradingPanel({ labs = [] }) {
               Challenges: {challengeCount}
             </p>
           )}
+
+          {!IS_DESKTOP_LECTURER && (
+            <div className="ml-auto flex items-end pb-0.5">
+              <LecturerOfflineBulkDownload onToast={showToast} />
+            </div>
+          )}
         </div>
 
         {modeBlockMessage && (
@@ -504,6 +613,13 @@ export default function BulkGradingPanel({ labs = [] }) {
         {membershipStatus === 'no-quarter' && (
           <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
             No current quarter is set. Set a current quarter before using Bulk Grading.
+          </p>
+        )}
+        {membershipStatus === 'empty-roster' && (
+          <p className="rounded-r-xl border-l-4 border-warning bg-warning-bg px-3.5 py-2.5 text-sm text-warning-text">
+            {IS_DESKTOP_LECTURER
+              ? 'Import a current-term enrollment roster before using Bulk Grading.'
+              : 'No enrolled students in the current quarter. Enroll students before using Bulk Grading.'}
           </p>
         )}
         {membershipStatus === 'error' && membershipError && (
@@ -667,6 +783,11 @@ export default function BulkGradingPanel({ labs = [] }) {
                 Grading stopped — showing {rows.length} of {gradingTotal} students.
               </p>
             )}
+            {IS_DESKTOP_LECTURER && retainedNotice && (
+              <p className="text-sm text-foreground-muted">
+                Showing the last finished batch retained on this machine.
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
               {labChallenges.length > 0 ? (
@@ -692,7 +813,18 @@ export default function BulkGradingPanel({ labs = [] }) {
               ) : (
                 <span className="text-sm font-semibold text-foreground">Results</span>
               )}
-              <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+              <div className="flex flex-wrap items-center gap-2">
+                {IS_DESKTOP_LECTURER && (
+                  <button
+                    type="button"
+                    onClick={clearRetainedBatch}
+                    className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-secondary"
+                  >
+                    Clear batch
+                  </button>
+                )}
+                <ExportMenu formats={BULK_EXPORT_FORMATS} onExport={handleExportBulkResults} />
+              </div>
             </div>
           </div>
 

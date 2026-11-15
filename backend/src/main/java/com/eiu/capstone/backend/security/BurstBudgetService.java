@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
  * In-process rolling-window request budget. Multi-instance deploys enforce independently.
  */
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class BurstBudgetService {
 
     public enum Lane {

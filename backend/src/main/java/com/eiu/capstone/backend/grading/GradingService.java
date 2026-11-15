@@ -157,8 +157,6 @@ public class GradingService {
             computed = computeAgainstSnapshot(
                     rubric, challengeFolderResults, mmdByChallenge, submission, existing, null);
         } else {
-            List<ClassMmdWork> classMmdWork = computeClassAndMmdPhase(
-                    rubric, challengeFolderResults, mmdByChallenge);
             long slotAcquireStart = System.currentTimeMillis();
             acquireWorkerSlot();
             slotWaitMs = System.currentTimeMillis() - slotAcquireStart;
@@ -168,10 +166,12 @@ public class GradingService {
                 workerSession = sharedLocalWorkerCache.borrow(
                         workerSessionFactory, submissionRoot, invokeTimeoutSeconds);
                 workerSpawnMs = System.currentTimeMillis() - spawnStart;
+                List<ClassMmdWork> classMmdWork = computeClassAndMmdPhase(
+                        rubric, challengeFolderResults, mmdByChallenge, workerSession);
                 computed = completeOperationalTestcasePhase(
                         rubric, submission, existing, classMmdWork, workerSession);
             } finally {
-                sharedLocalWorkerCache.release(workerSessionFactory, workerSession);
+                sharedLocalWorkerCache.release(workerSessionFactory, workerSession, workerJvmSlot);
                 workerJvmSlot.release();
             }
         }
@@ -235,7 +235,8 @@ public class GradingService {
     private List<ClassMmdWork> computeClassAndMmdPhase(
             LabRubricSnapshot rubric,
             List<SubmissionStorageService.ChallengeResult> challengeFolderResults,
-            Map<String, List<MultipartFile>> mmdByChallenge) {
+            Map<String, List<MultipartFile>> mmdByChallenge,
+            WorkerSessionHandle workerSession) {
 
         List<CompletableFuture<ClassMmdWork>> futures = challengeFolderResults.stream()
                 .map(folderResult -> CompletableFuture.supplyAsync(
@@ -243,7 +244,8 @@ public class GradingService {
                             ClassMmdPhaseResult phase = gradingPipeline.gradeClassAndMmd(
                                     rubric,
                                     folderResult,
-                                    mmdByChallenge.getOrDefault(folderResult.challengeName, List.of()));
+                                    mmdByChallenge.getOrDefault(folderResult.challengeName, List.of()),
+                                    workerSession);
                             return new ClassMmdWork(folderResult, phase);
                         },
                         gradingExecutor))

@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @ConditionalOnProperty(name = "app.mail.provider", havingValue = "brevo")
 public class BrevoTransactionalEmailSender implements TransactionalEmailSender {
 

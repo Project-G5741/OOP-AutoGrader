@@ -16,7 +16,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip) and flat gold `StudentStreakFlame` at the header’s top-right. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip); `GET /api/students/mascots/list` on mount unions owned ids into `oop_student_owned_mascots` for gacha anti-dupe. Header speech: pet lines come from `StudentFoxMascot` using the painted `mascotId`; score lines are `{ text, type, mascotId }` from `equippedMascotRef`. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -156,6 +156,11 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `PATCH /api/lecturer/feedback/{id}/status` | `FeedbackInbox.jsx` |
 | `PATCH /api/lecturer/feedback/{id}/response` | `FeedbackInbox.jsx` — short reply on Resolved; student notification |
 | `GET /api/feedback/replies` | `StudentNotificationBell.jsx` |
+| `GET /api/students/notification-reads/list` | `StudentNotificationBell.jsx` — durable read keys |
+| `POST /api/students/notification-reads/mark` | `StudentNotificationBell.jsx` — mark one key read |
+| `GET /api/students/notification-reads/dismissed/list` | `StudentNotificationBell.jsx` — durable dismiss keys |
+| `POST /api/students/notification-reads/dismiss` | `StudentNotificationBell.jsx` — dismiss one read key |
+| `POST /api/students/notification-reads/dismiss/batch` | `StudentNotificationBell.jsx` — Clear all read |
 | `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved only; soft-archives when a reply exists, else hard-deletes |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.

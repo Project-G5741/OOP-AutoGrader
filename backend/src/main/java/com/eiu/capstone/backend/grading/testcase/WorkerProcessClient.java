@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.eiu.capstone.backend.grading.testcase.transport.ProcessWorkerTransport;
+import com.eiu.capstone.backend.grading.testcase.worker.StudentDenyPolicy;
 import com.eiu.capstone.backend.grading.testcase.worker.WorkerIpc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,8 @@ public class WorkerProcessClient {
     public static final String HEAP_FLAG = "-Xmx64m";
     public static final String METASPACE_FLAG = "-XX:MaxMetaspaceSize=48m";
     public static final String EXIT_ON_OOM_FLAG = "-XX:+ExitOnOutOfMemoryError";
+    public static final String SECURITY_MANAGER_ALLOW = "-Djava.security.manager=allow";
+    public static final String STUDENT_DENY_FLAG = "-D" + StudentDenyPolicy.SYSPROP + "=true";
 
     /** Docker image layout (see backend/Dockerfile). Tried when configured path is missing. */
     public static final String DOCKER_WORKER_JAR = "/app/worker.jar";
@@ -33,32 +36,48 @@ public class WorkerProcessClient {
     private final Path workerJar;
     private final String heapFlag;
     private final String metaspaceFlag;
+    private final boolean studentDenyEnabled;
 
     @Autowired
     public WorkerProcessClient(
             @Value("${app.grading.worker-java:java}") String javaBinary,
             @Value("${app.grading.worker-jar:/app/worker.jar}") String workerJar,
             @Value("${app.grading.worker-xmx:64m}") String workerXmx,
-            @Value("${app.grading.worker-max-metaspace:48m}") String workerMaxMetaspace) {
+            @Value("${app.grading.worker-max-metaspace:48m}") String workerMaxMetaspace,
+            @Value("${app.grading.student-deny.enabled:false}") boolean studentDenyEnabled) {
         this(resolveJavaBinary(javaBinary),
                 resolveWorkerJar(workerJar),
                 toXmxFlag(workerXmx),
-                toMetaspaceFlag(workerMaxMetaspace));
+                toMetaspaceFlag(workerMaxMetaspace),
+                studentDenyEnabled);
     }
 
     /** Explicit resolved path (tests); skips configured/fallback resolution. */
     public WorkerProcessClient(String javaBinary, Path workerJar) {
-        this(javaBinary, workerJar, HEAP_FLAG, METASPACE_FLAG);
+        this(javaBinary, workerJar, HEAP_FLAG, METASPACE_FLAG, false);
     }
 
     public WorkerProcessClient(String javaBinary,
                                Path workerJar,
                                String heapFlag,
                                String metaspaceFlag) {
+        this(javaBinary, workerJar, heapFlag, metaspaceFlag, false);
+    }
+
+    public WorkerProcessClient(String javaBinary,
+                               Path workerJar,
+                               String heapFlag,
+                               String metaspaceFlag,
+                               boolean studentDenyEnabled) {
         this.javaBinary = javaBinary;
         this.workerJar = workerJar;
         this.heapFlag = heapFlag == null || heapFlag.isBlank() ? HEAP_FLAG : heapFlag;
         this.metaspaceFlag = metaspaceFlag == null || metaspaceFlag.isBlank() ? METASPACE_FLAG : metaspaceFlag;
+        this.studentDenyEnabled = studentDenyEnabled;
+    }
+
+    public boolean isStudentDenyEnabled() {
+        return studentDenyEnabled;
     }
 
     private static String toXmxFlag(String xmx) {
@@ -148,8 +167,22 @@ public class WorkerProcessClient {
         return command;
     }
 
+    /**
+     * Operational-test session command. Adds the student deny flags only when that mode is on.
+     * Class-tab {@code --reflect} keeps {@link #productionCommand(String...)}.
+     */
+    public List<String> operationalCommand(String... workerArgs) {
+        List<String> command = productionCommand(workerArgs);
+        if (!studentDenyEnabled) {
+            return command;
+        }
+        command.add(1, SECURITY_MANAGER_ALLOW);
+        command.add(2, STUDENT_DENY_FLAG);
+        return command;
+    }
+
     public WorkerSession start(String... workerArgs) {
-        return startCommand(productionCommand(workerArgs));
+        return startCommand(operationalCommand(workerArgs));
     }
 
     public WorkerSession startCommand(List<String> command) {

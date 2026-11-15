@@ -194,6 +194,29 @@ class AssertionEvaluatorTest {
     }
 
     @Test
+    void stdoutCrlfMatchesLfExpected() {
+        String lf = "Red Rose (RESPECTFUL_FLOWER) with 3 stem(s) costs 162000 VND\n"
+                + "Sunflower (RESPECTFUL_FLOWER) with 2 stem(s) costs 86400 VND\n";
+        AssertionRubric assertion = assertion(AssertionKind.STDOUT, new JsonValueCoercer().toJson(lf));
+        InvocationOutcome outcome = InvocationOutcome.normal(null, lf.replace("\n", "\r\n"), false, Map.of());
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.PASSED, result.status());
+        assertEquals(new JsonValueCoercer().toJson(lf), result.actualValueJson());
+    }
+
+    @Test
+    void stdoutStillFailsWhenTextDiffers() {
+        AssertionRubric assertion = assertion(AssertionKind.STDOUT, "\"expected line\\n\"");
+        InvocationOutcome outcome = InvocationOutcome.normal(null, "other line\r\n", false, Map.of());
+
+        AssertionEvaluation result = evaluator.evaluate(assertion, outcome, null);
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+    }
+
+    @Test
     void exceptionAssertionWrongType_reportsExceptionMismatch() {
         AssertionRubric assertion = assertion(AssertionKind.EXCEPTION, "\"IllegalArgumentException\"");
         InvocationOutcome outcome = InvocationOutcome.threw(

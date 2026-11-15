@@ -10,7 +10,7 @@ import jakarta.annotation.PostConstruct;
  * Ensures scoring-weight columns exist on older databases.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class ScoringWeightSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

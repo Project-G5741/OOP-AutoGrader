@@ -24,6 +24,9 @@ import com.eiu.capstone.backend.grading.testcase.AssertionEvaluator;
 import com.eiu.capstone.backend.grading.testcase.InvocationOutcome;
 import com.eiu.capstone.backend.grading.testcase.InvocationRunner;
 import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
+import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
+import com.eiu.capstone.backend.grading.testcase.worker.StudentDenyPolicy;
+import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.model.AssertionKind;
@@ -892,6 +895,63 @@ class TestcaseGraderTest {
                 expectedJson,
                 ComparisonMode.EXACT,
                 orderIndex);
+    }
+
+    @Test
+    void blockedStudentCallFailsTheTest() {
+        TestcaseGrader.PendingTestcaseResult result = gradeOutcome(
+                InvocationOutcome.error(StudentDenyPolicy.BLOCKED_MESSAGE));
+
+        assertEquals(TestcaseResultStatus.FAILED, result.status());
+        assertEquals(StudentDenyPolicy.BLOCKED_MESSAGE, result.feedback());
+        assertEquals(StudentDenyPolicy.BLOCKED_MESSAGE, result.actualDisplay());
+    }
+
+    @Test
+    void otherInvocationErrorStaysInfrastructure() {
+        TestcaseGrader.PendingTestcaseResult result = gradeOutcome(InvocationOutcome.error("disk full"));
+
+        assertEquals(TestcaseResultStatus.ERROR, result.status());
+    }
+
+    private static TestcaseGrader.PendingTestcaseResult gradeOutcome(InvocationOutcome outcome) {
+        InvocationRunner runner = new InvocationRunner(null) {
+            @Override
+            public List<List<InvocationOutcome>> invokeBatch(
+                    ChallengeGradingContext context, List<InvocationRunner.BatchItem> items) {
+                return List.of(List.of(outcome));
+            }
+        };
+        UUID invocationId = UUID.randomUUID();
+        TestcaseRubric testcase = new TestcaseRubric(
+                UUID.randomUUID(),
+                "blocked call",
+                TestcaseType.UNIT,
+                null,
+                1,
+                0,
+                false,
+                new InvocationRubric(
+                        invocationId,
+                        InvocationKind.CONSTRUCTOR,
+                        UUID.randomUUID(),
+                        null,
+                        "Student",
+                        null,
+                        List.of(),
+                        "[]",
+                        null,
+                        null,
+                        List.of(),
+                        null),
+                List.of(),
+                List.of());
+        ChallengeRubric rubric = new ChallengeRubric(
+                UUID.randomUUID(), 1, "Challenge 1", List.of(), List.of(), List.of(testcase));
+        ChallengeGradingContext context = ChallengeGradingContext.of(rubric, null, null, List.of());
+        return new TestcaseGrader(
+                runner, null, null, new TestcaseDisplayFormatter(new JsonValueCoercer()))
+                .gradeSingle(testcase, context);
     }
 
     private static AssertionRubric returnValue(UUID invocationId, String expectedJson, int orderIndex) {

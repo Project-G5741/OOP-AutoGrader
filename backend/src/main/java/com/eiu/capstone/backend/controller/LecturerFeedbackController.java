@@ -28,7 +28,7 @@ import com.eiu.capstone.backend.model.FeedbackAttachment;
 import com.eiu.capstone.backend.service.FeedbackService;
 
 @RestController
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 @RequestMapping("/api/lecturer/feedback")
 public class LecturerFeedbackController {
 

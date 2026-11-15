@@ -30,7 +30,7 @@ alwaysApply: false
 ## Tests
 
 - Backend: `mvn test` from `backend/` (five aspect homes under `src/test/java/`). Add tests when they cover real behavior.
-- Frontend: `npm run build` must succeed. No frontend test runner yet.
+- Frontend: `npm test` (Vitest utils smoke) and `npm run build` must succeed.
 
 ## Review
 

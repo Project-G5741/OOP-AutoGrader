@@ -1,5 +1,6 @@
 import { formatDateTime, formatNumber, formatText } from '../../utils/formatters';
 import SortableTableHeader from '../ui/SortableTableHeader';
+import Combobox from '../ui/Combobox';
 
 const HEADER_CLASS = 'px-4 py-3 text-left text-sm font-medium text-foreground-secondary';
 
@@ -40,17 +41,14 @@ export default function GradeOverviewSubmissionHistory({
           <h3 className="text-base font-semibold text-foreground">Submission history</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Combobox
+            aria-label="Filter submissions by lab"
             value={labFilter}
-            onChange={(event) => onLabFilterChange?.(event.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground-secondary"
-          >
-            {options.map((labName) => (
-              <option key={labName} value={labName}>
-                {labName}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => onLabFilterChange?.(val)}
+            allowEmpty={false}
+            options={options.map((labName) => ({ value: labName, label: labName }))}
+            className="w-48 sm:w-56"
+          />
         </div>
       </div>
 

@@ -31,7 +31,7 @@ import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.wi
 import static com.eiu.capstone.backend.grading.GradingResultJdbcWriterSupport.withTransaction;
 
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class PostgresGradingResultJdbcWriter implements GradingResultJdbcWriter {
 
     private final DataSource dataSource;

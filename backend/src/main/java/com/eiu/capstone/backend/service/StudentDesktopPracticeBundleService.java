@@ -18,7 +18,7 @@ import com.eiu.capstone.backend.model.UserAccount;
  * Fixed locations only — no env config. Assemble writes {@code backend/target/OOP-AutoGrader-Practice.zip}.
  */
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentDesktopPracticeBundleService {
 
     /** Local Maven / assemble output (cwd = {@code backend/}). */

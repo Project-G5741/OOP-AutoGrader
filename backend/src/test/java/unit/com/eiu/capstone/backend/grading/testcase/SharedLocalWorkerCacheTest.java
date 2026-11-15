@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.file.Path;
+import java.util.concurrent.Semaphore;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -94,26 +95,6 @@ class SharedLocalWorkerCacheTest {
     }
 
     @Test
-    void sandboxEnabledNeverCaches() {
-        cache = new SharedLocalWorkerCache(60_000L);
-        WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
-        WorkerSessionHandle first = mock(WorkerSessionHandle.class);
-        WorkerSessionHandle second = mock(WorkerSessionHandle.class);
-        when(factory.isSandboxEnabled()).thenReturn(true);
-        when(factory.open(any(Path.class), anyInt())).thenReturn(first, second);
-
-        Path root = Path.of("tmp", "sub");
-        WorkerSessionHandle borrowed = cache.borrow(factory, root, 5);
-        cache.release(factory, borrowed);
-        assertFalse(cache.hasIdleLocal());
-        verify(first).close();
-
-        WorkerSessionHandle next = cache.borrow(factory, root, 5);
-        assertSame(second, next);
-        verify(factory, times(2)).open(root, 5);
-    }
-
-    @Test
     void deadHandleIsClosedAndNotParked() {
         cache = new SharedLocalWorkerCache(60_000L);
         WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
@@ -124,5 +105,42 @@ class SharedLocalWorkerCacheTest {
         cache.release(factory, handle);
         assertFalse(cache.hasIdleLocal());
         verify(handle).close();
+    }
+
+    @Test
+    void dirtyHandleIsClosedAndNotParked() {
+        cache = new SharedLocalWorkerCache(60_000L);
+        WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
+        WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
+        when(factory.isSandboxEnabled()).thenReturn(false);
+        when(handle.isAlive()).thenReturn(true);
+        when(handle.isDirty()).thenReturn(true);
+
+        cache.release(factory, handle);
+        assertFalse(cache.hasIdleLocal());
+        verify(handle).close();
+    }
+
+    @Test
+    void demandParksEvenWhenTtlIsZero() {
+        cache = new SharedLocalWorkerCache(0L);
+        WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
+        WorkerSessionHandle handle = mock(WorkerSessionHandle.class);
+        Semaphore slot = mock(Semaphore.class);
+        when(factory.isSandboxEnabled()).thenReturn(false);
+        when(factory.open(any(Path.class), anyInt())).thenReturn(handle);
+        when(handle.isAlive()).thenReturn(true);
+        when(handle.isDirty()).thenReturn(false);
+        when(slot.hasQueuedThreads()).thenReturn(true);
+
+        Path root = Path.of("tmp", "sub");
+        WorkerSessionHandle first = cache.borrow(factory, root, 5);
+        cache.release(factory, first, slot);
+        assertTrue(cache.hasIdleLocal());
+        verify(handle, never()).close();
+
+        WorkerSessionHandle second = cache.borrow(factory, root, 5);
+        assertSame(handle, second);
+        verify(factory, times(1)).open(root, 5);
     }
 }

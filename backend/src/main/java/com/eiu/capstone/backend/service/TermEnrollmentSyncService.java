@@ -14,7 +14,7 @@ import jakarta.persistence.PersistenceContext;
  * Idempotent — safe on every application start.
  */
 @Component
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class TermEnrollmentSyncService {
 
   @PersistenceContext

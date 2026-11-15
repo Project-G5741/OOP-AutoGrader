@@ -31,6 +31,28 @@ class WorkerProcessClientTest {
     private final WorkerProcessClient client = new WorkerProcessClient("java", Path.of("missing-worker.jar"));
 
     @Test
+    void operationalCommandAddsDenyFlagsOnlyWhenEnabled(@TempDir Path temp) throws Exception {
+        Path jar = temp.resolve("worker.jar");
+        Files.write(jar, new byte[] {1});
+
+        WorkerProcessClient open = new WorkerProcessClient("java", jar);
+        assertFalse(open.operationalCommand().contains(WorkerProcessClient.STUDENT_DENY_FLAG));
+        assertFalse(open.productionCommand("--reflect").contains(WorkerProcessClient.STUDENT_DENY_FLAG));
+
+        WorkerProcessClient denied = new WorkerProcessClient(
+                "java",
+                jar,
+                WorkerProcessClient.HEAP_FLAG,
+                WorkerProcessClient.METASPACE_FLAG,
+                true);
+        List<String> command = denied.operationalCommand();
+        assertEquals(WorkerProcessClient.SECURITY_MANAGER_ALLOW, command.get(1));
+        assertEquals(WorkerProcessClient.STUDENT_DENY_FLAG, command.get(2));
+        assertTrue(command.contains(WorkerProcessClient.HEAP_FLAG));
+        assertFalse(denied.productionCommand("--reflect").contains(WorkerProcessClient.STUDENT_DENY_FLAG));
+    }
+
+    @Test
     void missingWorkerJarIsSpawnFailure() {
         WorkerSpawnException ex = assertThrows(WorkerSpawnException.class, client::start);
         assertTrue(ex.getMessage().contains("Missing worker jar"));

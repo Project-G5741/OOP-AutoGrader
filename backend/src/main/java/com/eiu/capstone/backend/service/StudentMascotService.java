@@ -23,7 +23,7 @@ import com.eiu.capstone.backend.repository.StudentMascotPurchaseRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentMascotService {
 
     private final StudentStreakService streakService;

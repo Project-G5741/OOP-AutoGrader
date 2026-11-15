@@ -2,6 +2,7 @@ import React from 'react';
 import TestcaseAssertionFields from './TestcaseAssertionFields';
 import TestcaseParamFields from './TestcaseParamFields';
 import TestcaseRepeatCountInput from './TestcaseRepeatCountInput';
+import Combobox from '../../ui/Combobox';
 import {
   allowedAssertionKinds,
   callAsOptionsForReceiver,
@@ -63,40 +64,47 @@ function CompositionStepEditor({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-xs text-foreground-muted">
-          Invocation kind
-          <select
-            className={FIELD_CLASS}
+        <div className="block text-xs text-foreground-muted">
+          <span className="mb-1 block">Invocation kind</span>
+          <Combobox
+            aria-label="Invocation kind"
             value={step.invocationKind}
-            onChange={(e) => onChange(invocationForKindChange(step, e.target.value))}
-          >
-            <option value="CONSTRUCTOR">CONSTRUCTOR</option>
-            <option value="METHOD">METHOD</option>
-          </select>
-        </label>
+            onChange={(val) => onChange(invocationForKindChange(step, val))}
+            allowEmpty={false}
+            options={[
+              { value: 'CONSTRUCTOR', label: 'CONSTRUCTOR' },
+              { value: 'METHOD', label: 'METHOD' },
+            ]}
+            className="w-full min-w-0"
+          />
+        </div>
 
         {step.invocationKind === 'CONSTRUCTOR' ? (
-          <label className="block text-xs text-foreground-muted">
-            Constructor
-            <select
-              className={FIELD_CLASS}
+          <div className="block text-xs text-foreground-muted">
+            <span className="mb-1 block">Constructor</span>
+            <Combobox
+              aria-label="Constructor"
+              placeholder="Select constructor"
+              emptyLabel="Select constructor"
+              allowEmpty
+              searchable
               value={
                 step.constructorId
                   || (isImplicitDefaultConstructor(step) ? implicitDefaultConstructorKey(step.dispatchClassId) : '')
               }
-              onChange={(e) => {
-                const selected = e.target.value || '';
-                if (selected.startsWith('default:')) {
+              onChange={(selected) => {
+                const val = selected || '';
+                if (val.startsWith('default:')) {
                   onChange({
                     ...step,
                     constructorId: null,
                     methodId: null,
-                    dispatchClassId: selected.slice('default:'.length),
+                    dispatchClassId: val.slice('default:'.length),
                     params: '[]',
                   });
                   return;
                 }
-                const constructorId = selected || null;
+                const constructorId = val || null;
                 const ctor = catalog.constructorsById.get(constructorId);
                 onChange({
                   ...step,
@@ -105,26 +113,31 @@ function CompositionStepEditor({
                   params: serializeParamsArray(parseParamsArray('[]', ctor?.parameters?.length || 0)),
                 });
               }}
-            >
-              <option value="">Select constructor</option>
-              {implicitDefaultConstructorOptions(catalog).map((cls) => (
-                <option key={implicitDefaultConstructorKey(cls.id)} value={implicitDefaultConstructorKey(cls.id)}>
-                  {`${cls.name}() — default`}
-                </option>
-              ))}
-              {catalog.constructors.map((opt) => (
-                <option key={opt.id} value={opt.id}>{opt.label}</option>
-              ))}
-            </select>
-          </label>
+              options={[
+                ...implicitDefaultConstructorOptions(catalog).map((cls) => ({
+                  value: implicitDefaultConstructorKey(cls.id),
+                  label: `${cls.name}() — default`,
+                })),
+                ...catalog.constructors.map((opt) => ({
+                  value: opt.id,
+                  label: opt.label,
+                })),
+              ]}
+              className="w-full min-w-0"
+            />
+          </div>
         ) : (
-          <label className="block text-xs text-foreground-muted">
-            Method
-            <select
-              className={FIELD_CLASS}
+          <div className="block text-xs text-foreground-muted">
+            <span className="mb-1 block">Method</span>
+            <Combobox
+              aria-label="Method"
+              placeholder="Select method"
+              emptyLabel="Select method"
+              allowEmpty
+              searchable
               value={step.methodId || ''}
-              onChange={(e) => {
-                const methodId = e.target.value || null;
+              onChange={(selected) => {
+                const methodId = selected || null;
                 const nextMethod = catalog.methodsById.get(methodId);
                 onChange({
                   ...step,
@@ -134,13 +147,13 @@ function CompositionStepEditor({
                   dispatchClassId: null,
                 });
               }}
-            >
-              <option value="">Select method</option>
-              {catalog.methods.map((opt) => (
-                <option key={opt.id} value={opt.id}>{opt.label}</option>
-              ))}
-            </select>
-          </label>
+              options={catalog.methods.map((opt) => ({
+                value: opt.id,
+                label: opt.label,
+              }))}
+              className="w-full min-w-0"
+            />
+          </div>
         )}
 
         {step.invocationKind === 'METHOD' && step.methodId && (
@@ -170,51 +183,56 @@ function CompositionStepEditor({
         )}
 
         {nameRole === 'receiver' && (
-          <label className="block text-xs text-foreground-muted sm:col-span-2">
-            Receiver
-            <select
-              className={FIELD_CLASS}
+          <div className="block text-xs text-foreground-muted sm:col-span-2">
+            <span className="mb-1 block">Receiver</span>
+            <Combobox
+              aria-label="Receiver"
+              placeholder="Named instance"
+              emptyLabel="Named instance"
+              allowEmpty
               value={step.instanceName || ''}
-              onChange={(e) => {
-                const instanceName = e.target.value;
+              onChange={(instanceName) => {
                 const nextMeta = namedBefore.find((item) => item.name === instanceName);
                 const nextOptions = nextMeta
                   ? callAsOptionsForReceiver(nextMeta.className, catalog)
                   : [];
                 const keepDispatch = nextOptions.some((opt) => opt.id === step.dispatchClassId);
                 patchStep({
-                  instanceName,
+                  instanceName: instanceName || '',
                   dispatchClassId: keepDispatch ? step.dispatchClassId : null,
                 });
               }}
-            >
-              <option value="">Named instance</option>
-              {receiverOptions.map((item) => (
-                <option key={item.name} value={item.name}>{item.name} ({item.className})</option>
-              ))}
-            </select>
+              options={receiverOptions.map((item) => ({
+                value: item.name,
+                label: `${item.name} (${item.className})`,
+              }))}
+              className="w-full min-w-0"
+            />
             {receiverOptions.length === 0 && (
               <span className="mt-1 block text-xs text-warning-text">
                 Construct this class (or a subtype) in an earlier step first.
               </span>
             )}
-          </label>
+          </div>
         )}
 
         {nameRole === 'receiver' && callAsOptions.length > 0 && (
-          <label className="block text-xs text-foreground-muted sm:col-span-2">
-            Call as
-            <select
-              className={FIELD_CLASS}
+          <div className="block text-xs text-foreground-muted sm:col-span-2">
+            <span className="mb-1 block">Call as</span>
+            <Combobox
+              aria-label="Call as"
+              placeholder="Concrete type (default)"
+              emptyLabel="Concrete type (default)"
+              allowEmpty
               value={step.dispatchClassId || ''}
-              onChange={(e) => patchStep({ dispatchClassId: e.target.value || null })}
-            >
-              <option value="">Concrete type (default)</option>
-              {callAsOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>{opt.name}</option>
-              ))}
-            </select>
-          </label>
+              onChange={(val) => patchStep({ dispatchClassId: val || null })}
+              options={callAsOptions.map((opt) => ({
+                value: opt.id,
+                label: opt.name,
+              }))}
+              className="w-full min-w-0"
+            />
+          </div>
         )}
 
         <div className="sm:col-span-2">

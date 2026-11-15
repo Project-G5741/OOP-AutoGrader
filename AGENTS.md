@@ -94,12 +94,15 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/USER_GUIDE.md` | End-user guide for lecturers and students: all features, navigation, upload workflow, results interpretation |
 | `docs/LECTURER_OPERATIONAL_TESTCASE_GUIDE.md` | Lecturer-focused operational testcase authoring: Unit worksheet, Composition script, Call as (override), assertions, object checks, dry-run; student OT pillar dark |
 | `docs/DESKTOP_STUDENT_DIST.md` | Windows offline student practice: pack naming, import/restart, lecturer export, assemble script, desktop API |
+| `docs/DESKTOP_LECTURER_DIST.md` | Windows offline lecturer Bulk Grading: separate install, roster import, last-batch retain/export, assemble script, port 18003 |
+| `docs/sql/README.md` | Operator SQL inventory: migrator = cloud schema SoT; dated `.sql` files are mirrors/archive (no Flyway) |
 | `docs/sql/2026-10-13-schema-baseline-reconstructed.sql` | Empty-DB PostgreSQL baseline reconstructed from JPA + operator SQL (not a live dump); use when Neon/introspection is unavailable |
 | `docs/sql/2026-10-14-challenge-has-class.sql` | Operator-run: `challenge.has_class` (Declaration applicability, default true) |
 | `docs/sql/2026-10-19-drop-user-account-date-of-birth.sql` | Operator-run: drop `user_account.date_of_birth` (PII removal) |
 | `docs/sql/2026-10-20-feedback-inbox.sql` | Operator-run: `feedback_item` + `feedback_attachment` (Bug/Contribution inbox) |
 | `docs/sql/2026-10-20-feedback-lecturer-response.sql` | Operator-run: `feedback_item.lecturer_response` + `response_at` |
 | `docs/sql/2026-10-20-feedback-soft-archive.sql` | Operator-run: `feedback_item.archived_at` (soft-archive Resolved items that have a reply) |
+| `docs/sql/2026-11-15-feedback-author-reply-cleared.sql` | Operator-run: `feedback_item.author_reply_cleared_at` (author forever-hide watermark for reply snapshots). Startup migrator `FeedbackAuthorReplyClearedSchemaMigrator` applies the same column on PostgreSQL |
 | `docs/sql/2026-10-20-scr-mmd-outcomes.sql` | Operator-run: `submission_challenge_result.mmd_outcomes` JSONB (MMD revisit ticks) |
 | `docs/sql/2026-10-20-student-daily-streak.sql` | Operator-run: `student_daily_streak` (daily missions, streak, reward points). Startup migrator applies the same `CREATE TABLE IF NOT EXISTS` on PostgreSQL |
 | `docs/sql/2026-10-20-student-mascot-shop.sql` | Operator-run: `student_daily_streak.equipped_mascot` and `student_mascot_purchase`. Startup migrator applies the same statements on PostgreSQL |
@@ -116,6 +119,8 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-11-14-gacha-tickets.sql` | Operator-run: `student_daily_streak` gacha ticket balance, today's mission-ticket counter, and the one-time 100-ticket launch gift flag. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-crystals.sql` | Operator-run: `student_daily_streak.crystals` balance. Startup migrator applies the same column on PostgreSQL. Shop exchange pays 4000 points per crystal |
 | `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
+| `docs/sql/2026-11-15-student-notification-read.sql` | Operator-run: `student_notification_read` (durable web student bell read-receipt keys). Startup migrator `StudentNotificationReadSchemaMigrator` applies the same table on PostgreSQL |
+| `docs/sql/2026-11-15-student-notification-dismiss.sql` | Operator-run: `student_notification_dismiss` (durable web student bell forever-hide keys). Startup migrator `StudentNotificationDismissSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 
 ### Project facts
@@ -123,4 +128,4 @@ When the user requests a durable behavior change, record it here or in the relev
 - Full-stack OOP AutoGrader for EIU Capstone — students upload Java + MMD, backend compiles and grades via reflection against a PostgreSQL rubric
 - Root `npm start` runs frontend (`:5173`) and backend (`:8002`) concurrently
 - Google OAuth restricted to `@eiu.edu.vn`; JWT session; Spring Security default-deny (filter + matcher table)
-- Backend tests live under five aspect homes (`unit`, `integration`, `authorization`, `regression`, `support`) in `backend/src/test/java/`. Package-private desktop pack tests sit in `src/test/java/com/eiu/capstone/backend/desktop/` so the folder matches the package. `mvn test` from `backend/` and the Docker image build both run that suite. Frontend has no automated tests yet.
+- Backend tests live under five aspect homes (`unit`, `integration`, `authorization`, `regression`, `support`) in `backend/src/test/java/`. Package-private desktop pack tests sit in `src/test/java/com/eiu/capstone/backend/desktop/` so the folder matches the package. `mvn test` from `backend/` and the Docker image build both run that suite. Frontend: Vitest utils smoke via `npm test` in `frontend/` (`src/utils/__tests__/`).

@@ -16,7 +16,7 @@ import com.eiu.capstone.backend.service.StudentMascotService;
 
 @RestController
 @RequestMapping("/api/students/mascots")
-@Profile("!desktop")
+@Profile("!desktop & !desktop-lecturer")
 public class StudentMascotController {
 
     private final JwtAuthHelper jwtAuthHelper;
