@@ -46,4 +46,4 @@ The Vercel SPA records presence on mount, route change, focus, and visible tab �
 
 ## Practice zip
 
-Optional Docker build-arg `PRACTICE_BUNDLE_URL` — same as [DEPLOY_RENDER.md](./DEPLOY_RENDER.md) step 8.
+Optional Docker build-args `PRACTICE_BUNDLE_URL` and `LECTURER_BULK_BUNDLE_URL` — same as [DEPLOY_RENDER.md](./DEPLOY_RENDER.md) steps 8–9.

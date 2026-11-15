@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -41,10 +42,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Query-param JWT is allowed only for the student practice-folder download so the browser
-     * can own the transfer (native progress UI). Authorization header still wins when both are sent.
+     * Query-param JWT is allowed only for browser-owned zip downloads (native progress UI).
+     * Authorization header still wins when both are sent.
      */
-    private static final String DESKTOP_PRACTICE_BUNDLE_PATH = "/api/students/desktop-practice-bundle";
+    private static final Set<String> BROWSER_DOWNLOAD_PATHS = Set.of(
+            "/api/students/desktop-practice-bundle",
+            "/api/lecturer/desktop-bulk-bundle");
     private static final String ACCESS_TOKEN_QUERY = "access_token";
 
     @Override
@@ -89,7 +92,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return bearer;
             }
         }
-        if (!isDesktopPracticeBundleGet(request)) {
+        if (!isBrowserOwnedBundleGet(request)) {
             return null;
         }
         String queryToken = request.getParameter(ACCESS_TOKEN_QUERY);
@@ -99,7 +102,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return queryToken.trim();
     }
 
-    private static boolean isDesktopPracticeBundleGet(HttpServletRequest request) {
+    private static boolean isBrowserOwnedBundleGet(HttpServletRequest request) {
         if (!"GET".equalsIgnoreCase(request.getMethod())) {
             return false;
         }
@@ -108,7 +111,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath)) {
             path = path.substring(contextPath.length());
         }
-        return DESKTOP_PRACTICE_BUNDLE_PATH.equals(path);
+        return BROWSER_DOWNLOAD_PATHS.contains(path);
     }
 
     private void authenticateMascotPractice(Claims claims, String email) {
