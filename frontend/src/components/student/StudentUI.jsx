@@ -1,4 +1,4 @@
-// StudentUI.jsx - Không còn dữ liệu cứng, hoàn toàn nhận từ props
+// StudentUI.jsx - No hardcoded data; fully driven by props
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
@@ -57,7 +57,7 @@ function formatIoDisplay(value) {
   return formatStudentTestcaseMessage(text);
 }
 
-// Component con dùng chung
+// Shared child components
 function Tick({ ok, partial, error }) {
   if (error) {
     return <AlertCircle className="w-4 h-4 shrink-0 text-error" />;
@@ -198,25 +198,25 @@ function StudentStatCard({ label, icon: Icon, iconWellClass, children }) {
 export default function StudentUI({
   user,
   quarterName = '',
-  // Dữ liệu labs
+  // Lab data
   labs = [],
   labSummariesById = {},
   selectedLabId = null,
   onLabChange = () => {},
 
-  // Dữ liệu challenges/problems
+  // Challenge / problem data
   challenges = [],
   selectedChallengeId = null,
   onChallengeChange = () => {},
 
-  // Dữ liệu chi tiết cho challenge đã chọn
+  // Detail data for the selected challenge
   mmdData = [],
   mmdParseError = null,
   classData = [],
   classNormalizationNotice = null,
   testCases = [],
 
-  // Dữ liệu thống kê
+  // Stats data
   stats = {
     currentGrade: null,
     totalSubmissions: null,
@@ -252,7 +252,7 @@ export default function StudentUI({
     ? null
     : `You have reached today's submission limit (${usedToday}/${dailyLimit}). You can submit again after midnight (Vietnam time).`;
 
-  // Reset expanded test case khi đổi challenge
+  // Reset expanded test case when the challenge changes
   useEffect(() => {
     setExpandedTC(null);
     setExpandedClassName(null);
@@ -344,7 +344,7 @@ export default function StudentUI({
     );
   }
 
-  // Xác định challenge hiện tại
+  // Resolve the current challenge
   const currentChallenge = challenges.find(c => c.id === selectedChallengeId) || challenges[0];
 
   const relationData = mmdData.flatMap((cls) => cls.relations ?? []);
@@ -498,7 +498,7 @@ export default function StudentUI({
 
         {/* Overview — sidebar + tab shell always visible; scores and detail fetches after session upload */}
         <div className="relative flex min-h-0 flex-col gap-4 lg:min-h-[560px] lg:flex-row">
-          {/* Challenges sidebar - Từ backend */}
+          {/* Challenges sidebar - from backend */}
           <div className="w-full lg:w-[30%] flex-shrink-0 rounded-2xl border border-border bg-surface shadow-stage-1 overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-foreground-secondary">Challenges</h2>
@@ -563,7 +563,7 @@ export default function StudentUI({
             </ul>
           </div>
 
-          {/* Main content - Từ backend */}
+          {/* Main content - from backend */}
           <div className="flex-1 rounded-2xl border border-border bg-surface shadow-stage-1 overflow-hidden flex flex-col">
             {resultsRevealed ? (
               <>

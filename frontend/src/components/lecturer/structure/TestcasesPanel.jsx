@@ -6,6 +6,7 @@ import { readFriendlyApiError, toFriendlyError } from '../../../utils/apiError';
 import ReferenceJavaFiles from './ReferenceJavaFiles';
 import CompositionTestcaseScript from './CompositionTestcaseScript';
 import UnitTestcaseWorksheet from './UnitTestcaseWorksheet';
+import Combobox from '../../ui/Combobox';
 import { DryRunResultCard } from './DryRunResultCard';
 import {
   buildMemberCatalog,
@@ -576,20 +577,23 @@ export default function TestcasesPanel({
                         />
                         Hidden from students (pass/fail only)
                       </label>
-                      <label className="block text-xs text-foreground-muted">
-                        Type
-                        <select
-                          className={FIELD_CLASS}
+                      <div className="block text-xs text-foreground-muted">
+                        <span className="mb-1 block">Type</span>
+                        <Combobox
+                          aria-label="Testcase type"
                           value={selectedTestcase.testcaseType}
-                          onChange={(e) => updateTestcase(
+                          onChange={(val) => updateTestcase(
                             selectedTestcase.id,
-                            switchTestcaseType(selectedTestcase, e.target.value),
+                            switchTestcaseType(selectedTestcase, val),
                           )}
-                        >
-                          <option value="UNIT">Unit</option>
-                          <option value="COMPOSITION">Composition</option>
-                        </select>
-                      </label>
+                          allowEmpty={false}
+                          options={[
+                            { value: 'UNIT', label: 'Unit' },
+                            { value: 'COMPOSITION', label: 'Composition' },
+                          ]}
+                          className="w-full min-w-0"
+                        />
+                      </div>
                     </div>
 
                     {selectedDryRunResult && (

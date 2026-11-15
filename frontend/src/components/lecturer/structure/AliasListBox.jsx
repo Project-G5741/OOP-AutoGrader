@@ -94,8 +94,9 @@ export default function AliasListBox({
           </div>
 
           <ListboxOptions
+            anchor="bottom start"
             transition
-            className="absolute left-0 right-0 z-[200] mt-1 max-h-64 overflow-auto rounded-xl border border-border bg-surface p-1 shadow-xl outline-none ring-1 ring-border/80 transition duration-100 ease-out data-closed:opacity-0"
+            className="z-[250] min-w-[var(--button-width)] max-w-[calc(100vw-2rem)] [--anchor-gap:6px] [--anchor-padding:8px] rounded-2xl border border-border bg-surface p-1.5 shadow-stage-3 ring-1 ring-border/80 backdrop-blur-xl bg-surface/98 transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0 data-[anchor~='bottom']:data-closed:-translate-y-1 data-[anchor~='top']:data-closed:translate-y-1 data-[anchor~='bottom']:origin-top data-[anchor~='top']:origin-bottom max-h-64 overflow-y-auto overscroll-contain outline-none space-y-0.5"
           >
             {aliases.map((alias, index) => {
               const label = alias == null || String(alias).trim() === '' ? '(empty)' : String(alias);
@@ -103,25 +104,26 @@ export default function AliasListBox({
                 <ListboxOption
                   key={`alias-${index}`}
                   value={index}
-                  className="group flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-primary-light data-focus:bg-primary-light data-selected:bg-primary-light"
+                  className="group relative flex cursor-pointer select-none items-center gap-3 rounded-xl px-3 py-2 text-sm text-foreground transition-all duration-150 outline-none data-focus:bg-primary-light/60 data-focus:text-primary-text data-selected:bg-primary/10 data-selected:font-semibold data-selected:text-primary data-focus:data-selected:bg-primary-light/80"
                 >
-                  <Check
-                    className="h-4 w-4 shrink-0 text-primary opacity-0 group-data-selected:opacity-100"
-                    strokeWidth={2.5}
-                    aria-hidden
-                  />
                   <span className="min-w-0 flex-1 truncate">{label}</span>
                   {index === 0 && (
-                    <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-foreground-muted">
+                    <span className="shrink-0 rounded-md bg-surface-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted group-data-selected:bg-primary/20 group-data-selected:text-primary">
                       primary
                     </span>
                   )}
+                  <span
+                    className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-primary transition-all duration-150 opacity-0 scale-75 group-data-selected:opacity-100 group-data-selected:scale-100"
+                    aria-hidden
+                  >
+                    <Check className="h-4 w-4" strokeWidth={2.5} />
+                  </span>
                 </ListboxOption>
               );
             })}
             <ListboxOption
               value={ADD_VALUE}
-              className="group flex cursor-pointer select-none items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-primary-text hover:bg-primary-light data-focus:bg-primary-light"
+              className="group flex cursor-pointer select-none items-center gap-2 rounded-xl border-t border-border-subtle/50 px-3 py-2 text-sm font-semibold text-primary transition-all duration-150 hover:bg-primary-light/60 data-focus:bg-primary-light/60 data-focus:text-primary-text"
             >
               <Plus className="h-4 w-4 shrink-0" aria-hidden />
               <span>{addLabel || 'Add alias'}</span>

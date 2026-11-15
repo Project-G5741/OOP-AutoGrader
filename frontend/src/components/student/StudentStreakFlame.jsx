@@ -295,9 +295,9 @@ export default function StudentStreakFlame({
             <div className="u379-ticket-left">
               <span className="u379-ticket-icon" aria-hidden="true">🎟️</span>
               <div className="u379-ticket-text">
-                <span className="u379-ticket-label">Vé Roll hiện có</span>
+                <span className="u379-ticket-label">Roll tickets available</span>
                 <span className="u379-ticket-val">
-                  {tickets} <span className="u379-ticket-unit">Vé</span>
+                  {tickets} <span className="u379-ticket-unit">Tickets</span>
                 </span>
               </div>
             </div>
@@ -310,7 +310,7 @@ export default function StudentStreakFlame({
                   onOpenGacha();
                 }}
               >
-                Vào Gacha ➔
+                Open Gacha ➔
               </button>
             )}
           </div>
@@ -321,12 +321,12 @@ export default function StudentStreakFlame({
               <div className="u379-mission-info">
                 <MissionDot done={loggedIn} today={nextMission === 'login'} />
                 <div className="u379-mission-text">
-                  <span className="u379-mission-title">Đăng nhập hằng ngày</span>
-                  <span className="u379-mission-sub">{loggedIn ? 'Đã điểm danh' : 'Đăng nhập vào hệ thống'}</span>
+                  <span className="u379-mission-title">Daily login</span>
+                  <span className="u379-mission-sub">{loggedIn ? 'Checked in' : 'Sign in to the system'}</span>
                 </div>
               </div>
               <span className={`u379-badge ${loggedIn ? 'is-done' : ''}`}>
-                {loggedIn ? '✓ +2 Vé' : '+2 Vé Roll'}
+                {loggedIn ? '✓ +2 Tickets' : '+2 Roll Tickets'}
               </span>
             </div>
 
@@ -335,12 +335,12 @@ export default function StudentStreakFlame({
               <div className="u379-mission-info">
                 <MissionDot done={submitDone} today={nextMission === 'submit'} />
                 <div className="u379-mission-text">
-                  <span className="u379-mission-title">Nộp bài tập Java</span>
-                  <span className="u379-mission-sub">{`Tiến độ: ${submitShown}/${submitGoal} lần`}</span>
+                  <span className="u379-mission-title">Submit a Java lab</span>
+                  <span className="u379-mission-sub">{`Progress: ${submitShown}/${submitGoal} times`}</span>
                 </div>
               </div>
               <span className={`u379-badge ${submitDone ? 'is-done' : ''}`}>
-                {submitDone ? '✓ +3 Vé' : '+1 Vé / lần (max 3)'}
+                {submitDone ? '✓ +3 Tickets' : '+1 Ticket / submit (max 3)'}
               </span>
             </div>
 
@@ -349,12 +349,12 @@ export default function StudentStreakFlame({
               <div className="u379-mission-info">
                 <MissionDot done={petDone} today={nextMission === 'pet'} />
                 <div className="u379-mission-text">
-                  <span className="u379-mission-title">Chăm sóc linh vật</span>
-                  <span className="u379-mission-sub">{`Tiến độ: ${petShown}/${petGoal} lần vuốt`}</span>
+                  <span className="u379-mission-title">Care for your mascot</span>
+                  <span className="u379-mission-sub">{`Progress: ${petShown}/${petGoal} pets`}</span>
                 </div>
               </div>
               <span className={`u379-badge ${petDone ? 'is-done' : ''}`}>
-                {petDone ? '✓ +2 Vé' : '+2 Vé Roll'}
+                {petDone ? '✓ +2 Tickets' : '+2 Roll Tickets'}
               </span>
             </div>
 
@@ -363,14 +363,14 @@ export default function StudentStreakFlame({
               <div className="u379-mission-info">
                 <MissionDot done={completedToday} today={heat === 3 && !completedToday} />
                 <div className="u379-mission-text">
-                  <span className="u379-mission-title">Hoàn thành chuỗi Streak</span>
+                  <span className="u379-mission-title">Complete the streak chain</span>
                   <span className="u379-mission-sub">
-                    {completedToday ? 'Đã kích hoạt ngọn lửa' : 'Hoàn thành đủ cả 3 nhiệm vụ'}
+                    {completedToday ? 'Flame activated' : 'Finish all 3 missions'}
                   </span>
                 </div>
               </div>
               <span className={`u379-badge is-gold ${completedToday ? 'is-done' : ''}`}>
-                {completedToday ? '✓ +1 Vé & 50 pts' : '+1 Vé & 50+ pts'}
+                {completedToday ? '✓ +1 Ticket & 50 pts' : '+1 Ticket & 50+ pts'}
               </span>
             </div>
           </div>
@@ -378,8 +378,8 @@ export default function StudentStreakFlame({
           {broken && (
             <p className="u379-note">
               {canRestore
-                ? `Chuỗi streak dừng ở ${savedStreak} ngày. Khôi phục 1 lần trong tháng, hoặc làm xong hôm nay để bắt đầu lại ngày 1.`
-                : 'Đã sử dụng lượt khôi phục trong tháng. Hoàn thành hôm nay để bắt đầu lại ngày 1.'}
+                ? `Streak paused at ${savedStreak} days. Restore once per month, or finish today to restart at day 1.`
+                : 'Monthly restore already used. Finish today to restart at day 1.'}
             </p>
           )}
           {broken && canRestore && (
@@ -389,7 +389,7 @@ export default function StudentStreakFlame({
               disabled={restoring}
               onClick={onRestore}
             >
-              Khôi phục streak
+              Restore streak
             </button>
           )}
         </div>

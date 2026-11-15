@@ -354,7 +354,7 @@ export const MASCOT_PROFILES = {
       ],
       pet: [
         'The ancient shell resonates with deep, soothing harmony. Thank you! 🐢❤️',
-        'Huyen Vu extends calm composure and impenetrable focus to your mind.',
+        'Huyền Vũ extends calm composure and impenetrable focus to your mind.',
       ],
       idle: [
         'Guarding the northern gate of your software architecture! 🐢',
@@ -365,48 +365,48 @@ export const MASCOT_PROFILES = {
   linh_loc: {
     dialogues: {
       perfect: [
-        'Linh Lộc ban phúc! Bách hoa khai mở, đắc đạo 100/100 tuyệt đối! 🦌✨🌸',
-        'Tiên căn bất phàm! Thuật toán của bạn trong trẻo như ngọc bích thiên hà! 🦌💎',
+        'Linh Lộc bestows a blessing! A hundred blossoms open — absolute 100/100 enlightenment! 🦌✨🌸',
+        'An extraordinary immortal root! Your algorithms shine clear as celestial jade! 🦌💎',
       ],
       good: [
-        'Tiên khí phiêu dạt! Chỉ một bước ngộ đạo nữa thôi là chạm đỉnh 100! 🦌✨',
-        'Ánh ngọc lấp lánh soi đường, kiên trì hoàn thiện những điều kiện biên cuối cùng!',
+        'Immortal aura drifts around you! One more step of insight and you reach 100! 🦌✨',
+        'Jade light guides the path — polish those final edge cases with patience!',
       ],
       retry: [
-        'Tu tiên ắt gặp thiên kiếp! Tĩnh tâm đả tọa, phá tan mọi bug trần thế! 🦌🧘‍♂️',
-        'Tường vân che chở, Linh Lộc trao bạn linh đan trí tuệ để vượt qua compile error!',
+        'Cultivation always meets a heavenly trial! Calm your mind and shatter every worldly bug! 🦌🧘‍♂️',
+        'Auspicious clouds protect you — Linh Lộc grants a wisdom elixir for that compile error!',
       ],
       pet: [
-        'Gạc vàng khẽ chạm vào tay bạn, chuông ngọc reo vang khúc nhạc thần tiên! 🦌❤️',
-        'Linh Lộc cảm nhận được tâm hồn thanh khiết của bạn. Tiên vận hanh thông!',
+        'Golden antlers brush your hand as jade bells chime a fairy melody! 🦌❤️',
+        'Linh Lộc senses your pure heart. Immortal fortune favors you!',
       ],
       idle: [
-        'Dải lụa tiên và mây ngũ sắc đang lượn quanh bàn phím của bạn... 🦌☁️',
-        'Tâm tĩnh như nước thì code tự khắc hanh thông, vạn sự viên mãn.',
+        'Fairy silk and five-colored clouds swirl around your keyboard... 🦌☁️',
+        'A mind as still as water makes code flow smoothly — all things complete.',
       ],
     },
   },
   ki_lan: {
     dialogues: {
       perfect: [
-        'Kỳ Lân xuất thế! Điềm lành 100/100 rực rỡ chiếu sáng toàn tam giới! 🦄✨🎉',
-        'Thần uy chấn nhiếp muôn loài! Mã nguồn của bạn đạt cảnh giới viên mãn! 🦄🔥',
+        'Kì Lân appears! A radiant 100/100 omen lights the three realms! 🦄✨🎉',
+        'Divine might shakes all beings! Your source code has reached perfect mastery! 🦄🔥',
       ],
       good: [
-        'Tường thụy ngập tràn! Độc giác hoàng kim đang soi sáng đường tới điểm 100! 🦄✨',
-        'Khí phách hiên ngang! Hãy tung đòn dứt điểm để đạt tuyệt đỉnh công phu!',
+        'Auspicious omens overflow! The golden horn lights the road to a perfect 100! 🦄✨',
+        'Noble spirit! Deliver the finishing strike and claim peak mastery!',
       ],
       retry: [
-        'Thần thú tôi luyện qua lôi kiếp! Đứng dậy chỉnh sửa và đột phá cảnh giới! 🦄⚡',
-        'Lửa thiêng trừ tà! Đốt cháy mọi Exception và bug ẩn nấp!',
+        'This sacred beast was forged through thunder trials! Rise, revise, and break through! 🦄⚡',
+        'Holy fire banishes evil! Burn every Exception and hidden bug!',
       ],
       pet: [
-        'Râu rồng uốn lượn, bờm mây áp vào lòng bàn tay ấm áp... 🦄❤️',
-        'Kỳ Lân trao cho bạn phúc khí và sự may mắn vô tận trên con đường lập trình!',
+        'Dragon whiskers curl as a cloud mane warms your palm... 🦄❤️',
+        'Kì Lân grants you fortune and endless luck on your coding path!',
       ],
       idle: [
-        'Đạp mây canh giữ dự án, xua tan mọi tà khí và bug hiểm độc! 🦄☁️',
-        'Người có chí lớn tất thành đại sự. Cứ vững bước tiến lên!',
+        'Treading the clouds, guarding your project from wicked bugs! 🦄☁️',
+        'Those with great resolve achieve great things. Keep advancing!',
       ],
     },
   },

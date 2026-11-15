@@ -1,4 +1,5 @@
 import React from 'react';
+import Combobox from '../../ui/Combobox';
 import {
   coreTypeName,
   displayScalar,
@@ -68,19 +69,20 @@ export default function TestcaseParamFields({
           ));
           const selected = isInstanceRef(value) ? value.$instance : '';
           return (
-            <label key={param.id || index} className="block text-xs text-foreground-muted">
-              {label}
-              <select
-                className={FIELD_CLASS}
+            <div key={param.id || index} className="block text-xs text-foreground-muted">
+              <span className="mb-1 block">{label}</span>
+              <Combobox
+                aria-label={label}
                 value={selected}
-                onChange={(e) => setValue(index, e.target.value ? { $instance: e.target.value } : null)}
-              >
-                <option value="">Named instance</option>
-                {matching.map((item) => (
-                  <option key={item.name} value={item.name}>{item.name}</option>
-                ))}
-              </select>
-            </label>
+                placeholder="Named instance"
+                emptyLabel="Named instance"
+                allowEmpty
+                size="sm"
+                onChange={(val) => setValue(index, val ? { $instance: val } : null)}
+                options={matching.map((item) => ({ value: item.name, label: item.name }))}
+                className="w-full min-w-0"
+              />
+            </div>
           );
         }
 

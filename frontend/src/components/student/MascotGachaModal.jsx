@@ -288,13 +288,13 @@ export default function MascotGachaModal({
       return {
         item: {
           id: 'crystal',
-          name: 'Đá Crystal (Tinh Thể)',
+          name: 'Crystal Stone',
           rarity: 'crystal',
-          tierName: 'Đá Tinh Thể',
+          tierName: 'Crystal',
           type: 'crystal',
           crystalAmount: 1,
           pointsRefund: 0,
-          description: 'Bảo vật tối thượng. Đổi mascot Legendary trong shop, hoặc 4.000 điểm mỗi viên.',
+          description: 'Ultimate treasure. Redeem Legendary mascots in the shop, or 4,000 pts each.',
         },
         nextPity: 0, // Reset pity
         wasPity: isHardPity,
@@ -338,7 +338,7 @@ export default function MascotGachaModal({
         id: `points_${pts}`,
         name: `+${pts} Points`,
         rarity: 'point',
-        tierName: 'Điểm thưởng',
+        tierName: 'Reward points',
         type: 'points',
         pointsRefund: pts,
       },
@@ -352,7 +352,7 @@ export default function MascotGachaModal({
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
     if (!useTickets && points < requiredPoints) {
-      alert(`Bạn không đủ Vé Roll hoặc Points! Cần ${requiredPoints} Points hoặc ${count} Vé.`);
+      alert(`Not enough Roll Tickets or Points! Need ${requiredPoints} Points or ${count} Tickets.`);
       return;
     }
 
@@ -461,7 +461,7 @@ export default function MascotGachaModal({
     }
 
     if (points < requiredPoints) {
-      alert(`Bạn không đủ Vé Roll hoặc Points! Cần ${requiredPoints} Points hoặc ${count} Vé.`);
+      alert(`Not enough Roll Tickets or Points! Need ${requiredPoints} Points or ${count} Tickets.`);
       return;
     }
 
@@ -471,7 +471,7 @@ export default function MascotGachaModal({
       return;
     }
     if (pref === false) {
-      showToast('Hôm nay bạn đã chọn không dùng điểm để quay.', 'warning');
+      showToast('You chose not to spend points on rolls for today.', 'warning');
       return;
     }
 
@@ -524,7 +524,7 @@ export default function MascotGachaModal({
             </div>
             <div>
               <h2 id="gacha-title" className="text-lg font-bold text-foreground">
-                Vòng Quay Tinh Thể (Lucky Summon)
+                Crystal Wheel (Lucky Summon)
               </h2>
             </div>
           </div>
@@ -534,7 +534,7 @@ export default function MascotGachaModal({
             <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
               <Ticket className="h-3.5 w-3.5 text-primary" />
               <span className="tabular-nums text-foreground">{tickets}</span>
-              <span className="text-foreground-muted">Vé</span>
+              <span className="text-foreground-muted">Tickets</span>
             </div>
 
             <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
@@ -555,7 +555,7 @@ export default function MascotGachaModal({
               onClick={onClose}
               disabled={phase === 'charging' || phase === 'burst'}
               className="cursor-pointer rounded-lg p-1.5 text-foreground-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-20"
-              aria-label="Đóng"
+              aria-label="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -567,13 +567,13 @@ export default function MascotGachaModal({
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 font-medium text-foreground-secondary">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <span>Bảo hiểm Đá Crystal (Hard Pity):</span>
+              <span>Crystal guarantee (Hard Pity):</span>
               <span className="font-bold tabular-nums text-foreground">
                 {pityCount} / {HARD_PITY_LIMIT}
               </span>
               {pityCount >= SOFT_PITY_START && (
                 <span className="animate-pulse rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">
-                  Tỷ lệ tăng vọt (Soft Pity)
+                  Soft Pity boost
                 </span>
               )}
             </div>
@@ -583,7 +583,7 @@ export default function MascotGachaModal({
               className="flex cursor-pointer items-center gap-1 text-xs text-primary hover:underline font-medium"
             >
               <HelpCircle className="h-3.5 w-3.5" />
-              <span>Xem Tỷ Lệ & Quy Tắc</span>
+              <span>Rates & Rules</span>
             </button>
           </div>
 
@@ -632,11 +632,8 @@ export default function MascotGachaModal({
 
                   <div className="mt-6 text-center z-10">
                     <h3 className="text-xl font-extrabold tracking-wide text-foreground">
-                      ĐÀI TRIỆU HỒI TINH THỂ VŨ TRỤ
+                      COSMIC CRYSTAL SUMMON
                     </h3>
-                    <p className="mt-1.5 max-w-lg text-xs text-foreground-secondary leading-relaxed">
-                      Quay nhận Mascot ngẫu nhiên, Đá Crystal và hoàn lại điểm thưởng. Tích lũy 3 - 4 Crystal để đổi Mascot Legendary (chu kỳ 2.5 tháng cày nhiệm vụ sở hữu đúng 2 Legendary).
-                    </p>
                   </div>
                 </div>
 
@@ -647,10 +644,10 @@ export default function MascotGachaModal({
                     onClick={() => triggerGacha(1)}
                     className="group flex min-h-[56px] min-w-[200px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-border bg-surface-secondary px-6 py-2.5 transition-all hover:border-primary hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
                   >
-                    <span className="text-sm font-bold text-foreground">Quay 1 Lần</span>
+                    <span className="text-sm font-bold text-foreground">Roll once</span>
                     <span className="mt-0.5 flex items-center gap-1 text-xs text-foreground-muted">
                       {tickets >= 1 ? (
-                        <span className="font-semibold text-primary">1 Vé Roll</span>
+                        <span className="font-semibold text-primary">1 Roll Ticket</span>
                       ) : (
                         <span className="tabular-nums text-warning-text">{GACHA_COST_SINGLE_POINTS} pts</span>
                       )}
@@ -664,13 +661,13 @@ export default function MascotGachaModal({
                   >
                     {tickets < 10 && (
                       <span className="absolute -top-2.5 right-4 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-text shadow-sm border border-warning-border">
-                        Giảm 10%
+                        10% off
                       </span>
                     )}
-                    <span className="text-sm font-bold text-white">Quay 10 Lần</span>
+                    <span className="text-sm font-bold text-white">Roll 10 times</span>
                     <span className="mt-0.5 flex items-center gap-1 text-xs text-white/90">
                       {tickets >= 10 ? (
-                        <span className="font-semibold text-white">10 Vé Roll</span>
+                        <span className="font-semibold text-white">10 Roll Tickets</span>
                       ) : (
                         <span className="tabular-nums font-semibold text-warning-bg">
                           {GACHA_COST_MULTI_POINTS} pts <span className="line-through text-white/60">1000</span>
@@ -711,7 +708,7 @@ export default function MascotGachaModal({
                   </motion.div>
                 </div>
                 <p className="mt-6 font-bold tracking-widest text-foreground animate-pulse uppercase text-sm">
-                  Đang hội tụ năng lượng vũ trụ...
+                  Converging cosmic energy...
                 </p>
               </motion.div>
             )}
@@ -745,10 +742,10 @@ export default function MascotGachaModal({
                   )}
                 </div>
                 <p className="mt-6 text-base font-extrabold tracking-widest text-foreground">
-                  {highestRarity === 'legendary' && '✨ HÀO QUANG TINH THỂ / HUYỀN THOẠI! ✨'}
-                  {highestRarity === 'epic' && '🔮 ÁNH SÁNG EPIC XUẤT HIỆN! 🔮'}
-                  {highestRarity === 'rare' && '🌿 PHẦN THƯỞNG RARE! 🌿'}
-                  {highestRarity === 'normal' && 'TIẾP TỤC QUAY...'}
+                  {highestRarity === 'legendary' && '✨ CRYSTAL / LEGENDARY RADIANCE! ✨'}
+                  {highestRarity === 'epic' && '🔮 EPIC LIGHT APPEARS! 🔮'}
+                  {highestRarity === 'rare' && '🌿 RARE REWARD! 🌿'}
+                  {highestRarity === 'normal' && 'KEEP ROLLING...'}
                 </p>
               </motion.div>
             )}
@@ -768,7 +765,7 @@ export default function MascotGachaModal({
                   onClick={skipShowcase}
                   className="absolute right-2 top-0 flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold text-foreground shadow-sm hover:bg-surface-secondary transition-all"
                 >
-                  <span>Bỏ qua (Skip)</span>
+                  <span>Skip</span>
                   <FastForward className="h-3.5 w-3.5 text-primary" />
                 </button>
 
@@ -807,17 +804,17 @@ export default function MascotGachaModal({
                 {/* Showcase Titles */}
                 <div className="mt-6 text-center z-10">
                   <span className="inline-block rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-800 shadow-sm">
-                    {showcaseItem.type === 'crystal' ? 'BẢO VẬT TỐI THƯỢNG' : `${showcaseItem.tierName}`}
+                    {showcaseItem.type === 'crystal' ? 'ULTIMATE TREASURE' : `${showcaseItem.tierName}`}
                   </span>
                   <h3 className="mt-2 text-2xl font-black tracking-wide text-foreground">
                     {showcaseItem.type === 'crystal' 
-                      ? '✨ THỨC TỈNH TINH THỂ VŨ TRỤ! ✨'
-                      : `🎉 THỨC TỈNH LINH VẬT ${showcaseItem.name.toUpperCase()}!`
+                      ? '✨ COSMIC CRYSTAL AWAKENING! ✨'
+                      : `🎉 MASCOT AWAKENING: ${showcaseItem.name.toUpperCase()}!`
                     }
                   </h3>
                   {showcaseItem.type === 'crystal' && (
                     <p className="mt-1.5 max-w-md text-xs text-foreground-secondary">
-                      Bảo vật tối thượng dùng để đổi các Mascot Legendary trong shop!
+                      Ultimate treasure used to redeem Legendary mascots in the shop!
                     </p>
                   )}
                 </div>
@@ -833,7 +830,7 @@ export default function MascotGachaModal({
                     />
                   </div>
                   <span className="text-[11px] font-semibold text-foreground-muted">
-                    Tự động tiếp tục sau {showcaseCountdown}s (bấm Bỏ qua để xem ngay)
+                    Auto-continues in {showcaseCountdown}s (press Skip to continue now)
                   </span>
                 </div>
               </motion.div>
@@ -852,10 +849,10 @@ export default function MascotGachaModal({
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
                     <div>
                       <h4 className="text-base font-bold text-foreground">
-                        Kết Quả Lượt Quay ({currentPulls.length} phần thưởng)
+                        Pull results ({currentPulls.length} rewards)
                       </h4>
                       <p className="text-xs text-foreground-muted">
-                        Bảo hiểm Crystal hiện tại: <span className="font-bold text-foreground">{pityCount} / {HARD_PITY_LIMIT}</span>
+                        Current Crystal pity: <span className="font-bold text-foreground">{pityCount} / {HARD_PITY_LIMIT}</span>
                       </p>
                     </div>
 
@@ -863,18 +860,18 @@ export default function MascotGachaModal({
                       {crystalsWonInPulls > 0 && (
                         <div className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
                           <CosmicCrystalGem size={16} glow={false} />
-                          <span>+{crystalsWonInPulls} Crystal Đã Nhận!</span>
+                          <span>+{crystalsWonInPulls} Crystal(s) received!</span>
                         </div>
                       )}
                       {mascotsWonInPulls.length > 0 && (
                         <div className="flex items-center gap-1 rounded-full border border-purple/40 bg-purple-50 px-3 py-1 text-xs font-bold text-purple">
                           <Award className="h-3.5 w-3.5" />
-                          <span>+{mascotsWonInPulls.length} Mascot Mới!</span>
+                          <span>+{mascotsWonInPulls.length} new mascot(s)!</span>
                         </div>
                       )}
                       <div className="flex items-center gap-1 rounded-full bg-surface-secondary px-3 py-1 text-xs font-bold text-foreground border border-border">
                         <Coins className="h-3.5 w-3.5 text-warning-text" />
-                        <span>+{totalRefundedInPulls} pts Hoàn Lại</span>
+                        <span>+{totalRefundedInPulls} pts refunded</span>
                       </div>
                     </div>
                   </div>
@@ -999,7 +996,7 @@ export default function MascotGachaModal({
                             {isCrystal ? (
                               <span className="text-amber-800">+1 Crystal</span>
                             ) : isMascot ? (
-                              <span className="text-emerald-800">ĐÃ MỞ KHÓA!</span>
+                              <span className="text-emerald-800">UNLOCKED!</span>
                             ) : (
                               <span className="text-foreground-secondary">+{item.pointsRefund} pts</span>
                             )}
@@ -1017,7 +1014,7 @@ export default function MascotGachaModal({
                     onClick={() => setPhase('idle')}
                     className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
-                    Màn Hình Chờ
+                    Idle screen
                   </button>
 
                   <button
@@ -1033,10 +1030,10 @@ export default function MascotGachaModal({
                     onClick={() => triggerGacha(currentPulls.length)}
                     className="min-h-11 cursor-pointer rounded-xl bg-primary px-6 text-xs font-bold text-white shadow-md transition-all hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98] flex items-center gap-2"
                   >
-                    <span>Quay Tiếp ({currentPulls.length}x)</span>
+                    <span>Roll again ({currentPulls.length}x)</span>
                     <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold text-white">
                       {tickets >= currentPulls.length
-                        ? `${currentPulls.length} Vé`
+                        ? `${currentPulls.length} Tickets`
                         : `${currentPulls.length === 1 ? 100 : 900} pts`}
                     </span>
                   </button>
@@ -1052,7 +1049,7 @@ export default function MascotGachaModal({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 <Zap className="h-4 w-4 text-warning-text" />
-                <span>Thanh Thử Nghiệm Gacha (Demo Sandbox Controls):</span>
+                <span>Gacha demo sandbox controls:</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -1065,19 +1062,19 @@ export default function MascotGachaModal({
                   }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
                 >
-                  +10 Vé Roll
+                  +10 Roll Tickets
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     const todayStr = new Date().toLocaleDateString('en-CA');
                     localStorage.removeItem(`oop_streak_tickets_claimed_${todayStr}`);
-                    alert('Đã xóa tiến độ nhận vé Streak hôm nay! Hãy thử làm nhiệm vụ (Pet/Nộp bài) để nhận lại vé.');
+                    alert("Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.");
                   }}
                   className="cursor-pointer rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20"
-                  title="Xóa cache vé Streak hôm nay để bạn có thể test lại việc nhận vé khi làm nhiệm vụ"
+                  title="Clear today's streak ticket claim cache so you can retest mission ticket rewards"
                 >
-                  Reset Claim Vé Hôm Nay
+                  Reset today's ticket claims
                 </button>
                 <button
                   type="button"
@@ -1101,9 +1098,9 @@ export default function MascotGachaModal({
                   type="button"
                   onClick={() => setPityCount(79)}
                   className="cursor-pointer rounded-lg border border-warning-border bg-warning-bg px-2.5 py-1 text-xs font-bold text-warning-text hover:opacity-90"
-                  title="Đặt bảo hiểm lên 79 để lần quay tiếp theo kích hoạt chắc chắn ra Đá Crystal"
+                  title="Set pity to 79 so the next roll is a guaranteed Crystal"
                 >
-                  Đặt Pity = 79 (Test Nổ Crystal)
+                  Set Pity = 79 (test Crystal)
                 </button>
                 <button
                   type="button"
@@ -1130,7 +1127,7 @@ export default function MascotGachaModal({
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 id="odds-title" className="text-base font-bold text-foreground">
-                Tỷ Lệ Phần Thưởng & Cơ Chế Hoàn Điểm
+                Reward rates & cashback rules
               </h3>
               <button
                 type="button"
@@ -1143,19 +1140,19 @@ export default function MascotGachaModal({
 
             <div className="mt-4 space-y-3 text-xs text-foreground-secondary">
               <p>
-                <strong>Quy tắc Bảo hiểm (Hard Pity):</strong> Nếu sau 79 lần quay chưa xuất hiện Đá Crystal, lần thứ 80 chắc chắn 100% sẽ nhận được 1 Viên Đá Crystal. Tỷ lệ cơ sở được giới hạn ở mức 0.15% để tránh việc mới quay ~30 lần đã ra Crystal.
+                <strong>Hard Pity rule:</strong> If no Crystal appears within 79 rolls, the 80th roll is a guaranteed Crystal. The base rate is capped at 0.15% so Crystals are not expected around ~30 rolls.
               </p>
               <p>
-                <strong>Hiệu ứng Thức Tỉnh (Showcase 5s):</strong> Khi quay ra Đá Crystal hoặc Mascot từ Epic trở lên, màn hình vinh danh đặc biệt sẽ xuất hiện trong 5 giây (có thể bấm "Bỏ qua" để vào thẳng kết quả).
+                <strong>Awakening showcase (5s):</strong> Pulling a Crystal or Epic+ mascot shows a special showcase for 5 seconds (press Skip to jump to results).
               </p>
               <p>
-                <strong>Mascot Legendary Trực Tiếp (1/6000):</strong> Tỷ lệ cực hiếm 0.0167% để trực tiếp mở khóa 1 Mascot Legendary.
+                <strong>Direct Legendary mascot (1/6000):</strong> An ultra-rare 0.0167% chance to unlock a Legendary mascot directly.
               </p>
               <p>
-                <strong>Mascot Ngẫu Nhiên (0.3% - Chống Trùng Lặp):</strong> Tỷ lệ 0.30% mở khóa ngay 1 linh vật mới chưa sở hữu (không bao giờ ra lại mascot đã có).
+                <strong>Random mascot (0.3% — no duplicates):</strong> A 0.30% chance to unlock a new mascot you do not already own (never repeats owned mascots).
               </p>
               <p>
-                <strong>Đổi Mascot Legendary:</strong> Cần 3 - 4 Đá Crystal để đổi 1 Mascot Legendary trong shop. Ở điều kiện thông thường (hoàn thành đầy đủ nhiệm vụ Streak ~50 vé/tuần), sinh viên sở hữu đúng 2 Mascot Legendary trong 2.5 tháng.
+                <strong>Legendary shop redeem:</strong> It takes 3–4 Crystals to redeem one Legendary mascot in the shop. Under normal conditions (full streak missions, ~50 tickets/week), students earn exactly 2 Legendaries in about 2.5 months.
               </p>
 
               {/* Odds Table */}
@@ -1163,49 +1160,49 @@ export default function MascotGachaModal({
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-surface-secondary text-foreground-muted">
                     <tr>
-                      <th className="px-3 py-2">Phần Thưởng</th>
-                      <th className="px-3 py-2">Tỷ Lệ</th>
-                      <th className="px-3 py-2">Mô Tả / Hoàn Lại</th>
+                      <th className="px-3 py-2">Reward</th>
+                      <th className="px-3 py-2">Rate</th>
+                      <th className="px-3 py-2">Description / Cashback</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     <tr style={{ backgroundColor: '#FEF3C7', color: '#78350F' }} className="font-bold">
-                      <td className="px-3 py-2">👑 Mascot Legendary Trực Tiếp</td>
+                      <td className="px-3 py-2">👑 Direct Legendary mascot</td>
                       <td className="px-3 py-2 tabular-nums">0.0167% (1/6000)</td>
-                      <td className="px-3 py-2">Mở khóa ngay Legendary</td>
+                      <td className="px-3 py-2">Unlock a Legendary immediately</td>
                     </tr>
                     <tr style={{ backgroundColor: '#FEF3C7', color: '#92400E' }} className="font-bold">
-                      <td className="px-3 py-2">💎 Đá Crystal (Tinh Thể)</td>
+                      <td className="px-3 py-2">💎 Crystal Stone</td>
                       <td className="px-3 py-2 tabular-nums">0.15% (Pity 80)</td>
-                      <td className="px-3 py-2">+1 Đá Crystal</td>
+                      <td className="px-3 py-2">+1 Crystal</td>
                     </tr>
                     <tr style={{ backgroundColor: '#EDE9FE', color: '#4C1D95' }} className="font-medium">
-                      <td className="px-3 py-2">🐾 Mascot Ngẫu Nhiên (Không trùng)</td>
+                      <td className="px-3 py-2">🐾 Random mascot (no duplicates)</td>
                       <td className="px-3 py-2 tabular-nums">0.30%</td>
-                      <td className="px-3 py-2">Mở khóa linh vật mới chưa sở hữu</td>
+                      <td className="px-3 py-2">Unlock a new unowned mascot</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+300 Points Thưởng</td>
+                      <td className="px-3 py-2 font-medium">+300 reward points</td>
                       <td className="px-3 py-2 tabular-nums">2.50%</td>
                       <td className="px-3 py-2 text-primary font-semibold">+300 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+150 Points Thưởng</td>
+                      <td className="px-3 py-2 font-medium">+150 reward points</td>
                       <td className="px-3 py-2 tabular-nums">6.00%</td>
                       <td className="px-3 py-2 text-primary font-semibold">+150 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+60 Points Thưởng</td>
+                      <td className="px-3 py-2 font-medium">+60 reward points</td>
                       <td className="px-3 py-2 tabular-nums">18.00%</td>
                       <td className="px-3 py-2 text-primary font-semibold">+60 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+20 Points Thưởng</td>
+                      <td className="px-3 py-2 font-medium">+20 reward points</td>
                       <td className="px-3 py-2 tabular-nums">42.00%</td>
                       <td className="px-3 py-2 text-primary font-semibold">+20 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 text-slate-500">+5 Points Thưởng</td>
+                      <td className="px-3 py-2 text-slate-500">+5 reward points</td>
                       <td className="px-3 py-2 tabular-nums">29.82%</td>
                       <td className="px-3 py-2 text-slate-500">+5 pts</td>
                     </tr>
@@ -1220,7 +1217,7 @@ export default function MascotGachaModal({
                 onClick={() => setShowOddsModal(false)}
                 className="min-h-9 cursor-pointer rounded-xl bg-primary px-4 text-xs font-semibold text-white hover:bg-primary-hover"
               >
-                Đã hiểu
+                Got it
               </button>
             </div>
           </div>
@@ -1238,14 +1235,14 @@ export default function MascotGachaModal({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 id="gacha-points-title" className="text-lg font-bold text-foreground">
-              Dùng điểm để quay?
+              Spend points to roll?
             </h3>
             <p id="gacha-points-body" className="mt-1.5 text-xs text-foreground-secondary">
-              Không đủ vé. Quay {pointsSpendPrompt.count} lần sẽ trừ{' '}
+              Not enough tickets. Rolling {pointsSpendPrompt.count} time(s) will spend{' '}
               <span className="font-semibold text-foreground">
-                {formatNumber(pointsSpendPrompt.cost)} điểm
+                {formatNumber(pointsSpendPrompt.cost)} pts
               </span>
-              . Số dư hiện có: {formatNumber(points)} pts.
+              . Current balance: {formatNumber(points)} pts.
             </p>
             <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-xs text-foreground">
               <input
@@ -1264,14 +1261,14 @@ export default function MascotGachaModal({
                 onClick={declinePointsSpend}
                 className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmPointsSpend}
                 className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                Dùng điểm
+                Spend points
               </button>
             </div>
           </div>

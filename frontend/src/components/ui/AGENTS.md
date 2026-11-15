@@ -11,8 +11,8 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `SortableTableHeader.jsx` | Clickable table header with dual-chevron sort affordance (inactive faded pair; active direction highlighted); optional `after` slot is inline on the same text line as the label |
 | `Button.jsx` | Styled button variants |
 | `Card.jsx` | Container card wrapper |
-| `Select.jsx` | Simple native `<select>` wrapper (card layout) |
-| `Combobox.jsx` | Headless UI combobox: input + chevron, anchored options with check; non-searchable fields open the list on click anywhere in the control; optional `searchable`, `size="sm"`; themed with semantic tokens |
+| `Select.jsx` | Labeled `Combobox` wrapper (card layout) |
+| `Combobox.jsx` | Modern theme-adaptive combobox: input + chevron, anchored floating popover with stage-3 elevation, trailing checkmark, micro-animations, theme tokens, support for icons/descriptions/badges; non-searchable fields open the list on click anywhere; optional `searchable`, `size="sm"` |
 | `ScorePill.jsx` | Colored score badge (`ScorePill`, `ScoreSectionHeader`) for MMD/Class/Testcase headers |
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
