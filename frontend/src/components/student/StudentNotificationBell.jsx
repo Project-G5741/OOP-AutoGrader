@@ -30,6 +30,10 @@ export default function StudentNotificationBell({
   const [durableReadIds, setDurableReadIds] = useState(() => new Set());
   const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
+  /** @type {React.MutableRefObject<Map<string, Promise<boolean>>>} */
+  const pendingMarksRef = useRef(new Map());
+  const durableReadIdsRef = useRef(durableReadIds);
+  durableReadIdsRef.current = durableReadIds;
 
   const notifications = useMemo(() => {
     if (!dismissedReady) return [];
@@ -130,78 +134,98 @@ export default function StudentNotificationBell({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [open]);
 
+  function rollbackMark(id) {
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setDurableReadIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      durableReadIdsRef.current = next;
+      return next;
+    });
+  }
+
   async function markOneRead(id) {
     if (typeof id !== 'string' || id.length === 0) return;
-    if (readIds.has(id)) return;
+    if (readIds.has(id) || pendingMarksRef.current.has(id)) return;
     setReadIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
-    if (IS_DESKTOP_APP) {
-      setDurableReadIds((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
-      return;
-    }
-    try {
-      const response = await apiFetch(`${READS_BASE}/mark`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: id }),
-      });
-      if (!response.ok) {
-        setReadIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
+    // Show trash immediately; roll back if the mark API fails.
+    setDurableReadIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      durableReadIdsRef.current = next;
+      return next;
+    });
+    if (IS_DESKTOP_APP) return;
+
+    const markPromise = (async () => {
+      try {
+        const response = await apiFetch(`${READS_BASE}/mark`, {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: id }),
         });
-        showToast(await readFriendlyApiError(response, 'default'), 'error');
-        return;
+        if (!response.ok) {
+          rollbackMark(id);
+          showToast(await readFriendlyApiError(response, 'default'), 'error');
+          return false;
+        }
+        return true;
+      } catch (error) {
+        rollbackMark(id);
+        showToast(toFriendlyError(error), 'error');
+        return false;
+      } finally {
+        pendingMarksRef.current.delete(id);
       }
-      setDurableReadIds((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
-    } catch (error) {
-      setReadIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      showToast(toFriendlyError(error), 'error');
-    }
+    })();
+    pendingMarksRef.current.set(id, markPromise);
+    await markPromise;
   }
 
   async function dismissKeys(keys) {
     const unique = [...new Set(keys.filter((id) => typeof id === 'string' && id.length > 0))];
     if (unique.length === 0) return;
+    if (!IS_DESKTOP_APP) {
+      const pending = unique
+        .map((id) => pendingMarksRef.current.get(id))
+        .filter((p) => p != null);
+      if (pending.length > 0) {
+        await Promise.all(pending);
+      }
+    }
+    const toDismiss = unique.filter((id) => durableReadIdsRef.current.has(id));
+    if (toDismiss.length === 0) return;
     setDismissedIds((prev) => {
       const next = new Set(prev);
-      unique.forEach((id) => next.add(id));
+      toDismiss.forEach((id) => next.add(id));
       return next;
     });
     if (IS_DESKTOP_APP) return;
     try {
       const response =
-        unique.length === 1
+        toDismiss.length === 1
           ? await apiFetch(`${READS_BASE}/dismiss`, {
               method: 'POST',
               headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: unique[0] }),
+              body: JSON.stringify({ key: toDismiss[0] }),
             })
           : await apiFetch(`${READS_BASE}/dismiss/batch`, {
               method: 'POST',
               headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-              body: JSON.stringify({ keys: unique }),
+              body: JSON.stringify({ keys: toDismiss }),
             });
       if (!response.ok) {
         setDismissedIds((prev) => {
           const next = new Set(prev);
-          unique.forEach((id) => next.delete(id));
+          toDismiss.forEach((id) => next.delete(id));
           return next;
         });
         showToast(await readFriendlyApiError(response, 'default'), 'error');
@@ -209,7 +233,7 @@ export default function StudentNotificationBell({
     } catch (error) {
       setDismissedIds((prev) => {
         const next = new Set(prev);
-        unique.forEach((id) => next.delete(id));
+        toDismiss.forEach((id) => next.delete(id));
         return next;
       });
       showToast(toFriendlyError(error), 'error');
