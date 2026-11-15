@@ -597,11 +597,11 @@ For each testcase:
 
 Each dry-run or student-upload OT batch:
 
-1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot **before** class+MMD when any challenge has OT (OT host lease); dry-run always acquires. Class-tab GET / no-OT one-shot `--reflect` also acquires the same slot. Local path borrows from `SharedLocalWorkerCache` (default short clean TTL `worker-idle-ttl-ms=5000`; also parks when slot waiters exist; dirty/hang never parks) after the slot; sandbox sessions are never cached.
+1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot **before** class+MMD when any challenge has OT (OT host lease); dry-run always acquires. Class-tab GET / no-OT one-shot `--reflect` also acquires the same slot. The session is borrowed from `SharedLocalWorkerCache` (default short clean TTL `worker-idle-ttl-ms=5000`; also parks when slot waiters exist; dirty/hang never parks) after the slot.
 2. Under the lease, challenge class parse uses session NDJSON `reflect`, then one NDJSON `batch` for all runnable OT (lab-wide for upload/bulk; one item for dry-run). Each item may carry its own `classesDir`. The worker runs items on a CPU-capped pool with a per-item platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **3s**) per batch item as **execution** wall-clock; the API transport wait is `⌈T/P⌉ × τ + 30s` return slack. On outer hang the API marks dirty, tree-kills, and respawns without releasing the host slot.
 
-At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab GET parse prefers one-shot worker `--reflect` (in-process fallback if the JAR is missing or reflect fails). Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
+At most one worker JVM runs on the host slot. Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab GET parse prefers one-shot worker `--reflect` (in-process fallback if the JAR is missing or reflect fails) and does not install the student deny policy. On Render, the OT worker does: set `STUDENT_DENY_ENABLED` and `STUDENT_DENY_REQUIRED` (see `docs/SANDBOX_RUNNER_DEPLOY.md`).
 
 Operator wipe SQL is `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`. `TestcaseSchemaMigrator` applies it on startup when leftover types/columns remain, then `LabRubricCache.invalidateAll()`.
 
@@ -763,7 +763,7 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `config/GradingExecutorConfig.java` | `gradingExecutor` bean |
 | `config/CompileExecutorConfig.java` | `compileExecutor` bean |
 | `config/PersistExecutorConfig.java` | Off-request detail UPSERT pool |
-| `config/SandboxStartupValidator.java` | Cloud boot: sandbox enabled/required credentials |
+| `config/StudentDenyStartupValidator.java` | Cloud boot: `STUDENT_DENY_REQUIRED` fails when the policy flag is off |
 | `plagiarism/PlagiarismService.java` | Fingerprint, pairwise compare, lab re-evaluate on upload |
 
 ---

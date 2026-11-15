@@ -95,26 +95,6 @@ class SharedLocalWorkerCacheTest {
     }
 
     @Test
-    void sandboxEnabledNeverCaches() {
-        cache = new SharedLocalWorkerCache(60_000L);
-        WorkerSessionFactory factory = mock(WorkerSessionFactory.class);
-        WorkerSessionHandle first = mock(WorkerSessionHandle.class);
-        WorkerSessionHandle second = mock(WorkerSessionHandle.class);
-        when(factory.isSandboxEnabled()).thenReturn(true);
-        when(factory.open(any(Path.class), anyInt())).thenReturn(first, second);
-
-        Path root = Path.of("tmp", "sub");
-        WorkerSessionHandle borrowed = cache.borrow(factory, root, 5);
-        cache.release(factory, borrowed);
-        assertFalse(cache.hasIdleLocal());
-        verify(first).close();
-
-        WorkerSessionHandle next = cache.borrow(factory, root, 5);
-        assertSame(second, next);
-        verify(factory, times(2)).open(root, 5);
-    }
-
-    @Test
     void deadHandleIsClosedAndNotParked() {
         cache = new SharedLocalWorkerCache(60_000L);
         WorkerSessionFactory factory = mock(WorkerSessionFactory.class);

@@ -73,7 +73,7 @@ POST multipart
   → delete the temp folder
 ```
 
-Operational testcases run in `worker.jar` (one JVM per upload). Optional container sandbox is off unless `SANDBOX_ENABLED=true`. Desktop practice never uses the sandbox.
+Operational testcases run in `worker.jar` (one JVM per upload). On Render, set `STUDENT_DENY_ENABLED=true` and `STUDENT_DENY_REQUIRED=true` so student code in that worker cannot use the network, the filesystem, or a new process. This PC and both desktop apps leave that flag off.
 
 ### Folder layout
 
@@ -194,7 +194,7 @@ WORKER_JAR=target/backend-1.0.0-worker.jar
 
 `JWT_SECRET` is required and must be at least 32 bytes. Generate one with `openssl rand -base64 32`. The same secret keeps tokens valid across restarts.
 
-Leave `SANDBOX_ENABLED` unset (or `false`) for a normal local run. Leave `SPRINGDOC_ENABLED` unset so Swagger stays on. Set it to `false` in production.
+Leave `STUDENT_DENY_ENABLED` unset for a normal local run (the open worker). On Render set it and `STUDENT_DENY_REQUIRED` to `true`. Leave `SPRINGDOC_ENABLED` unset so Swagger stays on. Set it to `false` in production.
 
 Frontend:
 

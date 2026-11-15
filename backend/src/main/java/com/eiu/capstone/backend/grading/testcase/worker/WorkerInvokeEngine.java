@@ -138,8 +138,7 @@ public final class WorkerInvokeEngine {
                         future.cancel(true);
                         outcome = SerializedInvocationOutcome.timedOut("", false);
                     } catch (ExecutionException e) {
-                        outcome = SerializedInvocationOutcome.error(messageOrSimpleName(
-                                e.getCause() != null ? e.getCause() : e));
+                        outcome = errorOrBlocked(e.getCause() != null ? e.getCause() : e);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         future.cancel(true);
@@ -368,13 +367,16 @@ public final class WorkerInvokeEngine {
                     receiver, returnValue, stdout, scopedFields, scopedAliases, facts, registry);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (isBlocked(cause)) {
+                return SerializedInvocationOutcome.error(StudentDenyPolicy.BLOCKED_MESSAGE);
+            }
             List<String> scopedFields = spec.snapshotFieldNames() != null
                     ? spec.snapshotFieldNames() : snapshotFieldNames;
             Map<String, List<String>> scopedAliases = spec.snapshotFieldAliases() != null
                     ? spec.snapshotFieldAliases() : snapshotFieldAliases;
             return threw(receiver, cause, stdout, scopedFields, scopedAliases, registry);
         } catch (Exception e) {
-            return SerializedInvocationOutcome.error(messageOrSimpleName(e));
+            return errorOrBlocked(e);
         } finally {
             if (capturing) {
                 endStdoutCapture();
@@ -726,6 +728,7 @@ public final class WorkerInvokeEngine {
     }
 
     static URLClassLoader studentLoader(Path classesDir) throws Exception {
+        StudentDenyPolicy.allowClassRoot(classesDir);
         URL url = classesDir.toUri().toURL();
         return new URLClassLoader(new URL[] {url}, ClassLoader.getPlatformClassLoader());
     }
@@ -1016,6 +1019,24 @@ public final class WorkerInvokeEngine {
             return 1;
         }
         return spec.repeatCount();
+    }
+
+    private static SerializedInvocationOutcome errorOrBlocked(Throwable throwable) {
+        if (isBlocked(throwable)) {
+            return SerializedInvocationOutcome.error(StudentDenyPolicy.BLOCKED_MESSAGE);
+        }
+        return SerializedInvocationOutcome.error(messageOrSimpleName(throwable));
+    }
+
+    private static boolean isBlocked(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (StudentDenyPolicy.BLOCKED_MESSAGE.equals(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private static String messageOrSimpleName(Throwable throwable) {
