@@ -19,18 +19,10 @@ use tao::window::WindowBuilder;
 use wry::http::Request;
 use wry::WebViewBuilder;
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
 const PRACTICE_QUIT: &str = "practice-quit";
 const PRACTICE_RESTART: &str = "practice-restart";
 const PORT_FREE_TIMEOUT: Duration = Duration::from_secs(15);
 const PORT_FREE_POLL: Duration = Duration::from_millis(100);
-
-#[cfg(windows)]
-const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-#[cfg(windows)]
-const DETACHED_PROCESS: u32 = 0x0000_0008;
 
 #[derive(Debug)]
 enum UserEvent {
@@ -176,11 +168,6 @@ fn relaunch_self(install_dir: &Path) {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
-
-    #[cfg(windows)]
-    {
-        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-    }
 
     let _ = cmd.spawn();
 }
