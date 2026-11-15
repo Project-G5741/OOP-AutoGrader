@@ -53,11 +53,12 @@ docker build -t oop-autograder-sandbox-runner:latest sandbox-runner/
 
 | Variable | Purpose |
 |---|---|
+| `SANDBOX_REQUIRED` | `true` on production — API fails startup if sandbox is off or URL/token blank (`app.grading.sandbox.required`) |
 | `SANDBOX_ENABLED` | `true` to route testcase invoke/dry-run through runner |
 | `SANDBOX_RUNNER_URL` | HTTPS base URL, e.g. `https://sandbox.example.com` |
 | `SANDBOX_RUNNER_TOKEN` | Same secret as runner |
 
-When `SANDBOX_ENABLED=true`, the API does **not** fall back to the local `worker.jar` on runner failure (infrastructure ERROR).
+Production checklist: set **all four** (`SANDBOX_REQUIRED`, `SANDBOX_ENABLED`, URL, token). When `SANDBOX_ENABLED=true`, the API does **not** fall back to the local `worker.jar` on runner failure (infrastructure ERROR). Blank URL/token with sandbox enabled also fails **boot** via `SandboxStartupValidator` (cloud profile only).
 
 ## Local stack
 

@@ -713,7 +713,6 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 |----------|---------|------|---------|
 | `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
-| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped) |
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; upload/bulk/dry-run acquire on the HTTP thread |
 | (fixed) | 2, not CPU-capped | `rubricOverlapExecutor` | Upload rubric cache load overlapping compile |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, sidecars, plagiarism inspect, temp delete |
@@ -726,7 +725,7 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), compile, challenge, grade submission |
 | `app.storage.submission-base-dir` | `submissions/` | — | Temp upload root |
 
-**Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
+**Deadlock prevention:** Class and MMD for one challenge run **sequentially** on the same `gradingExecutor` worker (no nested pillar pool). Nested `join` on a CPU-capped shared pool historically deadlocked 1-CPU Render hosts (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`). Detail UPSERT and assemble must not run on `gradingExecutor`.
 
 ---
 
@@ -763,9 +762,8 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `grading/rubric/LabRubricCache.java` | In-process rubric TTL cache |
 | `config/GradingExecutorConfig.java` | `gradingExecutor` bean |
 | `config/CompileExecutorConfig.java` | `compileExecutor` bean |
-| `config/PillarExecutorConfig.java` | `pillarExecutor` bean |
-| `config/TestcaseInvokeExecutorConfig.java` | Single-thread invoke pool |
 | `config/PersistExecutorConfig.java` | Off-request detail UPSERT pool |
+| `config/SandboxStartupValidator.java` | Cloud boot: sandbox enabled/required credentials |
 | `plagiarism/PlagiarismService.java` | Fingerprint, pairwise compare, lab re-evaluate on upload |
 
 ---
