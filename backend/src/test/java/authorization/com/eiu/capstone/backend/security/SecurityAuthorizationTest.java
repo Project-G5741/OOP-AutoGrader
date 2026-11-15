@@ -159,6 +159,33 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentDesktopBulkBundle_is403() throws Exception {
+        mockMvc.perform(get("/api/lecturer/desktop-bulk-bundle")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousDesktopBulkBundle_is401() throws Exception {
+        mockMvc.perform(get("/api/lecturer/desktop-bulk-bundle"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void lecturerDesktopBulkBundle_acceptsAccessTokenQuery() throws Exception {
+        mockMvc.perform(get("/api/lecturer/desktop-bulk-bundle")
+                        .param("access_token", rawToken(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void studentAccessTokenQuery_is403OnDesktopBulkBundle() throws Exception {
+        mockMvc.perform(get("/api/lecturer/desktop-bulk-bundle")
+                        .param("access_token", rawToken(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void adminOnly_canOpenStudentAndLecturerPaths() throws Exception {
         mockMvc.perform(post("/api/submissions/" + LAB_ID + "/1/upload")
                         .header("Authorization", bearer(List.of(JwtRoleNames.ADMIN))))
