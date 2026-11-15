@@ -1,6 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$OutputDir
+    [string]$OutputDir,
+
+    # Skip Maven when jars already exist (UI/host-only refresh). Default rebuilds so OT/println parity cannot ship stale.
+    [switch]$SkipBackendBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -142,8 +145,13 @@ function New-PortableJdkImage {
     }
 }
 
-if (-not (Test-Path $desktopBackendJar) -or -not (Test-Path $workerJar)) {
-    Write-Host "Building backend (desktop-dist)..."
+$needBackendBuild = -not $SkipBackendBuild -or -not (Test-Path $desktopBackendJar) -or -not (Test-Path $workerJar)
+if ($needBackendBuild) {
+    if ($SkipBackendBuild) {
+        Write-Host "Backend jars missing; building despite -SkipBackendBuild..."
+    } else {
+        Write-Host "Building backend (desktop-dist) so practice ships current OT/grading..."
+    }
     Push-Location (Join-Path $repoRoot "backend")
     mvn -q -DskipTests package -Pdesktop-dist
     Pop-Location
