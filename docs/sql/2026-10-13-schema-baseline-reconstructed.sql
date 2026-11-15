@@ -446,6 +446,7 @@ CREATE TABLE IF NOT EXISTS feedback_item (
     lecturer_response  TEXT,
     response_at        TIMESTAMPTZ,
     archived_at        TIMESTAMPTZ,
+    author_reply_cleared_at TIMESTAMPTZ,
     CONSTRAINT feedback_item_type_chk CHECK (item_type IN ('BUG', 'CONTRIBUTION')),
     CONSTRAINT feedback_item_status_chk CHECK (status IN ('OPEN', 'RESOLVED'))
 );

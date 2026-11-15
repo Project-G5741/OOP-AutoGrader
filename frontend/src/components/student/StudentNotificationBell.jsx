@@ -11,11 +11,6 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { useToast } from '../ui/Toast';
-import {
-  consumeFeedbackRepliesOnLeave,
-  setFeedbackReplyIdsSource,
-} from '../../utils/feedbackReplyConsume';
-
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 const READS_BASE = `${API_BASE}/api/students/notification-reads`;
@@ -35,8 +30,6 @@ export default function StudentNotificationBell({
   const [durableReadIds, setDurableReadIds] = useState(() => new Set());
   const [feedbackReplies, setFeedbackReplies] = useState([]);
   const rootRef = useRef(null);
-  const feedbackRepliesRef = useRef(feedbackReplies);
-  feedbackRepliesRef.current = feedbackReplies;
 
   const notifications = useMemo(() => {
     if (!dismissedReady) return [];
@@ -112,23 +105,6 @@ export default function StudentNotificationBell({
     })();
     return () => {
       cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (IS_DESKTOP_APP) return undefined;
-    setFeedbackReplyIdsSource(() =>
-      (feedbackRepliesRef.current || [])
-        .map((reply) => reply?.id)
-        .filter((id) => typeof id === 'string' && id.length > 0),
-    );
-    function onPageHide() {
-      consumeFeedbackRepliesOnLeave();
-    }
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      window.removeEventListener('pagehide', onPageHide);
-      setFeedbackReplyIdsSource(() => []);
     };
   }, []);
 

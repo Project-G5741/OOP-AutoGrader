@@ -41,6 +41,7 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-10-20-feedback-inbox.sql` | manual-operator-only / JPA | Feedback tables |
 | `2026-10-20-feedback-lecturer-response.sql` | manual-operator-only / JPA | Reply columns |
 | `2026-10-20-feedback-soft-archive.sql` | manual-operator-only / JPA | `archived_at` |
+| `2026-11-15-feedback-author-reply-cleared.sql` | `FeedbackAuthorReplyClearedSchemaMigrator` | `author_reply_cleared_at` |
 | `2026-10-20-scr-mmd-outcomes.sql` | `MmdOutcomesSchemaMigrator` | MMD revisit JSONB |
 | `2026-10-20-student-daily-streak.sql` | `StudentStreakSchemaMigrator` | Streak table |
 | `2026-10-20-student-mascot-shop.sql` | `StudentStreakSchemaMigrator` | Equipped mascot + purchases |

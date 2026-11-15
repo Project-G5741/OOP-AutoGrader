@@ -252,7 +252,7 @@ A signed-in author's Bug report or Contribution: required type and message, opti
 Lecturer nav screen that lists Feedback items from every author (students and lecturers). Not the analytics Reports page.
 
 ### Feedback status
-`Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears once in the author’s student notification bell (unread red dots until clicked). A lecturer may delete a **Resolved** item from the inbox: if a reply exists, the row is soft-archived (hidden from the inbox; the author still sees the reply this visit); if there is no reply, the row and attachments are hard-deleted. When the author reloads the page or logs out, shown reply notifications are consumed and those feedback rows are hard-deleted.
+`Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears in the author’s student notification bell (mark-read keeps it listed; forever-hide clears that reply snapshot for the author via `author_reply_cleared_at` without deleting the ticket). A lecturer may delete a **Resolved** item from the inbox: if a reply exists, the row is soft-archived (hidden from the inbox; the author still sees an uncleared reply); if there is no reply, the row and attachments are hard-deleted. Reload and logout do not delete feedback tickets. A later lecturer save on the same ticket (new `response_at`) can notify the author again after a clear.
 
 ## Student notifications
 

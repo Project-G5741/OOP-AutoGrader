@@ -24,12 +24,15 @@ public class StudentNotificationDismissService {
 
     private final StudentNotificationDismissRepository dismissRepository;
     private final StudentNotificationReadRepository readRepository;
+    private final FeedbackService feedbackService;
 
     public StudentNotificationDismissService(
             StudentNotificationDismissRepository dismissRepository,
-            StudentNotificationReadRepository readRepository) {
+            StudentNotificationReadRepository readRepository,
+            FeedbackService feedbackService) {
         this.dismissRepository = dismissRepository;
         this.readRepository = readRepository;
+        this.feedbackService = feedbackService;
     }
 
     @Transactional(readOnly = true)
@@ -71,5 +74,6 @@ public class StudentNotificationDismissService {
         row.setId(new StudentNotificationDismissKey(userId, key));
         row.setDismissedAt(OffsetDateTime.now());
         dismissRepository.save(row);
+        feedbackService.clearAuthorReplySnapshotFromNotifKey(userId, key);
     }
 }

@@ -26,6 +26,7 @@ import com.eiu.capstone.backend.model.StudentNotificationDismiss;
 import com.eiu.capstone.backend.model.StudentNotificationDismissKey;
 import com.eiu.capstone.backend.repository.StudentNotificationDismissRepository;
 import com.eiu.capstone.backend.repository.StudentNotificationReadRepository;
+import com.eiu.capstone.backend.service.FeedbackService;
 import com.eiu.capstone.backend.service.StudentNotificationDismissService;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,11 +38,14 @@ class StudentNotificationDismissServiceTest {
     @Mock
     private StudentNotificationReadRepository readRepository;
 
+    @Mock
+    private FeedbackService feedbackService;
+
     private StudentNotificationDismissService service;
 
     @BeforeEach
     void setUp() {
-        service = new StudentNotificationDismissService(dismissRepository, readRepository);
+        service = new StudentNotificationDismissService(dismissRepository, readRepository, feedbackService);
     }
 
     @Test
@@ -63,10 +67,23 @@ class StudentNotificationDismissServiceTest {
         verify(dismissRepository).save(captor.capture());
         assertEquals(userId, captor.getValue().getId().getUserId());
         assertEquals(key, captor.getValue().getId().getNotifKey());
+        verify(feedbackService).clearAuthorReplySnapshotFromNotifKey(userId, key);
 
         when(dismissRepository.existsByIdUserIdAndIdNotifKey(userId, key)).thenReturn(true);
         service.dismiss(userId, key);
         verify(dismissRepository).save(any());
+        verify(feedbackService, times(1)).clearAuthorReplySnapshotFromNotifKey(userId, key);
+    }
+
+    @Test
+    void dismissFeedbackReplyAdvancesWatermarkHook() {
+        UUID userId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        String key = "feedback-reply-" + itemId + "-2026-10-20T02:00:00Z";
+        when(readRepository.existsByIdUserIdAndIdNotifKey(userId, key)).thenReturn(true);
+        when(dismissRepository.existsByIdUserIdAndIdNotifKey(userId, key)).thenReturn(false);
+        service.dismiss(userId, key);
+        verify(feedbackService).clearAuthorReplySnapshotFromNotifKey(userId, key);
     }
 
     @Test

@@ -19,6 +19,7 @@ class SchemaMigratorCatalogTest {
     private static final List<String> CLOUD_MIGRATORS = List.of(
             "com.eiu.capstone.backend.config.DeclarationAliasListsSchemaMigrator",
             "com.eiu.capstone.backend.config.DesktopPackVersionSchemaMigrator",
+            "com.eiu.capstone.backend.config.FeedbackAuthorReplyClearedSchemaMigrator",
             "com.eiu.capstone.backend.config.FieldDeclarationModifiersSchemaMigrator",
             "com.eiu.capstone.backend.config.FieldDeclarationNullabilitySchemaMigrator",
             "com.eiu.capstone.backend.config.LabPrefixSchemaMigrator",
