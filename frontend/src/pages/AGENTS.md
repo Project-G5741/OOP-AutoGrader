@@ -158,6 +158,9 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/feedback/replies` | `StudentNotificationBell.jsx` |
 | `GET /api/students/notification-reads/list` | `StudentNotificationBell.jsx` — durable read keys |
 | `POST /api/students/notification-reads/mark` | `StudentNotificationBell.jsx` — mark one key read |
+| `GET /api/students/notification-reads/dismissed/list` | `StudentNotificationBell.jsx` — durable dismiss keys |
+| `POST /api/students/notification-reads/dismiss` | `StudentNotificationBell.jsx` — dismiss one read key |
+| `POST /api/students/notification-reads/dismiss/batch` | `StudentNotificationBell.jsx` — Clear all read |
 | `DELETE /api/lecturer/feedback/{id}` | `FeedbackInbox.jsx` — Resolved only; soft-archives when a reply exists, else hard-deletes |
 
 Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `DropZone.jsx`, not directly from pages.

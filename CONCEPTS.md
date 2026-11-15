@@ -254,6 +254,17 @@ Lecturer nav screen that lists Feedback items from every author (students and le
 ### Feedback status
 `Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears once in the author’s student notification bell (unread red dots until clicked). A lecturer may delete a **Resolved** item from the inbox: if a reply exists, the row is soft-archived (hidden from the inbox; the author still sees the reply this visit); if there is no reply, the row and attachments are hard-deleted. When the author reloads the page or logs out, shown reply notifications are consumed and those feedback rows are hard-deleted.
 
+## Student notifications
+
+### Student notification (computed)
+A web-only bell item built client-side from current labs (deadline countdown/expired, no-submit) and feedback replies. Bodies are not stored as inbox rows. Desktop omits the bell.
+
+### Notification read receipt
+A durable per-student key for a computed notification the student marked read. Survives logout and re-login; the row can stay listed as read until dismissed.
+
+### Notification dismiss
+A durable per-student key that permanently hides that computed notification from the student’s bell, even if the underlying condition still holds. Applies only to items already read (per-item or Clear all read).
+
 ## Desktop local mode
 
 ### Local student desktop mode

@@ -494,6 +494,8 @@ The **bell icon** (🔔) in the top-right of the student dashboard shows a red d
 - Notifications indicate labs where you have not submitted yet (based on your submission history vs. the lab list), plus deadline countdown reminders.
 - When a lecturer replies to your resolved Feedback item, that short note also appears here.
 - Once you mark an item read, it stays read across tab close and re-login until a new logical notification appears.
+- Read items can be removed permanently with the trash control on the row, or **Clear all read** in the header. Removed items do not come back even if the lab condition still applies.
+
 
 ---
 
