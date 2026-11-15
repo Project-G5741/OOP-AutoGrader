@@ -28,11 +28,12 @@ Render deployment steps (Docker)
    **RSS checklist (gate deploys):** (1) cold idle API RSS, no worker; (2) peak during one Official lab upload with OT; (3) RSS at +30s idle (worker gone; caches swept); (4) Metaspace after 10 sequential uploads. Fail the change if a 512MB host OOMs on the representative lab.
 5. (Optional) Grading performance: `app.grading.rubric-cache-ttl-minutes` (default `2`, max size `8`), `app.grading.timing-log` (`true` to log upload phase timings including `compile_timing` per challenge). Multi-instance deployments need a shared cache (e.g. Redis) or accept per-instance TTL staleness until rubric invalidation is wired.
 6. **Health check:** In the Render service **Settings** → **Health Checks**, set **Health Check Path** to `/` (not `/api/health`). The backend answers `GET /` with `200 ok`. Unknown paths return `404` without ERROR logs.
-7. **Optional — container sandbox (stage 3):** Deploy `sandbox-runner` on a Docker-capable VM (see `docs/SANDBOX_RUNNER_DEPLOY.md`). On Render API add:
+7. **Production — container sandbox (stage 3):** Deploy `sandbox-runner` on a Docker-capable VM (see `docs/SANDBOX_RUNNER_DEPLOY.md`). On Render API set:
+   - `SANDBOX_REQUIRED` = `true` (API refuses to boot without a complete sandbox config)
    - `SANDBOX_ENABLED` = `true`
    - `SANDBOX_RUNNER_URL` = `https://<runner-host>`
    - `SANDBOX_RUNNER_TOKEN` = shared secret (same as runner VM)
-   When enabled, testcase invoke and dry-run use remote containers; the API image still has **no** Docker socket. Runner outages surface as testcase infrastructure errors (no silent fallback to local worker).
+   When enabled, testcase invoke and dry-run use remote containers; the API image still has **no** Docker socket. Runner outages surface as testcase infrastructure errors (no silent fallback to local worker). Leaving sandbox off on production leaves OT on the local worker (env allowlist only — not a filesystem/`/proc` jail).
 8. **Offline practice zip (Download practice folder):** Assemble on Windows (`scripts/assemble-student-desktop.ps1`) → `backend/target/OOP-AutoGrader-Practice.zip` (~160MB; do not commit). Publish it as a **GitHub Release** asset (tag e.g. `practice-bundle-v1`). Set `PRACTICE_BUNDLE_URL` to the asset URL, then **rebuild** the Render image (restart alone is not enough):
 
    `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/<tag>/OOP-AutoGrader-Practice.zip`

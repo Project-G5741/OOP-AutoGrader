@@ -16,5 +16,10 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173
-  }
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+    setupFiles: ['src/utils/__tests__/vitest.setup.js'],
+  },
 }))
