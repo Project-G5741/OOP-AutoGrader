@@ -73,7 +73,7 @@ function GiftChip({ points, tickets }) {
       </span>
     );
   }
-  const label = t > 0 ? `${formatNumber(n)} pts + ${formatNumber(t)} vé` : `${formatNumber(n)} pts`;
+  const label = t > 0 ? `${formatNumber(n)} pts + ${formatNumber(t)} tickets` : `${formatNumber(n)} pts`;
   return (
     <span className="inline-flex items-center justify-center rounded-full bg-success-bg px-2.5 py-1 text-xs font-semibold tabular-nums text-success-text">
       {label}

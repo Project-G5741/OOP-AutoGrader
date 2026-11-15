@@ -327,7 +327,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       })
       .catch(() => {
         applyCrystalBalance(prev);
-        if (delta < 0) showToast('Không đủ Đá Crystal.', 'error');
+        if (delta < 0) showToast('Not enough Crystals.', 'error');
       });
   }, [applyCrystalBalance, postCrystalCount, showToast]);
 
@@ -1502,7 +1502,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             <button
               type="button"
               onClick={() => setShowGacha(true)}
-              aria-label={`Vòng quay Gacha Tinh Thể. Hiện có ${tickets} vé.`}
+              aria-label={`Crystal Gacha wheel. You have ${tickets} tickets.`}
               className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />

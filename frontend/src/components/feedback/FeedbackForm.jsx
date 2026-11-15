@@ -171,7 +171,7 @@ export default function FeedbackForm({ user, onClose }) {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
-              placeholder="Mô tả lỗi hoặc ý tưởng của cậu ở đây. Mọi ý kiến kể cả nói xấu cũng được, miễn là có đề xuất hướng giải quyết. Chúng tớ rất cần ý kiến người dùng."
+              placeholder="Describe the bug or idea here. Any feedback is welcome — including criticism — as long as you suggest a direction to improve. We really need user input."
             />
           </label>
 

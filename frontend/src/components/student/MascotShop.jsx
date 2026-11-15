@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Mascot } from './MascotSprite';
-import { Sparkles, Gem, Filter, Coins, Check, Ticket } from 'lucide-react';
+import { Sparkles, Gem, Filter, Coins, Ticket, Search, ArrowUpDown } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import { useToast } from '../ui/Toast';
 import { apiFetch } from '../../utils/apiFetch';
@@ -11,6 +11,29 @@ import { mascotArt, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const POINTS_PER_CRYSTAL = 4000;
+
+const SORT_OPTIONS = [
+  { id: 'price-asc', label: 'Price: Low → High' },
+  { id: 'price-desc', label: 'Price: High → Low' },
+  { id: 'name-asc', label: 'Name: A → Z' },
+  { id: 'name-desc', label: 'Name: Z → A' },
+];
+
+function compareShopOffers(a, b, sortBy) {
+  const priceA = Number(a.price) || 0;
+  const priceB = Number(b.price) || 0;
+  const nameA = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+
+  if (sortBy === 'price-desc') {
+    if (priceB !== priceA) return priceB - priceA;
+    return nameA;
+  }
+  if (sortBy === 'name-asc') return nameA;
+  if (sortBy === 'name-desc') return -nameA;
+  // default: price-asc
+  if (priceA !== priceB) return priceA - priceB;
+  return nameA;
+}
 
 function shopFailure(code) {
   if (code === 'INSUFFICIENT_POINTS') return 'Not enough points for this mascot.';
@@ -53,6 +76,8 @@ export default function MascotShop({
   const [paymentChoice, setPaymentChoice] = useState('crystal'); // 'crystal' | 'points'
   const [busy, setBusy] = useState(false);
   const [selectedTier, setSelectedTier] = useState('all'); // 'all' | 'normal' | 'rare' | 'epic' | 'legendary'
+  const [sortBy, setSortBy] = useState('price-asc');
+  const [searchQuery, setSearchQuery] = useState('');
   const [localEquipped, setLocalEquipped] = useState(null);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeCount, setExchangeCount] = useState(1);
@@ -61,6 +86,8 @@ export default function MascotShop({
     if (!open) {
       setPending(null);
       setExchangeOpen(false);
+      setSearchQuery('');
+      setSortBy('price-asc');
       return undefined;
     }
     let cancelled = false;
@@ -90,10 +117,11 @@ export default function MascotShop({
     };
   }, [open, onUpdated]);
 
-  // Combine backend shop list with catalog definitions
+  // Combine backend shop list with catalog definitions, then filter / sort for display
   const displayedMascots = useMemo(() => {
     const backendMascots = shop?.mascots || [];
     const backendMap = new Map(backendMascots.map((m) => [m.id, m]));
+    const query = searchQuery.trim().toLowerCase();
 
     const all = Object.values(STUDENT_MASCOTS).map((catalogItem) => {
       const backendItem = backendMap.get(catalogItem.id);
@@ -108,9 +136,16 @@ export default function MascotShop({
       };
     });
 
-    if (selectedTier === 'all') return all;
-    return all.filter((item) => item.tier === selectedTier);
-  }, [shop, selectedTier, ownedMascots, localEquipped]);
+    const filtered = all.filter((item) => {
+      if (selectedTier !== 'all' && item.tier !== selectedTier) return false;
+      if (!query) return true;
+      const name = String(item.name || '').toLowerCase();
+      const id = String(item.id || '').toLowerCase();
+      return name.includes(query) || id.includes(query);
+    });
+
+    return filtered.slice().sort((a, b) => compareShopOffers(a, b, sortBy));
+  }, [shop, selectedTier, sortBy, searchQuery, ownedMascots, localEquipped]);
 
   if (!open) return null;
 
@@ -136,7 +171,7 @@ export default function MascotShop({
       if (paymentChoice === 'crystal' && pending.crystalCost) {
         // Exchange with Crystals
         if (crystals < pending.crystalCost) {
-          showToast('Bạn không đủ Đá Crystal để đổi!', 'error');
+          showToast('Not enough Crystals to redeem!', 'error');
           return;
         }
 
@@ -154,7 +189,7 @@ export default function MascotShop({
           });
           if (response.ok) {
             const next = await response.json();
-            apply(next, `Đã đổi thành công ${pending.name} bằng ${pending.crystalCost} Đá Crystal!`);
+            apply(next, `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`);
             return;
           }
         } catch {
@@ -163,7 +198,7 @@ export default function MascotShop({
 
         apply(
           { ...(shop || {}), equipped: pending.id },
-          `Đã đổi thành công ${pending.name} bằng ${pending.crystalCost} Đá Crystal!`
+          `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`
         );
         return;
       }
@@ -184,11 +219,11 @@ export default function MascotShop({
         const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
         onOwnedMascotsChange?.(nextOwned);
         setLocalEquipped(pending.id);
-        apply(next, `Đã mua ${pending.name}. Còn lại ${formatNumber(next.points)} điểm.`);
+        apply(next, `Purchased ${pending.name}. ${formatNumber(next.points)} pts remaining.`);
       } else {
         // Catalog mascot point purchase simulation
         if (points < pending.price) {
-          showToast('Không đủ điểm để mua mascot này.', 'error');
+          showToast('Not enough points to buy this mascot.', 'error');
           return;
         }
         const nextPoints = points - pending.price;
@@ -197,7 +232,7 @@ export default function MascotShop({
         onOwnedMascotsChange?.(nextOwned);
         setLocalEquipped(pending.id);
         setPending(null);
-        apply(nextShop, `Đã mua ${pending.name}. Còn lại ${formatNumber(nextPoints)} điểm.`);
+        apply(nextShop, `Purchased ${pending.name}. ${formatNumber(nextPoints)} pts remaining.`);
       }
     } catch (error) {
       showToast(toFriendlyError(error), 'error');
@@ -217,7 +252,7 @@ export default function MascotShop({
       });
       if (!response.ok) {
         const message = response.status === 409
-          ? 'Không đủ Đá Crystal.'
+          ? 'Not enough Crystals.'
           : await friendlyLoadErrorFromResponse(response);
         showToast(message, 'error');
         return;
@@ -230,7 +265,7 @@ export default function MascotShop({
         equipped: shop?.equipped,
       };
       setExchangeOpen(false);
-      apply(nextShop, `Đã đổi ${exchangeCount} Crystal lấy ${formatNumber(exchangeCount * POINTS_PER_CRYSTAL)} điểm.`);
+      apply(nextShop, `Exchanged ${exchangeCount} Crystal(s) for ${formatNumber(exchangeCount * POINTS_PER_CRYSTAL)} pts.`);
     } catch (error) {
       showToast(toFriendlyError(error), 'error');
     } finally {
@@ -250,14 +285,14 @@ export default function MascotShop({
       });
       if (response.ok) {
         const next = await response.json();
-        apply(next, `Đang sử dụng ${offer.name}.`);
+        apply(next, `Now using ${offer.name}.`);
       } else {
         const nextShop = { ...(shop || {}), equipped: offer.id };
-        apply(nextShop, `Đang sử dụng ${offer.name}.`);
+        apply(nextShop, `Now using ${offer.name}.`);
       }
     } catch {
       const nextShop = { ...(shop || {}), equipped: offer.id };
-      apply(nextShop, `Đang sử dụng ${offer.name}.`);
+      apply(nextShop, `Now using ${offer.name}.`);
     } finally {
       setBusy(false);
     }
@@ -293,7 +328,7 @@ export default function MascotShop({
                 className="flex cursor-pointer items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>Quay Gacha</span>
+                <span>Open Gacha</span>
               </button>
             )}
 
@@ -301,7 +336,7 @@ export default function MascotShop({
               <div className="flex items-center gap-1.5 rounded-full bg-surface-secondary px-3 py-1.5 text-sm font-semibold tabular-nums text-foreground border border-border">
                 <Ticket className="h-4 w-4 text-primary" />
                 <span>{tickets}</span>
-                <span className="text-xs text-foreground-muted">Vé</span>
+                <span className="text-xs text-foreground-muted">Tickets</span>
               </div>
             )}
 
@@ -317,12 +352,12 @@ export default function MascotShop({
                 setExchangeOpen(true);
               }}
               className="flex cursor-pointer items-center gap-1.5 rounded-full border border-warning-border bg-warning-bg px-3 py-1.5 text-sm font-bold text-warning-text shadow-sm hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              title="Đổi Crystal lấy điểm"
+              title="Exchange Crystals for points"
             >
               <Gem className="h-4 w-4" />
               <span className="tabular-nums">{crystals}</span>
               <span className="text-xs uppercase">Crystal</span>
-              <span className="text-[11px] font-semibold">Đổi điểm</span>
+              <span className="text-[11px] font-semibold">Exchange</span>
             </button>
 
             <button
@@ -335,44 +370,80 @@ export default function MascotShop({
           </div>
         </div>
 
-        {/* Tier Filter Bar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-secondary/50 px-5 py-2.5 sm:px-6">
-          <span className="text-xs font-semibold text-foreground-muted flex items-center gap-1">
-            <Filter className="h-3.5 w-3.5" />
-            Phân cấp:
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedTier('all')}
-            className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              selectedTier === 'all'
-                ? 'bg-primary text-white shadow-sm'
-                : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
-            }`}
-          >
-            Tất cả ({Object.keys(STUDENT_MASCOTS).length})
-          </button>
-          {Object.values(MASCOT_TIERS).map((tier) => (
+        {/* Tier / search / sort controls */}
+        <div className="flex flex-col gap-2.5 border-b border-border bg-surface-secondary/50 px-5 py-2.5 sm:px-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-foreground-muted flex items-center gap-1">
+              <Filter className="h-3.5 w-3.5" />
+              Tier:
+            </span>
             <button
-              key={tier.id}
               type="button"
-              onClick={() => setSelectedTier(tier.id)}
+              onClick={() => setSelectedTier('all')}
               className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                selectedTier === tier.id
+                selectedTier === 'all'
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
               }`}
             >
-              {tier.label}
+              All ({Object.keys(STUDENT_MASCOTS).length})
             </button>
-          ))}
+            {Object.values(MASCOT_TIERS).map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => setSelectedTier(tier.id)}
+                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  selectedTier === tier.id
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
+                }`}
+              >
+                {tier.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Search mascots</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-muted" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by name…"
+                className="min-h-10 w-full rounded-xl border border-border bg-surface pl-9 pr-3 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+            </label>
+            <label className="flex min-w-[12rem] items-center gap-2">
+              <span className="sr-only">Sort mascots</span>
+              <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-foreground-muted" aria-hidden="true" />
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="min-h-10 w-full cursor-pointer rounded-xl border border-border bg-surface px-3 text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {/* Mascot Cards List */}
         <div className="overflow-y-auto px-5 py-4 sm:px-6">
           {loading && <p className="py-10 text-center text-sm text-foreground-muted">Loading shop…</p>}
           {loadError && <p className="py-10 text-center text-sm text-error-text">{loadError}</p>}
-          {shop && (
+          {shop && displayedMascots.length === 0 && (
+            <p className="py-10 text-center text-sm text-foreground-muted">
+              No mascots match your search or filter.
+            </p>
+          )}
+          {shop && displayedMascots.length > 0 && (
             <ul className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
               {displayedMascots.map((offer) => {
                 const art = mascotArt(offer.id);
@@ -428,7 +499,7 @@ export default function MascotShop({
                         {offer.crystalCost && (
                           <div className="text-[11px] font-bold text-warning-text flex items-center justify-end gap-0.5">
                             <Gem className="h-3 w-3" />
-                            <span>hoặc {offer.crystalCost} Crystal</span>
+                            <span>or {offer.crystalCost} Crystal</span>
                           </div>
                         )}
                       </div>
@@ -458,13 +529,13 @@ export default function MascotShop({
                         }`}
                       >
                         {canBuyWithCrystals && !canBuyWithPoints
-                          ? `Đổi bằng ${offer.crystalCost} Crystal`
+                          ? `Redeem for ${offer.crystalCost} Crystal`
                           : canBuyWithPoints && !canBuyWithCrystals
-                          ? `Mua (${formatNumber(offer.price)} pts)`
+                          ? `Buy (${formatNumber(offer.price)} pts)`
                           : canBuy
-                          ? `Đổi / Mua ngay`
+                          ? `Redeem / Buy now`
                           : offer.crystalCost
-                          ? `Cần ${shortfallCrystal} Crystal hoặc ${formatNumber(shortfallPoints)} pts`
+                          ? `Need ${shortfallCrystal} Crystal or ${formatNumber(shortfallPoints)} pts`
                           : `Need ${formatNumber(shortfallPoints)} more`}
                       </button>
                     )}
@@ -488,10 +559,10 @@ export default function MascotShop({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 id="mascot-buy-title" className="text-lg font-bold text-foreground">
-              Mở khóa {pending.name}
+              Unlock {pending.name}
             </h3>
             <p id="mascot-buy-body" className="mt-1.5 text-xs text-foreground-secondary">
-              Chọn phương thức thanh toán để sở hữu linh vật này:
+              Choose a payment method to unlock this mascot:
             </p>
 
             {/* Payment Choice Selection */}
@@ -516,10 +587,10 @@ export default function MascotShop({
                     />
                     <div>
                       <span className="block text-sm font-bold text-foreground">
-                        Đổi bằng Đá Crystal
+                        Redeem with Crystals
                       </span>
                       <span className="text-xs text-foreground-muted">
-                        Số dư hiện có: {crystals} Crystal
+                        Current balance: {crystals} Crystal
                       </span>
                     </div>
                   </div>
@@ -549,10 +620,10 @@ export default function MascotShop({
                   />
                   <div>
                     <span className="block text-sm font-bold text-foreground">
-                      Mua bằng Điểm Thưởng
+                      Buy with reward points
                     </span>
                     <span className="text-xs text-foreground-muted">
-                      Số dư hiện có: {formatNumber(points)} pts
+                      Current balance: {formatNumber(points)} pts
                     </span>
                   </div>
                 </div>
@@ -569,7 +640,7 @@ export default function MascotShop({
                 onClick={() => setPending(null)}
                 className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="button"
@@ -581,7 +652,7 @@ export default function MascotShop({
                 onClick={executePurchase}
                 className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               >
-                {busy ? 'Đang xử lý…' : 'Xác Nhận'}
+                {busy ? 'Processing…' : 'Confirm'}
               </button>
             </div>
           </div>
@@ -598,10 +669,10 @@ export default function MascotShop({
             onClick={(event) => event.stopPropagation()}
           >
             <h3 id="crystal-exchange-title" className="text-lg font-bold text-foreground">
-              Đổi Crystal lấy điểm
+              Exchange Crystals for points
             </h3>
             <p className="mt-1.5 text-xs text-foreground-secondary">
-              1 Đá Crystal = {formatNumber(POINTS_PER_CRYSTAL)} điểm. Số dư hiện có: {crystals} Crystal.
+              1 Crystal = {formatNumber(POINTS_PER_CRYSTAL)} pts. Current balance: {crystals} Crystal.
             </p>
 
             <div className="mt-4 flex items-center justify-between gap-3">
@@ -630,12 +701,12 @@ export default function MascotShop({
                 onClick={() => setExchangeCount(Math.min(crystals, 99))}
                 className="min-h-11 cursor-pointer rounded-xl border border-border px-3 text-xs font-semibold text-foreground hover:bg-surface-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Tất cả
+                All
               </button>
             </div>
 
             <p className="mt-4 text-sm font-semibold text-warning-text">
-              Nhận {formatNumber(Math.max(exchangeCount, 0) * POINTS_PER_CRYSTAL)} điểm
+              Receive {formatNumber(Math.max(exchangeCount, 0) * POINTS_PER_CRYSTAL)} pts
             </p>
 
             <div className="mt-6 flex justify-end gap-2">
@@ -645,7 +716,7 @@ export default function MascotShop({
                 onClick={() => setExchangeOpen(false)}
                 className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="button"
@@ -653,7 +724,7 @@ export default function MascotShop({
                 onClick={confirmCrystalExchange}
                 className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               >
-                {busy ? 'Đang xử lý…' : 'Đổi'}
+                {busy ? 'Processing…' : 'Exchange'}
               </button>
             </div>
           </div>
