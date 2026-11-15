@@ -9,10 +9,6 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const HEALTH_INTERVAL: Duration = Duration::from_millis(250);
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -25,6 +21,8 @@ struct DesktopStatus {
 pub struct Backend {
     child: Option<Child>,
     port: u16,
+    #[cfg(windows)]
+    job: Option<JobGuard>,
 }
 
 impl Backend {
@@ -45,7 +43,8 @@ impl Backend {
         }
 
         let java_exe = resolve_java(install_dir);
-        let mut cmd = Command::new(&java_exe);
+        let launcher_java = resolve_launcher_java(install_dir);
+        let mut cmd = Command::new(&launcher_java);
         cmd.args([
             // Local practice: room for API + parallel OT worker (not Render free-tier).
             "-Xmx512m",
@@ -67,21 +66,31 @@ impl Backend {
         .env("SANDBOX_RUNNER_URL", "")
         .env("SANDBOX_RUNNER_TOKEN", "");
 
-        #[cfg(windows)]
-        {
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        let child = cmd.spawn().map_err(|e| {
+        let mut child = cmd.spawn().map_err(|e| {
             io::Error::new(
                 e.kind(),
-                format!("Failed to start the Java backend process ({java_exe}): {e}"),
+                format!("Failed to start the Java backend process ({launcher_java}): {e}"),
             )
         })?;
+
+        #[cfg(windows)]
+        let job = match JobGuard::assign(&child) {
+            Ok(job) => Some(job),
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(io::Error::new(
+                    err.kind(),
+                    format!("Failed to attach the Java backend to a job object: {err}"),
+                ));
+            }
+        };
 
         Ok(Self {
             child: Some(child),
             port: config.port,
+            #[cfg(windows)]
+            job,
         })
     }
 
@@ -129,23 +138,80 @@ impl Backend {
             return;
         }
 
-        let pid = child.id();
-        // Windowless java has no main window — kill the process tree promptly.
         #[cfg(windows)]
         {
-            let _ = Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/T", "/F"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+            if let Some(job) = self.job.take() {
+                job.terminate();
+            }
         }
         #[cfg(not(windows))]
         {
             let _ = child.kill();
         }
         let _ = child.wait();
+    }
+}
+
+/// Keeps the Java process and the workers it spawns in one job.
+/// Closing the host ends that job, so the grader does not outlive the window.
+#[cfg(windows)]
+struct JobGuard {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+#[cfg(windows)]
+impl JobGuard {
+    fn assign(child: &Child) -> io::Result<Self> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JobObjectExtendedLimitInformation,
+        };
+
+        unsafe {
+            let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if handle.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let configured = SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if configured == 0 {
+                let err = io::Error::last_os_error();
+                CloseHandle(handle);
+                return Err(err);
+            }
+            let assigned = AssignProcessToJobObject(handle, child.as_raw_handle() as _);
+            if assigned == 0 {
+                let err = io::Error::last_os_error();
+                CloseHandle(handle);
+                return Err(err);
+            }
+            Ok(Self { handle })
+        }
+    }
+
+    fn terminate(&self) {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+        unsafe {
+            TerminateJobObject(self.handle, 1);
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for JobGuard {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        unsafe {
+            CloseHandle(self.handle);
+        }
     }
 }
 
@@ -164,17 +230,24 @@ fn read_cloud_api_url(install_dir: &Path) -> String {
         .unwrap_or_default()
 }
 
-fn resolve_java(install_dir: &Path) -> String {
-    let bundled = install_dir
-        .join("runtime")
-        .join("jdk")
-        .join("bin")
-        .join("java.exe");
-    if bundled.is_file() {
-        bundled.to_string_lossy().into_owned()
+fn bundled_bin(install_dir: &Path, name: &str) -> Option<String> {
+    let path = install_dir.join("runtime").join("jdk").join("bin").join(name);
+    if path.is_file() {
+        Some(path.to_string_lossy().into_owned())
     } else {
-        "java".to_string()
+        None
     }
+}
+
+fn resolve_java(install_dir: &Path) -> String {
+    bundled_bin(install_dir, "java.exe").unwrap_or_else(|| "java".to_string())
+}
+
+/// `javaw` is the no-console Java entry. The worker still uses `java.exe`.
+fn resolve_launcher_java(install_dir: &Path) -> String {
+    bundled_bin(install_dir, "javaw.exe")
+        .or_else(|| bundled_bin(install_dir, "java.exe"))
+        .unwrap_or_else(|| "javaw".to_string())
 }
 
 pub fn append_error_log(install_dir: &Path, message: &str) {
