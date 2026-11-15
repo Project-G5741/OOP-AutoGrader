@@ -150,10 +150,9 @@ public class TestcaseDryRunService {
                     List.of(rubric),
                     true);
 
-            boolean sandbox = workerSessionFactory.isSandboxEnabled();
             Path openRoot = classesDir.getParent() != null ? classesDir.getParent() : classesDir;
             CompletableFuture<WorkerSessionHandle> localOpen = null;
-            if (!sandbox && !sharedLocalWorkerCache.hasIdleLocal()) {
+            if (!sharedLocalWorkerCache.hasIdleLocal()) {
                 localOpen = CompletableFuture.supplyAsync(
                         () -> workerSessionFactory.open(openRoot, invokeTimeoutSeconds));
             }

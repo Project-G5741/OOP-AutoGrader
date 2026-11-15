@@ -194,12 +194,68 @@ public class FeedbackService {
         }
         return itemRepository.findByUser_IdAndLecturerResponseIsNotNullOrderByResponseAtDesc(user.getId())
                 .stream()
+                .filter(FeedbackService::isAuthorReplyVisible)
                 .map(item -> new FeedbackAuthorReplyDTO(
                         item.getId(),
                         item.getItemType(),
                         item.getLecturerResponse(),
                         item.getResponseAt()))
                 .toList();
+    }
+
+    /**
+     * Forever-hide of a {@code feedback-reply-{id}-{responseAt}} key advances the author
+     * watermark for that reply snapshot. Does not delete the feedback ticket.
+     */
+    @Transactional
+    public void clearAuthorReplySnapshotFromNotifKey(UUID userId, String notifKey) {
+        if (userId == null || notifKey == null || !notifKey.startsWith("feedback-reply-")) {
+            return;
+        }
+        String rest = notifKey.substring("feedback-reply-".length());
+        if (rest.length() < 37 || rest.charAt(36) != '-') {
+            return;
+        }
+        UUID itemId;
+        try {
+            itemId = UUID.fromString(rest.substring(0, 36));
+        } catch (IllegalArgumentException ex) {
+            return;
+        }
+        String snapshotRaw = rest.substring(37);
+        if (snapshotRaw.isBlank()) {
+            return;
+        }
+        OffsetDateTime snapshotAt;
+        try {
+            snapshotAt = OffsetDateTime.parse(snapshotRaw);
+        } catch (Exception ex) {
+            return;
+        }
+        Optional<FeedbackItem> found = itemRepository.findByIdAndUser_Id(itemId, userId);
+        if (found.isEmpty()) {
+            return;
+        }
+        FeedbackItem item = found.get();
+        OffsetDateTime liveAt = item.getResponseAt();
+        if (liveAt == null || !liveAt.isEqual(snapshotAt)) {
+            return;
+        }
+        item.setAuthorReplyClearedAt(snapshotAt);
+        itemRepository.save(item);
+    }
+
+    static boolean isAuthorReplyVisible(FeedbackItem item) {
+        String reply = item.getLecturerResponse();
+        if (reply == null || reply.trim().isEmpty()) {
+            return false;
+        }
+        OffsetDateTime clearedAt = item.getAuthorReplyClearedAt();
+        if (clearedAt == null) {
+            return true;
+        }
+        OffsetDateTime responseAt = item.getResponseAt();
+        return responseAt != null && responseAt.isAfter(clearedAt);
     }
 
     @Transactional(readOnly = true)
@@ -263,23 +319,12 @@ public class FeedbackService {
     }
 
     /**
-     * Author leave path: hard-delete own feedback rows that carry a lecturer reply
-     * (including soft-archived). Only the given ids are considered.
+     * Legacy author leave endpoint. Intentionally a no-op: hard-delete was removed so
+     * reload/logout cannot wipe feedback tickets. Forever-hide clears reply snapshots.
      */
     @Transactional
     public void consumeRepliesForAuthor(UserAccount user, List<UUID> ids) {
-        if (user.getId() == null || ids == null || ids.isEmpty()) {
-            return;
-        }
-        List<UUID> distinct = ids.stream().filter(java.util.Objects::nonNull).distinct().toList();
-        if (distinct.isEmpty()) {
-            return;
-        }
-        List<FeedbackItem> owned = itemRepository.findByIdInAndUser_IdAndLecturerResponseIsNotNull(
-                distinct, user.getId());
-        if (!owned.isEmpty()) {
-            itemRepository.deleteAll(owned);
-        }
+        // no-op
     }
 
     private FeedbackItem requireItem(UUID id) {

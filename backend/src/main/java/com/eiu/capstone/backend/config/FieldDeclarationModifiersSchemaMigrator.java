@@ -2,12 +2,14 @@ package com.eiu.capstone.backend.config;
 
 import java.util.List;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 
 @Component
+@Profile("!desktop & !desktop-lecturer")
 public class FieldDeclarationModifiersSchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

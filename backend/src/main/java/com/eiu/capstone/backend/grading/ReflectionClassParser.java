@@ -104,17 +104,24 @@ public class ReflectionClassParser {
                 String message = outcome != null && outcome.errorMessage() != null
                         ? outcome.errorMessage()
                         : "empty reflect payload";
-                log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
-                        classesDir, message);
-                return parseInProcess(classesDir);
+                return leasedReflectFallback(classesDir, message);
             }
             ParsedClass[] parsed = MAPPER.readValue(outcome.returnValueJson(), ParsedClass[].class);
             return parsed == null ? List.of() : Arrays.asList(parsed);
         } catch (Exception e) {
-            log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
-                    classesDir, e.toString());
-            return parseInProcess(classesDir);
+            return leasedReflectFallback(classesDir, e.toString());
         }
+    }
+
+    private List<ParsedClass> leasedReflectFallback(Path classesDir, String message) {
+        if (workerProcessClient != null && workerProcessClient.isStudentDenyEnabled()) {
+            log.warn("Leased worker reflect failed for {}; student deny is on, skipping in-process parse: {}",
+                    classesDir, message);
+            return List.of();
+        }
+        log.warn("Leased worker reflect failed for {}; falling back to in-process parse: {}",
+                classesDir, message);
+        return parseInProcess(classesDir);
     }
 
     private boolean workerJarAvailable() {

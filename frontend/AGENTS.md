@@ -114,8 +114,10 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ## Verification
 
+- `npm test` (Vitest) — utils smoke under `src/utils/__tests__/` (`authRoutes`, `formatters`, `apiError`, `maintenanceMode`, `desktopMode`, `rateLimitJail`)
 - `npm run build` must succeed
 - `npm run build:desktop` (`--mode desktop`) outputs `dist-desktop/` for the offline student bundle (`App.desktop.jsx`, no Google client required)
+- `npm run build:desktop-lecturer` for the offline lecturer Bulk UI
 - Manual: login flow (Google + IRN), role dashboards, user CRUD, student upload via `DropZone`
 
 ## Child DOX Index

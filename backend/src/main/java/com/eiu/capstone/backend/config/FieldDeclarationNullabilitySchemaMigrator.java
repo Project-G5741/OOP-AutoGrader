@@ -2,6 +2,7 @@ package com.eiu.capstone.backend.config;
 
 import java.util.List;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -9,8 +10,10 @@ import jakarta.annotation.PostConstruct;
 
 /**
  * Enum constants are stored without a type or scope. Older databases marked both columns NOT NULL.
+ * Desktop H2 gets nullability from Hibernate {@code ddl-auto: update}.
  */
 @Component
+@Profile("!desktop & !desktop-lecturer")
 public class FieldDeclarationNullabilitySchemaMigrator {
 
     private final JdbcTemplate jdbcTemplate;

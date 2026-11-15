@@ -56,7 +56,7 @@ app:
   storage:
     submission-base-dir: ${APP_DESKTOP_HOME:.}/data/submissions
   grading:
-    sandbox:
+    student-deny:
       enabled: false
     worker-jar: ${APP_DESKTOP_HOME:.}/worker.jar
     worker-java: ${DESKTOP_WORKER_JAVA:java}

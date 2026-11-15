@@ -42,11 +42,9 @@ Per challenge, pillars run in order: class reflection, then MMD (when applicable
 
 ### Invocation runner — isolated worker
 
-**Pattern:** Operational invoke runs in a thin worker JAR. The API kills the process tree on timeout and respawns without releasing the slot. Student `URLClassLoader` parent is the platform loader. Stdout is capped at 65536 bytes. Worker env is allowlisted (not a `/proc` or filesystem jail).
+**Pattern:** Operational invoke runs in a thin worker JAR. The API kills the process tree on timeout and respawns without releasing the slot. Student `URLClassLoader` parent is the platform loader. Stdout is capped at 65536 bytes. Worker env is allowlisted (not a `/proc` or filesystem jail). On Render, `STUDENT_DENY_ENABLED=true` adds a Java deny policy for student frames only; a blocked call fails that test with `This call was blocked.` This PC and both desktop apps leave the flag off. See `docs/SANDBOX_RUNNER_DEPLOY.md`.
 
-**Stage 3 (optional):** When `app.grading.sandbox.enabled=true`, `WorkerSessionFactory` tars the submission root and opens a remote session on `sandbox-runner`, which runs `worker.jar` inside a hardened Docker container (`network none`, read-only root, tmpfs `/work`, cgroup limits). See `docs/SANDBOX_RUNNER_DEPLOY.md`. No Docker socket on the Render API image.
-
-**Anti-pattern:** Invoking student methods in the API JVM, launching the worker with `PropertiesLauncher` / the API fat JAR, or treating env allowlist as host secret safety.
+**Anti-pattern:** Invoking student methods in the API JVM, launching the worker with `PropertiesLauncher` / the API fat JAR, treating env allowlist as host secret safety, or loading student classes in the API process when the deny flag is on.
 
 **Instance methods:** When `testcase_invocation.receiver_constructor_id` is set, the worker constructs the receiver via that rubric constructor and `receiver_params` JSON. When receiver columns are null, it falls back to a no-arg constructor. See `docs/solutions/logic-errors/method-invocation-receiver-constructor.md`.
 

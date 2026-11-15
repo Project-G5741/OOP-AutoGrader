@@ -597,11 +597,11 @@ For each testcase:
 
 Each dry-run or student-upload OT batch:
 
-1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot **before** class+MMD when any challenge has OT (OT host lease); dry-run always acquires. Class-tab GET / no-OT one-shot `--reflect` also acquires the same slot. Local path borrows from `SharedLocalWorkerCache` (default short clean TTL `worker-idle-ttl-ms=5000`; also parks when slot waiters exist; dirty/hang never parks) after the slot; sandbox sessions are never cached.
+1. Acquires the host `workerJvmSlot` (one process). Student upload / bulk acquire the slot **before** class+MMD when any challenge has OT (OT host lease); dry-run always acquires. Class-tab GET / no-OT one-shot `--reflect` also acquires the same slot. The session is borrowed from `SharedLocalWorkerCache` (default short clean TTL `worker-idle-ttl-ms=5000`; also parks when slot waiters exist; dirty/hang never parks) after the slot.
 2. Under the lease, challenge class parse uses session NDJSON `reflect`, then one NDJSON `batch` for all runnable OT (lab-wide for upload/bulk; one item for dry-run). Each item may carry its own `classesDir`. The worker runs items on a CPU-capped pool with a per-item platform-parent `URLClassLoader`, and returns per-item snapshots. Constructor results and static-factory object returns register `instanceName`. Instance-method returns do not overwrite the named receiver.
 3. The worker enforces `app.grading.testcase-invoke-timeout-seconds` (default **3s**) per batch item as **execution** wall-clock; the API transport wait is `⌈T/P⌉ × τ + 30s` return slack. On outer hang the API marks dirty, tree-kills, and respawns without releasing the host slot.
 
-At most one worker JVM runs on the host slot (local or remote sandbox when `app.grading.sandbox.enabled=true`). Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab GET parse prefers one-shot worker `--reflect` (in-process fallback if the JAR is missing or reflect fails). Sandbox path: `WorkerSessionFactory` → `RemoteWorkerSessionClient` → `sandbox-runner` warm pool; see `docs/SANDBOX_RUNNER_DEPLOY.md`.
+At most one worker JVM runs on the host slot. Contending upload/bulk/dry-run/`--reflect` callers wait for that slot (`worker_slot_wait_ms`). Class-tab GET parse prefers one-shot worker `--reflect` (in-process fallback if the JAR is missing or reflect fails) and does not install the student deny policy. On Render, the OT worker does: set `STUDENT_DENY_ENABLED` and `STUDENT_DENY_REQUIRED` (see `docs/SANDBOX_RUNNER_DEPLOY.md`).
 
 Operator wipe SQL is `docs/sql/2026-09-23-operational-testcase-unit-composition.sql`. `TestcaseSchemaMigrator` applies it on startup when leftover types/columns remain, then `LabRubricCache.invalidateAll()`.
 
@@ -713,7 +713,6 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 |----------|---------|------|---------|
 | `app.grading.parallelism` | 4 | `gradingExecutor` | Max concurrent challenge grading workers (capped at CPU count) |
 | `app.compile.parallelism` | 4 | `compileExecutor` | Max concurrent per-challenge compile workers (capped at CPU count) |
-| (derived) | `max(2, parallelism×2)` | `pillarExecutor` | MMD pillar inside each challenge (not CPU-capped) |
 | (fixed) | 1 | `workerJvmSlot` | Host-wide isolated worker JVM; upload/bulk/dry-run acquire on the HTTP thread |
 | (fixed) | 2, not CPU-capped | `rubricOverlapExecutor` | Upload rubric cache load overlapping compile |
 | (fixed) | 2, not CPU-capped | `persistExecutor` | Detail UPSERT, sidecars, plagiarism inspect, temp delete |
@@ -726,7 +725,7 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `app.grading.timing-log` | false | `TimingLog` | Aligned `[timing]` blocks: upload (`access`, `rubric`, `compile`, `grade`, `persist`, `plagiarism`, `total`), compile, challenge, grade submission |
 | `app.storage.submission-base-dir` | `submissions/` | — | Temp upload root |
 
-**Deadlock prevention:** `pillarExecutor` is intentionally separate from `gradingExecutor`. If they shared one pool, a challenge worker waiting for MMD futures could exhaust the pool (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`).
+**Deadlock prevention:** Class and MMD for one challenge run **sequentially** on the same `gradingExecutor` worker (no nested pillar pool). Nested `join` on a CPU-capped shared pool historically deadlocked 1-CPU Render hosts (documented in `docs/solutions/architecture-patterns/grading-executor-deadlock-render.md`). Detail UPSERT and assemble must not run on `gradingExecutor`.
 
 ---
 
@@ -763,9 +762,8 @@ When the challenge has authored OT rows, upload sets `testcaseApplicable` true a
 | `grading/rubric/LabRubricCache.java` | In-process rubric TTL cache |
 | `config/GradingExecutorConfig.java` | `gradingExecutor` bean |
 | `config/CompileExecutorConfig.java` | `compileExecutor` bean |
-| `config/PillarExecutorConfig.java` | `pillarExecutor` bean |
-| `config/TestcaseInvokeExecutorConfig.java` | Single-thread invoke pool |
 | `config/PersistExecutorConfig.java` | Off-request detail UPSERT pool |
+| `config/StudentDenyStartupValidator.java` | Cloud boot: `STUDENT_DENY_REQUIRED` fails when the policy flag is off |
 | `plagiarism/PlagiarismService.java` | Fingerprint, pairwise compare, lab re-evaluate on upload |
 
 ---

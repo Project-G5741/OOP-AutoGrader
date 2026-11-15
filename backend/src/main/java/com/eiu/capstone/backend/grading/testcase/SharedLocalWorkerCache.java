@@ -14,7 +14,7 @@ import jakarta.annotation.PreDestroy;
  * Optionally reuses one idle local worker JVM across upload, bulk grade, and lecturer dry-run.
  * Default idle TTL is a short clean peek ({@code app.grading.worker-idle-ttl-ms}, typically 5s).
  * Clean release parks when another waiter is queued on {@code workerJvmSlot} or when TTL &gt; 0.
- * Dirty (hang/abort) and sandbox sessions are never parked. Callers must already hold the slot.
+ * Dirty (hang/abort) sessions are never parked. Callers must already hold the slot.
  */
 @Component
 public class SharedLocalWorkerCache {
@@ -45,9 +45,6 @@ public class SharedLocalWorkerCache {
     }
 
     public WorkerSessionHandle borrow(WorkerSessionFactory factory, Path root, int timeoutSeconds) {
-        if (factory.isSandboxEnabled()) {
-            return factory.open(root, timeoutSeconds);
-        }
         synchronized (lock) {
             if (idle != null && idle.isAlive() && !idle.isDirty() && System.currentTimeMillis() < idleDeadlineMs) {
                 WorkerSessionHandle handle = idle;
@@ -67,7 +64,7 @@ public class SharedLocalWorkerCache {
         if (handle == null) {
             return;
         }
-        if (factory.isSandboxEnabled() || handle.isDirty() || !handle.isAlive()) {
+        if (handle.isDirty() || !handle.isAlive()) {
             handle.close();
             return;
         }

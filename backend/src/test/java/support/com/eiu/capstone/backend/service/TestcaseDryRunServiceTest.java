@@ -40,7 +40,6 @@ import com.eiu.capstone.backend.grading.testcase.JsonValueCoercer;
 import com.eiu.capstone.backend.grading.testcase.PrimaryAssertionSelector;
 import com.eiu.capstone.backend.grading.testcase.TestcaseDisplayFormatter;
 import com.eiu.capstone.backend.grading.testcase.TestcaseResultMapper;
-import com.eiu.capstone.backend.grading.testcase.RemoteWorkerSessionClient;
 import com.eiu.capstone.backend.grading.testcase.WorkerProcessClient;
 import com.eiu.capstone.backend.grading.testcase.WorkerSessionFactory;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
@@ -118,9 +117,8 @@ class TestcaseDryRunServiceTest {
                 graderSpy,
                 new TestcaseResultMapper(displayFormatter, primaryAssertionSelector),
                 new Semaphore(1),
-                new WorkerSessionFactory(false,
-                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
-                        org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
+                new WorkerSessionFactory(
+                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar"))),
                 new SharedLocalWorkerCache(0L),
                 new DryRunCompileCache(5_000L),
                 5);
@@ -183,9 +181,8 @@ class TestcaseDryRunServiceTest {
                 grader,
                 mapper,
                 new Semaphore(1),
-                new WorkerSessionFactory(false,
-                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar")),
-                        org.mockito.Mockito.mock(RemoteWorkerSessionClient.class)),
+                new WorkerSessionFactory(
+                        new WorkerProcessClient("java", java.nio.file.Path.of("missing-worker.jar"))),
                 new SharedLocalWorkerCache(0L),
                 new DryRunCompileCache(5_000L),
                 5);
