@@ -1022,7 +1022,7 @@ export default function MascotGachaModal({
                     onClick={onClose}
                     className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
-                    Xong
+                    Done
                   </button>
 
                   <button
