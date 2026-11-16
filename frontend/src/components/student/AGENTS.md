@@ -25,7 +25,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (theme `--primary` / `--success`; opens `GET /desktop-practice-bundle?access_token=` so the browser owns transfer progress; busy shows **Downloading…**, then brief **Started**; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 | `AiSettingsModal.jsx` | Web-only Gemini BYOK + token management (`POST/DELETE /api/students/ai/connect`, `GET /token`). Key stored encrypted on server; usage bar with 50/80/90% alerts. Header **AI Learning Assistant** |
-| `AiLearningAssistantPanel.jsx` | Web-only Conceptual hint panel after results reveal when `lab.aiEnabled`; `POST /api/students/ai/hint` (server-held key) |
+| `AiLearningAssistantPanel.jsx` | Web-only Conceptual hint panel embedded directly as the 4th result tab (next to Operation Test) when `lab.aiEnabled`; uses standard design system `Combobox` controls for Learning Area and Language; `POST /api/students/ai/hint` (server-held key) |
 
 ## Local Contracts
 
@@ -72,8 +72,8 @@ After upload, `StudentDashboard` uses the upload payload for stats and challenge
 
 ### Result tabs (`StudentUI.jsx`)
 
-- MMD / Declaration Test / Operation Test tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a `StageCard3D` + Lottie `EmptyState` prompt to submit first.
-- After upload, tabs appear and are filtered by `lab_result.scoreApplicability`: Declaration Test is hidden when `scoreApplicability.class === false` (`has_class=false`); MMD when `has_mmd=false`; Operation Test appears when `scoreApplicability.testcase === true` or the challenge bundle has a non-empty `testcases` array (upload or revisit).
+- MMD / Declaration Test / Operation Test / AI Assistant tabs and their content are hidden until the student completes an upload in the current browser session for the selected lab (`resultsRevealed`). Before that, the main panel shows a `StageCard3D` + Lottie `EmptyState` prompt to submit first.
+- After upload, tabs appear and are filtered by `lab_result.scoreApplicability` and lab capabilities: Declaration Test is hidden when `scoreApplicability.class === false` (`has_class=false`); MMD when `has_mmd=false`; Operation Test appears when `scoreApplicability.testcase === true` or the challenge bundle has a non-empty `testcases` array (upload or revisit); AI Assistant appears as the 4th tab next to Operation Test on web when `lab.aiEnabled` is true.
 - If the active tab is hidden after switching challenges, selection falls back to the first visible tab.
 - Declaration Test class cards show the student's parsed declaring type (e.g. `INTERFACE`); class shells are pass/fail (green check when correct, red X when wrong). A type with no rubric fields/constructors/methods (e.g. an enum) counts as `1/1 · 100%` from the shell, not `0/1`. When the shell fails, member rows are all fail (no green ticks). Fields, methods, and constructors are pass or fail only — leftover `partial` flags render as fail, not an orange minus
 - Student Class/MMD rows come from API `DisclosureMode.STUDENT`: missing or wrong members show generic messages, never rubric expected names. `studentDisplayConsolidation.js` collapses repeated generic error rows; score counts still use the full rubric-scoped arrays. Lecturer Grading/Dashboard drawers use the same generic labels and consolidators for wrong/missing Class and MMD members.

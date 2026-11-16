@@ -18,6 +18,7 @@ import {
   Flask,
   Stack,
   Trophy,
+  Sparkle,
 } from '@phosphor-icons/react';
 import DropZone from '../ui/DropZone';
 import DangerAlert from '../ui/DangerAlert';
@@ -45,8 +46,18 @@ import { formatLabDeadlineMeta } from '../../theme/statusClasses';
 import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
 
-const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
-const TAB_ICONS = { mmd: FlowArrow, class: BracketsCurly, testcase: Flask };
+const TAB_LABELS = {
+  mmd: 'MMD',
+  class: 'Declaration Test',
+  testcase: 'Operation Test',
+  ai: 'AI Assistant',
+};
+const TAB_ICONS = {
+  mmd: FlowArrow,
+  class: BracketsCurly,
+  testcase: Flask,
+  ai: Sparkle,
+};
 const TAB_ORDER = Object.keys(TAB_LABELS);
 const HIDDEN_TESTCASES_PAGE_SIZE = 60;
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -278,10 +289,16 @@ export default function StudentUI({
     ?? currentBundle?.normalizationNotice
     ?? currentBundle?.normalization_notice
     ?? null;
+  const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
+  const isAiEligible = !IS_DESKTOP_APP && Boolean(selectedLab?.aiEnabled);
+
   const visibleTabs = useMemo(
     () => {
       if (!resultsRevealed) return [];
       return TAB_ORDER.filter((t) => {
+        if (t === 'ai') {
+          return isAiEligible;
+        }
         if (t === 'testcase') {
           return currentBundle?.scoreApplicability?.testcase === true
             || currentBundle?.score_applicability?.testcase === true
@@ -290,7 +307,7 @@ export default function StudentUI({
         return !isPillarNotApplicable(currentBundle, t);
       });
     },
-    [resultsRevealed, currentBundle],
+    [resultsRevealed, currentBundle, isAiEligible],
   );
 
   // If the active tab's pillar is inapplicable for the newly selected challenge (hidden from
@@ -384,8 +401,6 @@ export default function StudentUI({
   const visibleTestcases = testCasesData.filter((tc) => !tc.isHidden);
 
   const testScore = bundleScore(currentBundle, 'testcase', { ok: 0, total: 0, pct: 0 });
-
-  const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
 
   return (
     <SidebarProvider>
@@ -1002,6 +1017,14 @@ export default function StudentUI({
                   )}
                 </>
               )}
+              {activeTab === 'ai' && (
+                <AiLearningAssistantPanel
+                  labId={selectedLabId}
+                  submissionId={sessionSubmissionId}
+                  enabled={isAiEligible}
+                  onOpenSettings={onOpenAiSettings}
+                />
+              )}
                 </>
               )}
             </div>
@@ -1015,14 +1038,6 @@ export default function StudentUI({
               />
             )}
           </div>
-          {!IS_DESKTOP_APP && resultsRevealed && selectedLab?.aiEnabled && (
-            <AiLearningAssistantPanel
-              labId={selectedLabId}
-              submissionId={sessionSubmissionId}
-              enabled
-              onOpenSettings={onOpenAiSettings}
-            />
-          )}
         </div>
         </div>
       </SidebarInset>

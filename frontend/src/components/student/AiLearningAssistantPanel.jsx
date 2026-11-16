@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, KeyRound } from 'lucide-react';
+import { Sparkle } from '@phosphor-icons/react';
+import Combobox from '../ui/Combobox';
 import { apiFetch } from '../../utils/apiFetch';
 import { readFriendlyApiError } from '../../utils/apiError';
 import { getAccessToken } from '../../utils/authRoutes';
@@ -7,10 +9,15 @@ import { useToast } from '../ui/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
-const AREAS = [
-  { id: 'FIELD_MODELING', label: 'Fields' },
-  { id: 'METHODS', label: 'Methods' },
-  { id: 'CONSTRUCTORS', label: 'Constructors' },
+const AREA_OPTIONS = [
+  { value: 'FIELD_MODELING', label: 'Fields' },
+  { value: 'METHODS', label: 'Methods' },
+  { value: 'CONSTRUCTORS', label: 'Constructors' },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English' },
+  { value: 'vi', label: 'Tiếng Việt' },
 ];
 
 function alertMessage(label) {
@@ -90,89 +97,136 @@ export default function AiLearningAssistantPanel({
   const usagePercent = result?.token?.usagePercent;
 
   return (
-    <section className="mt-4 rounded-2xl border border-dashed border-border bg-surface-secondary/40 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface">
-            <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
+    <div className="space-y-5">
+      {/* Top Header / Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-light text-primary-text">
+            <Sparkle size={18} weight="duotone" aria-hidden="true" />
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-              AI Learning Assistant · advisory
-            </p>
-            <h3 className="text-base font-semibold text-foreground">Conceptual hint</h3>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Guide your thinking. This never changes your official score and will not name exact
-              answers.
-            </p>
-          </div>
+          <h3 className="text-sm font-semibold text-foreground">AI Learning Assistant</h3>
         </div>
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          Key & token management
-        </button>
+        <div className="flex items-center gap-4">
+          {typeof usagePercent === 'number' && (
+            <span className="text-xs text-foreground-muted tabular-nums">
+              Token usage: <span className="font-semibold text-foreground">{usagePercent}%</span>
+            </span>
+          )}
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+            >
+              <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Key & Token Management</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-3">
-        <label className="text-sm text-foreground">
-          Area
-          <select
-            className="ml-2 rounded-lg border border-border bg-surface px-2 py-1.5"
+      {/* Dropdown controls conforming strictly to design system */}
+      <div className="flex flex-wrap items-end gap-3 sm:gap-4">
+        <div className="w-full sm:w-48">
+          <label className="block mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+            Learning Area
+          </label>
+          <Combobox
             value={area}
-            onChange={(e) => setArea(e.target.value)}
-          >
-            {AREAS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm text-foreground">
-          Language
-          <select
-            className="ml-2 rounded-lg border border-border bg-surface px-2 py-1.5"
+            onChange={setArea}
+            options={AREA_OPTIONS}
+            allowEmpty={false}
+            disabled={loading}
+            aria-label="Learning Area"
+            className="w-full min-w-0"
+          />
+        </div>
+
+        <div className="w-full sm:w-40">
+          <label className="block mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground-muted">
+            Language
+          </label>
+          <Combobox
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          >
-            <option value="en">English</option>
-            <option value="vi">Tiếng Việt</option>
-          </select>
-        </label>
+            onChange={setLanguage}
+            options={LANGUAGE_OPTIONS}
+            allowEmpty={false}
+            disabled={loading}
+            aria-label="Language"
+            className="w-full min-w-0"
+          />
+        </div>
+
         <button
           type="button"
           disabled={loading}
           onClick={handleRequest}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          className="inline-flex h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-stage-1 transition-all hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
         >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Request Conceptual hint
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Sparkle size={16} weight="duotone" aria-hidden="true" />
+          )}
+          <span>Request Conceptual Hint</span>
         </button>
       </div>
 
-      {typeof usagePercent === 'number' && (
-        <p className="mt-3 text-xs text-foreground-muted">Token usage: {usagePercent}%</p>
+      {error && (
+        <div className="rounded-xl border border-error/30 bg-error-bg/40 p-3 text-sm text-error-text">
+          {error}
+        </div>
       )}
 
-      {error && <p className="mt-3 text-sm text-error-text">{error}</p>}
-
+      {/* Result feedback */}
       {feedback && (
-        <div className="mt-4 space-y-2 rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-            {feedback.concept || feedback.category}
-            {result?.cacheHit ? ' · cached' : ''}
-            {result?.status === 'rejected' || result?.status === 'failed' ? ' · safe fallback' : ''}
-          </p>
-          <p className="text-sm text-foreground">{feedback.summary}</p>
-          <p className="text-sm font-medium text-foreground">{feedback.question}</p>
+        <div className="space-y-3 rounded-xl border-l-4 border-purple bg-surface-secondary/70 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple">
+              {feedback.concept || feedback.category}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {result?.cacheHit && (
+                <span className="rounded-md border border-border-subtle bg-surface px-2 py-0.5 text-[11px] font-semibold text-foreground-muted">
+                  Cached
+                </span>
+              )}
+              {(result?.status === 'rejected' || result?.status === 'failed') && (
+                <span className="rounded-md bg-warning-bg px-2 py-0.5 text-[11px] font-semibold text-warning-text">
+                  Safe Fallback
+                </span>
+              )}
+            </div>
+          </div>
+          {feedback.summary && (
+            <p className="text-sm font-medium text-foreground">{feedback.summary}</p>
+          )}
+          {feedback.question && (
+            <div className="rounded-lg border border-border-subtle bg-surface p-3">
+              <p className="mb-1 text-xs font-semibold text-foreground-muted">Guiding Question</p>
+              <p className="text-sm font-medium text-foreground">{feedback.question}</p>
+            </div>
+          )}
           {feedback.explanation && (
-            <p className="text-sm text-foreground-muted">{feedback.explanation}</p>
+            <p className="text-xs text-foreground-secondary leading-relaxed">{feedback.explanation}</p>
           )}
         </div>
       )}
-    </section>
+
+      {/* Clean initial empty prompt if no feedback yet and not loading */}
+      {!feedback && !loading && !error && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-secondary text-primary">
+            <Sparkle size={24} weight="duotone" aria-hidden="true" />
+          </div>
+          <p className="mt-3 text-sm font-semibold text-foreground">
+            Need conceptual guidance on this lab?
+          </p>
+          <p className="mt-1 max-w-sm text-xs text-foreground-muted">
+            Choose a learning area above and click Request Conceptual Hint to receive personalized advice.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
