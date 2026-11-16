@@ -17,6 +17,12 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: projectgrader/oop-autograder-api:${{ github.sha }}
+          # Dockerfile curls these during build into /app. A Container App env var is too late.
+          # Repository secrets (public GitHub Release asset URLs):
+          # PRACTICE_BUNDLE_URL, LECTURER_BULK_BUNDLE_URL
+          build-args: |
+            PRACTICE_BUNDLE_URL=${{ secrets.PRACTICE_BUNDLE_URL }}
+            LECTURER_BULK_BUNDLE_URL=${{ secrets.LECTURER_BULK_BUNDLE_URL }}
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
