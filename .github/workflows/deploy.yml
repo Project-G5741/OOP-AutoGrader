@@ -1,0 +1,25 @@
+name: Deploy backend
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: projectgrader
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: projectgrader/oop-autograder-api:${{ github.sha }}
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - run: >
+          az containerapp update -n oop-autograder-api -g rg-oop-autograder
+          --image projectgrader/oop-autograder-api:${{ github.sha }}
