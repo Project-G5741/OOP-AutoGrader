@@ -123,6 +123,7 @@ Default section order:
 | `docs/sql/2026-11-15-student-notification-dismiss.sql` | Operator-run: `student_notification_dismiss` (durable web student bell forever-hide keys). Startup migrator `StudentNotificationDismissSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-16-lab-ai-enabled.sql` | Operator-run: `lab.ai_enabled` (AI Learning Assistant eligibility, default false). Startup migrator `LabAiEnabledSchemaMigrator` applies the same column on PostgreSQL |
 | `docs/sql/2026-11-16-ai-feedback-cache.sql` | Operator-run: `ai_feedback_cache` (validated Conceptual hint cache; no API keys). Startup migrator `AiFeedbackCacheSchemaMigrator` applies the same table on PostgreSQL |
+| `docs/sql/2026-11-16-ai-feedback-cache-challenge-scope.sql` | Operator-run: widen `ai_feedback_cache.learning_area` to VARCHAR(64) for challenge-scoped AI feedback cache keys. Startup migrator applies the same statement on PostgreSQL |
 | `docs/sql/2026-11-16-ai-student-credential.sql` | Operator-run: `ai_student_credential` (encrypted Gemini BYOK + token budget). Startup migrator `AiStudentCredentialSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 | `docs/design/DESIGN_SYSTEM_SKILL.md` | Official UI/UX Design System Skill: Swiss Modernism 2.0, 60-30-10 color theory, 6 themes, dropboxes, layouts, components, WCAG AA |

@@ -1,5 +1,6 @@
 package com.eiu.capstone.backend.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.context.annotation.Profile;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.ai.FailingClassInfo;
 import com.eiu.capstone.backend.ai.StudentAiFeedbackService;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
@@ -85,11 +87,19 @@ public class StudentAiController {
                 user.getId(),
                 request.labId(),
                 request.submissionId(),
-                request.learningArea(),
-                request.language());
+                request.challengeId(),
+                request.challengeName(),
+                request.failingClasses());
     }
 
-    public record HintRequest(UUID labId, UUID submissionId, String learningArea, String language) {}
+    public record HintRequest(
+            UUID labId,
+            UUID submissionId,
+            UUID challengeId,
+            String challengeName,
+            String learningArea,
+            String language,
+            List<FailingClassInfo> failingClasses) {}
 
     public record ConnectRequest(String apiKey) {}
 }

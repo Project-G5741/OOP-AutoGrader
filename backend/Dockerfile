@@ -10,7 +10,7 @@ COPY src ./src
 RUN mvn -B test package
 
 # Stage 2: Runtime
-FROM eclipse-temurin:21-jdk
+FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
 
 # Copy API fat JAR and thin worker JAR by explicit names (glob would be unsafe with two artifacts).

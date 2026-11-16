@@ -1,16 +1,37 @@
 package com.eiu.capstone.backend.ai;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
 /**
- * Builds minimised Gemini context. Never includes expected identifiers, signatures,
- * hidden tests, or raw student source.
+ * Builds minimised Gemini context. Never includes hidden tests, reference solution
+ * implementations, or raw student source files.
  */
 @Component
 public class AiContextBuilder {
+
+    public Map<String, Object> buildChallengeContext(
+            String labName,
+            String challengeName,
+            List<FailingClassInfo> failingClasses) {
+        Map<String, Object> ctx = new LinkedHashMap<>();
+        ctx.put("role", "oop_learning_assistant");
+        ctx.put("labTopic", sanitize(labName));
+        ctx.put("challengeName", sanitize(challengeName));
+        ctx.put("language", "English");
+        ctx.put("failingClasses", failingClasses != null ? failingClasses : List.of());
+        ctx.put("instructions", Map.of(
+                "style", "Supportive, conceptual OOP guidance with actionable advice and thoughtful questions",
+                "mustNot", List.of(
+                        "complete Java code blocks or implementation solutions",
+                        "hidden testcase details or reference solution code",
+                        "backticks around identifiers or words"),
+                "outputFormat", "JSON object with challengeSummary and classes array"));
+        return ctx;
+    }
 
     public Map<String, Object> build(
             String labName,
@@ -30,7 +51,7 @@ public class AiContextBuilder {
                 "displayLabelsOnly", true));
         ctx.put("instructions", Map.of(
                 "style", "Socratic Conceptual questions and brief concept explanations",
-                "mustNot", java.util.List.of(
+                "mustNot", List.of(
                         "exact missing field/method/constructor names",
                         "Java code, signatures, or solution pseudocode",
                         "hidden tests or reference solutions",

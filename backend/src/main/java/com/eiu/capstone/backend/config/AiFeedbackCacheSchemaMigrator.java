@@ -23,7 +23,7 @@ public class AiFeedbackCacheSchemaMigrator {
                     id UUID PRIMARY KEY,
                     student_id UUID NOT NULL,
                     submission_id UUID NOT NULL,
-                    learning_area VARCHAR(32) NOT NULL,
+                    learning_area VARCHAR(64) NOT NULL,
                     language VARCHAR(8) NOT NULL,
                     policy_version VARCHAR(64) NOT NULL,
                     model_identifier VARCHAR(128) NOT NULL,
@@ -33,6 +33,10 @@ public class AiFeedbackCacheSchemaMigrator {
                     CONSTRAINT uk_ai_feedback_cache_key
                         UNIQUE (student_id, submission_id, learning_area, language, policy_version)
                 )
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE ai_feedback_cache
+                    ALTER COLUMN learning_area TYPE VARCHAR(64)
                 """);
     }
 }

@@ -1021,6 +1021,9 @@ export default function StudentUI({
                 <AiLearningAssistantPanel
                   labId={selectedLabId}
                   submissionId={sessionSubmissionId}
+                  challengeId={selectedChallengeId}
+                  challengeName={currentChallenge?.name}
+                  classData={classData}
                   enabled={isAiEligible}
                   onOpenSettings={onOpenAiSettings}
                 />

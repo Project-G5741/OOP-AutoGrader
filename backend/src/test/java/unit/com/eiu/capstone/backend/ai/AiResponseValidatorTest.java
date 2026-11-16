@@ -3,11 +3,15 @@ package unit.com.eiu.capstone.backend.ai;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import com.eiu.capstone.backend.ai.AiResponseValidator;
+import com.eiu.capstone.backend.ai.ChallengeAiFeedbackPayload;
+import com.eiu.capstone.backend.ai.ClassGuidanceItem;
+import com.eiu.capstone.backend.ai.GuidanceDetail;
 
 class AiResponseValidatorTest {
 
@@ -60,6 +64,49 @@ class AiResponseValidatorTest {
                 "Look at `customerName`.",
                 null,
                 Set.of("customerName"));
+        assertFalse(result.passed());
+    }
+
+    @Test
+    void acceptsSafeChallengePayloadAndAllowsVisibleClassName() {
+        ChallengeAiFeedbackPayload payload = new ChallengeAiFeedbackPayload(
+                "Circle class requires revisions to attributes and methods.",
+                List.of(
+                        new ClassGuidanceItem(
+                                "Circle",
+                                "CLASS",
+                                "error",
+                                null,
+                                List.of(
+                                        new GuidanceDetail(
+                                                "Attribute Encapsulation",
+                                                "Ensure that dimensions in Circle are private.",
+                                                "What access modifier protects class attributes from direct modification?")))),
+                "en");
+
+        // "radius" is secret rubric identifier, but "Circle" is the allowed student class name
+        var result = validator.validateChallengePayload(payload, Set.of("radius"), Set.of("Circle"));
+        assertTrue(result.passed());
+    }
+
+    @Test
+    void rejectsChallengePayloadLeakingProhibitedIdentifier() {
+        ChallengeAiFeedbackPayload payload = new ChallengeAiFeedbackPayload(
+                "Guidance for Challenge 1.",
+                List.of(
+                        new ClassGuidanceItem(
+                                "Circle",
+                                "CLASS",
+                                "error",
+                                null,
+                                List.of(
+                                        new GuidanceDetail(
+                                                "Missing Field",
+                                                "You need to declare radius as an integer.",
+                                                "Have you added radius?")))),
+                "en");
+
+        var result = validator.validateChallengePayload(payload, Set.of("radius"), Set.of("Circle"));
         assertFalse(result.passed());
     }
 }

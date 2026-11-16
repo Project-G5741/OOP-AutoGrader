@@ -25,7 +25,7 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (theme `--primary` / `--success`; opens `GET /desktop-practice-bundle?access_token=` so the browser owns transfer progress; busy shows **Downloading…**, then brief **Started**; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
 | `AiSettingsModal.jsx` | Web-only Gemini BYOK + token management (`POST/DELETE /api/students/ai/connect`, `GET /token`). Key stored encrypted on server; usage bar with 50/80/90% alerts. Header **AI Learning Assistant** |
-| `AiLearningAssistantPanel.jsx` | Web-only Conceptual hint panel embedded directly as the 4th result tab (next to Operation Test) when `lab.aiEnabled`; uses standard design system `Combobox` controls for Learning Area and Language; `POST /api/students/ai/hint` (server-held key) |
+| `AiLearningAssistantPanel.jsx` | Web-only AI Assistant panel embedded directly as the 4th result tab (next to Operation Test) when `lab.aiEnabled`; English-only; automatically provides challenge-scoped guidance upon grading completion without manual run triggers; groups guidance into collapsible class cards sharing Declaration Test accordion design; `POST /api/students/ai/hint` (server-held key) |
 
 ## Local Contracts
 

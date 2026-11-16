@@ -15,9 +15,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class AiResponseValidator {
 
-    private static final int MAX_SUMMARY = 600;
+    private static final int MAX_SUMMARY = 1200;
     private static final int MAX_QUESTION = 500;
-    private static final int MAX_EXPLANATION = 800;
+    private static final int MAX_EXPLANATION = 1200;
 
     private static final Pattern CODE_FENCE = Pattern.compile("```");
     private static final Pattern JAVAISH = Pattern.compile(
@@ -25,6 +25,79 @@ public class AiResponseValidator {
     private static final Pattern METHOD_SIG = Pattern.compile(
             "(?i)\\b(public|private|protected)?\\s*(static\\s+)?[\\w<>\\[\\]]+\\s+[a-z]\\w*\\s*\\([^)]*\\)\\s*\\{?");
     private static final Pattern BACKTICK_IDENT = Pattern.compile("`([A-Za-z_][\\w$]*)`");
+
+    public ValidationResult validateChallengePayload(
+            ChallengeAiFeedbackPayload payload,
+            Collection<String> prohibitedIdentifiers,
+            Set<String> allowedClassNames) {
+        if (payload == null || blank(payload.challengeSummary())) {
+            return ValidationResult.reject("missing_required_summary");
+        }
+        if (payload.challengeSummary().length() > MAX_SUMMARY) {
+            return ValidationResult.reject("summary_length");
+        }
+
+        StringBuilder blob = new StringBuilder(payload.challengeSummary());
+        if (payload.classes() != null) {
+            for (ClassGuidanceItem item : payload.classes()) {
+                if (item.guidance() != null) {
+                    for (GuidanceDetail detail : item.guidance()) {
+                        if (blank(detail.title()) || blank(detail.explanation())) {
+                            return ValidationResult.reject("missing_guidance_text");
+                        }
+                        if (detail.explanation().length() > MAX_EXPLANATION
+                                || (detail.guidingQuestion() != null && detail.guidingQuestion().length() > MAX_QUESTION)) {
+                            return ValidationResult.reject("guidance_length");
+                        }
+                        blob.append(' ').append(detail.title());
+                        blob.append(' ').append(detail.explanation());
+                        if (detail.guidingQuestion() != null) {
+                            blob.append(' ').append(detail.guidingQuestion());
+                        }
+                    }
+                }
+            }
+        }
+
+        String text = blob.toString();
+        if (CODE_FENCE.matcher(text).find() || JAVAISH.matcher(text).find() || METHOD_SIG.matcher(text).find()) {
+            return ValidationResult.reject("code_or_signature");
+        }
+        if (looksLikeSolutionPseudocode(text)) {
+            return ValidationResult.reject("solution_equivalent");
+        }
+
+        Set<String> prohibited = prohibitedIdentifiers == null ? Set.of() : Set.copyOf(prohibitedIdentifiers);
+        Set<String> allowed = allowedClassNames == null ? Set.of() : allowedClassNames;
+
+        for (String token : prohibited) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            String trimmed = token.trim();
+            if (allowed.stream().anyMatch(a -> a.equalsIgnoreCase(trimmed))) {
+                continue;
+            }
+            if (containsIdentifierToken(text, trimmed)) {
+                return ValidationResult.reject("identifier_leak:" + trimmed);
+            }
+        }
+
+        Matcher tick = BACKTICK_IDENT.matcher(text);
+        while (tick.find()) {
+            String inner = tick.group(1);
+            if (allowed.stream().anyMatch(a -> a.equalsIgnoreCase(inner))) {
+                continue;
+            }
+            if (prohibited.stream().anyMatch(p -> p != null && p.equalsIgnoreCase(inner))) {
+                return ValidationResult.reject("identifier_leak:" + inner);
+            }
+            if (inner.length() >= 2 && Character.isLetter(inner.charAt(0)) && !isCommonEnglish(inner)) {
+                return ValidationResult.reject("backtick_identifier:" + inner);
+            }
+        }
+        return ValidationResult.pass();
+    }
 
     public ValidationResult validate(String summary, String question, String explanation, Collection<String> prohibitedIdentifiers) {
         if (blank(summary) || blank(question)) {
