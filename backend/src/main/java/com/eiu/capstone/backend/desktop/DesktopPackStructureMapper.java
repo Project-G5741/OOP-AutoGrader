@@ -59,6 +59,7 @@ public class DesktopPackStructureMapper {
                 meta.studentVisible(),
                 meta.releaseDate(),
                 meta.prefix(),
+                false,
                 challenges);
     }
 

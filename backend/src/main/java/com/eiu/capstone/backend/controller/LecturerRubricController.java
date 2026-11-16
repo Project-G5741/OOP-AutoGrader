@@ -25,6 +25,7 @@ import com.eiu.capstone.backend.DTO.CloneLabsResponse;
 import com.eiu.capstone.backend.DTO.CloneSourcesResponse;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabDeadlineRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabAiEnabledRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabPrefixRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.LabStructureResponse;
@@ -137,6 +138,13 @@ public class LecturerRubricController {
             @PathVariable UUID labId,
             @RequestBody UpdateLabPrefixRequest request) {
         return labStructureService.updateLabPrefix(labId, request);
+    }
+
+    @PatchMapping("/{labId}/ai-enabled")
+    public LabStructureResponse updateAiEnabled(
+            @PathVariable UUID labId,
+            @RequestBody UpdateLabAiEnabledRequest request) {
+        return labStructureService.updateLabAiEnabled(labId, request);
     }
 
     @DeleteMapping("/{labId}")

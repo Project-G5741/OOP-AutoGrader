@@ -6,6 +6,7 @@ import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
+import AiSettingsModal from '../components/student/AiSettingsModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
@@ -276,6 +277,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showAiSettings, setShowAiSettings] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
   const [crystals, setCrystals] = useState(() => {
@@ -1371,6 +1373,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
+    } else if (cmd === 'aiSettings' && !IS_DESKTOP_APP) {
+      setShowAiSettings(true);
     } else if (cmd === 'mascotShop' && !IS_DESKTOP_APP) {
       setShowMascotShop(true);
     } else if ((cmd === 'copyMascotPracticeToken' || cmd === 'regenerateMascotPracticeToken')
@@ -1582,8 +1586,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               sessionChallengeScores={sessionChallengeScores}
               sessionChallengeBundles={sessionChallengeBundles}
               sessionOverallScore={sessionOverallScore}
+              sessionSubmissionId={
+                selectedLabId != null
+                  ? (sessionResultsByLab?.[selectedLabId]?.submissionId ?? null)
+                  : null
+              }
               error={labsError || challengesError}
               dailySubmissionQuota={dailySubmissionQuota}
+              onOpenAiSettings={() => setShowAiSettings(true)}
             />
           )}
         </div>
@@ -1633,6 +1643,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           }}
           onPasswordFocusChange={setFoxCoverEyes}
           user={user}
+        />
+      )}
+
+      {!IS_DESKTOP_APP && (
+        <AiSettingsModal
+          isOpen={showAiSettings}
+          onClose={() => setShowAiSettings(false)}
         />
       )}
     </>

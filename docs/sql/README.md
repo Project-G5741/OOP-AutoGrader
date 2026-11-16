@@ -60,6 +60,9 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-14-mascot-practice-token.sql` | `MascotPracticeTokenSchemaMigrator` | Practice JWT tables |
 | `2026-11-15-student-notification-read.sql` | `StudentNotificationReadSchemaMigrator` | Durable bell read-receipt keys |
 | `2026-11-15-student-notification-dismiss.sql` | `StudentNotificationDismissSchemaMigrator` | Durable bell forever-hide dismiss keys |
+| `2026-11-16-lab-ai-enabled.sql` | `LabAiEnabledSchemaMigrator` | `lab.ai_enabled` default false |
+| `2026-11-16-ai-feedback-cache.sql` | `AiFeedbackCacheSchemaMigrator` | Validated Conceptual hint cache |
+| `2026-11-16-ai-student-credential.sql` | `AiStudentCredentialSchemaMigrator` | Encrypted Gemini key + token budget per student |
 
 ## Cloud migrator catalog (regression)
 

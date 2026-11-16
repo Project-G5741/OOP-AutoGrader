@@ -63,6 +63,11 @@ final class SecurityAuthorizationProbes {
         String prefix(@PathVariable UUID labId) {
             return "ok";
         }
+
+        @PatchMapping("/labs/{labId}/ai-enabled")
+        String aiEnabled(@PathVariable UUID labId) {
+            return "ok";
+        }
     }
 
     @RestController

@@ -24,6 +24,8 @@ Student-specific UI: submission history, profile editing. Also reused by lecture
 | `DesktopPracticeStatusBanner.jsx` | Shown in `App.desktop.jsx` when `GET /api/desktop/status` reports not ready; waits until `bootstrapComplete` then applies that one settled status (no ongoing poll); API base defaults to `:18002` in desktop mode |
 | `StudentOfflinePracticeDownload.jsx` | Web student shell: animated **Practice folder** pill on NavBar trailing slot (theme `--primary` / `--success`; opens `GET /desktop-practice-bundle?access_token=` so the browser owns transfer progress; busy shows **Downloading…**, then brief **Started**; not in desktop build) |
 | `ChangePasswordModal.jsx` | Change-password modal — used by both student and lecturer dashboards via Header `editProfile` |
+| `AiSettingsModal.jsx` | Web-only Gemini BYOK + token management (`POST/DELETE /api/students/ai/connect`, `GET /token`). Key stored encrypted on server; usage bar with 50/80/90% alerts. Header **AI Learning Assistant** |
+| `AiLearningAssistantPanel.jsx` | Web-only Conceptual hint panel after results reveal when `lab.aiEnabled`; `POST /api/students/ai/hint` (server-held key) |
 
 ## Local Contracts
 

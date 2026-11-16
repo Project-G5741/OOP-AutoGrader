@@ -33,6 +33,7 @@ import com.eiu.capstone.backend.analytics.cache.LabStatisticsCache;
 import com.eiu.capstone.backend.DTO.rubric.ClassStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.ConstructorStructureDTO;
 import com.eiu.capstone.backend.DTO.rubric.CreateLabRequest;
+import com.eiu.capstone.backend.DTO.rubric.UpdateLabAiEnabledRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabPrefixRequest;
 import com.eiu.capstone.backend.DTO.rubric.UpdateLabStudentAccessRequest;
 import com.eiu.capstone.backend.DTO.rubric.FieldStructureDTO;
@@ -473,10 +474,21 @@ public class LabStructureService {
         return buildLabStructureResponse(lab);
     }
 
+    @Transactional
+    public LabStructureResponse updateLabAiEnabled(UUID labId, UpdateLabAiEnabledRequest request) {
+        Lab lab = labRepository.findById(labId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lab not found"));
+        if (request != null && request.aiEnabled() != null) {
+            lab.setAiEnabled(request.aiEnabled());
+        }
+        labRepository.save(lab);
+        return buildLabStructureResponse(lab);
+    }
+
     private static LabStructureResponse labResponse(Lab lab, List<ChallengeStructureDTO> challenges) {
         return new LabStructureResponse(
                 lab.getId(), lab.getName(), lab.getTerm().getId(), lab.getDeadlineDate(),
-                lab.isStudentVisible(), lab.getReleaseDate(), lab.getPrefix(),
+                lab.isStudentVisible(), lab.getReleaseDate(), lab.getPrefix(), lab.isAiEnabled(),
                 challenges);
     }
 

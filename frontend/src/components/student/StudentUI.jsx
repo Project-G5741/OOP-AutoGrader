@@ -21,6 +21,7 @@ import {
 } from '@phosphor-icons/react';
 import DropZone from '../ui/DropZone';
 import DangerAlert from '../ui/DangerAlert';
+import AiLearningAssistantPanel from './AiLearningAssistantPanel';
 import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
@@ -236,8 +237,10 @@ export default function StudentUI({
   sessionChallengeScores = {},
   sessionChallengeBundles = {},
   sessionOverallScore = null,
+  sessionSubmissionId = null,
   error = null,
   dailySubmissionQuota = null,
+  onOpenAiSettings = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
@@ -1012,6 +1015,14 @@ export default function StudentUI({
               />
             )}
           </div>
+          {!IS_DESKTOP_APP && resultsRevealed && selectedLab?.aiEnabled && (
+            <AiLearningAssistantPanel
+              labId={selectedLabId}
+              submissionId={sessionSubmissionId}
+              enabled
+              onOpenSettings={onOpenAiSettings}
+            />
+          )}
         </div>
         </div>
       </SidebarInset>

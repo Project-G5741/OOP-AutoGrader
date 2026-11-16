@@ -73,7 +73,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
 - Dark mode & 3D helpers in `src/index.css`: `color-scheme` is emitted per theme in `tokens.generated.css`; `.dark` scales `.shadow-stage-1/2/3` via `--shadow-rgb` alongside `.perspective-1000` / `.preserve-3d` and `@media (prefers-reduced-motion: reduce)` guards
 - Grading status helpers: `src/theme/statusClasses.js`
-- Design reference: `docs/design/color-theory-light-dark-theme.md` and `design-system/oop-autograder/MASTER.md`
+- Design reference: `docs/design/DESIGN_SYSTEM_SKILL.md`, `docs/design/color-theory-light-dark-theme.md`, and `design-system/oop-autograder/MASTER.md`
 
 ### Design intelligence (UI/UX Pro Max)
 

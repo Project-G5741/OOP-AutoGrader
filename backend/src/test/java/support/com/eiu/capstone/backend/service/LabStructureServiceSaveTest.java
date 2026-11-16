@@ -181,7 +181,7 @@ class LabStructureServiceSaveTest {
                         List.of(),
                         List.of())),
                 List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         Challenge challenge = new Challenge();
         challenge.setId(challengeId);
@@ -223,7 +223,7 @@ class LabStructureServiceSaveTest {
                 classId, "Car", 1, 2, false, List.of(fieldDto), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
                 challengeId, "Problem", 1, List.of(classDto), List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         Challenge challenge = new Challenge();
         challenge.setId(challengeId);
@@ -281,9 +281,7 @@ class LabStructureServiceSaveTest {
                 termId,
                 null,
                 true,
-                null,
-                "Official",
-                List.of(new ChallengeStructureDTO(
+                null, "Official", false, List.of(new ChallengeStructureDTO(
                         challengeId, "Accounts", 1, List.of(classDto), List.of())));
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
 
@@ -317,7 +315,7 @@ class LabStructureServiceSaveTest {
                 classId, "Car", 1, 2, false, List.of(), List.of(), List.of());
         ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
                 challengeId, "Problem", 1, List.of(classDto), List.of());
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(challenge));
@@ -350,7 +348,7 @@ class LabStructureServiceSaveTest {
                 List.of(
                         new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
                         new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 10)));
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
         stubTwoClassSave(fx, List.of(
                 classDto(fx.sourceId, "EmailSubscriber"),
                 classDto(fx.targetId, "Observer"),
@@ -383,7 +381,7 @@ class LabStructureServiceSaveTest {
                 List.of(
                         new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
                         new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 10)));
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
         stubTwoClassSave(fx, List.of(
                 classDto(fx.sourceId, "Square"),
                 classDto(fx.targetId, "Rectangle"),
@@ -413,7 +411,7 @@ class LabStructureServiceSaveTest {
                 List.of(
                         new RelationStructureDTO(null, fx.sourceId, fx.targetId, 10),
                         new RelationStructureDTO(null, fx.sourceId, fx.otherTargetId, 11)));
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
         stubTwoClassSave(fx, List.of(
                 classDto(fx.sourceId, "EmailSubscriber"),
                 classDto(fx.targetId, "Observer"),
@@ -441,7 +439,7 @@ class LabStructureServiceSaveTest {
                 1,
                 List.of(classDto(fx.sourceId, "EmailSubscriber")),
                 List.of(new RelationStructureDTO(null, fx.sourceId, fx.sourceId, 10)));
-        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+        LabStructureResponse payload = new LabStructureResponse(labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
         stubTwoClassSave(fx, List.of(classDto(fx.sourceId, "EmailSubscriber")));
 
         ResponseStatusException ex = assertThrows(
@@ -511,7 +509,7 @@ class LabStructureServiceSaveTest {
                         List.of())),
                 List.of());
         LabStructureResponse payload = new LabStructureResponse(
-                labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+                labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(existing));
@@ -554,7 +552,7 @@ class LabStructureServiceSaveTest {
                         classId, "Car", 1, 2, false, List.of(), List.of(), List.of())),
                 List.of());
         LabStructureResponse payload = new LabStructureResponse(
-                labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+                labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         when(labRepository.findById(labId)).thenReturn(Optional.of(lab));
         when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of());
@@ -582,7 +580,7 @@ class LabStructureServiceSaveTest {
                 false,
                 false);
         LabStructureResponse payload = new LabStructureResponse(
-                labId, "Lab 2", termId, null, true, null, "Official", List.of(challengeDto));
+                labId, "Lab 2", termId, null, true, null, "Official", false, List.of(challengeDto));
 
         Challenge challenge = new Challenge();
         challenge.setId(challengeId);

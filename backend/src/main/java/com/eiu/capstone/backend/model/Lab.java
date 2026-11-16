@@ -33,6 +33,10 @@ public class Lab {
     @Column(name = "prefix", nullable = false, length = 16, columnDefinition = "varchar(16) not null default 'Official'")
     private String prefix = LabPrefix.OFFICIAL;
 
+    /** Student AI Learning Assistant eligibility. New labs stay off until a lecturer enables AI. */
+    @Column(name = "ai_enabled", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean aiEnabled = false;
+
     public Lab() {}
 
     public UUID getId() { return id; }
@@ -55,4 +59,7 @@ public class Lab {
 
     public String getPrefix() { return prefix; }
     public void setPrefix(String prefix) { this.prefix = prefix; }
+
+    public boolean isAiEnabled() { return aiEnabled; }
+    public void setAiEnabled(boolean aiEnabled) { this.aiEnabled = aiEnabled; }
 }

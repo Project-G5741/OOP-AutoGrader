@@ -150,7 +150,8 @@ public class LabController {
                 challenges,
                 stats == null ? null : stats.totalSubmissions(),
                 stats == null ? null : stats.latestSubmission(),
-                lab.getPrefix());
+                lab.getPrefix(),
+                lab.isAiEnabled());
     }
 
     public record LabSummary(
@@ -163,7 +164,8 @@ public class LabController {
             List<ChallengeDTO> challenges,
             Integer totalSubmissions,
             String latestSubmission,
-            String prefix) {}
+            String prefix,
+            boolean aiEnabled) {}
 
     /** Lab-scoped stats for parallel dashboard load (same data as challenge stats route). */
     @GetMapping("/{labId}/stats")
