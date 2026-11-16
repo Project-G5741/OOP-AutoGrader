@@ -163,6 +163,11 @@ public class StudentAiFeedbackService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "AI assistance is disabled for this lab");
         }
         UUID resolved = submissionResolutionService.resolveSubmissionId(labId, studentId, submissionId);
+        if (resolved == null && submissionId != null) {
+            // Client sent a stale/purged submissionId — fall back to the student's latest attempt.
+            log.debug("AI hint: submissionId {} not found for student {}; falling back to latest", submissionId, studentId);
+            resolved = submissionResolutionService.resolveLatestSubmissionId(labId, studentId);
+        }
         if (resolved == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Submission not found");
         }
@@ -231,7 +236,17 @@ public class StudentAiFeedbackService {
                     "Token budget exhausted (90%). Import a new key or raise the budget.");
         }
 
-        String apiKey = credentialCrypto.decrypt(credential.getEncryptedApiKey());
+        String apiKey;
+        try {
+            apiKey = credentialCrypto.decrypt(credential.getEncryptedApiKey());
+        } catch (ResponseStatusException ex) {
+            // Stored ciphertext is unreadable (server secret rotation, data corruption, etc.).
+            // Clear the bad credential so the student can re-import without manual DB cleanup.
+            log.warn("Decrypt failed for student {}; clearing corrupt credential. cause={}", studentId, ex.getReason());
+            credentialRepository.deleteByStudentId(studentId);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Your stored API key could not be read (the server encryption key may have changed). Please re-import your Gemini API key.");
+        }
         Map<String, Object> context = contextBuilder.buildChallengeContext(
                 lab.getName(), resolvedChallengeName, failingClasses);
 

@@ -118,11 +118,13 @@ export default function AiLearningAssistantPanel({
 
   const fetchHint = useCallback(
     async (isManualRefresh = false) => {
-      if (!labId || !submissionId || !challengeId) {
+      if (!labId || !challengeId) {
         return;
       }
 
-      const cacheKey = `${submissionId}:${challengeId}`;
+      // submissionId may be null when the student reloads the page — backend will
+      // fall back to their latest submission automatically.
+      const cacheKey = `${submissionId ?? 'latest'}:${challengeId}`;
       if (!isManualRefresh && feedbackCacheRef.current[cacheKey]) {
         const cached = feedbackCacheRef.current[cacheKey];
         setResult(cached);
@@ -157,11 +159,26 @@ export default function AiLearningAssistantPanel({
         });
 
         if (!res.ok) {
+          // Read backend message first (invalid key, budget exhausted, lab disabled, etc.)
+          // before falling back to a generic string — avoids showing "Server Busy" for
+          // legitimate 400/403/429 application errors.
+          let errMsg = '';
+          try {
+            const payload = await res.clone().json();
+            if (typeof payload?.message === 'string' && payload.message.trim()) {
+              errMsg = payload.message.trim();
+            }
+          } catch {
+            /* fall through */
+          }
+          if (!errMsg) {
+            errMsg = await readFriendlyApiError(res, 'read');
+          }
           if (res.status === 400 || res.status === 429) {
             setKeyConnected(false);
             onOpenSettings?.();
           }
-          throw new Error(await readFriendlyApiError(res, 'read'));
+          throw new Error(errMsg);
         }
 
         const data = await res.json();
@@ -190,9 +207,10 @@ export default function AiLearningAssistantPanel({
     [labId, submissionId, challengeId, challengeName, classData, onOpenSettings, showToast],
   );
 
-  // Automatic trigger: Run as soon as lab, submission, and challenge are available
+  // Automatic trigger: Run as soon as lab and challenge are available.
+  // submissionId may be null (page reload) — backend resolves the latest submission.
   useEffect(() => {
-    if (!enabled || !labId || !submissionId || !challengeId || checkingKey) {
+    if (!enabled || !labId || !challengeId || checkingKey) {
       return;
     }
     if (keyConnected) {

@@ -42,6 +42,10 @@ public final class BurstLimitExemptions {
         if ("/api/lecturer/terms/mail".equals(normalizedPath)) {
             return true;
         }
+        // AI hint is a heavy single call per challenge; exempt from tight write-burst counter.
+        if ("/api/students/ai/hint".equals(normalizedPath)) {
+            return true;
+        }
         return TERM_STUDENT_IMPORT.matcher(normalizedPath).matches();
     }
 }
