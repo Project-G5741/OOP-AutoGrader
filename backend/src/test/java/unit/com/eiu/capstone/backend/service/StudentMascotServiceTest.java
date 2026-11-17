@@ -55,4 +55,40 @@ class StudentMascotServiceTest {
 
         assertThrows(ResponseStatusException.class, () -> service.equip(studentId, "ice_queen"));
     }
+
+    @Test
+    void gigi_eligibleUser_canSeeAndEquip() {
+        StudentStreakService streakService = mock(StudentStreakService.class);
+        StudentMascotPurchaseRepository purchases = mock(StudentMascotPurchaseRepository.class);
+        UserAccountRepository userAccounts = mock(UserAccountRepository.class);
+
+        StudentMascotService service = new StudentMascotService(streakService, purchases, userAccounts);
+
+        UUID eligibleId = UUID.fromString("89e5b815-89e3-4a62-b1d3-c4e98ec866a3");
+        UserAccount user = new UserAccount();
+        user.setStudentCode("2331200041");
+        user.setEmail("kha.pham.cit23@eiu.edu.vn");
+        when(userAccounts.findById(eligibleId)).thenReturn(Optional.of(user));
+
+        StudentStreak streak = new StudentStreak();
+        streak.setEquippedMascot("gigi");
+        when(streakService.find(eligibleId)).thenReturn(Optional.of(streak));
+        when(streakService.lock(eligibleId)).thenReturn(streak);
+
+        MascotShopView view = service.list(eligibleId);
+        assertTrue(view.mascots().stream().anyMatch(m -> "gigi".equals(m.id())), "Eligible account should see gigi");
+        assertEquals("gigi", view.equipped());
+
+        // Ineligible user
+        UUID otherId = UUID.randomUUID();
+        UserAccount other = new UserAccount();
+        other.setStudentCode("2431200001");
+        other.setEmail("other@eiu.edu.vn");
+        when(userAccounts.findById(otherId)).thenReturn(Optional.of(other));
+
+        MascotShopView otherView = service.list(otherId);
+        assertFalse(otherView.mascots().stream().anyMatch(m -> "gigi".equals(m.id())), "Other users should NOT see gigi");
+
+        assertThrows(ResponseStatusException.class, () -> service.equip(otherId, "gigi"));
+    }
 }
