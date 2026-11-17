@@ -74,6 +74,10 @@ Place `ui/dist-desktop` and at least one valid pack under `{APP_DESKTOP_HOME}/ru
 
 Build UI: `cd frontend && npm run build:desktop` (output `frontend/dist-desktop/` — copy into install, not served from repo in production).
 
+## Practice zip version label
+
+Web nav notice and desktop header read `frontend/public/practice-bundle-version.json` (`version`, `updatedOn` as `dd/mm/yyyy`). On each release: edit that file, **redeploy the web frontend** (Vercel), then `npm run build:desktop`, assemble, and publish the stable GitHub release zip. Assemble copies the manifest into `ui/dist-desktop/practice-bundle-version.json` (optional `-DesktopBundleVersion` / `-DesktopBundleVersionDate` override the file for one run).
+
 ## Assemble script
 
 From repo root:

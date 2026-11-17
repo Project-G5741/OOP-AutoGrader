@@ -16,7 +16,7 @@ import MascotGachaModal from '../components/student/MascotGachaModal';
 import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
-import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
+import StudentPracticeBundleDownloadRow from '../components/student/StudentPracticeBundleDownloadRow';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import DesktopMascotImport from '../components/student/DesktopMascotImport';
 import { useToast } from '../components/ui/Toast';
@@ -1501,7 +1501,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         navItems={studentNavItems}
         navAlign="start"
         navCollapse={false}
-        navTrailing={!IS_DESKTOP_APP ? <StudentOfflinePracticeDownload onToast={showToast} /> : null}
+        navTrailing={
+          !IS_DESKTOP_APP ? (
+            <StudentPracticeBundleDownloadRow onToast={showToast} />
+          ) : null
+        }
         activeNav={activeNav}
         onNavigate={handleNavChange}
         hideSectionLinks

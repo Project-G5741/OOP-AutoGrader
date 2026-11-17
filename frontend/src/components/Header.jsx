@@ -6,6 +6,7 @@ import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
 import { studentAreaWaitMs } from '../utils/studentAreaGate';
 import { useDialog } from '../context/DialogContext';
+import { useDesktopPracticeBundleVersion } from '../hooks/useDesktopPracticeBundleVersion';
 
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
@@ -35,6 +36,9 @@ export default function Header({
   );
   const menuRef = useRef(null);
   const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
+  const desktopBundleVersion = useDesktopPracticeBundleVersion({
+    enabled: IS_DESKTOP_APP,
+  });
 
   useEffect(() => {
     if (!showStudentArea) {
@@ -82,10 +86,15 @@ export default function Header({
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button onClick={handleLogoClick} className="group flex min-w-0 items-center gap-2.5 sm:gap-3">
             <AppLogo variant="header" />
-            <div className="flex min-w-0 flex-col justify-center text-left">
+            <div className="flex min-w-0 flex-col justify-center gap-0.5 text-left">
               <span className="truncate text-xs font-bold uppercase tracking-[0.12em] text-navy dark:text-primary-text sm:text-sm sm:tracking-[0.22em]">
                 {brand.appName}
               </span>
+              {desktopBundleVersion?.headerLabel ? (
+                <span className="truncate text-[10px] font-medium lowercase tracking-normal text-foreground-secondary sm:text-[11px]">
+                  {desktopBundleVersion.headerLabel}
+                </span>
+              ) : null}
             </div>
           </button>
         </div>
