@@ -17,7 +17,8 @@ WORKDIR /app
 COPY --from=build /build/target/backend-1.0.0.jar app.jar
 COPY --from=build /build/target/backend-1.0.0-worker.jar worker.jar
 
-# Optional public URLs copied into the image. Setup: DEPLOY_RENDER.md steps 8–9.
+# Optional bake at build time (legacy). Cloud prefers runtime PRACTICE_BUNDLE_URL /
+# LECTURER_BULK_BUNDLE_URL — DesktopBundlePrefetchRunner on startup. See DEPLOY_RENDER.md.
 ARG PRACTICE_BUNDLE_URL=""
 ARG LECTURER_BULK_BUNDLE_URL=""
 RUN set -eu; \

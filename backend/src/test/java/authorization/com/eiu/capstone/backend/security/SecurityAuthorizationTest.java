@@ -179,6 +179,20 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentDesktopBundlesRefresh_is403() throws Exception {
+        mockMvc.perform(post("/api/lecturer/desktop-bundles/refresh")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerDesktopBundlesRefresh_is200() throws Exception {
+        mockMvc.perform(post("/api/lecturer/desktop-bundles/refresh")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void studentAccessTokenQuery_is403OnDesktopBulkBundle() throws Exception {
         mockMvc.perform(get("/api/lecturer/desktop-bulk-bundle")
                         .param("access_token", rawToken(List.of(JwtRoleNames.STUDENT))))
