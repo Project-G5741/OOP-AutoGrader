@@ -28,6 +28,7 @@ const MASCOT_EMOJIS = {
   con_bang: '🐋',
   cung_ky: '🦁',
   ice_queen: '❄️',
+  'ice-queen': '❄️',
 };
 
 const REACTIONS = [

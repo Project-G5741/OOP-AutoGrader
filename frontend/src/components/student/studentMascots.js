@@ -213,8 +213,26 @@ export const STUDENT_MASCOTS = {
     directions: '/mascots/ice-queen-directions.webp',
     reactions: '/mascots/ice-queen-reactions.webp',
   },
+  'ice-queen': {
+    id: 'ice_queen',
+    name: 'Ice Queen',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/ice-queen-directions.webp',
+    reactions: '/mascots/ice-queen-reactions.webp',
+  },
 };
 
 export function mascotArt(id) {
-  return STUDENT_MASCOTS[id] || STUDENT_MASCOTS.fox;
+  if (!id) return STUDENT_MASCOTS.fox;
+  const raw = String(id).trim();
+  const normalized = raw.toLowerCase().replace(/-/g, '_');
+  const hyphenated = raw.toLowerCase().replace(/_/g, '-');
+  return (
+    STUDENT_MASCOTS[raw] ||
+    STUDENT_MASCOTS[normalized] ||
+    STUDENT_MASCOTS[hyphenated] ||
+    STUDENT_MASCOTS.fox
+  );
 }

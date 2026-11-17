@@ -74,10 +74,11 @@ public class StudentMascotService {
      */
     @Transactional
     public MascotShopView purchase(UUID userId, String mascotId) {
-        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(mascotId) && !isIceQueenEligible(userId)) {
+        String targetId = "ice-queen".equalsIgnoreCase(mascotId) ? MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID : mascotId;
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
-        MascotCatalog.Offer offer = MascotCatalog.forSale(mascotId);
+        MascotCatalog.Offer offer = MascotCatalog.forSale(targetId);
         if (offer == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
@@ -102,21 +103,22 @@ public class StudentMascotService {
 
     @Transactional
     public MascotShopView equip(UUID userId, String mascotId) {
-        if (!MascotCatalog.isSelectable(mascotId)) {
+        String targetId = "ice-queen".equalsIgnoreCase(mascotId) ? MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID : mascotId;
+        if (!MascotCatalog.isSelectable(targetId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
-        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(mascotId) && !isIceQueenEligible(userId)) {
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
-        if (!MascotCatalog.STARTER_ID.equals(mascotId) && !purchases.existsByIdUserIdAndIdMascotId(userId, mascotId)) {
+        if (!MascotCatalog.STARTER_ID.equals(targetId) && !purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
             StudentMascotPurchase unlocked = new StudentMascotPurchase();
-            unlocked.setId(new StudentMascotPurchaseKey(userId, mascotId));
+            unlocked.setId(new StudentMascotPurchaseKey(userId, targetId));
             unlocked.setPricePaid(0);
             unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
             purchases.save(unlocked);
         }
         StudentStreak row = streakService.lock(userId);
-        row.setEquippedMascot(mascotId);
+        row.setEquippedMascot(targetId);
         streakService.save(row);
         return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId));
     }

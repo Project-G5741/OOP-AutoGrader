@@ -533,11 +533,14 @@ export const MASCOT_PROFILES = {
 };
 
 export function getMascotProfile(id) {
-  return MASCOT_PROFILES[id] || MASCOT_PROFILES.fox;
+  if (!id) return MASCOT_PROFILES.fox;
+  const raw = String(id).trim();
+  const normalized = raw.toLowerCase().replace(/-/g, '_');
+  return MASCOT_PROFILES[raw] || MASCOT_PROFILES[normalized] || MASCOT_PROFILES.fox;
 }
 
 export function getRandomDialogue(mascotId, eventType) {
-  const profile = MASCOT_PROFILES[mascotId] || MASCOT_PROFILES.fox;
+  const profile = getMascotProfile(mascotId);
   const own = profile.dialogues?.[eventType];
   const list = own && own.length > 0 ? own : (MASCOT_PROFILES.fox.dialogues[eventType] || []);
   if (list.length === 0) return 'Keep up the great work!';

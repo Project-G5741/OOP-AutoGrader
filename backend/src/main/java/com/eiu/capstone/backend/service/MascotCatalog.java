@@ -51,21 +51,27 @@ public final class MascotCatalog {
         if (id == null) {
             return null;
         }
-        if (EXCLUSIVE_ICE_QUEEN_ID.equals(id)) {
+        if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN;
         }
         return BY_ID.get(id);
     }
 
     public static boolean isSelectable(String id) {
-        return STARTER_ID.equals(id) || BY_ID.containsKey(id) || EXCLUSIVE_ICE_QUEEN_ID.equals(id);
+        if (id == null) {
+            return false;
+        }
+        return STARTER_ID.equals(id)
+                || BY_ID.containsKey(id)
+                || EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id)
+                || "ice-queen".equalsIgnoreCase(id);
     }
 
     public static String displayName(String id) {
         if (STARTER_ID.equals(id)) {
             return STARTER_NAME;
         }
-        if (EXCLUSIVE_ICE_QUEEN_ID.equals(id)) {
+        if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN_NAME;
         }
         Offer offer = forSale(id);
