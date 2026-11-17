@@ -29,6 +29,9 @@ const MASCOT_EMOJIS = {
   cung_ky: '🦁',
   ice_queen: '❄️',
   'ice-queen': '❄️',
+  gigi: '📮',
+  gigi_murin: '📮',
+  'gigi-murin': '📮',
 };
 
 const REACTIONS = [

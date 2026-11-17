@@ -222,6 +222,33 @@ export const STUDENT_MASCOTS = {
     directions: '/mascots/ice-queen-directions.webp',
     reactions: '/mascots/ice-queen-reactions.webp',
   },
+  gigi: {
+    id: 'gigi',
+    name: 'Gigi Murin',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/gigi-directions.webp',
+    reactions: '/mascots/gigi-reactions.webp',
+  },
+  gigi_murin: {
+    id: 'gigi',
+    name: 'Gigi Murin',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/gigi-directions.webp',
+    reactions: '/mascots/gigi-reactions.webp',
+  },
+  'gigi-murin': {
+    id: 'gigi',
+    name: 'Gigi Murin',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/gigi-directions.webp',
+    reactions: '/mascots/gigi-reactions.webp',
+  },
 };
 
 export function mascotArt(id) {

@@ -15,6 +15,9 @@ public final class MascotCatalog {
     public static final String EXCLUSIVE_ICE_QUEEN_ID = "ice_queen";
     public static final String EXCLUSIVE_ICE_QUEEN_NAME = "Ice Queen";
     public static final Offer EXCLUSIVE_ICE_QUEEN = new Offer(EXCLUSIVE_ICE_QUEEN_ID, EXCLUSIVE_ICE_QUEEN_NAME, 0);
+    public static final String EXCLUSIVE_GIGI_ID = "gigi";
+    public static final String EXCLUSIVE_GIGI_NAME = "Gigi Murin";
+    public static final Offer EXCLUSIVE_GIGI = new Offer(EXCLUSIVE_GIGI_ID, EXCLUSIVE_GIGI_NAME, 0);
 
     public record Offer(String id, String name, int price) {
     }
@@ -54,6 +57,9 @@ public final class MascotCatalog {
         if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN;
         }
+        if (EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id) || "gigi_murin".equalsIgnoreCase(id) || "gigi-murin".equalsIgnoreCase(id)) {
+            return EXCLUSIVE_GIGI;
+        }
         return BY_ID.get(id);
     }
 
@@ -64,7 +70,10 @@ public final class MascotCatalog {
         return STARTER_ID.equals(id)
                 || BY_ID.containsKey(id)
                 || EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id)
-                || "ice-queen".equalsIgnoreCase(id);
+                || "ice-queen".equalsIgnoreCase(id)
+                || EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id)
+                || "gigi_murin".equalsIgnoreCase(id)
+                || "gigi-murin".equalsIgnoreCase(id);
     }
 
     public static String displayName(String id) {
@@ -73,6 +82,9 @@ public final class MascotCatalog {
         }
         if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN_NAME;
+        }
+        if (EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id) || "gigi_murin".equalsIgnoreCase(id) || "gigi-murin".equalsIgnoreCase(id)) {
+            return EXCLUSIVE_GIGI_NAME;
         }
         Offer offer = forSale(id);
         return offer == null ? STARTER_NAME : offer.name();

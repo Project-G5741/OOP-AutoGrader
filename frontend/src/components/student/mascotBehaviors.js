@@ -530,6 +530,54 @@ export const MASCOT_PROFILES = {
       ],
     },
   },
+  gigi: {
+    dialogues: {
+      perfect: [
+        'Special delivery! A perfect 100 straight to your doorstep! Hehehe! 📮✨',
+        "Woohoo! All test cases stamped and delivered! You're an absolute legend! 💌🎉",
+      ],
+      good: [
+        'Ooh, package received safely! Almost a clean sweep, let us grab those last points! 📬',
+        "Solid run! Just a tiny dent on the parcel, you've got this! ✨",
+      ],
+      retry: [
+        'Wahhh, returned to sender?! Do not worry, dust off that stack trace and ship it again! 📮💥',
+        'No sweat! Even the fastest courier takes a wrong turn sometimes. Let us fix that bug!',
+      ],
+      pet: [
+        'Ehehehe, that tickles! Do not mess up my hat, I have letters to deliver! 📮🔔',
+        'Hehe! Patting the courier gives you +100% shipping speed on bug fixes! 🐾✨',
+      ],
+      idle: [
+        'Got any letters for me to deliver? Or maybe another lab submission ready? 💌',
+        'Ding-dong! Delivery courier Gigi Murin reporting for duty! Let us code! 🔔📮',
+      ],
+    },
+  },
+  gigi_murin: {
+    dialogues: {
+      perfect: [
+        'Special delivery! A perfect 100 straight to your doorstep! Hehehe! 📮✨',
+        "Woohoo! All test cases stamped and delivered! You're an absolute legend! 💌🎉",
+      ],
+      good: [
+        'Ooh, package received safely! Almost a clean sweep, let us grab those last points! 📬',
+        "Solid run! Just a tiny dent on the parcel, you've got this! ✨",
+      ],
+      retry: [
+        'Wahhh, returned to sender?! Do not worry, dust off that stack trace and ship it again! 📮💥',
+        'No sweat! Even the fastest courier takes a wrong turn sometimes. Let us fix that bug!',
+      ],
+      pet: [
+        'Ehehehe, that tickles! Do not mess up my hat, I have letters to deliver! 📮🔔',
+        'Hehe! Patting the courier gives you +100% shipping speed on bug fixes! 🐾✨',
+      ],
+      idle: [
+        'Got any letters for me to deliver? Or maybe another lab submission ready? 💌',
+        'Ding-dong! Delivery courier Gigi Murin reporting for duty! Let us code! 🔔📮',
+      ],
+    },
+  },
 };
 
 export function getMascotProfile(id) {
