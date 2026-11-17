@@ -9,13 +9,14 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 /**
  * Downloads configured public Release URLs into deploy paths ({@code OOP-AutoGrader-*.zip}).
- * Used on startup, on a schedule, and via lecturer admin refresh.
+ * Used on startup and via lecturer admin refresh.
  */
 @Service
 @Profile("!desktop & !desktop-lecturer")
@@ -27,6 +28,7 @@ public class DesktopBundlePrefetchService {
     private final String practiceUrl;
     private final String lecturerBulkUrl;
 
+    @Autowired
     public DesktopBundlePrefetchService(
             @Value("${app.desktop.bundle.min-bytes:1000000}") long minBytes,
             @Value("${app.desktop.bundle.connect-timeout-seconds:30}") int connectTimeoutSeconds,
@@ -37,13 +39,6 @@ public class DesktopBundlePrefetchService {
                 minBytes,
                 Duration.ofSeconds(connectTimeoutSeconds),
                 Duration.ofSeconds(readTimeoutSeconds));
-        this.practiceUrl = practiceUrl;
-        this.lecturerBulkUrl = lecturerBulkUrl;
-    }
-
-    DesktopBundlePrefetchService(
-            DesktopBundleDownloader downloader, String practiceUrl, String lecturerBulkUrl) {
-        this.downloader = downloader;
         this.practiceUrl = practiceUrl;
         this.lecturerBulkUrl = lecturerBulkUrl;
     }
