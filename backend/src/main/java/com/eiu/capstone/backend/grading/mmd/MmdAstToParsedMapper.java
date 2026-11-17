@@ -248,10 +248,11 @@ public final class MmdAstToParsedMapper {
                 method.scope = scope;
                 method.parameterTypes = params.types();
                 method.parameterNames = params.names();
-                method.invalidDeclarationFormat = params.invalidDeclarationFormat();
                 method.isStatic = nameSuffix.isStatic() || returnClause.isStatic();
                 method.isAbstract = nameSuffix.isAbstract() || returnClause.isAbstract();
                 method.returnType = returnClause.returnType();
+                method.invalidDeclarationFormat = params.invalidDeclarationFormat()
+                        || usesAngleBrackets(method.returnType);
                 current.methods.add(method);
             }
             return;
@@ -267,7 +268,9 @@ public final class MmdAstToParsedMapper {
             field.dataType = typeSuffix.value();
             field.isStatic = nameSuffix.isStatic() || typeSuffix.isStatic();
             field.isFinal = false;
-            field.invalidDeclarationFormat = field.name.isEmpty() || field.dataType.isEmpty();
+            field.invalidDeclarationFormat = field.name.isEmpty()
+                    || field.dataType.isEmpty()
+                    || usesAngleBrackets(field.dataType);
             current.fields.add(field);
             return;
         }
@@ -386,7 +389,7 @@ public final class MmdAstToParsedMapper {
             String name = parseMermaidSuffixes(param.substring(0, colon).trim()).value();
             String type = parseMermaidSuffixes(param.substring(colon + 1).trim()).value();
             if (!name.isEmpty() && !type.isEmpty()) {
-                return new ParameterTypeParse(name, type, false);
+                return new ParameterTypeParse(name, type, usesAngleBrackets(type));
             }
             return new ParameterTypeParse(name, type.isEmpty() ? name : type, true);
         }
@@ -495,23 +498,52 @@ public final class MmdAstToParsedMapper {
 
     private record MethodReturnClause(String returnType, boolean isStatic, boolean isAbstract) {}
 
+    /** Mermaid generics use {@code ~}; angle brackets are kept for splitting but grade as invalid. */
+    private static boolean usesAngleBrackets(String type) {
+        return type != null && (type.indexOf('<') >= 0 || type.indexOf('>') >= 0);
+    }
+
     private List<String> splitParams(String paramsPart) {
         List<String> parts = new ArrayList<>();
-        int depth = 0;
+        int angleDepth = 0;
+        int tildeDepth = 0;
         int start = 0;
         for (int i = 0; i < paramsPart.length(); i++) {
             char c = paramsPart.charAt(i);
             if (c == '<') {
-                depth++;
-            } else if (c == '>') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
+                angleDepth++;
+            } else if (c == '>' && angleDepth > 0) {
+                angleDepth--;
+            } else if (c == '~') {
+                tildeDepth = Math.max(0, tildeDepth + tildeDelta(paramsPart, i, tildeDepth));
+            } else if (c == ',' && angleDepth == 0 && tildeDepth == 0) {
                 parts.add(paramsPart.substring(start, i));
                 start = i + 1;
             }
         }
         parts.add(paramsPart.substring(start));
         return parts;
+    }
+
+    /**
+     * {@code ~} both opens and closes a generic. A tilde followed by a type name opens a nested
+     * argument ({@code Map~String, List~Integer~~}); any other tilde closes.
+     */
+    private static int tildeDelta(String text, int index, int depth) {
+        if (depth == 0) {
+            return 1;
+        }
+        int next = index + 1;
+        while (next < text.length() && Character.isWhitespace(text.charAt(next))) {
+            next++;
+        }
+        if (next < text.length()) {
+            char following = text.charAt(next);
+            if (Character.isLetter(following) || following == '_' || following == '.') {
+                return 1;
+            }
+        }
+        return -1;
     }
 
     private ParsedMmdRelation parseRelation(String left, String arrow, String right) {
