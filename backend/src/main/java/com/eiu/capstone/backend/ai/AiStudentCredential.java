@@ -43,6 +43,14 @@ public class AiStudentCredential {
     @Column(name = "notified_90", nullable = false)
     private boolean notified90 = false;
 
+    /**
+     * Set to true when the last hint request failed because Gemini rejected the API key
+     * (HTTP 400/401/403 "Invalid API key" family). Cleared whenever the student imports
+     * a new key. Exposed via TokenStatus so the frontend can warn the student on login.
+     */
+    @Column(name = "key_invalid", nullable = false)
+    private boolean keyInvalid = false;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -67,6 +75,8 @@ public class AiStudentCredential {
     public void setNotified80(boolean notified80) { this.notified80 = notified80; }
     public boolean isNotified90() { return notified90; }
     public void setNotified90(boolean notified90) { this.notified90 = notified90; }
+    public boolean isKeyInvalid() { return keyInvalid; }
+    public void setKeyInvalid(boolean keyInvalid) { this.keyInvalid = keyInvalid; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

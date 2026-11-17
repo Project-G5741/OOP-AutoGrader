@@ -34,5 +34,10 @@ public class AiStudentCredentialSchemaMigrator {
                     CONSTRAINT uk_ai_student_credential_student UNIQUE (student_id)
                 )
                 """);
+        // Add key_invalid column to existing installations.
+        jdbcTemplate.execute("""
+                ALTER TABLE ai_student_credential
+                    ADD COLUMN IF NOT EXISTS key_invalid BOOLEAN NOT NULL DEFAULT false
+                """);
     }
 }

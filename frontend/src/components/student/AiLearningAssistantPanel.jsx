@@ -77,6 +77,10 @@ export default function AiLearningAssistantPanel({
   classData = [],
   enabled = false,
   onOpenSettings,
+  // Shared ref from parent so the cache survives unmount/remount across tab switches.
+  // Falls back to a local ref when not provided.
+  externalCacheRef = null,
+  isLoadingDetails = false,
 }) {
   const showToast = useToast();
   const [loading, setLoading] = useState(false);
@@ -86,9 +90,16 @@ export default function AiLearningAssistantPanel({
   const [result, setResult] = useState(null);
   const [expandedClasses, setExpandedClasses] = useState(new Set());
 
-  // In-memory cache by `${submissionId}:${challengeId}` to avoid duplicate API calls
-  const feedbackCacheRef = useRef({});
-  const inFlightRef = useRef(false);
+  // Use the shared external cache ref when available so feedback survives tab-switching.
+  // The parent (StudentUI) clears this ref whenever the lab changes.
+  const localCacheRef = useRef({});
+  const feedbackCacheRef = externalCacheRef ?? localCacheRef;
+
+  // Active challenge tracking and cancellation
+  const activeChallengeIdRef = useRef(challengeId);
+  activeChallengeIdRef.current = challengeId;
+  const abortControllerRef = useRef(null);
+  const fetchingChallengeIdRef = useRef(null);
 
   // Check key connection status on mount or when settings modal might have changed
   const checkKeyStatus = useCallback(async () => {
@@ -116,26 +127,79 @@ export default function AiLearningAssistantPanel({
     checkKeyStatus();
   }, [enabled, checkKeyStatus]);
 
+  // Synchronize result state immediately whenever challenge or lab changes:
+  // If cached, display cached result; if not, clear old result so we never show
+  // results from another challenge.
+  useEffect(() => {
+    if (!labId || !challengeId) {
+      setResult(null);
+      setLoading(false);
+      setError('');
+      setExpandedClasses(new Set());
+      return;
+    }
+    const cacheKey = `${submissionId ?? 'latest'}:${challengeId}`;
+    const cached = feedbackCacheRef.current[cacheKey];
+    if (cached) {
+      setResult(cached);
+      setLoading(false);
+      setError('');
+      const classNames = (cached?.feedback?.classes || []).map((c) => c.className);
+      setExpandedClasses(new Set(classNames));
+    } else {
+      setResult(null);
+      setError('');
+      setExpandedClasses(new Set());
+    }
+  }, [labId, submissionId, challengeId, feedbackCacheRef]);
+
+  // Cleanup on unmount or when challenge/lab switches: abort any in-flight request
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [labId, challengeId]);
+
   const fetchHint = useCallback(
     async (isManualRefresh = false) => {
       if (!labId || !challengeId) {
         return;
       }
 
-      // submissionId may be null when the student reloads the page — backend will
-      // fall back to their latest submission automatically.
-      const cacheKey = `${submissionId ?? 'latest'}:${challengeId}`;
-      if (!isManualRefresh && feedbackCacheRef.current[cacheKey]) {
-        const cached = feedbackCacheRef.current[cacheKey];
-        setResult(cached);
-        // Expand failing classes by default
-        const classNames = (cached?.feedback?.classes || []).map((c) => c.className);
-        setExpandedClasses(new Set(classNames));
+      const targetChallengeId = challengeId;
+      const targetSubmissionId = submissionId;
+      const cacheKey = `${targetSubmissionId ?? 'latest'}:${targetChallengeId}`;
+
+      // If already fetching for this exact challenge and not a manual refresh, do not duplicate
+      if (!isManualRefresh && fetchingChallengeIdRef.current === targetChallengeId) {
         return;
       }
 
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
+      // Abort any prior in-flight request (e.g. from switching challenges quickly)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+
+      if (!isManualRefresh && feedbackCacheRef.current[cacheKey]) {
+        const cached = feedbackCacheRef.current[cacheKey];
+        if (activeChallengeIdRef.current === targetChallengeId) {
+          setResult(cached);
+          setLoading(false);
+          setError('');
+          const classNames = (cached?.feedback?.classes || []).map((c) => c.className);
+          setExpandedClasses(new Set(classNames));
+        }
+        return;
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      fetchingChallengeIdRef.current = targetChallengeId;
+
       setLoading(true);
       setError('');
 
@@ -144,19 +208,22 @@ export default function AiLearningAssistantPanel({
         const token = getAccessToken();
         const res = await apiFetch(`${API_BASE}/api/students/ai/hint`, {
           method: 'POST',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             labId,
-            submissionId,
-            challengeId,
+            submissionId: targetSubmissionId,
+            challengeId: targetChallengeId,
             challengeName: challengeName || 'Challenge',
             language: 'en',
             failingClasses,
           }),
         });
+
+        if (controller.signal.aborted) return;
 
         if (!res.ok) {
           // Read backend message first (invalid key, budget exhausted, lab disabled, etc.)
@@ -182,41 +249,61 @@ export default function AiLearningAssistantPanel({
         }
 
         const data = await res.json();
+        if (controller.signal.aborted) return;
+
+        // Cache the result under this challenge's key
         feedbackCacheRef.current[cacheKey] = data;
-        setResult(data);
 
-        // Auto-expand all failing classes so the student immediately sees the guidance
-        const classNames = (data?.feedback?.classes || []).map((c) => c.className);
-        setExpandedClasses(new Set(classNames));
+        // IMPORTANT: Only update the UI state if the student is still viewing this challenge!
+        if (activeChallengeIdRef.current === targetChallengeId) {
+          setResult(data);
+          setLoading(false);
+          setError('');
 
-        const alerts = data?.alerts || [];
-        alerts.forEach((label) => {
-          showToast({
-            message: alertMessage(label),
-            type: label === '90%' ? 'error' : 'warning',
+          // Auto-expand all failing classes so the student immediately sees the guidance
+          const classNames = (data?.feedback?.classes || []).map((c) => c.className);
+          setExpandedClasses(new Set(classNames));
+
+          const alerts = data?.alerts || [];
+          alerts.forEach((label) => {
+            showToast({
+              message: alertMessage(label),
+              type: label === '90%' ? 'error' : 'warning',
+            });
           });
-        });
+        }
       } catch (err) {
-        setError(err.message || 'Could not load AI guidance.');
-        setResult(null);
+        if (err.name === 'AbortError' || controller.signal.aborted) {
+          // Cancelled because the user navigated away or re-analyzed — ignore silently
+          return;
+        }
+        if (activeChallengeIdRef.current === targetChallengeId) {
+          setError(err.message || 'Could not load AI guidance.');
+          setResult(null);
+          setLoading(false);
+        }
       } finally {
-        setLoading(false);
-        inFlightRef.current = false;
+        if (fetchingChallengeIdRef.current === targetChallengeId) {
+          fetchingChallengeIdRef.current = null;
+        }
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
     },
-    [labId, submissionId, challengeId, challengeName, classData, onOpenSettings, showToast],
+    [labId, submissionId, challengeId, challengeName, classData, onOpenSettings, showToast, feedbackCacheRef],
   );
 
-  // Automatic trigger: Run as soon as lab and challenge are available.
-  // submissionId may be null (page reload) — backend resolves the latest submission.
+  // Automatic trigger: Run as soon as lab, challenge, and class data are available.
+  // Won't fire while details are still loading to ensure we don't send incomplete class data.
   useEffect(() => {
-    if (!enabled || !labId || !challengeId || checkingKey) {
+    if (!enabled || !labId || !challengeId || checkingKey || isLoadingDetails) {
       return;
     }
     if (keyConnected) {
       fetchHint(false);
     }
-  }, [enabled, labId, submissionId, challengeId, keyConnected, checkingKey, fetchHint]);
+  }, [enabled, labId, submissionId, challengeId, keyConnected, checkingKey, isLoadingDetails, fetchHint]);
 
   if (!enabled) return null;
 
