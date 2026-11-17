@@ -135,6 +135,7 @@ public class StudentAiFeedbackService {
         row.setNotified50(false);
         row.setNotified80(false);
         row.setNotified90(false);
+        row.setKeyInvalid(false);
         row.setEncryptedApiKey(credentialCrypto.encrypt(trimmed));
         row.setKeyHint(AiCredentialCrypto.hintFor(trimmed));
         row.setUpdatedAt(now);
@@ -253,7 +254,25 @@ public class StudentAiFeedbackService {
         GeminiClient.GeminiResult gemini;
         try {
             gemini = geminiClient.generateJson(apiKey, promptPolicy.systemInstruction(policyVersion), context);
+            // Successful Gemini call — clear any previous invalid-key flag.
+            if (credential.isKeyInvalid()) {
+                credential.setKeyInvalid(false);
+                credential.setUpdatedAt(Instant.now());
+                credentialRepository.save(credential);
+            }
         } catch (ResponseStatusException ex) {
+            // If Gemini rejected the key itself (400/401/403), mark the credential so the
+            // frontend can warn the student on their next login rather than waiting for
+            // them to discover it inside the AI tab.
+            boolean isKeyFailure = ex.getStatusCode().value() == HttpStatus.BAD_REQUEST.value()
+                    && ex.getReason() != null
+                    && (ex.getReason().toLowerCase(Locale.ROOT).contains("invalid")
+                        || ex.getReason().toLowerCase(Locale.ROOT).contains("rejected"));
+            if (isKeyFailure && !credential.isKeyInvalid()) {
+                credential.setKeyInvalid(true);
+                credential.setUpdatedAt(Instant.now());
+                credentialRepository.save(credential);
+            }
             ChallengeAiFeedbackPayload fallback = AiFallbackMessages.forChallenge(resolvedChallengeName, failingClasses);
             return new HintResponse(fallback, false, "failed", ex.getReason(), toTokenStatus(credential), List.of());
         }
@@ -405,6 +424,7 @@ public class StudentAiFeedbackService {
                 budget,
                 AiTokenBudget.usagePercent(used, budget),
                 AiTokenBudget.isExhausted(used, budget),
+                credential.isKeyInvalid(),
                 List.of());
     }
 
@@ -444,10 +464,11 @@ public class StudentAiFeedbackService {
             long tokenBudget,
             int usagePercent,
             boolean exhausted,
+            boolean keyInvalid,
             List<String> alerts) {
 
         public static TokenStatus disconnected(long budget) {
-            return new TokenStatus(false, null, 0L, budget, 0, false, List.of());
+            return new TokenStatus(false, null, 0L, budget, 0, false, false, List.of());
         }
     }
 

@@ -9,22 +9,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.desktop.bundle.DesktopBundlePaths;
+
 /**
  * Serves the offline lecturer Bulk folder as a prebuilt zip.
- * Fixed locations only — no request-time URL. Assemble writes
- * {@code backend/target/OOP-AutoGrader-LecturerBulk.zip}. The image copies the
- * same filename from build-arg {@code LECTURER_BULK_BUNDLE_URL}.
+ * Cloud: {@code DesktopBundlePrefetchRunner} may refresh from {@code LECTURER_BULK_BUNDLE_URL}
+ * on startup. Local assemble: {@code backend/target/...}.
  */
 @Service
 @Profile("!desktop & !desktop-lecturer")
 public class LecturerDesktopBulkBundleService {
 
-    static final String DOWNLOAD_FILENAME = "OOP-AutoGrader-LecturerBulk.zip";
+    static final String DOWNLOAD_FILENAME = DesktopBundlePaths.LECTURER_BULK_FILENAME;
 
-    /** Local Maven / assemble output (cwd = {@code backend/}). */
-    static final Path LOCAL_PREBUILT_ZIP = Path.of("target", DOWNLOAD_FILENAME);
-    /** Docker/Render layout next to {@code app.jar} (cwd = {@code /app}). */
-    static final Path DEPLOY_PREBUILT_ZIP = Path.of(DOWNLOAD_FILENAME);
+    static final Path LOCAL_PREBUILT_ZIP = DesktopBundlePaths.LECTURER_BULK_LOCAL;
+    static final Path DEPLOY_PREBUILT_ZIP = DesktopBundlePaths.LECTURER_BULK_DEPLOY;
 
     private final Path prebuiltZipOverride;
 

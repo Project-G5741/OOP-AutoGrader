@@ -10,21 +10,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.desktop.bundle.DesktopBundlePaths;
 import com.eiu.capstone.backend.model.Term;
 import com.eiu.capstone.backend.model.UserAccount;
 
 /**
  * Serves the offline practice folder as a prebuilt runtime-only zip (no rubric pack).
- * Fixed locations only — no env config. Assemble writes {@code backend/target/OOP-AutoGrader-Practice.zip}.
+ * Cloud: {@code DesktopBundlePrefetchRunner} may refresh {@code OOP-AutoGrader-Practice.zip}
+ * from {@code PRACTICE_BUNDLE_URL} on startup. Local assemble: {@code backend/target/...}.
  */
 @Service
 @Profile("!desktop & !desktop-lecturer")
 public class StudentDesktopPracticeBundleService {
 
-    /** Local Maven / assemble output (cwd = {@code backend/}). */
-    static final Path LOCAL_PREBUILT_ZIP = Path.of("target", "OOP-AutoGrader-Practice.zip");
-    /** Docker/Render layout next to {@code app.jar} (cwd = {@code /app}). */
-    static final Path DEPLOY_PREBUILT_ZIP = Path.of("OOP-AutoGrader-Practice.zip");
+    static final Path LOCAL_PREBUILT_ZIP = DesktopBundlePaths.PRACTICE_LOCAL;
+    static final Path DEPLOY_PREBUILT_ZIP = DesktopBundlePaths.PRACTICE_DEPLOY;
 
     private final TermService termService;
     private final StudentTermAccessService studentTermAccessService;

@@ -16,7 +16,7 @@ import MascotGachaModal from '../components/student/MascotGachaModal';
 import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
-import StudentOfflinePracticeDownload from '../components/student/StudentOfflinePracticeDownload';
+import StudentPracticeBundleDownloadRow from '../components/student/StudentPracticeBundleDownloadRow';
 import DesktopRubricPackImport from '../components/student/DesktopRubricPackImport';
 import DesktopMascotImport from '../components/student/DesktopMascotImport';
 import { useToast } from '../components/ui/Toast';
@@ -577,6 +577,45 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     } catch {
       /* submit still works; server enforces quota */
     }
+  }, []);
+
+  // Early API-key health check on mount (web only).
+  // If the student has a saved key that is now invalid/expired, notify them immediately
+  // so they don't discover the problem only after switching to the AI tab.
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getAccessToken();
+        if (!token) return;
+        const res = await apiFetch(`${API_BASE}/api/students/ai/token`, {
+          authHandling: 'self',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (!data?.connected) return;
+        // Key is configured but Gemini previously rejected it — warn proactively.
+        if (data?.keyInvalid) {
+          showToast({
+            message: `Your Gemini API key (${data.keyHint}) is invalid or expired. Open Key & Token Management to import a new key.`,
+            type: 'error',
+          });
+        } else if (data?.exhausted) {
+          // Token budget exhausted — also worth flagging on startup.
+          showToast({
+            message: 'Your Gemini token budget is exhausted. Open Key & Token Management to import a new key.',
+            type: 'warning',
+          });
+        }
+      } catch {
+        /* non-critical — ignore network errors on startup */
+      }
+    })();
+    return () => { cancelled = true; };
+  // Run once on mount only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(
@@ -1462,7 +1501,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         navItems={studentNavItems}
         navAlign="start"
         navCollapse={false}
-        navTrailing={!IS_DESKTOP_APP ? <StudentOfflinePracticeDownload onToast={showToast} /> : null}
+        navTrailing={
+          !IS_DESKTOP_APP ? (
+            <StudentPracticeBundleDownloadRow onToast={showToast} />
+          ) : null
+        }
         activeNav={activeNav}
         onNavigate={handleNavChange}
         hideSectionLinks

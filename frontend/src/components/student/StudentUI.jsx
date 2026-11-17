@@ -1,5 +1,5 @@
 // StudentUI.jsx - No hardcoded data; fully driven by props
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -259,6 +259,10 @@ export default function StudentUI({
   const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
   const [now, setNow] = useState(() => new Date());
 
+  // AI feedback cache shared across challenge/lab changes so results survive tab-switching.
+  // Cleared when the selected lab changes so stale cross-lab entries are never shown.
+  const aiFeedbackCacheRef = useRef({});
+
   const dailyLimit = dailySubmissionQuota?.dailyLimit ?? 30;
   const usedToday = dailySubmissionQuota?.usedToday ?? 0;
   const canSubmitToday = dailySubmissionQuota?.canSubmit !== false;
@@ -272,6 +276,12 @@ export default function StudentUI({
     setExpandedClassName(null);
     setHiddenTestcasesPage(0);
   }, [selectedChallengeId]);
+
+  // Clear AI feedback cache whenever the user switches to a different lab
+  // so results from Lab A are never shown while viewing Lab B.
+  useEffect(() => {
+    aiFeedbackCacheRef.current = {};
+  }, [selectedLabId]);
 
   useEffect(() => {
     if (IS_DESKTOP_APP) return undefined;
@@ -1026,6 +1036,8 @@ export default function StudentUI({
                   classData={classData}
                   enabled={isAiEligible}
                   onOpenSettings={onOpenAiSettings}
+                  externalCacheRef={aiFeedbackCacheRef}
+                  isLoadingDetails={isLoadingDetails}
                 />
               )}
                 </>

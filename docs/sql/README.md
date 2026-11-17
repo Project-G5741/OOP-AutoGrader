@@ -64,6 +64,7 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-16-ai-feedback-cache.sql` | `AiFeedbackCacheSchemaMigrator` | Validated Conceptual hint cache |
 | `2026-11-16-ai-feedback-cache-challenge-scope.sql` | `AiFeedbackCacheSchemaMigrator` | Widen `ai_feedback_cache.learning_area` to VARCHAR(64) for challenge keys |
 | `2026-11-16-ai-student-credential.sql` | `AiStudentCredentialSchemaMigrator` | Encrypted Gemini key + token budget per student |
+| `2026-11-17-ai-credential-key-invalid.sql` | `AiStudentCredentialSchemaMigrator` | `ai_student_credential.key_invalid` failure flag for early toast warning |
 
 ## Cloud migrator catalog (regression)
 

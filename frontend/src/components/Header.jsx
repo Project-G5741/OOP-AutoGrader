@@ -1,10 +1,12 @@
-import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation, KeyRound } from 'lucide-react';
+import { LogOut, User, Home, Clock, Lock, Trophy, GraduationCap, Presentation, KeyRound, Copy, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import ThemeToggle from './ThemeToggle';
 import { useEffect, useRef, useState } from 'react';
 import AppLogo from './ui/AppLogo';
 import { brand } from '../theme/brand';
 import { studentAreaWaitMs } from '../utils/studentAreaGate';
+import { useDialog } from '../context/DialogContext';
+import { useDesktopPracticeBundleVersion } from '../hooks/useDesktopPracticeBundleVersion';
 
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 
@@ -27,12 +29,16 @@ export default function Header({
   headerUserSlot = null,
 }) {
   const reducedMotion = useReducedMotion();
+  const { confirm: confirmDialog } = useDialog();
   const [openMenu, setOpenMenu] = useState(false);
   const [studentAreaLocked, setStudentAreaLocked] = useState(
     () => showStudentArea && studentAreaWaitMs() > 0,
   );
   const menuRef = useRef(null);
   const showChangePassword = !IS_DESKTOP_APP && !hideChangePassword;
+  const desktopBundleVersion = useDesktopPracticeBundleVersion({
+    enabled: IS_DESKTOP_APP,
+  });
 
   useEffect(() => {
     if (!showStudentArea) {
@@ -80,10 +86,15 @@ export default function Header({
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button onClick={handleLogoClick} className="group flex min-w-0 items-center gap-2.5 sm:gap-3">
             <AppLogo variant="header" />
-            <div className="flex min-w-0 flex-col justify-center text-left">
+            <div className="flex min-w-0 flex-col justify-center gap-0.5 text-left">
               <span className="truncate text-xs font-bold uppercase tracking-[0.12em] text-navy dark:text-primary-text sm:text-sm sm:tracking-[0.22em]">
                 {brand.appName}
               </span>
+              {desktopBundleVersion?.headerLabel ? (
+                <span className="truncate text-[10px] font-medium lowercase tracking-normal text-foreground-secondary sm:text-[11px]">
+                  {desktopBundleVersion.headerLabel}
+                </span>
+              ) : null}
             </div>
           </button>
         </div>
@@ -201,19 +212,26 @@ export default function Header({
                     {showMascotPracticeToken && (
                     <>
                     <button onClick={() => handleMenu('copyMascotPracticeToken')} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary">
-                      <KeyRound className="h-4 w-4 text-foreground-secondary" /> Copy Mascot Code
+                      <Copy className="h-4 w-4 text-foreground-secondary" /> Copy Mascot Code
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!window.confirm('Replace this mascot code? The old code can no longer be imported, and practice apps that already used it go back to Fox.')) {
-                          return;
+                      onClick={async () => {
+                        setOpenMenu(false);
+                        const confirmed = await confirmDialog({
+                          level: 'dangerous',
+                          title: 'Replace Mascot Code',
+                          message: 'Replace this mascot code? The old code can no longer be imported, and practice apps that already used it go back to Fox.',
+                          confirmText: 'Replace code',
+                          cancelText: 'Cancel',
+                        });
+                        if (confirmed) {
+                          handleMenu('regenerateMascotPracticeToken');
                         }
-                        handleMenu('regenerateMascotPracticeToken');
                       }}
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-secondary"
                     >
-                      <KeyRound className="h-4 w-4 text-foreground-secondary" /> New Mascot Code
+                      <RefreshCw className="h-4 w-4 text-foreground-secondary" /> New Mascot Code
                     </button>
                     </>
                     )}

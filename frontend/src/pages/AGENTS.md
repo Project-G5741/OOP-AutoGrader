@@ -72,7 +72,7 @@ Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true
 
 ### Student navigation (`NavBar`)
 
-Same bar and buttons as the lecturer shell, on its own row under the header. Student items align to the start (`navAlign="start"`) and stay visible without a hamburger (`navCollapse={false}`). Web builds pass `navTrailing` with **Practice folder** (desktop practice zip download). `StudentDashboard` passes `navItems`. The avatar menu does not repeat these links (`hideSectionLinks`).
+Same bar and buttons as the lecturer shell, on its own row under the header. Student items align to the start (`navAlign="start"`) and stay visible without a hamburger (`navCollapse={false}`). Web builds pass `navTrailing` with `StudentPracticeBundleDownloadRow` (version notice from `public/practice-bundle-version.json` + **Practice folder** download). `StudentDashboard` passes `navItems`. The avatar menu does not repeat these links (`hideSectionLinks`).
 
 | Item | Route | Shown when |
 |---|---|---|

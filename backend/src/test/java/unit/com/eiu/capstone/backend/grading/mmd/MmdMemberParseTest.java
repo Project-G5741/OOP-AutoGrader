@@ -147,7 +147,7 @@ class MmdMemberParseTest {
     }
 
     @Test
-    void tildeAndAngleBracketGenericsNormalizeEquivalently() {
+    void tildeGenericsAreValidAndAngleBracketsAreInvalid() {
         ParsedMmdClass tilde = classNamed(parse(diagram("""
                 class Team {
                   -members: List~Employee~
@@ -159,12 +159,46 @@ class MmdMemberParseTest {
                 }
                 """)), "Team");
 
-        assertTrue(MmdTypeEquivalence.typesMatch(
-                tilde.fields.get(0).dataType, angles.fields.get(0).dataType));
         assertEquals("List~Employee~", tilde.fields.get(0).dataType);
         assertEquals("List<Employee>", angles.fields.get(0).dataType);
+        assertTrue(MmdTypeEquivalence.typesMatch(
+                tilde.fields.get(0).dataType, "List<Employee>"));
         assertTrue(!tilde.fields.get(0).invalidDeclarationFormat);
-        assertTrue(!angles.fields.get(0).invalidDeclarationFormat);
+        assertTrue(angles.fields.get(0).invalidDeclarationFormat);
+    }
+
+    @Test
+    void commaInsideTildeGenericStaysOneParameter() {
+        ParsedMmdClass parsed = classNamed(parse(diagram("""
+                class Order {
+                  +setItems(items: Map~MenuItem, Integer~) void
+                  +setBroken(items: Map<MenuItem, Integer>) void
+                  +getItems() List<Object>
+                }
+                """)), "Order");
+
+        ParsedMethod setItems = parsed.methods.stream()
+                .filter(method -> "setItems".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("items"), setItems.parameterNames);
+        assertEquals(List.of("Map~MenuItem, Integer~"), setItems.parameterTypes);
+        assertEquals("void", setItems.returnType);
+        assertTrue(!setItems.invalidDeclarationFormat);
+
+        ParsedMethod setBroken = parsed.methods.stream()
+                .filter(method -> "setBroken".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("Map<MenuItem, Integer>"), setBroken.parameterTypes);
+        assertTrue(setBroken.invalidDeclarationFormat);
+
+        ParsedMethod getItems = parsed.methods.stream()
+                .filter(method -> "getItems".equals(method.name))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("List<Object>", getItems.returnType);
+        assertTrue(getItems.invalidDeclarationFormat);
     }
 
     @Test

@@ -14,10 +14,13 @@ import {
   Award,
   Crown,
   FastForward,
-  ChevronRight
+  ChevronRight,
+  ArrowRight,
+  Check
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import { useToast } from '../ui/Toast';
+import { useDialog } from '../../context/DialogContext';
 import { formatNumber } from '../../utils/formatters';
 import { Mascot } from './MascotSprite';
 import { MASCOT_TIERS, STUDENT_MASCOTS, mascotArt } from './studentMascots';
@@ -205,6 +208,7 @@ export default function MascotGachaModal({
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
   const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
   const showToast = useToast();
+  const dialog = useDialog();
 
   const countdownTimerRef = useRef(null);
 
@@ -352,7 +356,11 @@ export default function MascotGachaModal({
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
     if (!useTickets && points < requiredPoints) {
-      alert(`Not enough Roll Tickets or Points! Need ${requiredPoints} Points or ${count} Tickets.`);
+      dialog.alert({
+        level: 'warning',
+        title: 'Insufficient Balance',
+        message: `Not enough Roll Tickets or Points! Need ${formatNumber(requiredPoints)} Points or ${count} Ticket${count > 1 ? 's' : ''}.`,
+      });
       return;
     }
 
@@ -461,7 +469,11 @@ export default function MascotGachaModal({
     }
 
     if (points < requiredPoints) {
-      alert(`Not enough Roll Tickets or Points! Need ${requiredPoints} Points or ${count} Tickets.`);
+      dialog.alert({
+        level: 'warning',
+        title: 'Insufficient Balance',
+        message: `Not enough Roll Tickets or Points! Need ${formatNumber(requiredPoints)} Points or ${count} Ticket${count > 1 ? 's' : ''}.`,
+      });
       return;
     }
 
@@ -1069,7 +1081,11 @@ export default function MascotGachaModal({
                   onClick={() => {
                     const todayStr = new Date().toLocaleDateString('en-CA');
                     localStorage.removeItem(`oop_streak_tickets_claimed_${todayStr}`);
-                    alert("Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.");
+                    dialog.alert({
+                      level: 'safety',
+                      title: 'Ticket Progress Reset',
+                      message: "Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.",
+                    });
                   }}
                   className="cursor-pointer rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20"
                   title="Clear today's streak ticket claim cache so you can retest mission ticket rewards"
@@ -1225,53 +1241,129 @@ export default function MascotGachaModal({
       )}
 
       {pointsSpendPrompt && (
-        <ModalOverlay onBackdropClick={declinePointsSpend}>
-          <div
+        <ModalOverlay className="z-[110]" onBackdropClick={declinePointsSpend}>
+          <motion.div
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="gacha-points-title"
-            aria-describedby="gacha-points-body"
-            className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-xl"
+            initial={{ opacity: 0, scale: 0.94, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border bg-surface p-6 shadow-stage-3"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 id="gacha-points-title" className="text-lg font-bold text-foreground">
-              Spend points to roll?
-            </h3>
-            <p id="gacha-points-body" className="mt-1.5 text-xs text-foreground-secondary">
-              Not enough tickets. Rolling {pointsSpendPrompt.count} time(s) will spend{' '}
-              <span className="font-semibold text-foreground">
-                {formatNumber(pointsSpendPrompt.cost)} pts
-              </span>
-              . Current balance: {formatNumber(points)} pts.
-            </p>
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-xs text-foreground">
+            {/* Top Row: Icon Badge, Title & Close Button */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-500 dark:bg-amber-400/15 dark:text-amber-400">
+                  <Coins className="h-5 w-5" />
+                </div>
+                <h3 id="gacha-points-title" className="text-base font-bold text-foreground">
+                  Spend points to roll?
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={declinePointsSpend}
+                className="cursor-pointer rounded-lg p-1.5 text-foreground-secondary transition-colors hover:bg-surface-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Transaction Breakdown Well (Single-level card compliant: borderless tint) */}
+            <div className="mt-4 space-y-2.5 rounded-2xl bg-surface-secondary/75 p-4 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-foreground-secondary">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Rolls
+                </span>
+                <span className="font-bold tabular-nums text-foreground">
+                  {pointsSpendPrompt.count}x
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-foreground-secondary">
+                  <Ticket className="h-3.5 w-3.5 text-foreground-muted" />
+                  Tickets
+                </span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {tickets} / {pointsSpendPrompt.count}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-foreground-secondary">
+                  <Coins className="h-3.5 w-3.5 text-amber-500" />
+                  Cost
+                </span>
+                <span className="font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                  -{formatNumber(pointsSpendPrompt.cost)} pts
+                </span>
+              </div>
+
+              <div className="border-t border-border/70 pt-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-secondary">
+                    Balance after roll
+                  </span>
+                  <div className="flex items-center gap-1.5 font-mono tabular-nums">
+                    <span className="text-foreground-muted line-through">
+                      {formatNumber(points)}
+                    </span>
+                    <ArrowRight className="h-3 w-3 text-foreground-muted" />
+                    <span className="font-bold text-foreground">
+                      {formatNumber(Math.max(0, points - pointsSpendPrompt.cost))} pts
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Remember Choice Toggle */}
+            <label className="mt-3.5 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/70 bg-surface-secondary/40 px-3.5 py-2.5 transition-colors hover:bg-surface-secondary">
+              <div
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                  rememberPointsChoice
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-surface'
+                }`}
+              >
+                {rememberPointsChoice && <Check className="h-3 w-3 stroke-[3]" />}
+              </div>
               <input
                 type="checkbox"
                 checked={rememberPointsChoice}
                 onChange={(event) => setRememberPointsChoice(event.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
+                className="sr-only"
               />
-              <span>
-                Remember my choice.
+              <span className="text-xs font-medium text-foreground">
+                Remember my choice
               </span>
             </label>
-            <div className="mt-6 flex justify-end gap-2">
+
+            {/* Actions */}
+            <div className="mt-5 flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={declinePointsSpend}
-                className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-4 text-xs font-semibold text-foreground hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="min-h-11 flex-1 cursor-pointer rounded-xl border border-border bg-surface px-4 text-xs font-semibold text-foreground transition-all duration-150 hover:bg-surface-secondary active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmPointsSpend}
-                className="min-h-11 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="min-h-11 flex-1 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white shadow-stage-1 transition-all duration-150 hover:bg-primary-hover active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary flex items-center justify-center gap-1.5"
               >
-                Spend points
+                <Coins className="h-4 w-4" />
+                <span>Spend {formatNumber(pointsSpendPrompt.cost)} pts</span>
               </button>
             </div>
-          </div>
+          </motion.div>
         </ModalOverlay>
       )}
     </ModalOverlay>

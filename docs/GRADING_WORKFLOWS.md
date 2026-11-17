@@ -531,11 +531,11 @@ Supported arrows (longest match first):
    - If diagram has `getter()` shorthand AND rubric has getter methods → all getters marked correct
    - Same for setters
 
-6. **Fields** (lines 49–58): Match by name (case-insensitive). Correct if scope matches AND `MmdTypeEquivalence.typesMatch(expectedType, actualType)`.
+6. **Fields** (lines 49–58): Match by name (case-insensitive). Correct if the declaration format is valid, scope matches, AND `MmdTypeEquivalence.typesMatch(expectedType, actualType)`.
 
-7. **Methods** (lines 60–72): `findMatchingMethod` by name + parameter types. Correct if scope, returnType, and parameter types all match.
+7. **Methods** (lines 60–72): `findMatchingMethod` by name + parameter types. Correct if the declaration format is valid and scope, returnType, and parameter types all match.
 
-8. **Constructors** (lines 74–80): Match by parameter types. Correct if scope and parameter types match.
+8. **Constructors** (lines 74–80): Match by parameter types. Correct if the declaration format is valid and scope and parameter types match.
 
 #### Per rubric relation (lines 83–87)
 
@@ -562,6 +562,8 @@ boolean correct = diagram.relations.stream().anyMatch(parsed ->
    - `ArrayList<T>` / `LinkedList<T>` → `List<T>`
    - `HashMap<K,V>` — normalizes primitive wrapper types in value position (`int` → `Integer`)
 4. Case-sensitive equality on normalized strings
+
+Diagram members must spell generics with tildes (`List~Object~`, `Map~MenuItem, Integer~`). Angle brackets in a field type, return type, or parameter type set `invalidDeclarationFormat` and grade incorrect. The rubric side stays Java (`List<Object>`). Declaration grading is unchanged and still accepts angle brackets.
 
 ---
 
