@@ -160,7 +160,7 @@ export default function AiSettingsModal({ isOpen, onClose, onStatusChange }) {
             <KeyRound className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Import API Key</h2>
+            <h2 className="text-lg font-semibold text-foreground">AI Learning Assistant</h2>
           </div>
         </div>
 

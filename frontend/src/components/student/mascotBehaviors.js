@@ -506,14 +506,41 @@ export const MASCOT_PROFILES = {
       ],
     },
   },
+  ice_queen: {
+    dialogues: {
+      perfect: [
+        'A flawless 100. As expected of my partner. Immaculate execution. ❄️👑',
+        'Absolute perfection. Not even a single edge case dared to slip through.',
+      ],
+      good: [
+        'Commendable effort. But I know your true potential reaches far beyond this.',
+        'A strong score, yet perfection awaits. Do not settle so easily.',
+      ],
+      retry: [
+        'A minor chill. Compose your mind, inspect the trace, and freeze that flaw.',
+        'Failure is merely unrefined logic. Rise and resolve it.',
+      ],
+      pet: [
+        '...Do not think a gentle touch will melt my standards. Though... I accept it.',
+        'A fleeting warmth. Return to your code now.',
+      ],
+      idle: [
+        'Precision and discipline. The realm of code honors only absolute focus. ❄️',
+        'I am watching. Let us see what elegance you craft today.',
+      ],
+    },
+  },
 };
 
 export function getMascotProfile(id) {
-  return MASCOT_PROFILES[id] || MASCOT_PROFILES.fox;
+  if (!id) return MASCOT_PROFILES.fox;
+  const raw = String(id).trim();
+  const normalized = raw.toLowerCase().replace(/-/g, '_');
+  return MASCOT_PROFILES[raw] || MASCOT_PROFILES[normalized] || MASCOT_PROFILES.fox;
 }
 
 export function getRandomDialogue(mascotId, eventType) {
-  const profile = MASCOT_PROFILES[mascotId] || MASCOT_PROFILES.fox;
+  const profile = getMascotProfile(mascotId);
   const own = profile.dialogues?.[eventType];
   const list = own && own.length > 0 ? own : (MASCOT_PROFILES.fox.dialogues[eventType] || []);
   if (list.length === 0) return 'Keep up the great work!';
