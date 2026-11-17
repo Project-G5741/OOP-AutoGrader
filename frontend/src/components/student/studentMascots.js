@@ -204,6 +204,15 @@ export const STUDENT_MASCOTS = {
     directions: '/mascots/cung-ky-directions.webp',
     reactions: '/mascots/cung-ky-reactions.webp',
   },
+  ice_queen: {
+    id: 'ice_queen',
+    name: 'Ice Queen',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/ice-queen-directions.webp',
+    reactions: '/mascots/ice-queen-reactions.webp',
+  },
 };
 
 export function mascotArt(id) {

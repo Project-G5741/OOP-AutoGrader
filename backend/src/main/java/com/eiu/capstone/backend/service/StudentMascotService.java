@@ -20,18 +20,36 @@ import com.eiu.capstone.backend.model.StudentMascotPurchase;
 import com.eiu.capstone.backend.model.StudentMascotPurchaseKey;
 import com.eiu.capstone.backend.model.StudentStreak;
 import com.eiu.capstone.backend.repository.StudentMascotPurchaseRepository;
+import com.eiu.capstone.backend.repository.UserAccountRepository;
 import com.eiu.capstone.backend.utility.TimeUtil;
 
 @Service
 @Profile("!desktop & !desktop-lecturer")
 public class StudentMascotService {
 
+    public static final String EXCLUSIVE_STUDENT_CODE = "2331200057";
+
     private final StudentStreakService streakService;
     private final StudentMascotPurchaseRepository purchases;
+    private final UserAccountRepository userAccounts;
 
-    public StudentMascotService(StudentStreakService streakService, StudentMascotPurchaseRepository purchases) {
+    public StudentMascotService(
+            StudentStreakService streakService,
+            StudentMascotPurchaseRepository purchases,
+            UserAccountRepository userAccounts) {
         this.streakService = streakService;
         this.purchases = purchases;
+        this.userAccounts = userAccounts;
+    }
+
+    public boolean isIceQueenEligible(UUID userId) {
+        if (userId == null) {
+            return false;
+        }
+        return userAccounts.findById(userId)
+                .map(u -> EXCLUSIVE_STUDENT_CODE.equals(u.getStudentCode())
+                        || "kiet.doan.cit23@eiu.edu.vn".equalsIgnoreCase(u.getEmail()))
+                .orElse(false);
     }
 
     @Transactional(readOnly = true)
@@ -39,7 +57,8 @@ public class StudentMascotService {
         StudentStreak row = streakService.find(userId).orElse(null);
         int points = row == null ? 0 : row.getPoints();
         String equipped = row == null ? MascotCatalog.STARTER_ID : row.getEquippedMascot();
-        return toView(points, equipped, ownedIds(userId));
+        boolean eligible = isIceQueenEligible(userId);
+        return toView(points, equipped, ownedIds(userId), eligible);
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +74,9 @@ public class StudentMascotService {
      */
     @Transactional
     public MascotShopView purchase(UUID userId, String mascotId) {
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(mascotId) && !isIceQueenEligible(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
+        }
         MascotCatalog.Offer offer = MascotCatalog.forSale(mascotId);
         if (offer == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
@@ -75,13 +97,16 @@ public class StudentMascotService {
         purchases.save(bought);
         Set<String> owned = ownedIds(userId);
         owned.add(offer.id());
-        return toView(row.getPoints(), row.getEquippedMascot(), owned);
+        return toView(row.getPoints(), row.getEquippedMascot(), owned, isIceQueenEligible(userId));
     }
 
     @Transactional
     public MascotShopView equip(UUID userId, String mascotId) {
         if (!MascotCatalog.isSelectable(mascotId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
+        }
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(mascotId) && !isIceQueenEligible(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
         if (!MascotCatalog.STARTER_ID.equals(mascotId) && !purchases.existsByIdUserIdAndIdMascotId(userId, mascotId)) {
             StudentMascotPurchase unlocked = new StudentMascotPurchase();
@@ -93,7 +118,7 @@ public class StudentMascotService {
         StudentStreak row = streakService.lock(userId);
         row.setEquippedMascot(mascotId);
         streakService.save(row);
-        return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId));
+        return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId));
     }
 
     private Set<String> ownedIds(UUID userId) {
@@ -102,7 +127,7 @@ public class StudentMascotService {
                 .collect(Collectors.toSet());
     }
 
-    private static MascotShopView toView(int points, String equipped, Set<String> owned) {
+    private static MascotShopView toView(int points, String equipped, Set<String> owned, boolean includeExclusive) {
         List<MascotOfferView> mascots = new ArrayList<>();
         mascots.add(new MascotOfferView(
                 MascotCatalog.STARTER_ID,
@@ -111,6 +136,16 @@ public class StudentMascotService {
                 true,
                 MascotCatalog.STARTER_ID.equals(equipped),
                 true));
+        if (includeExclusive) {
+            boolean hasExclusive = owned.contains(MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID);
+            mascots.add(new MascotOfferView(
+                    MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID,
+                    MascotCatalog.EXCLUSIVE_ICE_QUEEN_NAME,
+                    0,
+                    hasExclusive,
+                    MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(equipped),
+                    false));
+        }
         for (MascotCatalog.Offer offer : MascotCatalog.FOR_SALE) {
             boolean has = owned.contains(offer.id());
             mascots.add(new MascotOfferView(

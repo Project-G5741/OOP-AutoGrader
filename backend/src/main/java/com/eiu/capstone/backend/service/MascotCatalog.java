@@ -12,6 +12,9 @@ public final class MascotCatalog {
 
     public static final String STARTER_ID = "fox";
     public static final String STARTER_NAME = "Fox";
+    public static final String EXCLUSIVE_ICE_QUEEN_ID = "ice_queen";
+    public static final String EXCLUSIVE_ICE_QUEEN_NAME = "Ice Queen";
+    public static final Offer EXCLUSIVE_ICE_QUEEN = new Offer(EXCLUSIVE_ICE_QUEEN_ID, EXCLUSIVE_ICE_QUEEN_NAME, 0);
 
     public record Offer(String id, String name, int price) {
     }
@@ -48,16 +51,22 @@ public final class MascotCatalog {
         if (id == null) {
             return null;
         }
+        if (EXCLUSIVE_ICE_QUEEN_ID.equals(id)) {
+            return EXCLUSIVE_ICE_QUEEN;
+        }
         return BY_ID.get(id);
     }
 
     public static boolean isSelectable(String id) {
-        return STARTER_ID.equals(id) || BY_ID.containsKey(id);
+        return STARTER_ID.equals(id) || BY_ID.containsKey(id) || EXCLUSIVE_ICE_QUEEN_ID.equals(id);
     }
 
     public static String displayName(String id) {
         if (STARTER_ID.equals(id)) {
             return STARTER_NAME;
+        }
+        if (EXCLUSIVE_ICE_QUEEN_ID.equals(id)) {
+            return EXCLUSIVE_ICE_QUEEN_NAME;
         }
         Offer offer = forSale(id);
         return offer == null ? STARTER_NAME : offer.name();

@@ -27,6 +27,7 @@ const MASCOT_EMOJIS = {
   zerotwo: '🌸',
   con_bang: '🐋',
   cung_ky: '🦁',
+  ice_queen: '❄️',
 };
 
 const REACTIONS = [
