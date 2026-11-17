@@ -14,6 +14,8 @@ Render deployment steps (Docker)
    - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); **runtime** on the API container (prefetched on startup)
    - `LECTURER_BULK_BUNDLE_URL` = public GitHub Release asset URL (step 9); same. Not a frontend variable.
 
+   Desktop practice **version label** (web nav + desktop header) lives in `frontend/public/practice-bundle-version.json` — bump on release, redeploy the web frontend, and assemble/publish the practice zip (not API env).
+
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
    - `BREVO_API_KEY` = <Brevo API key from Settings → SMTP & API>
