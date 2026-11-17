@@ -11,8 +11,8 @@ Render deployment steps (Docker)
    - `GOOGLE_CLIENT_ID` = <google client id>
    - `SPRINGDOC_ENABLED` = `false` (do not register OpenAPI/Swagger in production)
    - `JAVA_OPTS` = same as `backend/Dockerfile` (default `-Xmx192m`, Metaspace `96m`, code cache `32m`, G1 periodic GC). Do **not** set `-Xmx512m`. Railway notes: [DEPLOY_RAILWAY.md](./DEPLOY_RAILWAY.md).
-   - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); build-time only
-   - `LECTURER_BULK_BUNDLE_URL` = public GitHub Release asset URL (step 9); build-time only. This is an API image arg, not a frontend variable.
+   - `PRACTICE_BUNDLE_URL` = public GitHub Release asset URL (step 8); **runtime** on the API container (prefetched on startup)
+   - `LECTURER_BULK_BUNDLE_URL` = public GitHub Release asset URL (step 9); same. Not a frontend variable.
 
    **Password-reset email (Render free tier):** Render blocks outbound SMTP (ports 25/465/587). Use the Brevo HTTPS API instead of Gmail SMTP:
    - `MAIL_PROVIDER` = `brevo`
@@ -33,16 +33,12 @@ Render deployment steps (Docker)
    - `STUDENT_DENY_REQUIRED` = `true` (cloud boot fails if the policy flag is off)
    - `STUDENT_DENY_ENABLED` = `true`
    Upload, bulk grade, and lecturer dry-run then start the OT worker with a Java deny policy. A blocked student call fails that test with feedback `This call was blocked.` Compile and Class-tab load stay outside the policy. This PC and both desktop apps keep the open worker (`student-deny.enabled` forced false). There is no second host and no Docker runner. If the policy cannot be installed, that worker exits and the test is not run in the open process; the API stays up.
-8. **Offline practice zip (Download practice folder):** Assemble on Windows (`scripts/assemble-student-desktop.ps1`) → `backend/target/OOP-AutoGrader-Practice.zip` (~160MB; do not commit). Publish it as a **GitHub Release** asset (tag e.g. `practice-bundle-v1`). Set `PRACTICE_BUNDLE_URL` to the asset URL, then **rebuild** the Render image (restart alone is not enough):
+8. **Offline practice zip (Download practice folder):** Assemble on Windows (`scripts/assemble-student-desktop.ps1`) → `backend/target/OOP-AutoGrader-Practice.zip` (~160MB; do not commit). Maintain a **stable** GitHub Release tag (recommended `desktop-practice`) with only this zip; versioned archive releases (`desktop-practice-v2`, …) are optional history. Set GitHub Actions secret / Container App env `PRACTICE_BUNDLE_URL` to the stable asset URL (no `backend/.env` in production). On startup the API downloads into `/app/OOP-AutoGrader-Practice.zip`. After replacing the asset in GitHub (same stable tag), either **restart** the Container App, call **`POST /api/lecturer/desktop-bundles/refresh`** (Admin JWT), or set `APP_DESKTOP_BUNDLE_REFRESH_INTERVAL_MINUTES` (e.g. `60`) for periodic re-download — **no image rebuild**. Unset URL and no local zip → student download returns 503.
 
-   `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/<tag>/OOP-AutoGrader-Practice.zip`
+   `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/desktop-practice/OOP-AutoGrader-Practice.zip`
 
-   The URL must download with no login (public repo/asset). Do not put a token in the URL. The Dockerfile copies it to `/app/OOP-AutoGrader-Practice.zip` and fails the build if the file is not a zip larger than 1MB. Unset → student download returns 503.
-9. **Offline lecturer zip (Bulk folder):** Assemble on Windows (`scripts/assemble-lecturer-desktop.ps1`) → `backend/target/OOP-AutoGrader-LecturerBulk.zip` (do not commit). Publish it as a **GitHub Release** asset. Set `LECTURER_BULK_BUNDLE_URL` to that asset URL on the **API** service (same kind of value as `PRACTICE_BUNDLE_URL`), then **rebuild** the image. Example:
-
-   `https://github.com/Project-G5741/OOP-AutoGrader/releases/download/grading-bundle-v2/OOP-AutoGrader-LecturerBulk.zip`
-
-   The Dockerfile copies it to `/app/OOP-AutoGrader-LecturerBulk.zip` with the same zip checks. Unset → Bulk folder returns 503. A new tag needs a new URL and a new image build. The website button does not embed the tag.
+   Public URL, no token. Azure: `.github/workflows/deploy.yml` injects both bundle URLs from repository secrets on deploy.
+9. **Offline lecturer zip (Bulk folder):** Assemble → `backend/target/OOP-AutoGrader-LecturerBulk.zip`. Stable tag `desktop-lecturer-bulk`; secret `LECTURER_BULK_BUNDLE_URL`. Same refresh options as step 8. Unset → Bulk folder returns 503.
 10. Deploy. Check logs for successful startup.
 
 Local image (omit either `--build-arg` to skip that zip; `mvn test` runs in the build stage):

@@ -17,15 +17,16 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: projectgrader/oop-autograder-api:${{ github.sha }}
-          # Dockerfile curls these during build into /app. A Container App env var is too late.
-          # Repository secrets (public GitHub Release asset URLs):
-          # PRACTICE_BUNDLE_URL, LECTURER_BULK_BUNDLE_URL
-          build-args: |
-            PRACTICE_BUNDLE_URL=${{ secrets.PRACTICE_BUNDLE_URL }}
-            LECTURER_BULK_BUNDLE_URL=${{ secrets.LECTURER_BULK_BUNDLE_URL }}
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - run: >
+      - name: Deploy Container App
+        env:
+          PRACTICE_BUNDLE_URL: ${{ secrets.PRACTICE_BUNDLE_URL }}
+          LECTURER_BULK_BUNDLE_URL: ${{ secrets.LECTURER_BULK_BUNDLE_URL }}
+        run: >
           az containerapp update -n oop-autograder-api -g rg-oop-autograder
           --image projectgrader/oop-autograder-api:${{ github.sha }}
+          --set-env-vars
+          PRACTICE_BUNDLE_URL="$PRACTICE_BUNDLE_URL"
+          LECTURER_BULK_BUNDLE_URL="$LECTURER_BULK_BUNDLE_URL"
