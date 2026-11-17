@@ -254,6 +254,20 @@ Lecturer nav screen that lists Feedback items from every author (students and le
 ### Feedback status
 `Open` on submit; a lecturer may mark `Resolved` or set the item back to `Open`. A lecturer may send a short reply on a **Resolved** item; that text appears in the author’s student notification bell (mark-read keeps it listed; forever-hide clears that reply snapshot for the author via `author_reply_cleared_at` without deleting the ticket). A lecturer may delete a **Resolved** item from the inbox: if a reply exists, the row is soft-archived (hidden from the inbox; the author still sees an uncleared reply); if there is no reply, the row and attachments are hard-deleted. Reload and logout do not delete feedback tickets. A later lecturer save on the same ticket (new `response_at`) can notify the author again after a clear.
 
+## AI Learning Assistant
+
+### AI Learning Assistant
+Optional Gemini-powered Conceptual guidance on a student’s own graded submission. Advisory only: the official grading engine remains the sole score authority. Distinct from lecturer Reports’ placeholder “AI Summary” and from Bug/Contribution Feedback items.
+
+### Conceptual hint
+The single allowed hint depth for the AI Learning Assistant: Socratic questions and concept explanations about fields, methods, or constructors (MVP), without naming missing identifiers, signatures, reference code, or hidden tests. Not a progressive Level 1–3 ladder.
+
+### Student Gemini BYOK
+Bring Your Own Key: each student imports their own Gemini API key into the cloud API. The key is encrypted at rest (`ai_student_credential`), never logged in plaintext, and never shared across students. Hint requests decrypt that student’s key on the server.
+
+### AI token budget
+Per-student Gemini usage counter (`tokens_used` / `token_budget`). Alerts fire once at 50% and 80%; new Gemini calls stop at 90% with an exhausted notice until the student replaces the key or the budget is raised.
+
 ## Student notifications
 
 ### Student notification (computed)

@@ -183,6 +183,7 @@
 - ❌ **Missing cursor:pointer / focus states** — All clickable controls need clear hover/focus rings (`outline-none focus-visible:ring-2`).
 - ❌ **Layout-shifting hovers & unguarded motion** — Respect `<MotionConfig reducedMotion="user">` and `@media (prefers-reduced-motion: reduce)`.
 - ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio across Light and Dark surfaces.
+- ❌ **Unsolicited Descriptions & Microcopy Clutter** — Do not write subtitles under titles (e.g. `Import Gemini key · token management`), boilerplate disclaimers (`Your Gemini key is stored encrypted...`), or unrequested helper text (`Alerts at 50%...`) unless explicitly requested by the user. Keep dialogs, cards, and forms clean, minimal, and self-evident.
 
 ---
 
@@ -192,6 +193,7 @@ Before delivering any UI code, verify:
 
 - [ ] Zero CSS/Tailwind gradients anywhere in `frontend/src/`
 - [ ] Zero nested bordered cards ("card-inside-card")
+- [ ] No unsolicited boilerplate descriptions or unrequested helper paragraphs in modals/cards
 - [ ] Single source of truth in `src/theme/tokens.js` + zero raw Tailwind palette classes
 - [ ] Bundled fonts & Lottie assets work 100% offline (`npm run build:desktop` verified)
 - [ ] Light & Dark themes preserve crisp borders (`#CBD5E1` / `#2A3956`) and stage shadows

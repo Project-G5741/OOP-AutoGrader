@@ -70,10 +70,11 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - `ThemeContext` — OS default (`dark`/`light`) on first visit, `localStorage` key `oop-theme`, sets `data-theme="<id>"` and `.dark` whenever `colorScheme === 'dark'` synchronously before mount; single `ThemeProvider` in `main.jsx`
 - `ThemeToggle.jsx` — 40px circular trigger matching the header avatar button in the existing slot that fans out 3 enlarged 52px theme orbs per page along a tight radial arc (`r=86`, `ThemeToggle.css` + Framer Motion spring, unique icon & `orbColor` per preset) with mouse-wheel, clickable page pill (`1/2`, `2/2`), and `ArrowLeft`/`ArrowRight`/`PageUp`/`PageDown`/`Escape`/outside-click support; used in `Header` and auth/maintenance pages
 - Persist feedback: `ToastProvider` in `main.jsx`; screens call `useToast()` after save/delete mutations (success and fail)
+- Dialog popups: `DialogProvider` in `main.jsx` + `useDialog()`; zero native browser `window.alert`/`window.confirm` dialogs; 3 tiers (`safety`, `warning`, `dangerous`) configured in `src/config/dialogConfig.js` and rendered via `PopupDialog.jsx` (`z-[120]`)
 - Global scrollbar styling in `src/index.css` (thin thumb using `--surface-tertiary`, transparent track) on `html` and overflow containers
 - Dark mode & 3D helpers in `src/index.css`: `color-scheme` is emitted per theme in `tokens.generated.css`; `.dark` scales `.shadow-stage-1/2/3` via `--shadow-rgb` alongside `.perspective-1000` / `.preserve-3d` and `@media (prefers-reduced-motion: reduce)` guards
 - Grading status helpers: `src/theme/statusClasses.js`
-- Design reference: `docs/design/color-theory-light-dark-theme.md` and `design-system/oop-autograder/MASTER.md`
+- Design reference: `docs/design/DESIGN_SYSTEM_SKILL.md`, `docs/design/color-theory-light-dark-theme.md`, and `design-system/oop-autograder/MASTER.md`
 
 ### Design intelligence (UI/UX Pro Max)
 

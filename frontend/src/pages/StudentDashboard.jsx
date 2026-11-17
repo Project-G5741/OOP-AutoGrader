@@ -6,6 +6,7 @@ import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
 import ChangePasswordModal from '../components/student/ChangePasswordModal';
+import AiSettingsModal from '../components/student/AiSettingsModal';
 import StudentUI from '../components/student/StudentUI';
 import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
@@ -276,6 +277,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [inCurrentTerm, setInCurrentTerm] = useState(isInCurrentTerm(user?.inCurrentTerm));
   const [quarterName, setQuarterName] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showAiSettings, setShowAiSettings] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
   const [crystals, setCrystals] = useState(() => {
@@ -575,6 +577,45 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     } catch {
       /* submit still works; server enforces quota */
     }
+  }, []);
+
+  // Early API-key health check on mount (web only).
+  // If the student has a saved key that is now invalid/expired, notify them immediately
+  // so they don't discover the problem only after switching to the AI tab.
+  useEffect(() => {
+    if (IS_DESKTOP_APP) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getAccessToken();
+        if (!token) return;
+        const res = await apiFetch(`${API_BASE}/api/students/ai/token`, {
+          authHandling: 'self',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (!data?.connected) return;
+        // Key is configured but Gemini previously rejected it — warn proactively.
+        if (data?.keyInvalid) {
+          showToast({
+            message: `Your Gemini API key (${data.keyHint}) is invalid or expired. Open Key & Token Management to import a new key.`,
+            type: 'error',
+          });
+        } else if (data?.exhausted) {
+          // Token budget exhausted — also worth flagging on startup.
+          showToast({
+            message: 'Your Gemini token budget is exhausted. Open Key & Token Management to import a new key.',
+            type: 'warning',
+          });
+        }
+      } catch {
+        /* non-critical — ignore network errors on startup */
+      }
+    })();
+    return () => { cancelled = true; };
+  // Run once on mount only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [isLoadingLabs, setIsLoadingLabs] = useState(
@@ -1371,6 +1412,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       navigate(ROUTES.lecturerDashboard);
     } else if (cmd === 'changePassword' && !IS_DESKTOP_APP) {
       setShowChangePassword(true);
+    } else if (cmd === 'aiSettings' && !IS_DESKTOP_APP) {
+      setShowAiSettings(true);
     } else if (cmd === 'mascotShop' && !IS_DESKTOP_APP) {
       setShowMascotShop(true);
     } else if ((cmd === 'copyMascotPracticeToken' || cmd === 'regenerateMascotPracticeToken')
@@ -1582,8 +1625,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               sessionChallengeScores={sessionChallengeScores}
               sessionChallengeBundles={sessionChallengeBundles}
               sessionOverallScore={sessionOverallScore}
+              sessionSubmissionId={
+                selectedLabId != null
+                  ? (sessionResultsByLab?.[selectedLabId]?.submissionId ?? null)
+                  : null
+              }
               error={labsError || challengesError}
               dailySubmissionQuota={dailySubmissionQuota}
+              onOpenAiSettings={() => setShowAiSettings(true)}
             />
           )}
         </div>
@@ -1633,6 +1682,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           }}
           onPasswordFocusChange={setFoxCoverEyes}
           user={user}
+        />
+      )}
+
+      {!IS_DESKTOP_APP && (
+        <AiSettingsModal
+          isOpen={showAiSettings}
+          onClose={() => setShowAiSettings(false)}
         />
       )}
     </>

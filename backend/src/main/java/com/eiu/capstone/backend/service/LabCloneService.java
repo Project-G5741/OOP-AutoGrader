@@ -361,6 +361,7 @@ public class LabCloneService {
                 created.studentVisible(),
                 created.releaseDate(),
                 created.prefix(),
+                created.aiEnabled(),
                 remappedChallenges);
         labStructureService.saveLabStructureInsertOnly(created.id(), remappedStructure);
 

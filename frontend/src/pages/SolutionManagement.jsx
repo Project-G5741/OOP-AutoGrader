@@ -158,8 +158,10 @@ export default function SolutionManagement() {
   const [deadlineInput, setDeadlineInput] = useState('');
   const [deadlineSaving, setDeadlineSaving] = useState(false);
   const [studentVisibleInput, setStudentVisibleInput] = useState(true);
+  const [aiEnabledInput, setAiEnabledInput] = useState(false);
   const [prefixSaving, setPrefixSaving] = useState(false);
   const [studentAccessSaving, setStudentAccessSaving] = useState(false);
+  const [aiEnabledSaving, setAiEnabledSaving] = useState(false);
   /** Challenge ids replaced by solution import — sent as replacedChallengeIds on Save Lab Structure. */
   const [importReplacedChallengeIds, setImportReplacedChallengeIds] = useState([]);
 
@@ -199,7 +201,8 @@ export default function SolutionManagement() {
   useEffect(() => {
     setDeadlineInput(toDateInputValue(savedSnapshot?.deadlineDate));
     setStudentVisibleInput(savedSnapshot?.studentVisible !== false);
-  }, [selectedLabId, savedSnapshot?.deadlineDate, savedSnapshot?.studentVisible]);
+    setAiEnabledInput(savedSnapshot?.aiEnabled === true);
+  }, [selectedLabId, savedSnapshot?.deadlineDate, savedSnapshot?.studentVisible, savedSnapshot?.aiEnabled]);
 
   const loadLookups = useCallback(async () => {
     const [scopeRes, declaringRes, relationRes, termsRes] = await Promise.all([
@@ -782,6 +785,52 @@ export default function SolutionManagement() {
 
   const handleImportKindChange = async (importKind) => handlePrefixChange(prefixForImportKind(importKind));
 
+  const applyAiEnabledToSelectedLab = (labId, aiEnabled) => {
+    const patch = { aiEnabled: aiEnabled === true };
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    setSavedSnapshot((prev) => (prev ? { ...prev, ...patch } : prev));
+    setLabs((prev) => prev.map((lab) => (
+      lab.id === labId ? { ...lab, ...patch } : lab
+    )));
+    const cached = structureCacheRef.current[labId];
+    if (cached) {
+      cached.draft = { ...cached.draft, ...patch };
+      cached.snapshot = { ...cached.snapshot, ...patch };
+    }
+  };
+
+  const handleAiEnabledChange = async (nextEnabled) => {
+    if (!selectedLabId || aiEnabledSaving) return;
+    const previous = savedSnapshot?.aiEnabled === true;
+    setAiEnabledInput(nextEnabled);
+    setAiEnabledSaving(true);
+    applyAiEnabledToSelectedLab(selectedLabId, nextEnabled);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/lecturer/labs/${selectedLabId}/ai-enabled`, {
+        method: 'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ aiEnabled: nextEnabled }),
+      });
+      if (!res.ok) throw new Error(await readFriendlyApiError(res, 'save'));
+      const updated = await res.json();
+      const saved = updated.aiEnabled === true;
+      applyAiEnabledToSelectedLab(selectedLabId, saved);
+      setAiEnabledInput(saved);
+      showToast({
+        message: saved
+          ? `${draft?.name || 'Lab'} AI Learning Assistant is on.`
+          : `${draft?.name || 'Lab'} AI Learning Assistant is off.`,
+        type: 'success',
+      });
+    } catch (e) {
+      applyAiEnabledToSelectedLab(selectedLabId, previous);
+      setAiEnabledInput(previous);
+      showToast({ message: toFriendlyError(e, 'save'), type: 'error' });
+    } finally {
+      setAiEnabledSaving(false);
+    }
+  };
+
   const handleSaveScheduling = async () => {
     const accessDirty = studentVisibleInput !== (savedSnapshot?.studentVisible !== false);
     const deadlineDirty = (deadlineInput || '') !== (
@@ -1006,14 +1055,18 @@ export default function SolutionManagement() {
               savedStudentVisible={savedSnapshot?.studentVisible !== false}
               savedDeadlineDate={savedSnapshot?.deadlineDate}
               savedLabPrefix={savedSnapshot?.prefix}
+              savedAiEnabled={savedSnapshot?.aiEnabled === true}
               studentVisible={studentVisibleInput}
               deadlineDate={deadlineInput}
+              aiEnabled={aiEnabledInput}
               studentAccessSaving={studentAccessSaving}
               deadlineSaving={deadlineSaving}
               prefixSaving={prefixSaving}
+              aiEnabledSaving={aiEnabledSaving}
               structureLoading={structureLoading}
               onStudentVisibleChange={setStudentVisibleInput}
               onDeadlineChange={setDeadlineInput}
+              onAiEnabledChange={handleAiEnabledChange}
               onSaveScheduling={handleSaveScheduling}
               onImportKindChange={handleImportKindChange}
               onSolutionImport={handleSolutionImport}

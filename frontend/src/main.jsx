@@ -15,8 +15,11 @@ import './index.css'
 
 import { ThemeProvider } from './context/ThemeContext.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
+import { DialogProvider } from './context/DialogContext.jsx'
 import { applyBrandFavicon } from './theme/applyBrandFavicon.js'
+import { installBrowserDialogGuard } from './utils/dialogGuard.js'
 
+installBrowserDialogGuard()
 applyBrandFavicon()
 
 const appMode = import.meta.env.VITE_APP_MODE
@@ -42,7 +45,9 @@ async function bootstrap() {
         <BrowserRouter>
           <ThemeProvider>
             <ToastProvider>
-              <App />
+              <DialogProvider>
+                <App />
+              </DialogProvider>
             </ToastProvider>
           </ThemeProvider>
         </BrowserRouter>

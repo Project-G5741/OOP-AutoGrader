@@ -21,6 +21,7 @@
 - [3. Student Guide](#3-student-guide)
   - [3.1 Lab Dashboard — Submit Work](#31-lab-dashboard--submit-work)
   - [3.2 Reading Your Results](#32-reading-your-results)
+  - [3.2.1 AI Learning Assistant](#321-ai-learning-assistant)
   - [3.3 History — Past Submissions](#33-history--past-submissions)
   - [3.4 Notifications](#34-notifications)
   - [3.5 Profile & Password](#35-profile--password)
@@ -316,6 +317,10 @@ For a full walkthrough (Unit worksheet, Composition script, **Call as** for over
 
 Toggle **Student Visible** on a lab to control whether students can see and submit to that lab.
 
+#### AI Learning Assistant (lab)
+
+In the **Lab Scheduling Panel**, toggle **AI Learning Assistant** to allow Conceptual hints on that lab. Default is off. This never changes official scores; it only unlocks the student advisory panel after grading.
+
 #### Saving
 
 Click **Save Structure** (top of structure panel) to persist all challenge/class/rubric changes. A green toast notification confirms a successful save.
@@ -444,6 +449,14 @@ When the challenge has operational testcases, this tab lists **Example Testcases
 #### Challenge Sidebar Scores
 
 The left sidebar shows a **score chip** next to each challenge name after you have uploaded in this session. This reflects your current-session grade, not the all-time best.
+
+### 3.2.1 AI Learning Assistant
+
+When a lecturer enables AI for a lab, an advisory **Conceptual hint** panel appears after your results. It guides thinking about fields, methods, or constructors and **never changes your official score**.
+
+1. Open **AI Learning Assistant** from the student header and **Import** your own Gemini API key. The key is stored encrypted on the server for your account only.
+2. After you submit an AI-enabled lab, choose an area (Fields / Methods / Constructors) and request a Conceptual hint.
+3. Watch the **token budget** bar in settings. You get alerts at **50%** and **80%**. At **90%**, new Gemini calls pause with an exhausted notice until you import a new key (or an operator raises the budget).
 
 ---
 

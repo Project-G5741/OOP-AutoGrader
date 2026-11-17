@@ -289,6 +289,24 @@ class SecurityAuthorizationTest {
     }
 
     @Test
+    void studentLabAiEnabled_is403() throws Exception {
+        mockMvc.perform(patch("/api/lecturer/labs/" + LAB_ID + "/ai-enabled")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"aiEnabled\":true}")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void lecturerLabAiEnabled_isNotDenied() throws Exception {
+        mockMvc.perform(patch("/api/lecturer/labs/" + LAB_ID + "/ai-enabled")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"aiEnabled\":true}")
+                        .header("Authorization", bearer(List.of(JwtRoleNames.LECTURER))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void dualRoleOverview_isNotDenied() throws Exception {
         mockMvc.perform(get("/api/lecturer/overview")
                         .header("Authorization", bearer(List.of(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER))))

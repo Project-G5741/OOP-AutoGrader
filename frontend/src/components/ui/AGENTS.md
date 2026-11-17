@@ -17,6 +17,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `DropZone.jsx` | Folder drag/drop upload with backend integration |
 | `Toast.jsx` | Viewport toast (`success` / `error` / `warning`). Auto-dismiss default 3s. `persist: true` stays until **Dismiss**. Optional `actionLabel` + `onAction` (import **Show details**). |
 | `DangerAlert.jsx` | Destructive inline alert (`role="alert"`, error semantic tokens) for high-severity notices |
+| `PopupDialog.jsx` | Universal alert/confirm dialog primitive supporting 3 severity tiers (`safety`, `warning`, `dangerous`); portal backdrop (`z-[120]`), Phosphor duotone icons, stage-3 elevation, keyboard and focus management |
 | `ModalOverlay.jsx` | Full-viewport modal backdrop via `createPortal` to `document.body` (`z-[100]`, `backdrop-blur-sm`); use for dialogs so they cover the app header |
 | `Modal.jsx` | Centered dialog shell built on `ModalOverlay`; optional `showClose` (default true) hides the top Close when the dialog already has Cancel |
 | `AppLogo.jsx` | Graduation cap logo from `src/theme/brand.js` — variants: `header`, `login`, `inline` |
@@ -49,6 +50,16 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 - `ToastProvider` wraps the SPA in `main.jsx`. Screens call `useToast()` (object `{ message, type, actionLabel, onAction, persist }` or `(message, type)`). Pass an **array** of toast objects to show a stacked batch (e.g. upload score + compile error); `showToast(null)` clears all
 - Persist mutations (create/update/save/delete/suspend/enroll) show success or error. Excel import warnings use `persist: true` so they stay until dismissed; **Show details** lists missing vs already-enrolled students.
 - Toast portals to `document.body` at `fixed right-6 bottom-20 z-[110]` so it stays visible over modals (`z-[100]`) and floats cleanly above the feedback FAB without colliding with the top-right header mascot or speech bubbles
+
+### Dialog popup & alert system
+
+- `DialogProvider` wraps the SPA in `main.jsx` and provides `useDialog()`.
+- Zero native browser dialogs: `window.alert`, `window.confirm`, and `window.prompt` are intercepted by `installBrowserDialogGuard()` to ban native browser "says:" dialogs.
+- Categorized into 3 severity tiers configured in `src/config/dialogConfig.js`:
+  - `safety`: Positive, informative notices or low-risk actions (`ShieldCheck`, Teal/Secondary wash, Primary CTA).
+  - `warning`: Cautions, non-destructive confirmations, points spending (`Warning`, Amber wash, Warning CTA).
+  - `dangerous`: Destructive actions, mascot code replacement, deletions (`WarningOctagon`, Crimson/Error wash, Destructive CTA).
+- Rendered via `PopupDialog.jsx` portaled at `z-[120]` with stage-3 elevation, keyboard escape handling, and focus lock.
 
 ### Button, Card, Select, DatePicker
 

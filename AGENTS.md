@@ -76,7 +76,7 @@ Default section order:
 
 ## User Preferences
 
-When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
+- **No Unsolicited Descriptions / Microcopy Clutter:** Do not write boilerplate subtitle descriptions, explanatory policy paragraphs, or unrequested helper text in modals, cards, or inputs (e.g. `Import Gemini key · token management`, `Your Gemini key is stored encrypted on the server...`, `Alerts at 50% and 80%...`) unless explicitly requested by the user. Keep UI clean, minimal, and self-evident.
 
 ## Child DOX Index
 
@@ -121,7 +121,13 @@ When the user requests a durable behavior change, record it here or in the relev
 | `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-read.sql` | Operator-run: `student_notification_read` (durable web student bell read-receipt keys). Startup migrator `StudentNotificationReadSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-dismiss.sql` | Operator-run: `student_notification_dismiss` (durable web student bell forever-hide keys). Startup migrator `StudentNotificationDismissSchemaMigrator` applies the same table on PostgreSQL |
+| `docs/sql/2026-11-16-lab-ai-enabled.sql` | Operator-run: `lab.ai_enabled` (AI Learning Assistant eligibility, default false). Startup migrator `LabAiEnabledSchemaMigrator` applies the same column on PostgreSQL |
+| `docs/sql/2026-11-16-ai-feedback-cache.sql` | Operator-run: `ai_feedback_cache` (validated Conceptual hint cache; no API keys). Startup migrator `AiFeedbackCacheSchemaMigrator` applies the same table on PostgreSQL |
+| `docs/sql/2026-11-16-ai-feedback-cache-challenge-scope.sql` | Operator-run: widen `ai_feedback_cache.learning_area` to VARCHAR(64) for challenge-scoped AI feedback cache keys. Startup migrator applies the same statement on PostgreSQL |
+| `docs/sql/2026-11-16-ai-student-credential.sql` | Operator-run: `ai_student_credential` (encrypted Gemini BYOK + token budget). Startup migrator `AiStudentCredentialSchemaMigrator` applies the same table on PostgreSQL |
+| `docs/sql/2026-11-17-ai-credential-key-invalid.sql` | Operator-run: `ai_student_credential.key_invalid` (marks expired/invalid Gemini key for early toast warning). Startup migrator applies the same column on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
+| `docs/design/DESIGN_SYSTEM_SKILL.md` | Official UI/UX Design System Skill: Swiss Modernism 2.0, 60-30-10 color theory, 6 themes, dropboxes, layouts, components, WCAG AA |
 
 ### Project facts
 

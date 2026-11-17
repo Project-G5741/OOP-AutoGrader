@@ -1,5 +1,5 @@
 // StudentUI.jsx - No hardcoded data; fully driven by props
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -18,9 +18,11 @@ import {
   Flask,
   Stack,
   Trophy,
+  Sparkle,
 } from '@phosphor-icons/react';
 import DropZone from '../ui/DropZone';
 import DangerAlert from '../ui/DangerAlert';
+import AiLearningAssistantPanel from './AiLearningAssistantPanel';
 import { getAccessToken } from '../../utils/authRoutes';
 import { ScorePill, ScoreSectionHeader, hasScoreToShow, isPillarNotApplicable } from '../ui/ScorePill';
 import { Separator } from '../ui/separator';
@@ -44,8 +46,18 @@ import { formatLabDeadlineMeta } from '../../theme/statusClasses';
 import StudentLabSidebar from './StudentLabSidebar';
 import StudentNotificationBell from './StudentNotificationBell';
 
-const TAB_LABELS = { mmd: 'MMD', class: 'Declaration Test', testcase: 'Operation Test' };
-const TAB_ICONS = { mmd: FlowArrow, class: BracketsCurly, testcase: Flask };
+const TAB_LABELS = {
+  mmd: 'MMD',
+  class: 'Declaration Test',
+  testcase: 'Operation Test',
+  ai: 'AI Assistant',
+};
+const TAB_ICONS = {
+  mmd: FlowArrow,
+  class: BracketsCurly,
+  testcase: Flask,
+  ai: Sparkle,
+};
 const TAB_ORDER = Object.keys(TAB_LABELS);
 const HIDDEN_TESTCASES_PAGE_SIZE = 60;
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -236,14 +248,20 @@ export default function StudentUI({
   sessionChallengeScores = {},
   sessionChallengeBundles = {},
   sessionOverallScore = null,
+  sessionSubmissionId = null,
   error = null,
   dailySubmissionQuota = null,
+  onOpenAiSettings = null,
 }) {
   const [activeTab, setActiveTab] = useState('mmd');
   const [expandedTC, setExpandedTC] = useState(null);
   const [expandedClassName, setExpandedClassName] = useState(null);
   const [hiddenTestcasesPage, setHiddenTestcasesPage] = useState(0);
   const [now, setNow] = useState(() => new Date());
+
+  // AI feedback cache shared across challenge/lab changes so results survive tab-switching.
+  // Cleared when the selected lab changes so stale cross-lab entries are never shown.
+  const aiFeedbackCacheRef = useRef({});
 
   const dailyLimit = dailySubmissionQuota?.dailyLimit ?? 30;
   const usedToday = dailySubmissionQuota?.usedToday ?? 0;
@@ -258,6 +276,12 @@ export default function StudentUI({
     setExpandedClassName(null);
     setHiddenTestcasesPage(0);
   }, [selectedChallengeId]);
+
+  // Clear AI feedback cache whenever the user switches to a different lab
+  // so results from Lab A are never shown while viewing Lab B.
+  useEffect(() => {
+    aiFeedbackCacheRef.current = {};
+  }, [selectedLabId]);
 
   useEffect(() => {
     if (IS_DESKTOP_APP) return undefined;
@@ -275,10 +299,16 @@ export default function StudentUI({
     ?? currentBundle?.normalizationNotice
     ?? currentBundle?.normalization_notice
     ?? null;
+  const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
+  const isAiEligible = !IS_DESKTOP_APP && Boolean(selectedLab?.aiEnabled);
+
   const visibleTabs = useMemo(
     () => {
       if (!resultsRevealed) return [];
       return TAB_ORDER.filter((t) => {
+        if (t === 'ai') {
+          return isAiEligible;
+        }
         if (t === 'testcase') {
           return currentBundle?.scoreApplicability?.testcase === true
             || currentBundle?.score_applicability?.testcase === true
@@ -287,7 +317,7 @@ export default function StudentUI({
         return !isPillarNotApplicable(currentBundle, t);
       });
     },
-    [resultsRevealed, currentBundle],
+    [resultsRevealed, currentBundle, isAiEligible],
   );
 
   // If the active tab's pillar is inapplicable for the newly selected challenge (hidden from
@@ -381,8 +411,6 @@ export default function StudentUI({
   const visibleTestcases = testCasesData.filter((tc) => !tc.isHidden);
 
   const testScore = bundleScore(currentBundle, 'testcase', { ok: 0, total: 0, pct: 0 });
-
-  const selectedLab = labs.find((lab) => String(lab.id) === String(selectedLabId)) ?? labs[0];
 
   return (
     <SidebarProvider>
@@ -998,6 +1026,19 @@ export default function StudentUI({
                     <EmptyState compact title="No testcase detail data available" />
                   )}
                 </>
+              )}
+              {activeTab === 'ai' && (
+                <AiLearningAssistantPanel
+                  labId={selectedLabId}
+                  submissionId={sessionSubmissionId}
+                  challengeId={selectedChallengeId}
+                  challengeName={currentChallenge?.name}
+                  classData={classData}
+                  enabled={isAiEligible}
+                  onOpenSettings={onOpenAiSettings}
+                  externalCacheRef={aiFeedbackCacheRef}
+                  isLoadingDetails={isLoadingDetails}
+                />
               )}
                 </>
               )}

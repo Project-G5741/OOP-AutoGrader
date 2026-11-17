@@ -28,14 +28,18 @@ export default function LabSchedulingPanel({
   savedStudentVisible,
   savedDeadlineDate,
   savedLabPrefix = 'Official',
+  savedAiEnabled = false,
   studentVisible,
   deadlineDate,
+  aiEnabled = false,
   studentAccessSaving,
   deadlineSaving,
   prefixSaving = false,
+  aiEnabledSaving = false,
   structureLoading = false,
   onStudentVisibleChange,
   onDeadlineChange,
+  onAiEnabledChange,
   onSaveScheduling,
   onImportKindChange,
   onSolutionImport,
@@ -74,10 +78,11 @@ export default function LabSchedulingPanel({
     ? 'overflow-hidden rounded-xl border border-border bg-surface'
     : '!p-0 overflow-hidden';
 
-  const panelDisabled = schedulingSaving || prefixSaving || structureLoading;
+  const panelDisabled = schedulingSaving || prefixSaving || aiEnabledSaving || structureLoading;
   const importBusy = importActions.importing;
   const pad = colPad(compact);
   const AccessIcon = studentVisible ? Eye : EyeOff;
+  const aiDirty = aiEnabled !== savedAiEnabled;
 
   return (
     <Card className={shellClass}>
@@ -102,7 +107,7 @@ export default function LabSchedulingPanel({
         <section className={`flex min-h-0 flex-col gap-5 lg:border-r lg:border-border lg:pr-5 ${compact ? '' : 'lg:pr-6'}`}>
           <div className="shrink-0 space-y-3">
             <SectionHeader icon={AccessIcon} title="Student access" />
-            <div className="rounded-xl border border-border bg-surface-secondary/40 p-5">
+            <div className="rounded-xl border border-border bg-surface-secondary/40 p-5 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm font-medium text-foreground">Visible to students</p>
                 <Switch
@@ -113,6 +118,22 @@ export default function LabSchedulingPanel({
                   aria-label="Visible to students"
                 />
               </div>
+              <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">AI Learning Assistant</p>
+                  <p className="text-xs text-foreground-muted">Conceptual hints after grading (default off)</p>
+                </div>
+                <Switch
+                  id="lab-ai-enabled-toggle"
+                  checked={aiEnabled}
+                  disabled={aiEnabledSaving || !onAiEnabledChange}
+                  onChange={onAiEnabledChange}
+                  aria-label="Enable AI Learning Assistant"
+                />
+              </div>
+              {aiDirty && onAiEnabledChange && (
+                <p className="text-xs text-foreground-muted">Toggle saves immediately.</p>
+              )}
             </div>
           </div>
 

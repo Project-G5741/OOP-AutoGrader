@@ -12,4 +12,5 @@ public record LabStructureResponse(
         boolean studentVisible,
         LocalDate releaseDate,
         String prefix,
+        boolean aiEnabled,
         List<ChallengeStructureDTO> challenges) {}
