@@ -349,19 +349,26 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   const applyStreak = useCallback((next) => {
     const prev = streakSnapshot.current;
-    const awarded = prev && next && next.points > prev.points;
+    const streakIncreased = Boolean(
+      prev && next
+      && typeof prev.streak === 'number'
+      && typeof next.streak === 'number'
+      && next.streak > prev.streak,
+    );
     const missionJustDone = Boolean(next?.missionCompletedNow) || (prev && next && (
       (!prev.loggedIn && next.loggedIn)
       || (prev.submitCount < (prev.submitGoal ?? 3) && next.submitCount >= (next.submitGoal ?? 3))
       || (prev.petCount < (prev.petGoal ?? 4) && next.petCount >= (next.petGoal ?? 4))
     ));
-    if (missionJustDone && !awarded) {
+    if (missionJustDone && !streakIncreased) {
       showToast('Mission complete', 'success');
     }
-    if (awarded) {
+    if (streakIncreased) {
       const gained = next.points - prev.points;
-      showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
-      setAwardPulse((value) => value + 1);
+      if (gained > 0) {
+        showToast(`Day ${next.streak} streak. +${gained} points.`, 'success');
+        setAwardPulse((value) => value + 1);
+      }
     }
 
     if (typeof next?.gachaTickets === 'number') {
