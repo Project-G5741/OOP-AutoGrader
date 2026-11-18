@@ -533,24 +533,23 @@ export const MASCOT_PROFILES = {
   goat: {
     dialogues: {
       perfect: [
-        'Special delivery! A perfect 100 straight to your doorstep! Hehehe! 📮✨',
-        "Woohoo! All test cases stamped and delivered! You're an absolute legend! 💌🎉",
+        'Is that an ACE? naisu naisu',
       ],
       good: [
-        'Ooh, package received safely! Almost a clean sweep, let us grab those last points! 📬',
-        "Solid run! Just a tiny dent on the parcel, you've got this! ✨",
+        'Ooh, nt nt nice try',
+        'Lets do our best next time',
       ],
       retry: [
-        'Wahhh, returned to sender?! Do not worry, dust off that stack trace and ship it again! 📮💥',
-        'No sweat! Even the fastest courier takes a wrong turn sometimes. Let us fix that bug!',
+        'Lets hit a different site this time, maybe that will work out',
+        'Maybe another match and I will go to bed'
       ],
       pet: [
-        'Ehehehe, that tickles! Do not mess up my hat, I have letters to deliver! 📮🔔',
-        'Hehe! Patting the courier gives you +100% shipping speed on bug fixes! 🐾✨',
+        'So? I am cool, right?',
+        'I should be the one in charge of the headpats..',
       ],
       idle: [
-        'Got any letters for me to deliver? Or maybe another lab submission ready? 💌',
-        'Ding-dong! Delivery courier The GOAT reporting for duty! Let us code! 🔔📮',
+        'Oopsie, I acidentally ate your letter',
+        'Are you there, are you there?',
       ],
     },
   },
