@@ -15,9 +15,9 @@ public final class MascotCatalog {
     public static final String EXCLUSIVE_ICE_QUEEN_ID = "ice_queen";
     public static final String EXCLUSIVE_ICE_QUEEN_NAME = "Ice Queen";
     public static final Offer EXCLUSIVE_ICE_QUEEN = new Offer(EXCLUSIVE_ICE_QUEEN_ID, EXCLUSIVE_ICE_QUEEN_NAME, 0);
-    public static final String EXCLUSIVE_GIGI_ID = "gigi";
-    public static final String EXCLUSIVE_GIGI_NAME = "Gigi Murin";
-    public static final Offer EXCLUSIVE_GIGI = new Offer(EXCLUSIVE_GIGI_ID, EXCLUSIVE_GIGI_NAME, 0);
+    public static final String EXCLUSIVE_GOAT_ID = "goat";
+    public static final String EXCLUSIVE_GOAT_NAME = "The GOAT";
+    public static final Offer EXCLUSIVE_GOAT = new Offer(EXCLUSIVE_GOAT_ID, EXCLUSIVE_GOAT_NAME, 0);
 
     public record Offer(String id, String name, int price) {
     }
@@ -57,8 +57,8 @@ public final class MascotCatalog {
         if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN;
         }
-        if (EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id) || "gigi_murin".equalsIgnoreCase(id) || "gigi-murin".equalsIgnoreCase(id)) {
-            return EXCLUSIVE_GIGI;
+        if (EXCLUSIVE_GOAT_ID.equalsIgnoreCase(id)) {
+            return EXCLUSIVE_GOAT;
         }
         return BY_ID.get(id);
     }
@@ -71,9 +71,7 @@ public final class MascotCatalog {
                 || BY_ID.containsKey(id)
                 || EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id)
                 || "ice-queen".equalsIgnoreCase(id)
-                || EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id)
-                || "gigi_murin".equalsIgnoreCase(id)
-                || "gigi-murin".equalsIgnoreCase(id);
+                || EXCLUSIVE_GOAT_ID.equalsIgnoreCase(id);
     }
 
     public static String displayName(String id) {
@@ -83,8 +81,8 @@ public final class MascotCatalog {
         if (EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(id) || "ice-queen".equalsIgnoreCase(id)) {
             return EXCLUSIVE_ICE_QUEEN_NAME;
         }
-        if (EXCLUSIVE_GIGI_ID.equalsIgnoreCase(id) || "gigi_murin".equalsIgnoreCase(id) || "gigi-murin".equalsIgnoreCase(id)) {
-            return EXCLUSIVE_GIGI_NAME;
+        if (EXCLUSIVE_GOAT_ID.equalsIgnoreCase(id)) {
+            return EXCLUSIVE_GOAT_NAME;
         }
         Offer offer = forSale(id);
         return offer == null ? STARTER_NAME : offer.name();

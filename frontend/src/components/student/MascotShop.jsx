@@ -20,7 +20,7 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 import { formatNumber } from '../../utils/formatters';
-import { mascotArt, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
+import { mascotArt, listCatalogMascots, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const POINTS_PER_CRYSTAL = 4000;
@@ -33,6 +33,10 @@ const SORT_OPTIONS = [
 ];
 
 function compareShopOffers(a, b, sortBy) {
+  const tailA = a.exclusive ? 1 : 0;
+  const tailB = b.exclusive ? 1 : 0;
+  if (tailA !== tailB) return tailA - tailB;
+
   const priceA = Number(a.price) || 0;
   const priceB = Number(b.price) || 0;
   const nameA = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
@@ -136,7 +140,7 @@ export default function MascotShop({
     const backendMap = new Map(backendMascots.map((m) => [m.id, m]));
     const query = searchQuery.trim().toLowerCase();
 
-    const all = Object.values(STUDENT_MASCOTS).map((catalogItem) => {
+    const all = listCatalogMascots().map((catalogItem) => {
       const backendItem = backendMap.get(catalogItem.id);
       const isOwnedLocally = ownedMascots.includes(catalogItem.id);
       const isEquippedLocally = localEquipped === catalogItem.id || (!localEquipped && (backendItem?.equipped || shop?.equipped === catalogItem.id));
@@ -399,7 +403,7 @@ export default function MascotShop({
                   : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
               }`}
             >
-              All ({Object.keys(STUDENT_MASCOTS).length})
+              All ({listCatalogMascots().length})
             </button>
             {Object.values(MASCOT_TIERS).map((tier) => (
               <button
