@@ -9,14 +9,14 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane with `oop-stage.json` Lottie + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; zero nested borders, zero gradients) |
+| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane delegating kicker + `144×144` stage to `getLoginDesign(activeHoliday?.id)` in `src/components/auth/holidays/registry.js` — `oop-stage.json` Lottie by default or flat vector holiday art across 18 Vietnamese holidays + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; mounts `HolidayDevPreviewBar` in `DEV` only; zero nested borders, zero gradients) |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert`. Set Password uses `PasswordStrengthField` (strength meter + rule checks); submit still follows `getFirstTimeSetupErrors` (6–100 characters) |
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; `localStorage` `oop_student_equipped_mascot` only caches that value and a refresh does not POST equip); `GET /api/students/mascots/list` on mount unions owned ids into `oop_student_owned_mascots` for gacha anti-dupe. Header speech: pet lines come from `StudentFoxMascot` using the painted `mascotId`; score lines are `{ text, type, mascotId }` from `equippedMascotRef`. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped mascot and gacha economy load from `GET /api/students/streak` and `GET /api/students/mascots/list` (reloaded on account change; legacy gacha keys purged once). Header speech: pet lines come from `StudentFoxMascot` using the painted `mascotId`; score lines are `{ text, type, mascotId }` from `equippedMascotRef`. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -116,7 +116,10 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `GET /api/desktop/mascot/snapshot` | `StudentDashboard.jsx` (desktop) — last pulled equipped/owned ids |
 | `POST /api/desktop/mascot/sync` | `DesktopMascotImport.jsx` — body `{ token }` |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
-| `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` from `GET /api/students/streak` |
+| `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` before a ticket roll |
+| `POST /api/students/streak/gacha-points/spend` | `StudentDashboard.jsx` — spends 100 or 900 points before a points roll |
+| `POST /api/students/streak/gacha-settle` | `StudentDashboard.jsx` — body `{ rollCount, pity, pointsCashback, crystalsGranted, mascotIds }`; persists pity, cashback, crystals, and gacha unlocks |
+| `POST /api/students/streak/gacha-points/pref` | `StudentDashboard.jsx` — body `{ allow }`; Vietnam-day remember for spending points on rolls (`gachaPointsSpendAllowed` on streak GET) |
 | `POST /api/students/streak/crystals/exchange` | `MascotShop.jsx` — body `{ count }` 1–99; spends crystals and adds 4000 points each |
 | `POST /api/students/streak/crystals/grant` | `StudentDashboard.jsx` — body `{ count }` 1–10; credits crystals won from gacha (or a one-time import of a previous browser balance) |
 | `POST /api/students/streak/crystals/spend` | `StudentDashboard.jsx` — body `{ count }` 1–99; spends crystals when a legendary mascot is paid with crystals |
