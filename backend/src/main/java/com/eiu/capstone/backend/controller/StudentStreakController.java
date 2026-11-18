@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.eiu.capstone.backend.DTO.GachaPointsPrefRequest;
+import com.eiu.capstone.backend.DTO.GachaSettleRequest;
 import com.eiu.capstone.backend.DTO.GachaSpendRequest;
 import com.eiu.capstone.backend.DTO.StudentStreakView;
 import com.eiu.capstone.backend.model.UserAccount;
@@ -52,6 +54,30 @@ public class StudentStreakController {
             @RequestBody GachaSpendRequest request) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         return studentStreakService.spendGachaTickets(user.getId(), request.count());
+    }
+
+    @PostMapping("/gacha-points/spend")
+    public StudentStreakView spendGachaPoints(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSpendRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.spendGachaPoints(user.getId(), request.count());
+    }
+
+    @PostMapping("/gacha-settle")
+    public StudentStreakView settleGacha(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaSettleRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.settleGacha(user.getId(), request);
+    }
+
+    @PostMapping("/gacha-points/pref")
+    public StudentStreakView saveGachaPointsSpendPref(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaPointsPrefRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentStreakService.saveGachaPointsSpendPref(user.getId(), request.allow());
     }
 
     @PostMapping("/crystals/grant")

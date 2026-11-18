@@ -83,7 +83,7 @@ export default function MascotShop({
   onCrystalsReconcile,
   tickets,
   ownedMascots = ['fox'],
-  onOwnedMascotsChange,
+  onMascotsRefresh,
 }) {
   const showToast = useToast();
   const [shop, setShop] = useState(null);
@@ -187,37 +187,37 @@ export default function MascotShop({
 
     try {
       if (paymentChoice === 'crystal' && pending.crystalCost) {
-        // Exchange with Crystals
         if (crystals < pending.crystalCost) {
           showToast('Not enough Crystals to redeem!', 'error');
           return;
         }
 
-        const newCrystals = crystals - pending.crystalCost;
-        onCrystalsChange?.(newCrystals);
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
-        setLocalEquipped(pending.id);
-        setPending(null);
-
-        try {
-          const response = await apiFetch(`${API_BASE}/api/students/mascots/${pending.id}/equip`, {
-            method: 'POST',
-            headers: authHeaders(),
-          });
-          if (response.ok) {
-            const next = await response.json();
-            apply(next, `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`);
-            return;
-          }
-        } catch {
-          /* fallback to local apply */
+        const spendResponse = await apiFetch(`${API_BASE}/api/students/streak/crystals/spend`, {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: pending.crystalCost }),
+        });
+        if (!spendResponse.ok) {
+          showToast(await readShopFailure(spendResponse), 'error');
+          return;
         }
+        const spent = await spendResponse.json();
+        onCrystalsReconcile?.(spent.crystals);
 
-        apply(
-          { ...(shop || {}), equipped: pending.id },
-          `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`
-        );
+        const response = await apiFetch(`${API_BASE}/api/students/mascots/${pending.id}/equip`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        if (!response.ok) {
+          showToast(await readShopFailure(response), 'error');
+          onMascotsRefresh?.();
+          return;
+        }
+        const next = await response.json();
+        setPending(null);
+        setLocalEquipped(pending.id);
+        apply(next, `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`);
+        onMascotsRefresh?.();
         return;
       }
 
@@ -234,23 +234,16 @@ export default function MascotShop({
         }
         const next = await response.json();
         setPending(null);
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
         setLocalEquipped(pending.id);
         apply(next, `Purchased ${pending.name}. ${formatNumber(next.points)} pts remaining.`);
+        onMascotsRefresh?.();
       } else {
         // Catalog mascot point purchase simulation
         if (points < pending.price) {
           showToast('Not enough points to buy this mascot.', 'error');
           return;
         }
-        const nextPoints = points - pending.price;
-        const nextShop = { ...(shop || {}), points: nextPoints, equipped: pending.id };
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
-        setLocalEquipped(pending.id);
-        setPending(null);
-        apply(nextShop, `Purchased ${pending.name}. ${formatNumber(nextPoints)} pts remaining.`);
+        showToast('This mascot is not available for purchase yet.', 'error');
       }
     } catch (error) {
       showToast(toFriendlyError(error), 'error');

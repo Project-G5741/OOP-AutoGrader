@@ -27,6 +27,7 @@ import { friendlyLoadErrorFromResponse, readFriendlyApiError, toFriendlyError } 
 import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
 import { labResultHasCompileError } from '../utils/compileErrors';
+import { purgeLegacyGachaLocalStorage } from '../utils/studentGachaStorage';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -280,28 +281,15 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
-  const [crystals, setCrystals] = useState(() => {
-    const saved = localStorage.getItem('gacha_demo_crystals');
-    return saved !== null ? parseInt(saved, 10) : 0;
-  });
+  const [crystals, setCrystals] = useState(0);
   const crystalsRef = useRef(crystals);
-  const crystalImportRef = useRef(false);
-  const crystalImportingRef = useRef(false);
-  const [ownedMascots, setOwnedMascots] = useState(() => {
-    try {
-      const saved = localStorage.getItem('oop_student_owned_mascots');
-      return saved ? JSON.parse(saved) : ['fox'];
-    } catch {
-      return ['fox'];
-    }
-  });
+  const [ownedMascots, setOwnedMascots] = useState(['fox']);
 
   const applyCrystalBalance = useCallback((val) => {
     const parsed = Number(val);
     const next = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
     crystalsRef.current = next;
     setCrystals(next);
-    localStorage.setItem('gacha_demo_crystals', String(next));
   }, []);
 
   const postCrystalCount = useCallback(async (action, count) => {
@@ -338,24 +326,13 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const isAdminUser = hasRole(user?.roles, 'ADMIN');
 
   const handleTicketsChange = useCallback((val) => {
+    if (!isAdminUser) return;
     ticketsRef.current = val;
     setTickets(val);
-    if (isAdminUser) {
-      localStorage.setItem('gacha_demo_tickets', String(val));
-    }
   }, [isAdminUser]);
 
-  const handleOwnedMascotsChange = useCallback((val) => {
-    setOwnedMascots((prev) => {
-      const incoming = Array.isArray(val) ? val : [];
-      const next = Array.from(new Set(['fox', ...prev, ...incoming].filter(Boolean)));
-      localStorage.setItem('oop_student_owned_mascots', JSON.stringify(next));
-      return next;
-    });
-  }, []);
-  const [equippedMascot, setEquippedMascot] = useState(() => {
-    return localStorage.getItem('oop_student_equipped_mascot') || 'fox';
-  });
+  const [equippedMascot, setEquippedMascot] = useState('fox');
+  const [gachaPity, setGachaPity] = useState(0);
   const equippedMascotRef = useRef(equippedMascot);
   equippedMascotRef.current = equippedMascot;
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
@@ -392,47 +369,55 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setTickets(next.gachaTickets);
     }
 
-    if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
-      const serverCrystals = next.crystals;
-      const localCrystals = crystalsRef.current;
-      if (!crystalImportRef.current && localCrystals > serverCrystals) {
-        crystalImportRef.current = true;
-        crystalImportingRef.current = true;
-        const extra = localCrystals - serverCrystals;
-        (async () => {
-          let pending = extra;
-          let latest = serverCrystals;
-          try {
-            while (pending > 0) {
-              const count = Math.min(10, pending);
-              const body = await postCrystalCount('grant', count);
-              latest = typeof body.crystals === 'number' ? body.crystals : latest + count;
-              pending -= count;
-            }
-            applyCrystalBalance(latest);
-          } catch {
-            crystalImportRef.current = false;
-            applyCrystalBalance(serverCrystals);
-          } finally {
-            crystalImportingRef.current = false;
-          }
-        })();
-      } else {
-        crystalImportRef.current = true;
-        applyCrystalBalance(serverCrystals);
-      }
+    if (typeof next?.crystals === 'number') {
+      applyCrystalBalance(next.crystals);
+    }
+
+    if (typeof next?.gachaPityCount === 'number') {
+      setGachaPity(Math.max(0, Math.min(80, next.gachaPityCount)));
     }
 
     const serverEquipped = next?.equipped || 'fox';
     if (next) {
       setEquippedMascot(serverEquipped);
-      localStorage.setItem('oop_student_equipped_mascot', serverEquipped);
     }
 
     const mergedNext = next ? { ...next, equipped: serverEquipped } : next;
     streakSnapshot.current = mergedNext;
     setStreak(mergedNext);
   }, [applyCrystalBalance, postCrystalCount, showToast]);
+
+  const applyShop = useCallback((shop) => {
+    if (!shop) return;
+    const prev = streakSnapshot.current;
+    const equipped = shop.equipped || prev?.equipped || 'fox';
+    setEquippedMascot(equipped);
+    const next = {
+      ...(prev || {}),
+      points: shop.points,
+      equipped,
+    };
+    streakSnapshot.current = next;
+    setStreak(next);
+    const ownedFromShop = (shop.mascots || [])
+      .filter((mascot) => mascot?.owned && mascot?.id)
+      .map((mascot) => mascot.id);
+    const owned = Array.from(new Set(['fox', ...ownedFromShop, equipped].filter(Boolean)));
+    setOwnedMascots(owned);
+  }, []);
+
+  const refreshMascotShop = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/mascots/list`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      applyShop(await response.json());
+    } catch {
+      /* keep last server-owned list */
+    }
+  }, [applyShop]);
 
   const refreshStreak = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
@@ -465,22 +450,101 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         }
         return false;
       }
-      const body = await response.json();
-      if (typeof body.gachaTickets === 'number') {
-        ticketsRef.current = body.gachaTickets;
-        setTickets(body.gachaTickets);
-      }
+      applyStreak(await response.json());
       return true;
     } catch {
       showToast('Could not spend roll tickets. Try again.', 'error');
       refreshStreak();
       return false;
     }
-  }, [showToast, refreshStreak]);
+  }, [applyStreak, showToast, refreshStreak]);
+
+  const spendGachaPoints = useCallback(async (count) => {
+    if (IS_DESKTOP_APP) return false;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-points/spend`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      });
+      if (!response.ok) {
+        const msg = response.status === 409
+          ? 'Not enough points.'
+          : await friendlyLoadErrorFromResponse(response);
+        showToast(msg, 'error');
+        if (response.status === 409) {
+          refreshStreak();
+        }
+        return false;
+      }
+      const body = await response.json();
+      applyStreak(body);
+      return true;
+    } catch {
+      showToast('Could not spend points on this roll. Try again.', 'error');
+      refreshStreak();
+      return false;
+    }
+  }, [applyStreak, showToast, refreshStreak]);
+
+  const settleGachaRoll = useCallback(async (payload) => {
+    if (IS_DESKTOP_APP) return false;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-settle`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        refreshStreak();
+        refreshMascotShop();
+        return false;
+      }
+      applyStreak(await response.json());
+      refreshMascotShop();
+      return true;
+    } catch {
+      showToast('Could not save gacha rewards. Try again.', 'error');
+      refreshStreak();
+      refreshMascotShop();
+      return false;
+    }
+  }, [applyStreak, refreshMascotShop, showToast, refreshStreak]);
+
+  const saveGachaPointsPref = useCallback(async (allow) => {
+    if (IS_DESKTOP_APP) return;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-points/pref`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow }),
+      });
+      if (!response.ok) return;
+      applyStreak(await response.json());
+    } catch {
+      /* optional preference */
+    }
+  }, [applyStreak]);
+
+  const accountKey = user?.id || user?.email || null;
 
   useEffect(() => {
+    if (IS_DESKTOP_APP || !accountKey) return;
+    purgeLegacyGachaLocalStorage();
+    crystalsRef.current = 0;
+    ticketsRef.current = 0;
+    setCrystals(0);
+    setTickets(0);
+    setGachaPity(0);
+    setOwnedMascots(['fox']);
+    setEquippedMascot('fox');
+    setStreak(null);
+    streakSnapshot.current = null;
     refreshStreak();
-  }, [refreshStreak]);
+    refreshMascotShop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload economy only when the signed-in account changes
+  }, [accountKey]);
 
   useEffect(() => {
     if (!IS_DESKTOP_APP) return undefined;
@@ -492,7 +556,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         const body = await response.json();
         if (typeof body?.equipped === 'string' && body.equipped) {
           setEquippedMascot(body.equipped);
-          localStorage.setItem('oop_student_equipped_mascot', body.equipped);
         }
       } catch {
         /* keep the last equipped cache or fox */
@@ -1450,46 +1513,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   };
 
-  const applyShop = useCallback((shop) => {
-    if (!shop) return;
-    const prev = streakSnapshot.current;
-    const equipped = shop.equipped || prev?.equipped || 'fox';
-    localStorage.setItem('oop_student_equipped_mascot', equipped);
-    setEquippedMascot(equipped);
-    const next = {
-      ...(prev || {}),
-      points: shop.points,
-      equipped,
-    };
-    streakSnapshot.current = next;
-    setStreak(next);
-    const ownedFromShop = (shop.mascots || [])
-      .filter((mascot) => mascot?.owned && mascot?.id)
-      .map((mascot) => mascot.id);
-    if (equipped) ownedFromShop.push(equipped);
-    handleOwnedMascotsChange(ownedFromShop);
-  }, [handleOwnedMascotsChange]);
-
-  useEffect(() => {
-    if (IS_DESKTOP_APP) return undefined;
-    let cancelled = false;
-    apiFetch(`${API_BASE}/api/students/mascots/list`, { headers: authHeaders() })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json();
-      })
-      .then((shop) => {
-        if (cancelled || !shop) return;
-        applyShop(shop);
-      })
-      .catch(() => {
-        /* gacha still uses the local owned cache when the shop list fails */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [applyShop]);
-
   if (view === 'dashboard' && !inCurrentTerm) {
     return <Navigate to={ROUTES.studentHistory} replace />;
   }
@@ -1524,9 +1547,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             <DesktopMascotImport
               onToast={showToast}
               onSynced={(equipped) => {
-                const next = equipped || 'fox';
-                setEquippedMascot(next);
-                localStorage.setItem('oop_student_equipped_mascot', next);
+                setEquippedMascot(equipped || 'fox');
               }}
             />
             <DesktopRubricPackImport onToast={showToast} />
@@ -1658,7 +1679,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           onCrystalsReconcile={applyCrystalBalance}
           tickets={tickets}
           ownedMascots={ownedMascots}
-          onOwnedMascotsChange={handleOwnedMascotsChange}
+          onMascotsRefresh={refreshMascotShop}
         />
       )}
 
@@ -1666,17 +1687,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         <MascotGachaModal
           open={showGacha}
           onClose={() => setShowGacha(false)}
-          initialPoints={streak?.points ?? 1250}
-          onPointsChange={(pts) => {
-            setStreak((s) => (s ? { ...s, points: pts } : s));
-          }}
+          initialPoints={streak?.points ?? 0}
           crystals={crystals}
-          onCrystalsChange={handleCrystalsChange}
           tickets={tickets}
+          gachaPity={gachaPity}
+          gachaPointsSpendAllowed={streak?.gachaPointsSpendAllowed ?? null}
+          onGachaPointsPrefSave={saveGachaPointsPref}
           onTicketsChange={handleTicketsChange}
           onSpendGachaTickets={spendGachaTickets}
+          onSpendGachaPoints={spendGachaPoints}
+          onGachaSettle={settleGachaRoll}
           ownedMascots={ownedMascots}
-          onOwnedMascotsChange={handleOwnedMascotsChange}
           isAdmin={isAdminUser}
         />
       )}

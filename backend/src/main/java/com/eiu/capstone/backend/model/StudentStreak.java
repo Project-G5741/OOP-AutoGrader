@@ -64,6 +64,15 @@ public class StudentStreak {
     @Column(name = "gacha_launch_gift", nullable = false)
     private boolean gachaLaunchGift;
 
+    @Column(name = "gacha_pity_count", nullable = false)
+    private int gachaPityCount;
+
+    @Column(name = "gacha_points_pref_date")
+    private LocalDate gachaPointsPrefDate;
+
+    @Column(name = "gacha_points_pref_allow")
+    private Boolean gachaPointsPrefAllow;
+
     public UUID getUserId() {
         return userId;
     }
@@ -198,5 +207,29 @@ public class StudentStreak {
 
     public void setGachaLaunchGift(boolean gachaLaunchGift) {
         this.gachaLaunchGift = gachaLaunchGift;
+    }
+
+    public int getGachaPityCount() {
+        return gachaPityCount;
+    }
+
+    public void setGachaPityCount(int gachaPityCount) {
+        this.gachaPityCount = gachaPityCount;
+    }
+
+    public LocalDate getGachaPointsPrefDate() {
+        return gachaPointsPrefDate;
+    }
+
+    public void setGachaPointsPrefDate(LocalDate gachaPointsPrefDate) {
+        this.gachaPointsPrefDate = gachaPointsPrefDate;
+    }
+
+    public Boolean getGachaPointsPrefAllow() {
+        return gachaPointsPrefAllow;
+    }
+
+    public void setGachaPointsPrefAllow(Boolean gachaPointsPrefAllow) {
+        this.gachaPointsPrefAllow = gachaPointsPrefAllow;
     }
 }

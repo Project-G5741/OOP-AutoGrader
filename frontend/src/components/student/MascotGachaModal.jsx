@@ -124,64 +124,27 @@ const RANDOM_MASCOT_POOL = [
   'huyen_vu',
 ];
 const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
-const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
-const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
-
-function vietnamTodayKey() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: VIETNAM_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
-
-function readGachaPointsSpendPref() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(GACHA_POINTS_SPEND_PREF_KEY) || 'null');
-    if (!raw || raw.date !== vietnamTodayKey() || typeof raw.allow !== 'boolean') {
-      return null;
-    }
-    return raw.allow;
-  } catch {
-    return null;
-  }
-}
-
-function writeGachaPointsSpendPref(allow) {
-  localStorage.setItem(
-    GACHA_POINTS_SPEND_PREF_KEY,
-    JSON.stringify({ date: vietnamTodayKey(), allow }),
-  );
-}
-
 export default function MascotGachaModal({
   open,
   onClose,
-  initialPoints = 1250,
-  onPointsChange,
+  initialPoints = 0,
   crystals = 0,
-  onCrystalsChange,
   tickets: controlledTickets,
   onTicketsChange,
   onSpendGachaTickets,
+  onSpendGachaPoints,
+  onGachaSettle,
+  gachaPity = 0,
+  gachaPointsSpendAllowed = null,
+  onGachaPointsPrefSave,
   ownedMascots = ['fox'],
-  onOwnedMascotsChange,
   isAdmin = false,
 }) {
-  const [points, setPoints] = useState(() => {
-    if (!isAdmin) return initialPoints;
-    const saved = localStorage.getItem('gacha_demo_points');
-    return saved !== null ? parseInt(saved, 10) : initialPoints;
-  });
+  const [points, setPoints] = useState(() => (isAdmin ? initialPoints : initialPoints));
 
   const [tickets, setTickets] = useState(() => {
     if (controlledTickets !== undefined) return controlledTickets;
-    if (isAdmin) {
-      const saved = localStorage.getItem('gacha_demo_tickets');
-      return saved !== null ? parseInt(saved, 10) : 15;
-    }
-    return 0;
+    return isAdmin ? 15 : 0;
   });
 
   useEffect(() => {
@@ -196,10 +159,13 @@ export default function MascotGachaModal({
     }
   }, [isAdmin, initialPoints]);
 
-  const [pityCount, setPityCount] = useState(() => {
-    const saved = localStorage.getItem('gacha_demo_pity');
-    return saved !== null ? parseInt(saved, 10) : 12;
-  });
+  const [pityCount, setPityCount] = useState(() => (isAdmin ? 12 : gachaPity));
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPityCount(gachaPity);
+    }
+  }, [gachaPity, isAdmin]);
 
   // Phases: 'idle' | 'charging' | 'burst' | 'showcase' | 'summary'
   const [phase, setPhase] = useState('idle');
@@ -212,21 +178,11 @@ export default function MascotGachaModal({
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
   const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
   const [ticketSpending, setTicketSpending] = useState(false);
+  const [adminDemoCrystals, setAdminDemoCrystals] = useState(0);
   const showToast = useToast();
   const dialog = useDialog();
 
   const countdownTimerRef = useRef(null);
-
-  // Persist the demo counters. Do not call the parent from here: this effect also
-  // runs when the parent pushes a new ticket count, and echoing that value back
-  // fights the header badge (it steps by 2 and never settles).
-  useEffect(() => {
-    if (isAdmin) {
-      localStorage.setItem('gacha_demo_points', String(points));
-      localStorage.setItem('gacha_demo_tickets', String(tickets));
-    }
-    localStorage.setItem('gacha_demo_pity', String(pityCount));
-  }, [isAdmin, points, tickets, pityCount]);
 
   // Handle 5-second showcase countdown
   useEffect(() => {
@@ -358,13 +314,15 @@ export default function MascotGachaModal({
     };
   };
 
+  const pointBalance = isAdmin ? points : (initialPoints ?? 0);
+
   const executeGacha = async (count) => {
     if (ticketSpending) return;
 
     const useTickets = tickets >= count;
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
-    if (!useTickets && points < requiredPoints) {
+    if (!useTickets && pointBalance < requiredPoints) {
       dialog.alert({
         level: 'warning',
         title: 'Insufficient Balance',
@@ -375,23 +333,25 @@ export default function MascotGachaModal({
 
     let newTickets = tickets;
     let newPoints = points;
-    if (useTickets) {
-      if (!isAdmin && onSpendGachaTickets) {
-        setTicketSpending(true);
-        try {
+    setTicketSpending(true);
+    try {
+      if (useTickets) {
+        if (!isAdmin && onSpendGachaTickets) {
           const spent = await onSpendGachaTickets(count);
           if (!spent) return;
-        } finally {
-          setTicketSpending(false);
+        } else if (isAdmin) {
+          newTickets -= count;
+          setTickets(newTickets);
+          onTicketsChange?.(newTickets);
         }
+      } else if (!isAdmin && onSpendGachaPoints) {
+        const spent = await onSpendGachaPoints(count);
+        if (!spent) return;
+      } else if (isAdmin) {
+        newPoints -= requiredPoints;
       } else {
-        newTickets -= count;
-        setTickets(newTickets);
-        onTicketsChange?.(newTickets);
+        return;
       }
-    } else {
-      newPoints -= requiredPoints;
-    }
 
     const results = [];
     let rollingPity = pityCount;
@@ -440,24 +400,22 @@ export default function MascotGachaModal({
       totalCashback += it.pointsRefund || 0;
     }
 
-    // Apply currency returns. Notify the parent here, not from an effect,
-    // so a streak grant on the dashboard is not written back as the old count.
-    const nextPoints = newPoints + totalCashback;
-    if (!useTickets || isAdmin) {
-      setTickets(newTickets);
-      onTicketsChange?.(newTickets);
-    }
-    setPoints(nextPoints);
-    onPointsChange?.(nextPoints);
-    if (earnedCrystals > 0) {
-      onCrystalsChange?.(crystals + earnedCrystals);
-    }
-    if (newUnlockedMascots.length > 0) {
-      const updatedOwned = Array.from(new Set([...ownedMascots, ...newUnlockedMascots]));
-      onOwnedMascotsChange?.(updatedOwned);
+    if (!isAdmin && onGachaSettle) {
+      const saved = await onGachaSettle({
+        rollCount: count,
+        pity: rollingPity,
+        pointsCashback: totalCashback,
+        crystalsGranted: earnedCrystals,
+        mascotIds: newUnlockedMascots,
+      });
+      if (!saved) return;
+    } else if (isAdmin) {
+      setPoints(newPoints + totalCashback);
     }
 
-    setPityCount(rollingPity);
+    if (isAdmin) {
+      setPityCount(rollingPity);
+    }
     setCurrentPulls(results);
     setHighestRarity(maxRarity);
     setShowcaseItem(bestShowcaseItem);
@@ -480,6 +438,9 @@ export default function MascotGachaModal({
         }
       }, 900);
     }, 1300);
+    } finally {
+      setTicketSpending(false);
+    }
   };
 
   const triggerGacha = (count) => {
@@ -493,7 +454,7 @@ export default function MascotGachaModal({
       return;
     }
 
-    if (points < requiredPoints) {
+    if (pointBalance < requiredPoints) {
       dialog.alert({
         level: 'warning',
         title: 'Insufficient Balance',
@@ -502,7 +463,7 @@ export default function MascotGachaModal({
       return;
     }
 
-    const pref = readGachaPointsSpendPref();
+    const pref = gachaPointsSpendAllowed;
     if (pref === true) {
       void executeGacha(count);
       return;
@@ -520,7 +481,7 @@ export default function MascotGachaModal({
     if (!pointsSpendPrompt) return;
     const { count } = pointsSpendPrompt;
     if (rememberPointsChoice) {
-      writeGachaPointsSpendPref(true);
+      onGachaPointsPrefSave?.(true);
     }
     setPointsSpendPrompt(null);
     void executeGacha(count);
@@ -528,7 +489,7 @@ export default function MascotGachaModal({
 
   const declinePointsSpend = () => {
     if (rememberPointsChoice) {
-      writeGachaPointsSpendPref(false);
+      onGachaPointsPrefSave?.(false);
     }
     setPointsSpendPrompt(null);
   };
@@ -576,7 +537,7 @@ export default function MascotGachaModal({
 
             <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
               <Coins className="h-3.5 w-3.5 text-warning-text" />
-              <span className="tabular-nums text-foreground">{formatNumber(points)}</span>
+              <span className="tabular-nums text-foreground">{formatNumber(pointBalance)}</span>
               <span className="text-foreground-muted">pts</span>
             </div>
 
@@ -1094,7 +1055,6 @@ export default function MascotGachaModal({
                   onClick={() => {
                     const next = tickets + 10;
                     setTickets(next);
-                    localStorage.setItem('gacha_demo_tickets', next);
                     onTicketsChange?.(next);
                   }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
@@ -1104,25 +1064,7 @@ export default function MascotGachaModal({
                 <button
                   type="button"
                   onClick={() => {
-                    const todayStr = new Date().toLocaleDateString('en-CA');
-                    localStorage.removeItem(`oop_streak_tickets_claimed_${todayStr}`);
-                    dialog.alert({
-                      level: 'safety',
-                      title: 'Ticket Progress Reset',
-                      message: "Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.",
-                    });
-                  }}
-                  className="cursor-pointer rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20"
-                  title="Clear today's streak ticket claim cache so you can retest mission ticket rewards"
-                >
-                  Reset today's ticket claims
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = points + 1000;
-                    setPoints(next);
-                    onPointsChange?.(next);
+                    setPoints((value) => value + 1000);
                   }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
                 >
@@ -1130,7 +1072,7 @@ export default function MascotGachaModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onCrystalsChange?.(crystals + 1)}
+                  onClick={() => setAdminDemoCrystals((value) => value + 1)}
                   className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 text-amber-800 px-2.5 py-1 text-xs font-bold hover:opacity-90"
                 >
                   +1 Crystal

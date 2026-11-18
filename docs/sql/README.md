@@ -66,6 +66,8 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-16-ai-student-credential.sql` | `AiStudentCredentialSchemaMigrator` | Encrypted Gemini key + token budget per student |
 | `2026-11-17-ai-credential-key-invalid.sql` | `AiStudentCredentialSchemaMigrator` | `ai_student_credential.key_invalid` failure flag for early toast warning |
 | `2026-11-18-mascot-goat-id.sql` | `StudentStreakSchemaMigrator` | Rename stored exclusive mascot id `gigi` to `goat` |
+| `2026-11-18-student-gacha-pity.sql` | `StudentStreakSchemaMigrator` | `student_daily_streak.gacha_pity_count` (0–80) |
+| `2026-11-18-student-gacha-points-pref.sql` | `StudentStreakSchemaMigrator` | Vietnam-day remember for spending points on gacha rolls |
 
 ## Cloud migrator catalog (regression)
 
