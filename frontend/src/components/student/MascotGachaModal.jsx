@@ -164,6 +164,7 @@ export default function MascotGachaModal({
   onCrystalsChange,
   tickets: controlledTickets,
   onTicketsChange,
+  onSpendGachaTickets,
   ownedMascots = ['fox'],
   onOwnedMascotsChange,
   isAdmin = false,
@@ -176,8 +177,11 @@ export default function MascotGachaModal({
 
   const [tickets, setTickets] = useState(() => {
     if (controlledTickets !== undefined) return controlledTickets;
-    const saved = localStorage.getItem('gacha_demo_tickets');
-    return saved !== null ? parseInt(saved, 10) : (isAdmin ? 15 : 0);
+    if (isAdmin) {
+      const saved = localStorage.getItem('gacha_demo_tickets');
+      return saved !== null ? parseInt(saved, 10) : 15;
+    }
+    return 0;
   });
 
   useEffect(() => {
@@ -207,6 +211,7 @@ export default function MascotGachaModal({
   const [demoBannerOpen, setDemoBannerOpen] = useState(true);
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
   const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
+  const [ticketSpending, setTicketSpending] = useState(false);
   const showToast = useToast();
   const dialog = useDialog();
 
@@ -216,10 +221,12 @@ export default function MascotGachaModal({
   // runs when the parent pushes a new ticket count, and echoing that value back
   // fights the header badge (it steps by 2 and never settles).
   useEffect(() => {
-    localStorage.setItem('gacha_demo_points', String(points));
-    localStorage.setItem('gacha_demo_tickets', String(tickets));
+    if (isAdmin) {
+      localStorage.setItem('gacha_demo_points', String(points));
+      localStorage.setItem('gacha_demo_tickets', String(tickets));
+    }
     localStorage.setItem('gacha_demo_pity', String(pityCount));
-  }, [points, tickets, pityCount]);
+  }, [isAdmin, points, tickets, pityCount]);
 
   // Handle 5-second showcase countdown
   useEffect(() => {
@@ -351,7 +358,9 @@ export default function MascotGachaModal({
     };
   };
 
-  const executeGacha = (count) => {
+  const executeGacha = async (count) => {
+    if (ticketSpending) return;
+
     const useTickets = tickets >= count;
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
@@ -367,7 +376,19 @@ export default function MascotGachaModal({
     let newTickets = tickets;
     let newPoints = points;
     if (useTickets) {
-      newTickets -= count;
+      if (!isAdmin && onSpendGachaTickets) {
+        setTicketSpending(true);
+        try {
+          const spent = await onSpendGachaTickets(count);
+          if (!spent) return;
+        } finally {
+          setTicketSpending(false);
+        }
+      } else {
+        newTickets -= count;
+        setTickets(newTickets);
+        onTicketsChange?.(newTickets);
+      }
     } else {
       newPoints -= requiredPoints;
     }
@@ -422,9 +443,11 @@ export default function MascotGachaModal({
     // Apply currency returns. Notify the parent here, not from an effect,
     // so a streak grant on the dashboard is not written back as the old count.
     const nextPoints = newPoints + totalCashback;
-    setTickets(newTickets);
+    if (!useTickets || isAdmin) {
+      setTickets(newTickets);
+      onTicketsChange?.(newTickets);
+    }
     setPoints(nextPoints);
-    onTicketsChange?.(newTickets);
     onPointsChange?.(nextPoints);
     if (earnedCrystals > 0) {
       onCrystalsChange?.(crystals + earnedCrystals);
@@ -460,11 +483,13 @@ export default function MascotGachaModal({
   };
 
   const triggerGacha = (count) => {
+    if (ticketSpending) return;
+
     const useTickets = tickets >= count;
     const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
 
     if (useTickets) {
-      executeGacha(count);
+      void executeGacha(count);
       return;
     }
 
@@ -479,7 +504,7 @@ export default function MascotGachaModal({
 
     const pref = readGachaPointsSpendPref();
     if (pref === true) {
-      executeGacha(count);
+      void executeGacha(count);
       return;
     }
     if (pref === false) {
@@ -498,7 +523,7 @@ export default function MascotGachaModal({
       writeGachaPointsSpendPref(true);
     }
     setPointsSpendPrompt(null);
-    executeGacha(count);
+    void executeGacha(count);
   };
 
   const declinePointsSpend = () => {

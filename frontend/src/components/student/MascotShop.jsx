@@ -20,7 +20,7 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 import { formatNumber } from '../../utils/formatters';
-import { mascotArt, listCatalogMascots, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
+import { mascotArt, listCatalogMascots, mascotOfferVisibleInShop, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const POINTS_PER_CRYSTAL = 4000;
@@ -154,6 +154,7 @@ export default function MascotShop({
     });
 
     const filtered = all.filter((item) => {
+      if (!mascotOfferVisibleInShop(item, backendMap)) return false;
       if (selectedTier !== 'all' && item.tier !== selectedTier) return false;
       if (!query) return true;
       const name = String(item.name || '').toLowerCase();

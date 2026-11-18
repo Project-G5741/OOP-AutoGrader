@@ -333,42 +333,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       });
   }, [applyCrystalBalance, postCrystalCount, showToast]);
 
-  const [tickets, setTickets] = useState(() => {
-    const saved = localStorage.getItem('gacha_demo_tickets');
-    return saved !== null ? parseInt(saved, 10) : 15;
-  });
+  const [tickets, setTickets] = useState(0);
   const ticketsRef = useRef(tickets);
+  const isAdminUser = hasRole(user?.roles, 'ADMIN');
 
   const handleTicketsChange = useCallback((val) => {
-    const prev = ticketsRef.current;
     ticketsRef.current = val;
     setTickets(val);
-    localStorage.setItem('gacha_demo_tickets', val);
-    if (IS_DESKTOP_APP || val >= prev) return;
-    const count = prev - val;
-    apiFetch(`${API_BASE}/api/students/streak/gacha-spend`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count }),
-    }).then(async (response) => {
-      if (!response.ok) {
-        ticketsRef.current = prev;
-        setTickets(prev);
-        localStorage.setItem('gacha_demo_tickets', prev);
-        return;
-      }
-      const body = await response.json();
-      if (typeof body.gachaTickets === 'number') {
-        ticketsRef.current = body.gachaTickets;
-        setTickets(body.gachaTickets);
-        localStorage.setItem('gacha_demo_tickets', body.gachaTickets);
-      }
-    }).catch(() => {
-      ticketsRef.current = prev;
-      setTickets(prev);
-      localStorage.setItem('gacha_demo_tickets', prev);
-    });
-  }, []);
+    if (isAdminUser) {
+      localStorage.setItem('gacha_demo_tickets', String(val));
+    }
+  }, [isAdminUser]);
 
   const handleOwnedMascotsChange = useCallback((val) => {
     setOwnedMascots((prev) => {
@@ -415,7 +390,6 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (typeof next?.gachaTickets === 'number') {
       ticketsRef.current = next.gachaTickets;
       setTickets(next.gachaTickets);
-      localStorage.setItem('gacha_demo_tickets', next.gachaTickets);
     }
 
     if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
@@ -472,6 +446,37 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       /* the dashboard still works when the streak request fails */
     }
   }, [applyStreak]);
+
+  const spendGachaTickets = useCallback(async (count) => {
+    if (IS_DESKTOP_APP) return false;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-spend`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      });
+      if (!response.ok) {
+        const msg = response.status === 409
+          ? 'Not enough roll tickets.'
+          : await friendlyLoadErrorFromResponse(response);
+        showToast(msg, 'error');
+        if (response.status === 409) {
+          refreshStreak();
+        }
+        return false;
+      }
+      const body = await response.json();
+      if (typeof body.gachaTickets === 'number') {
+        ticketsRef.current = body.gachaTickets;
+        setTickets(body.gachaTickets);
+      }
+      return true;
+    } catch {
+      showToast('Could not spend roll tickets. Try again.', 'error');
+      refreshStreak();
+      return false;
+    }
+  }, [showToast, refreshStreak]);
 
   useEffect(() => {
     refreshStreak();
@@ -1669,9 +1674,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           onCrystalsChange={handleCrystalsChange}
           tickets={tickets}
           onTicketsChange={handleTicketsChange}
+          onSpendGachaTickets={spendGachaTickets}
           ownedMascots={ownedMascots}
           onOwnedMascotsChange={handleOwnedMascotsChange}
-          isAdmin={hasRole(user?.roles, 'ADMIN')}
+          isAdmin={isAdminUser}
         />
       )}
 

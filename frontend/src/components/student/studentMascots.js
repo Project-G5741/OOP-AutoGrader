@@ -224,6 +224,14 @@ export const STUDENT_MASCOTS = {
   },
 };
 
+/** Exclusive mascots appear in the shop only when the API includes them for the signed-in student. */
+export function mascotOfferVisibleInShop(catalogItem, backendOfferIds) {
+  if (catalogItem?.exclusive && !backendOfferIds?.has(catalogItem.id)) {
+    return false;
+  }
+  return true;
+}
+
 export function listCatalogMascots() {
   const seen = new Set();
   const list = [];
