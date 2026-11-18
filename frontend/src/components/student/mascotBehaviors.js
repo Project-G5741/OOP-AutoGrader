@@ -530,7 +530,7 @@ export const MASCOT_PROFILES = {
       ],
     },
   },
-  gigi: {
+  goat: {
     dialogues: {
       perfect: [
         'Special delivery! A perfect 100 straight to your doorstep! Hehehe! 📮✨',
@@ -550,31 +550,7 @@ export const MASCOT_PROFILES = {
       ],
       idle: [
         'Got any letters for me to deliver? Or maybe another lab submission ready? 💌',
-        'Ding-dong! Delivery courier Gigi Murin reporting for duty! Let us code! 🔔📮',
-      ],
-    },
-  },
-  gigi_murin: {
-    dialogues: {
-      perfect: [
-        'Special delivery! A perfect 100 straight to your doorstep! Hehehe! 📮✨',
-        "Woohoo! All test cases stamped and delivered! You're an absolute legend! 💌🎉",
-      ],
-      good: [
-        'Ooh, package received safely! Almost a clean sweep, let us grab those last points! 📬',
-        "Solid run! Just a tiny dent on the parcel, you've got this! ✨",
-      ],
-      retry: [
-        'Wahhh, returned to sender?! Do not worry, dust off that stack trace and ship it again! 📮💥',
-        'No sweat! Even the fastest courier takes a wrong turn sometimes. Let us fix that bug!',
-      ],
-      pet: [
-        'Ehehehe, that tickles! Do not mess up my hat, I have letters to deliver! 📮🔔',
-        'Hehe! Patting the courier gives you +100% shipping speed on bug fixes! 🐾✨',
-      ],
-      idle: [
-        'Got any letters for me to deliver? Or maybe another lab submission ready? 💌',
-        'Ding-dong! Delivery courier Gigi Murin reporting for duty! Let us code! 🔔📮',
+        'Ding-dong! Delivery courier The GOAT reporting for duty! Let us code! 🔔📮',
       ],
     },
   },
@@ -583,8 +559,9 @@ export const MASCOT_PROFILES = {
 export function getMascotProfile(id) {
   if (!id) return MASCOT_PROFILES.fox;
   const raw = String(id).trim();
-  const normalized = raw.toLowerCase().replace(/-/g, '_');
-  return MASCOT_PROFILES[raw] || MASCOT_PROFILES[normalized] || MASCOT_PROFILES.fox;
+  const lower = raw.toLowerCase();
+  const normalized = lower.replace(/-/g, '_');
+  return MASCOT_PROFILES[raw] || MASCOT_PROFILES[lower] || MASCOT_PROFILES[normalized] || MASCOT_PROFILES.fox;
 }
 
 export function getRandomDialogue(mascotId, eventType) {

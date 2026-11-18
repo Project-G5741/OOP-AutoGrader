@@ -57,7 +57,7 @@ class StudentMascotServiceTest {
     }
 
     @Test
-    void gigi_eligibleUser_canSeeAndEquip() {
+    void goat_eligibleUser_canSeeAndEquip() {
         StudentStreakService streakService = mock(StudentStreakService.class);
         StudentMascotPurchaseRepository purchases = mock(StudentMascotPurchaseRepository.class);
         UserAccountRepository userAccounts = mock(UserAccountRepository.class);
@@ -71,13 +71,13 @@ class StudentMascotServiceTest {
         when(userAccounts.findById(eligibleId)).thenReturn(Optional.of(user));
 
         StudentStreak streak = new StudentStreak();
-        streak.setEquippedMascot("gigi");
+        streak.setEquippedMascot("goat");
         when(streakService.find(eligibleId)).thenReturn(Optional.of(streak));
         when(streakService.lock(eligibleId)).thenReturn(streak);
 
         MascotShopView view = service.list(eligibleId);
-        assertTrue(view.mascots().stream().anyMatch(m -> "gigi".equals(m.id())), "Eligible account should see gigi");
-        assertEquals("gigi", view.equipped());
+        assertTrue(view.mascots().stream().anyMatch(m -> "goat".equals(m.id())), "Eligible account should see goat");
+        assertEquals("goat", view.equipped());
 
         // Ineligible user
         UUID otherId = UUID.randomUUID();
@@ -87,8 +87,8 @@ class StudentMascotServiceTest {
         when(userAccounts.findById(otherId)).thenReturn(Optional.of(other));
 
         MascotShopView otherView = service.list(otherId);
-        assertFalse(otherView.mascots().stream().anyMatch(m -> "gigi".equals(m.id())), "Other users should NOT see gigi");
+        assertFalse(otherView.mascots().stream().anyMatch(m -> "goat".equals(m.id())), "Other users should NOT see goat");
 
-        assertThrows(ResponseStatusException.class, () -> service.equip(otherId, "gigi"));
+        assertThrows(ResponseStatusException.class, () -> service.equip(otherId, "goat"));
     }
 }

@@ -28,9 +28,9 @@ import com.eiu.capstone.backend.utility.TimeUtil;
 public class StudentMascotService {
 
     public static final String EXCLUSIVE_STUDENT_CODE = "2331200057";
-    public static final String EXCLUSIVE_GIGI_USER_ID = "89e5b815-89e3-4a62-b1d3-c4e98ec866a3";
-    public static final String EXCLUSIVE_GIGI_STUDENT_CODE = "2331200041";
-    public static final String EXCLUSIVE_GIGI_EMAIL = "kha.pham.cit23@eiu.edu.vn";
+    public static final String EXCLUSIVE_GOAT_USER_ID = "89e5b815-89e3-4a62-b1d3-c4e98ec866a3";
+    public static final String EXCLUSIVE_GOAT_STUDENT_CODE = "2331200041";
+    public static final String EXCLUSIVE_GOAT_EMAIL = "kha.pham.cit23@eiu.edu.vn";
 
     private final StudentStreakService streakService;
     private final StudentMascotPurchaseRepository purchases;
@@ -55,16 +55,16 @@ public class StudentMascotService {
                 .orElse(false);
     }
 
-    public boolean isGigiEligible(UUID userId) {
+    public boolean isGoatEligible(UUID userId) {
         if (userId == null) {
             return false;
         }
-        if (EXCLUSIVE_GIGI_USER_ID.equalsIgnoreCase(userId.toString())) {
+        if (EXCLUSIVE_GOAT_USER_ID.equalsIgnoreCase(userId.toString())) {
             return true;
         }
         return userAccounts.findById(userId)
-                .map(u -> EXCLUSIVE_GIGI_STUDENT_CODE.equals(u.getStudentCode())
-                        || EXCLUSIVE_GIGI_EMAIL.equalsIgnoreCase(u.getEmail()))
+                .map(u -> EXCLUSIVE_GOAT_STUDENT_CODE.equals(u.getStudentCode())
+                        || EXCLUSIVE_GOAT_EMAIL.equalsIgnoreCase(u.getEmail()))
                 .orElse(false);
     }
 
@@ -75,8 +75,8 @@ public class StudentMascotService {
         if ("ice-queen".equalsIgnoreCase(mascotId) || MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(mascotId)) {
             return MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID;
         }
-        if ("gigi_murin".equalsIgnoreCase(mascotId) || "gigi-murin".equalsIgnoreCase(mascotId) || MascotCatalog.EXCLUSIVE_GIGI_ID.equalsIgnoreCase(mascotId)) {
-            return MascotCatalog.EXCLUSIVE_GIGI_ID;
+        if (MascotCatalog.EXCLUSIVE_GOAT_ID.equalsIgnoreCase(mascotId)) {
+            return MascotCatalog.EXCLUSIVE_GOAT_ID;
         }
         return mascotId;
     }
@@ -87,8 +87,8 @@ public class StudentMascotService {
         int points = row == null ? 0 : row.getPoints();
         String equipped = row == null ? MascotCatalog.STARTER_ID : row.getEquippedMascot();
         boolean iceQueenEligible = isIceQueenEligible(userId);
-        boolean gigiEligible = isGigiEligible(userId);
-        return toView(points, equipped, ownedIds(userId), iceQueenEligible, gigiEligible);
+        boolean goatEligible = isGoatEligible(userId);
+        return toView(points, equipped, ownedIds(userId), iceQueenEligible, goatEligible);
     }
 
     @Transactional(readOnly = true)
@@ -108,7 +108,7 @@ public class StudentMascotService {
         if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
-        if (MascotCatalog.EXCLUSIVE_GIGI_ID.equalsIgnoreCase(targetId) && !isGigiEligible(userId)) {
+        if (MascotCatalog.EXCLUSIVE_GOAT_ID.equalsIgnoreCase(targetId) && !isGoatEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
         MascotCatalog.Offer offer = MascotCatalog.forSale(targetId);
@@ -131,7 +131,7 @@ public class StudentMascotService {
         purchases.save(bought);
         Set<String> owned = ownedIds(userId);
         owned.add(offer.id());
-        return toView(row.getPoints(), row.getEquippedMascot(), owned, isIceQueenEligible(userId), isGigiEligible(userId));
+        return toView(row.getPoints(), row.getEquippedMascot(), owned, isIceQueenEligible(userId), isGoatEligible(userId));
     }
 
     @Transactional
@@ -143,7 +143,7 @@ public class StudentMascotService {
         if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
-        if (MascotCatalog.EXCLUSIVE_GIGI_ID.equalsIgnoreCase(targetId) && !isGigiEligible(userId)) {
+        if (MascotCatalog.EXCLUSIVE_GOAT_ID.equalsIgnoreCase(targetId) && !isGoatEligible(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
         if (!MascotCatalog.STARTER_ID.equals(targetId) && !purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
@@ -156,7 +156,7 @@ public class StudentMascotService {
         StudentStreak row = streakService.lock(userId);
         row.setEquippedMascot(targetId);
         streakService.save(row);
-        return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId), isGigiEligible(userId));
+        return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId), isGoatEligible(userId));
     }
 
     private Set<String> ownedIds(UUID userId) {
@@ -165,7 +165,7 @@ public class StudentMascotService {
                 .collect(Collectors.toSet());
     }
 
-    private static MascotShopView toView(int points, String equipped, Set<String> owned, boolean includeIceQueen, boolean includeGigi) {
+    private static MascotShopView toView(int points, String equipped, Set<String> owned, boolean includeIceQueen, boolean includeGoat) {
         List<MascotOfferView> mascots = new ArrayList<>();
         mascots.add(new MascotOfferView(
                 MascotCatalog.STARTER_ID,
@@ -184,14 +184,14 @@ public class StudentMascotService {
                     MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(equipped),
                     false));
         }
-        if (includeGigi) {
-            boolean hasGigi = owned.contains(MascotCatalog.EXCLUSIVE_GIGI_ID);
+        if (includeGoat) {
+            boolean hasGoat = owned.contains(MascotCatalog.EXCLUSIVE_GOAT_ID);
             mascots.add(new MascotOfferView(
-                    MascotCatalog.EXCLUSIVE_GIGI_ID,
-                    MascotCatalog.EXCLUSIVE_GIGI_NAME,
+                    MascotCatalog.EXCLUSIVE_GOAT_ID,
+                    MascotCatalog.EXCLUSIVE_GOAT_NAME,
                     0,
-                    hasGigi,
-                    MascotCatalog.EXCLUSIVE_GIGI_ID.equals(equipped),
+                    hasGoat,
+                    MascotCatalog.EXCLUSIVE_GOAT_ID.equals(equipped),
                     false));
         }
         for (MascotCatalog.Offer offer : MascotCatalog.FOR_SALE) {

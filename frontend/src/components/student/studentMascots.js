@@ -213,51 +213,37 @@ export const STUDENT_MASCOTS = {
     directions: '/mascots/ice-queen-directions.webp',
     reactions: '/mascots/ice-queen-reactions.webp',
   },
-  'ice-queen': {
-    id: 'ice_queen',
-    name: 'Ice Queen',
+  goat: {
+    id: 'goat',
+    name: 'The GOAT',
     tier: 'legendary',
     price: 0,
     exclusive: true,
-    directions: '/mascots/ice-queen-directions.webp',
-    reactions: '/mascots/ice-queen-reactions.webp',
-  },
-  gigi: {
-    id: 'gigi',
-    name: 'Gigi Murin',
-    tier: 'legendary',
-    price: 0,
-    exclusive: true,
-    directions: '/mascots/gigi-directions.webp',
-    reactions: '/mascots/gigi-reactions.webp',
-  },
-  gigi_murin: {
-    id: 'gigi',
-    name: 'Gigi Murin',
-    tier: 'legendary',
-    price: 0,
-    exclusive: true,
-    directions: '/mascots/gigi-directions.webp',
-    reactions: '/mascots/gigi-reactions.webp',
-  },
-  'gigi-murin': {
-    id: 'gigi',
-    name: 'Gigi Murin',
-    tier: 'legendary',
-    price: 0,
-    exclusive: true,
-    directions: '/mascots/gigi-directions.webp',
-    reactions: '/mascots/gigi-reactions.webp',
+    directions: '/mascots/goat-directions.webp',
+    reactions: '/mascots/goat-reactions.webp',
   },
 };
+
+export function listCatalogMascots() {
+  const seen = new Set();
+  const list = [];
+  for (const item of Object.values(STUDENT_MASCOTS)) {
+    if (!item?.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    list.push(item);
+  }
+  return list;
+}
 
 export function mascotArt(id) {
   if (!id) return STUDENT_MASCOTS.fox;
   const raw = String(id).trim();
-  const normalized = raw.toLowerCase().replace(/-/g, '_');
-  const hyphenated = raw.toLowerCase().replace(/_/g, '-');
+  const lower = raw.toLowerCase();
+  const normalized = lower.replace(/-/g, '_');
+  const hyphenated = lower.replace(/_/g, '-');
   return (
     STUDENT_MASCOTS[raw] ||
+    STUDENT_MASCOTS[lower] ||
     STUDENT_MASCOTS[normalized] ||
     STUDENT_MASCOTS[hyphenated] ||
     STUDENT_MASCOTS.fox
