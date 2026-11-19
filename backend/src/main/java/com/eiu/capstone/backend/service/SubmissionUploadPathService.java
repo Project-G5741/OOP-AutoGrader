@@ -16,7 +16,7 @@ import com.eiu.capstone.backend.service.bulk.BulkFolderPathRemapper;
 import com.eiu.capstone.backend.service.bulk.BulkGradeMode;
 
 /**
- * Rewrites student uploads for {@link LabPrefix#MIDTERM} labs into the challenge-folder shape
+ * Rewrites student uploads for {@link LabPrefix#MIDTERM} and {@link LabPrefix#FINAL} labs into the challenge-folder shape
  * expected by {@link SubmissionStorageService} (same as lecturer bulk EXAM mode).
  */
 @Service
@@ -29,18 +29,19 @@ public class SubmissionUploadPathService {
     }
 
     public List<MultipartFile> prepareUploadFiles(Lab lab, List<MultipartFile> files) {
-        if (lab == null || !LabPrefix.MIDTERM.equals(lab.getPrefix())) {
+        if (lab == null || !LabPrefix.usesFlatStudentUpload(lab.getPrefix())) {
             return files;
         }
         List<Challenge> challenges =
                 challengeRepository.findByLab_IdOrderByChallengeNumberAsc(lab.getId());
+        String prefixLabel = lab.getPrefix() != null ? lab.getPrefix() : "Flat-upload";
         if (challenges.size() != 1) {
             throw new SubmissionProcessingException(
-                    "Midterm labs must have exactly one challenge (this lab has " + challenges.size() + ")");
+                    prefixLabel + " labs must have exactly one challenge (this lab has " + challenges.size() + ")");
         }
         Integer number = challenges.get(0).getChallengeNumber();
         if (number == null || number < 1) {
-            throw new SubmissionProcessingException("Midterm lab challenge number is missing or invalid");
+            throw new SubmissionProcessingException(prefixLabel + " lab challenge number is missing or invalid");
         }
         try {
             return BulkFolderPathRemapper.remap(files, BulkGradeMode.EXAM, number);

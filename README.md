@@ -17,13 +17,13 @@ Students upload Java sources (`.java`) and Mermaid class diagrams (`.mmd`). The 
 - Students enrolled in the current quarter pick a lab, drop a folder, and get scores immediately.
 - Students outside the current quarter can open history only.
 - Each challenge shows **Class**, **MMD**, and **Operational Testcase** results. The dashboard uses the **latest attempt**, not the stored highest score.
-- Official labs count toward Score total. Practice and Midterm stay visible as their own columns.
+- Official labs count toward Score total. Practice, Midterm, and Final stay visible as their own columns.
 - Web extras: daily streak, mascot shop, gacha, weekly ranking, feedback, and a download of the offline practice folder.
 
 ### Lecturers
 
 - Build rubrics: challenges, classes, fields, methods, constructors, relations, and operational testcases (with dry-run).
-- Set deadlines, student visibility, and lab prefix (`Official`, `Practice`, or `Midterm`).
+- Set deadlines, student visibility, and lab prefix (`Official`, `Practice`, `Midterm`, or `Final`).
 - Run the current quarter: enroll students, import Excel rosters, email the quarter, export practice packs.
 - Watch the class dashboard, Score matrix, at-risk students (Official total under 50), and plagiarism flags.
 - Bulk-grade a folder of student work without writing those scores into the roster.
@@ -89,7 +89,7 @@ my-submission/
     └── ...
 ```
 
-Midterm labs use a flat folder: `IRN_Name/*.java` and `*.mmd` (no `challenge_n`). The server maps those files onto the lab’s single challenge.
+Midterm and Final labs use a flat folder: `IRN_Name/*.java` and `*.mmd` (no `challenge_n`). The server maps those files onto the lab’s single challenge.
 
 Only `.java` and `.mmd` are graded. The browser keeps relative paths so each file lands on the right challenge. An optional `.git` folder is used for plagiarism signals, not for the score.
 
