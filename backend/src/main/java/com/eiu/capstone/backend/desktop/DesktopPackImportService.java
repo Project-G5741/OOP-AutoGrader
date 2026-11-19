@@ -224,7 +224,8 @@ public class DesktopPackImportService {
     }
 
     private static String storedPrefix(String prefix) {
-        if (LabPrefix.OFFICIAL.equals(prefix) || LabPrefix.PRACTICE.equals(prefix) || LabPrefix.MIDTERM.equals(prefix)) {
+        if (LabPrefix.OFFICIAL.equals(prefix) || LabPrefix.PRACTICE.equals(prefix) || LabPrefix.MIDTERM.equals(prefix)
+                || LabPrefix.FINAL.equals(prefix)) {
             return prefix;
         }
         return LabPrefix.OFFICIAL;

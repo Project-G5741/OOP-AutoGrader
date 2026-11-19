@@ -16,6 +16,7 @@ const IMPORT_KIND_OPTIONS = [
   { value: SOLUTION_IMPORT_KIND.OFFICIAL, label: 'Official' },
   { value: SOLUTION_IMPORT_KIND.PRACTICE, label: 'Practice' },
   { value: SOLUTION_IMPORT_KIND.MIDTERM, label: 'Midterm' },
+  { value: SOLUTION_IMPORT_KIND.FINAL, label: 'Final' },
 ];
 
 function formatBytes(bytes) {
@@ -102,9 +103,10 @@ export default function SolutionImportPanel({
     setImportKind(defaultImportKindFromLabPrefix(normalizeLabPrefix(savedLabPrefix)));
   }, [savedLabPrefix, selection]);
 
-  const isMidtermKind = importKind === SOLUTION_IMPORT_KIND.MIDTERM;
+  const isFlatUploadKind =
+    importKind === SOLUTION_IMPORT_KIND.MIDTERM || importKind === SOLUTION_IMPORT_KIND.FINAL;
 
-  const folderHint = isMidtermKind
+  const folderHint = isFlatUploadKind
     ? (
       <>
         One folder with <span className="font-mono text-primary/80">.java</span> and optional{' '}
@@ -283,7 +285,7 @@ export default function SolutionImportPanel({
         <span className="text-xs font-medium text-foreground">Prefix</span>
         <Combobox
           aria-label="Lab prefix"
-          title="Official, Practice, or Midterm — sets lab prefix and student upload folder rules"
+          title="Official, Practice, Midterm, or Final — sets lab prefix and student upload folder rules"
           allowEmpty={false}
           className="w-full min-w-0"
           value={importKind}
