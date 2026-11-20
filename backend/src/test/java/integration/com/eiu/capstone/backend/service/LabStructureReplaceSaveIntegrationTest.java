@@ -35,6 +35,11 @@ import com.eiu.capstone.backend.model.FieldDeclaration;
 import com.eiu.capstone.backend.model.Lab;
 import com.eiu.capstone.backend.model.LabSubmission;
 import com.eiu.capstone.backend.model.MasterData;
+import com.eiu.capstone.backend.model.Method;
+import com.eiu.capstone.backend.model.MethodDeclaration;
+import com.eiu.capstone.backend.model.Parameter;
+import com.eiu.capstone.backend.model.ParameterNameAlias;
+import com.eiu.capstone.backend.model.ParameterTypeAlias;
 import com.eiu.capstone.backend.model.SubmissionChallengeResult;
 import com.eiu.capstone.backend.model.SubmissionFieldResult;
 import com.eiu.capstone.backend.model.Term;
@@ -331,6 +336,91 @@ class LabStructureReplaceSaveIntegrationTest {
         assertEquals(1, labSubmissionRepository.count());
         assertEquals(1, submissionChallengeResultRepository.count());
         assertTrue(classEntityRepository.findById(newClassId).isPresent());
+    }
+
+    /**
+     * Omit a class whose method already has ParameterNameAlias rows hydrated by loadAliases.
+     * deleteMethod must remove those managed aliases before parameters, or deleteGradingRows
+     * flush throws TransientPropertyValueException.
+     */
+    @Test
+    void saveLabStructure_omittedClass_withExistingParameterAliases_flushesCleanly() {
+        testcaseRepository.deleteAll();
+
+        MasterData scope = masterDataRepository.findById(scopeId).orElseThrow();
+        MethodDeclaration oldDeclaration = new MethodDeclaration();
+        oldDeclaration.setName("drive");
+        oldDeclaration.setReturnType("void");
+        oldDeclaration.setScope(scope);
+        oldDeclaration = methodDeclarationRepository.save(oldDeclaration);
+
+        UUID oldMethodId = UUID.randomUUID();
+        Method oldMethod = new Method();
+        oldMethod.setId(oldMethodId);
+        oldMethod.setName("drive");
+        oldMethod.setClassEntity(classEntityRepository.findById(oldClassId).orElseThrow());
+        oldMethod.setMethodDeclaration(oldDeclaration);
+        methodRepository.save(oldMethod);
+
+        UUID oldParameterId = UUID.randomUUID();
+        Parameter oldParameter = new Parameter();
+        oldParameter.setId(oldParameterId);
+        oldParameter.setMethod(oldMethod);
+        oldParameter.setName("speed");
+        oldParameter.setDataType("int");
+        oldParameter.setOrderIndex(0);
+        oldParameter.setFinal(false);
+        parameterRepository.save(oldParameter);
+
+        ParameterNameAlias oldNameAlias = new ParameterNameAlias();
+        oldNameAlias.setParameter(oldParameter);
+        oldNameAlias.setValue("speed");
+        oldNameAlias.setOrderIndex(0);
+        parameterNameAliasRepository.save(oldNameAlias);
+        ParameterTypeAlias oldTypeAlias = new ParameterTypeAlias();
+        oldTypeAlias.setParameter(oldParameter);
+        oldTypeAlias.setValue("int");
+        oldTypeAlias.setOrderIndex(0);
+        parameterTypeAliasRepository.save(oldTypeAlias);
+
+        UUID methodId = UUID.randomUUID();
+        UUID parameterId = UUID.randomUUID();
+        ParameterStructureDTO parameter = new ParameterStructureDTO(
+                parameterId, "cost", "double", 0, false,
+                List.of("cost", "fee"), List.of("double", "float"));
+        MethodStructureDTO method = new MethodStructureDTO(
+                methodId, "calculate", "double", scopeId, false, false, List.of(parameter),
+                List.of("calculate"), List.of("double"));
+        ChallengeStructureDTO challengeDto = new ChallengeStructureDTO(
+                challengeId,
+                "Challenge 1",
+                1,
+                List.of(new ClassStructureDTO(
+                        newClassId,
+                        "NewCar",
+                        scopeId,
+                        declaringId,
+                        false,
+                        List.of(),
+                        List.of(method),
+                        List.of())),
+                List.of());
+        LabStructureResponse payload = new LabStructureResponse(
+                labId, "Replace IT Lab", termId, null, true, null, "Official", false, List.of(challengeDto));
+
+        transactionTemplate.executeWithoutResult(status ->
+                labStructureService.saveLabStructure(labId, payload));
+
+        assertFalse(classEntityRepository.findById(oldClassId).isPresent());
+        assertFalse(methodRepository.findById(oldMethodId).isPresent());
+        assertFalse(parameterRepository.findById(oldParameterId).isPresent());
+        assertTrue(parameterNameAliasRepository.findByParameter_IdOrderByOrderIndexAsc(oldParameterId).isEmpty());
+        assertTrue(classEntityRepository.findById(newClassId).isPresent());
+        assertEquals(1, parameterRepository.findByMethod_IdOrderByOrderIndexAsc(methodId).size());
+        assertEquals(List.of("cost", "fee"),
+                parameterNameAliasRepository.findByParameter_IdOrderByOrderIndexAsc(parameterId).stream()
+                        .map(ParameterNameAlias::getValue)
+                        .toList());
     }
 
     @Test

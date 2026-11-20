@@ -1197,6 +1197,12 @@ public class LabStructureService {
             syncConstructorsBatch(ctx, prepared, payloads);
         }
 
+        boolean omittingClass = existingClasses.stream()
+                .anyMatch(existing -> !keptClassIds.contains(existing.getId()));
+        if (omittingClass) {
+            // Flush pending parameter/alias inserts before deleteGradingRows native DELETEs force a flush.
+            flushStructurePhase();
+        }
         for (ClassEntity existing : existingClasses) {
             if (!keptClassIds.contains(existing.getId())) {
                 deleteRelationsForClass(ctx, existing.getId());
@@ -1774,19 +1780,50 @@ public class LabStructureService {
             parameter.setDataType(dataTypes.get(0));
             parameter.setOrderIndex(dto.orderIndex() >= 0 ? dto.orderIndex() : index);
             parameter.setFinal(dto.isFinal());
-            parameter = parameterRepository.save(parameter);
+            // Client/clone UUIDs must not go through Spring Data save→merge: merge leaves the
+            // instance transient while ParameterNameAlias children are persisted, and a later
+            // deleteGradingRows native flush then throws TransientPropertyValueException.
+            if (isNew) {
+                entityManager.persist(parameter);
+            } else {
+                parameter = parameterRepository.save(parameter);
+            }
             syncParameterAliases(parameter, names, dataTypes);
             index++;
         }
         List<Parameter> removed = existing.stream()
                 .filter(parameter -> !keptIds.contains(parameter.getId()))
                 .toList();
-        if (!removed.isEmpty()) {
-            List<UUID> removedIds = removed.stream().map(Parameter::getId).toList();
-            parameterNameAliasRepository.deleteByParameter_IdIn(removedIds);
-            parameterTypeAliasRepository.deleteByParameter_IdIn(removedIds);
-            parameterRepository.deleteAll(removed);
+        deleteParametersWithAliases(removed);
+    }
+
+    /**
+     * Remove managed alias rows, then parameters. {@link #loadAliases} hydrates
+     * {@link ParameterNameAlias}/{@link ParameterTypeAlias} into the persistence context;
+     * bulk parameter deletes leave those managed aliases pointing at deleted parents and
+     * break the next flush ({@code TransientPropertyValueException} from {@code deleteGradingRows}).
+     */
+    private void deleteParametersWithAliases(Collection<Parameter> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return;
         }
+        List<UUID> ids = parameters.stream()
+                .map(Parameter::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (!ids.isEmpty()) {
+            List<ParameterNameAlias> nameAliases =
+                    parameterNameAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(ids);
+            if (!nameAliases.isEmpty()) {
+                parameterNameAliasRepository.deleteAll(nameAliases);
+            }
+            List<ParameterTypeAlias> typeAliases =
+                    parameterTypeAliasRepository.findByParameter_IdInOrderByOrderIndexAsc(ids);
+            if (!typeAliases.isEmpty()) {
+                parameterTypeAliasRepository.deleteAll(typeAliases);
+            }
+        }
+        parameterRepository.deleteAll(parameters);
     }
 
     private void syncFieldAliases(
@@ -1999,7 +2036,12 @@ public class LabStructureService {
             guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.METHOD, method.getId());
         }
         UUID classId = method.getClassEntity().getId();
-        parameterRepository.deleteByMethod_IdIn(List.of(method.getId()));
+        List<Parameter> params = List.copyOf(ctx.paramsByMethodId.getOrDefault(method.getId(), List.of()));
+        if (params.isEmpty()) {
+            params = parameterRepository.findByMethod_IdOrderByOrderIndexAsc(method.getId());
+        }
+        deleteParametersWithAliases(params);
+        ctx.paramsByMethodId.remove(method.getId());
         UUID declarationId = method.getMethodDeclaration().getId();
         deleteGradingRows("submission_method_result", "method_id", method.getId());
         methodRepository.delete(method);
@@ -2017,7 +2059,13 @@ public class LabStructureService {
             guardTestcaseReference(challengeId, TestcaseRubricService.RubricMemberKind.CONSTRUCTOR, constructor.getId());
         }
         UUID classId = constructor.getClassEntity().getId();
-        parameterRepository.deleteByConstructorEntity_IdIn(List.of(constructor.getId()));
+        List<Parameter> params = List.copyOf(
+                ctx.paramsByConstructorId.getOrDefault(constructor.getId(), List.of()));
+        if (params.isEmpty()) {
+            params = parameterRepository.findByConstructorEntity_IdOrderByOrderIndexAsc(constructor.getId());
+        }
+        deleteParametersWithAliases(params);
+        ctx.paramsByConstructorId.remove(constructor.getId());
         UUID declarationId = constructor.getConstructorDeclaration().getId();
         deleteGradingRows("submission_constructor_result", "constructor_id", constructor.getId());
         constructorRepository.delete(constructor);
