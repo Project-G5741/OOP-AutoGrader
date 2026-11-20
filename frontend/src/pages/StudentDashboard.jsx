@@ -340,35 +340,28 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const ticketsRef = useRef(tickets);
 
   const handleTicketsChange = useCallback((val) => {
-    const prev = ticketsRef.current;
     ticketsRef.current = val;
     setTickets(val);
     localStorage.setItem('gacha_demo_tickets', val);
-    if (IS_DESKTOP_APP || val >= prev) return;
-    const count = prev - val;
-    apiFetch(`${API_BASE}/api/students/streak/gacha-spend`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count }),
-    }).then(async (response) => {
-      if (!response.ok) {
-        ticketsRef.current = prev;
-        setTickets(prev);
-        localStorage.setItem('gacha_demo_tickets', prev);
-        return;
-      }
-      const body = await response.json();
-      if (typeof body.gachaTickets === 'number') {
-        ticketsRef.current = body.gachaTickets;
-        setTickets(body.gachaTickets);
-        localStorage.setItem('gacha_demo_tickets', body.gachaTickets);
-      }
-    }).catch(() => {
-      ticketsRef.current = prev;
-      setTickets(prev);
-      localStorage.setItem('gacha_demo_tickets', prev);
-    });
   }, []);
+
+  const syncGachaWallet = useCallback((wallet) => {
+    if (!wallet) return;
+    if (typeof wallet.points === 'number') {
+      setStreak((s) => (s ? { ...s, points: wallet.points } : s));
+    }
+    if (typeof wallet.gachaTickets === 'number') {
+      ticketsRef.current = wallet.gachaTickets;
+      setTickets(wallet.gachaTickets);
+      localStorage.setItem('gacha_demo_tickets', wallet.gachaTickets);
+    }
+    if (typeof wallet.crystals === 'number') {
+      applyCrystalBalance(wallet.crystals);
+    }
+    if (typeof wallet.gachaPity === 'number') {
+      setStreak((s) => (s ? { ...s, gachaPity: wallet.gachaPity } : s));
+    }
+  }, [applyCrystalBalance]);
 
   const handleOwnedMascotsChange = useCallback((val) => {
     setOwnedMascots((prev) => {
@@ -419,34 +412,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
 
     if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
-      const serverCrystals = next.crystals;
-      const localCrystals = crystalsRef.current;
-      if (!crystalImportRef.current && localCrystals > serverCrystals) {
-        crystalImportRef.current = true;
-        crystalImportingRef.current = true;
-        const extra = localCrystals - serverCrystals;
-        (async () => {
-          let pending = extra;
-          let latest = serverCrystals;
-          try {
-            while (pending > 0) {
-              const count = Math.min(10, pending);
-              const body = await postCrystalCount('grant', count);
-              latest = typeof body.crystals === 'number' ? body.crystals : latest + count;
-              pending -= count;
-            }
-            applyCrystalBalance(latest);
-          } catch {
-            crystalImportRef.current = false;
-            applyCrystalBalance(serverCrystals);
-          } finally {
-            crystalImportingRef.current = false;
-          }
-        })();
-      } else {
-        crystalImportRef.current = true;
-        applyCrystalBalance(serverCrystals);
-      }
+      applyCrystalBalance(next.crystals);
     }
 
     const serverEquipped = next?.equipped || 'fox';
@@ -1658,9 +1624,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           open={showGacha}
           onClose={() => setShowGacha(false)}
           initialPoints={streak?.points ?? 1250}
+          initialGachaPity={streak?.gachaPity ?? 0}
           onPointsChange={(pts) => {
             setStreak((s) => (s ? { ...s, points: pts } : s));
           }}
+          onWalletSync={syncGachaWallet}
           crystals={crystals}
           onCrystalsChange={handleCrystalsChange}
           tickets={tickets}

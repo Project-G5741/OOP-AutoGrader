@@ -64,6 +64,12 @@ public class StudentStreak {
     @Column(name = "gacha_launch_gift", nullable = false)
     private boolean gachaLaunchGift;
 
+    @Column(name = "gacha_pity_count", nullable = false)
+    private int gachaPityCount;
+
+    @Column(name = "crystal_sourced_points", nullable = false)
+    private int crystalSourcedPoints;
+
     public UUID getUserId() {
         return userId;
     }
@@ -198,5 +204,21 @@ public class StudentStreak {
 
     public void setGachaLaunchGift(boolean gachaLaunchGift) {
         this.gachaLaunchGift = gachaLaunchGift;
+    }
+
+    public int getGachaPityCount() {
+        return gachaPityCount;
+    }
+
+    public void setGachaPityCount(int gachaPityCount) {
+        this.gachaPityCount = gachaPityCount;
+    }
+
+    public int getCrystalSourcedPoints() {
+        return crystalSourcedPoints;
+    }
+
+    public void setCrystalSourcedPoints(int crystalSourcedPoints) {
+        this.crystalSourcedPoints = crystalSourcedPoints;
     }
 }

@@ -150,6 +150,7 @@ public final class DailyStreakRules {
                 row.getEquippedMascot(),
                 row.getGachaTickets(),
                 row.getCrystals(),
+                row.getGachaPityCount(),
                 missionCompletedNow);
     }
 }

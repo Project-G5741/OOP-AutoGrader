@@ -8,10 +8,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.eiu.capstone.backend.DTO.GachaConfigView;
+import com.eiu.capstone.backend.DTO.GachaRollRequest;
+import com.eiu.capstone.backend.DTO.GachaRollResponse;
 import com.eiu.capstone.backend.DTO.GachaSpendRequest;
 import com.eiu.capstone.backend.DTO.StudentStreakView;
+import com.eiu.capstone.backend.service.StudentGachaService;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
+import com.eiu.capstone.backend.security.JwtRoleNames;
 import com.eiu.capstone.backend.security.JwtUserPrincipal;
 import com.eiu.capstone.backend.service.StudentStreakService;
 
@@ -22,10 +27,15 @@ public class StudentStreakController {
 
     private final JwtAuthHelper jwtAuthHelper;
     private final StudentStreakService studentStreakService;
+    private final StudentGachaService studentGachaService;
 
-    public StudentStreakController(JwtAuthHelper jwtAuthHelper, StudentStreakService studentStreakService) {
+    public StudentStreakController(
+            JwtAuthHelper jwtAuthHelper,
+            StudentStreakService studentStreakService,
+            StudentGachaService studentGachaService) {
         this.jwtAuthHelper = jwtAuthHelper;
         this.studentStreakService = studentStreakService;
+        this.studentGachaService = studentGachaService;
     }
 
     @GetMapping
@@ -46,6 +56,19 @@ public class StudentStreakController {
         return studentStreakService.restore(user.getId());
     }
 
+    @GetMapping("/gacha-config")
+    public GachaConfigView gachaConfig() {
+        return studentGachaService.publicConfig();
+    }
+
+    @PostMapping("/gacha-roll")
+    public GachaRollResponse gachaRoll(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody GachaRollRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentGachaService.roll(user.getId(), request.count());
+    }
+
     @PostMapping("/gacha-spend")
     public StudentStreakView spendGacha(
             @AuthenticationPrincipal JwtUserPrincipal principal,
@@ -59,6 +82,10 @@ public class StudentStreakController {
             @AuthenticationPrincipal JwtUserPrincipal principal,
             @RequestBody GachaSpendRequest request) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        if (!principal.hasRole(JwtRoleNames.ADMIN)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN, "Crystal grants are server-side only");
+        }
         return studentStreakService.grantCrystals(user.getId(), request.count());
     }
 
