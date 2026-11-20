@@ -118,6 +118,7 @@ Default section order:
 | `docs/sql/2026-11-12-submission-pillar-scores.sql` | Operator-run: `lab_submission` and `submission_challenge_result` MMD / Declaration / Operational percentages. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-tickets.sql` | Operator-run: `student_daily_streak` gacha ticket balance, today's mission-ticket counter, and the one-time 100-ticket launch gift flag. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-crystals.sql` | Operator-run: `student_daily_streak.crystals` balance. Startup migrator applies the same column on PostgreSQL. Shop exchange pays 4000 points per crystal |
+| `docs/sql/2026-11-20-gacha-rate-config.sql` | Operator-run: `gacha_rate_config` singleton + `gacha_pity_count`, `crystal_sourced_points` on streak. Migrator `GachaRateConfigSchemaMigrator` |
 | `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-read.sql` | Operator-run: `student_notification_read` (durable web student bell read-receipt keys). Startup migrator `StudentNotificationReadSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-dismiss.sql` | Operator-run: `student_notification_dismiss` (durable web student bell forever-hide keys). Startup migrator `StudentNotificationDismissSchemaMigrator` applies the same table on PostgreSQL |

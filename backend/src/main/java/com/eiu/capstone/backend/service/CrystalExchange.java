@@ -26,5 +26,8 @@ public final class CrystalExchange {
         }
         row.setCrystals(row.getCrystals() - count);
         row.setPoints((int) nextPoints);
+        long nextSourced = (long) row.getCrystalSourcedPoints() + (long) count * POINTS_PER_CRYSTAL;
+        row.setCrystalSourcedPoints(
+                nextSourced > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) nextSourced);
     }
 }

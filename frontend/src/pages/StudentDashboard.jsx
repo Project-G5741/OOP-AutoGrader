@@ -326,13 +326,43 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const isAdminUser = hasRole(user?.roles, 'ADMIN');
 
   const handleTicketsChange = useCallback((val) => {
-    if (!isAdminUser) return;
+    if (!isAdminUser) {
+      ticketsRef.current = val;
+      setTickets(val);
+      return;
+    }
     ticketsRef.current = val;
     setTickets(val);
+    localStorage.setItem('gacha_demo_tickets', val);
   }, [isAdminUser]);
+
+  const syncGachaWallet = useCallback((wallet) => {
+    if (!wallet) return;
+    if (typeof wallet.points === 'number') {
+      setStreak((s) => (s ? { ...s, points: wallet.points } : s));
+    }
+    if (typeof wallet.gachaTickets === 'number') {
+      ticketsRef.current = wallet.gachaTickets;
+      setTickets(wallet.gachaTickets);
+    }
+    if (typeof wallet.crystals === 'number') {
+      applyCrystalBalance(wallet.crystals);
+    }
+    if (typeof wallet.gachaPity === 'number') {
+      setGachaPity(wallet.gachaPity);
+    }
+  }, [applyCrystalBalance]);
 
   const [equippedMascot, setEquippedMascot] = useState('fox');
   const [gachaPity, setGachaPity] = useState(0);
+
+  const handleOwnedMascotsChange = useCallback((val) => {
+    setOwnedMascots((prev) => {
+      const incoming = Array.isArray(val) ? val : [];
+      return Array.from(new Set(['fox', ...prev, ...incoming].filter(Boolean)));
+    });
+  }, []);
+
   const equippedMascotRef = useRef(equippedMascot);
   equippedMascotRef.current = equippedMascot;
   const [foxCoverEyes, setFoxCoverEyes] = useState(false);
@@ -376,12 +406,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setTickets(next.gachaTickets);
     }
 
-    if (typeof next?.crystals === 'number') {
+    if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
       applyCrystalBalance(next.crystals);
     }
 
     if (typeof next?.gachaPityCount === 'number') {
-      setGachaPity(Math.max(0, Math.min(80, next.gachaPityCount)));
+      setGachaPity(Math.max(0, next.gachaPityCount));
     }
 
     const serverEquipped = next?.equipped || 'fox';
@@ -1695,16 +1725,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           open={showGacha}
           onClose={() => setShowGacha(false)}
           initialPoints={streak?.points ?? 0}
+          initialGachaPity={gachaPity}
+          onPointsChange={(pts) => {
+            setStreak((s) => (s ? { ...s, points: pts } : s));
+          }}
+          onWalletSync={syncGachaWallet}
           crystals={crystals}
           tickets={tickets}
-          gachaPity={gachaPity}
-          gachaPointsSpendAllowed={streak?.gachaPointsSpendAllowed ?? null}
-          onGachaPointsPrefSave={saveGachaPointsPref}
           onTicketsChange={handleTicketsChange}
-          onSpendGachaTickets={spendGachaTickets}
-          onSpendGachaPoints={spendGachaPoints}
-          onGachaSettle={settleGachaRoll}
           ownedMascots={ownedMascots}
+          onOwnedMascotsChange={(ids) => {
+            handleOwnedMascotsChange(ids);
+            refreshMascotShop();
+          }}
           isAdmin={isAdminUser}
         />
       )}

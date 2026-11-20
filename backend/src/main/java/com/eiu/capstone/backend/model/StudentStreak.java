@@ -67,6 +67,9 @@ public class StudentStreak {
     @Column(name = "gacha_pity_count", nullable = false)
     private int gachaPityCount;
 
+    @Column(name = "crystal_sourced_points", nullable = false)
+    private int crystalSourcedPoints;
+
     @Column(name = "gacha_points_pref_date")
     private LocalDate gachaPointsPrefDate;
 
@@ -215,6 +218,14 @@ public class StudentStreak {
 
     public void setGachaPityCount(int gachaPityCount) {
         this.gachaPityCount = gachaPityCount;
+    }
+
+    public int getCrystalSourcedPoints() {
+        return crystalSourcedPoints;
+    }
+
+    public void setCrystalSourcedPoints(int crystalSourcedPoints) {
+        this.crystalSourcedPoints = crystalSourcedPoints;
     }
 
     public LocalDate getGachaPointsPrefDate() {

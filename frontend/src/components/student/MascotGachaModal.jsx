@@ -22,18 +22,27 @@ import ModalOverlay from '../ui/ModalOverlay';
 import { useToast } from '../ui/Toast';
 import { useDialog } from '../../context/DialogContext';
 import { formatNumber } from '../../utils/formatters';
+import { apiFetch } from '../../utils/apiFetch';
+import { authHeaders } from '../../utils/authHeaders';
+import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
+import { mapServerPullToOutcome, formatPercent } from '../../utils/gachaServer';
 import { Mascot } from './MascotSprite';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 import { MASCOT_TIERS, STUDENT_MASCOTS, mascotArt } from './studentMascots';
 
 // Economics & Pity constants
 export const GACHA_COST_SINGLE_POINTS = 100;
 export const GACHA_COST_MULTI_POINTS = 900; // 10% discount
-export const HARD_PITY_LIMIT = 80;
-export const SOFT_PITY_START = 72;
+export const HARD_PITY_LIMIT = 100;
+export const SOFT_PITY_START = 90;
 
 // Ultra-rare direct legendary mascot odds: 1 in 6,000 rolls
 export const DIRECT_LEGENDARY_RATE = 1 / 6000; // ~0.0001667 (0.0167%)
 export const CRYSTAL_BASE_RATE = 0.0015; // 0.15% (nerfed from 1% so it doesn't pop in 30 pulls)
+/** Ticket soft-pity ramp from roll 90 toward guaranteed crystal at roll 100 (tickets only). */
+export const SOFT_PITY_RATE_STEP =
+  (1 - CRYSTAL_BASE_RATE) / (HARD_PITY_LIMIT - SOFT_PITY_START);
 export const RANDOM_MASCOT_RATE = 0.003; // 0.3% (nerfed from 1.5% so mascots don't drop too easily, no duplicates)
 
 // Handcrafted Prismatic Cosmic Crystal SVG Component
@@ -124,27 +133,62 @@ const RANDOM_MASCOT_POOL = [
   'huyen_vu',
 ];
 const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
+const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
+const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
+
+function vietnamTodayKey() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: VIETNAM_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function readGachaPointsSpendPref() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GACHA_POINTS_SPEND_PREF_KEY) || 'null');
+    if (!raw || raw.date !== vietnamTodayKey() || typeof raw.allow !== 'boolean') {
+      return null;
+    }
+    return raw.allow;
+  } catch {
+    return null;
+  }
+}
+
+function writeGachaPointsSpendPref(allow) {
+  localStorage.setItem(
+    GACHA_POINTS_SPEND_PREF_KEY,
+    JSON.stringify({ date: vietnamTodayKey(), allow }),
+  );
+}
+
 export default function MascotGachaModal({
   open,
   onClose,
-  initialPoints = 0,
+  initialPoints = 1250,
+  onPointsChange,
   crystals = 0,
+  onCrystalsChange,
   tickets: controlledTickets,
   onTicketsChange,
-  onSpendGachaTickets,
-  onSpendGachaPoints,
-  onGachaSettle,
-  gachaPity = 0,
-  gachaPointsSpendAllowed = null,
-  onGachaPointsPrefSave,
   ownedMascots = ['fox'],
+  onOwnedMascotsChange,
+  initialGachaPity = 0,
+  onWalletSync,
   isAdmin = false,
 }) {
-  const [points, setPoints] = useState(() => (isAdmin ? initialPoints : initialPoints));
+  const [points, setPoints] = useState(() => {
+    if (!isAdmin) return initialPoints;
+    const saved = localStorage.getItem('gacha_demo_points');
+    return saved !== null ? parseInt(saved, 10) : initialPoints;
+  });
 
   const [tickets, setTickets] = useState(() => {
     if (controlledTickets !== undefined) return controlledTickets;
-    return isAdmin ? 15 : 0;
+    const saved = localStorage.getItem('gacha_demo_tickets');
+    return saved !== null ? parseInt(saved, 10) : (isAdmin ? 15 : 0);
   });
 
   useEffect(() => {
@@ -159,13 +203,16 @@ export default function MascotGachaModal({
     }
   }, [isAdmin, initialPoints]);
 
-  const [pityCount, setPityCount] = useState(() => (isAdmin ? 12 : gachaPity));
-
-  useEffect(() => {
-    if (!isAdmin) {
-      setPityCount(gachaPity);
-    }
-  }, [gachaPity, isAdmin]);
+  const [pityCount, setPityCount] = useState(() => (
+    isAdmin
+      ? (() => {
+          const saved = localStorage.getItem('gacha_demo_pity');
+          return saved !== null ? parseInt(saved, 10) : 12;
+        })()
+      : initialGachaPity
+  ));
+  const [rateConfig, setRateConfig] = useState(null);
+  const [rolling, setRolling] = useState(false);
 
   // Phases: 'idle' | 'charging' | 'burst' | 'showcase' | 'summary'
   const [phase, setPhase] = useState('idle');
@@ -177,12 +224,49 @@ export default function MascotGachaModal({
   const [demoBannerOpen, setDemoBannerOpen] = useState(true);
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
   const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
-  const [ticketSpending, setTicketSpending] = useState(false);
-  const [adminDemoCrystals, setAdminDemoCrystals] = useState(0);
   const showToast = useToast();
   const dialog = useDialog();
 
   const countdownTimerRef = useRef(null);
+
+  // Persist the demo counters. Do not call the parent from here: this effect also
+  // runs when the parent pushes a new ticket count, and echoing that value back
+  // fights the header badge (it steps by 2 and never settles).
+  useEffect(() => {
+    localStorage.setItem('gacha_demo_points', String(points));
+    localStorage.setItem('gacha_demo_tickets', String(tickets));
+    localStorage.setItem('gacha_demo_pity', String(pityCount));
+  }, [isAdmin, points, tickets, pityCount]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPityCount(initialGachaPity);
+    }
+  }, [isAdmin, initialGachaPity]);
+
+  useEffect(() => {
+    if (!open || isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-config`, {
+          headers: authHeaders(),
+        });
+        if (!response.ok || cancelled) return;
+        const body = await response.json();
+        if (!cancelled) setRateConfig(body);
+      } catch {
+        /* fall back to exported defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isAdmin]);
+
+  const costSingle = rateConfig?.costSinglePoints ?? GACHA_COST_SINGLE_POINTS;
+  const costMulti = rateConfig?.costMultiPoints ?? GACHA_COST_MULTI_POINTS;
+  const pityHard = rateConfig?.hardPityLimit ?? HARD_PITY_LIMIT;
 
   // Handle 5-second showcase countdown
   useEffect(() => {
@@ -216,163 +300,13 @@ export default function MascotGachaModal({
 
   if (!open) return null;
 
-  // Single roll logic with duplicate protection
-  const rollSingle = (currentPity, sessionOwnedMascots = []) => {
-    const rng = Math.random();
-
-    // 1. Ultra-Rare Direct Legendary Mascot (1 in 6,000) - No Duplicates
-    const availableLegendaryPool = LEGENDARY_MASCOT_POOL.filter(id => !sessionOwnedMascots.includes(id));
-    if (availableLegendaryPool.length > 0 && rng < DIRECT_LEGENDARY_RATE) {
-      const pickedId = availableLegendaryPool[Math.floor(Math.random() * availableLegendaryPool.length)];
-      sessionOwnedMascots.push(pickedId);
-      const mascotInfo = STUDENT_MASCOTS[pickedId];
-      return {
-        item: {
-          id: `legendary_${pickedId}`,
-          name: `${mascotInfo.name}`,
-          rarity: 'legendary',
-          tierName: 'Legendary Mascot',
-          type: 'mascot',
-          mascotId: pickedId,
-          image: mascotInfo.image,
-          iconEmoji: '✨',
-          pointsRefund: 0,
-        },
-        nextPity: currentPity + 1,
-        wasPity: false,
-      };
-    }
-
-    // 2. Crystal with Hard/Soft Pity & nerfed base rate
-    const isHardPity = currentPity + 1 >= HARD_PITY_LIMIT;
-    let crystalRate = CRYSTAL_BASE_RATE; // 0.15%
-
-    if (currentPity + 1 >= SOFT_PITY_START) {
-      crystalRate = CRYSTAL_BASE_RATE + (currentPity + 1 - SOFT_PITY_START) * 0.12;
-    }
-
-    if (isHardPity || Math.random() < crystalRate) {
-      return {
-        item: {
-          id: 'crystal',
-          name: 'Crystal Stone',
-          rarity: 'crystal',
-          tierName: 'Crystal',
-          type: 'crystal',
-          crystalAmount: 1,
-          pointsRefund: 0,
-          description: 'Ultimate treasure. Redeem Legendary mascots in the shop, or 4,000 pts each.',
-        },
-        nextPity: 0, // Reset pity
-        wasPity: isHardPity,
-      };
-    }
-
-    // 3. Random Mascot (0.3% rate + Strict Duplicate Protection)
-    const availableMascotPool = RANDOM_MASCOT_POOL.filter(id => !sessionOwnedMascots.includes(id));
-    const secondaryRng = Math.random();
-    if (availableMascotPool.length > 0 && secondaryRng < RANDOM_MASCOT_RATE) {
-      const pickedId = availableMascotPool[Math.floor(Math.random() * availableMascotPool.length)];
-      sessionOwnedMascots.push(pickedId);
-      const mascotInfo = STUDENT_MASCOTS[pickedId];
-      const tier = mascotInfo?.tier || 'rare';
-      return {
-        item: {
-          id: `mascot_${pickedId}`,
-          name: `${mascotInfo?.name || pickedId}`,
-          rarity: tier, // 'normal' | 'rare'
-          tierName: `${tier.toUpperCase()} Mascot`,
-          type: 'mascot',
-          mascotId: pickedId,
-          iconEmoji: '🐾',
-          pointsRefund: 0,
-        },
-        nextPity: currentPity + 1,
-        wasPity: false,
-      };
-    }
-
-    // 4. Points Cashback distribution (no normal/rare tiering for points)
-    const pointRng = Math.random();
-    let pts = 5;
-    if (pointRng < 0.025) pts = 300;
-    else if (pointRng < 0.025 + 0.06) pts = 150;
-    else if (pointRng < 0.025 + 0.06 + 0.18) pts = 60;
-    else if (pointRng < 0.025 + 0.06 + 0.18 + 0.42) pts = 20;
-
-    return {
-      item: {
-        id: `points_${pts}`,
-        name: `+${pts} Points`,
-        rarity: 'point',
-        tierName: 'Reward points',
-        type: 'points',
-        pointsRefund: pts,
-      },
-      nextPity: currentPity + 1,
-      wasPity: false,
-    };
-  };
-
-  const pointBalance = isAdmin ? points : (initialPoints ?? 0);
-
-  const executeGacha = async (count) => {
-    if (ticketSpending) return;
-
-    const useTickets = tickets >= count;
-    const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
-
-    if (!useTickets && pointBalance < requiredPoints) {
-      dialog.alert({
-        level: 'warning',
-        title: 'Insufficient Balance',
-        message: `Not enough Roll Tickets or Points! Need ${formatNumber(requiredPoints)} Points or ${count} Ticket${count > 1 ? 's' : ''}.`,
-      });
-      return;
-    }
-
-    let newTickets = tickets;
-    let newPoints = points;
-    setTicketSpending(true);
-    try {
-      if (useTickets) {
-        if (!isAdmin && onSpendGachaTickets) {
-          const spent = await onSpendGachaTickets(count);
-          if (!spent) return;
-        } else if (isAdmin) {
-          newTickets -= count;
-          setTickets(newTickets);
-          onTicketsChange?.(newTickets);
-        }
-      } else if (!isAdmin && onSpendGachaPoints) {
-        const spent = await onSpendGachaPoints(count);
-        if (!spent) return;
-      } else if (isAdmin) {
-        newPoints -= requiredPoints;
-      } else {
-        return;
-      }
-
-    const results = [];
-    let rollingPity = pityCount;
-    let earnedCrystals = 0;
-    let totalCashback = 0;
+  const presentRollResults = (results) => {
     let maxRarity = 'normal';
-    const newUnlockedMascots = [];
     let bestShowcaseItem = null;
-    const sessionOwnedMascots = [...ownedMascots];
 
-    for (let i = 0; i < count; i++) {
-      const rollOutcome = rollSingle(rollingPity, sessionOwnedMascots);
-      results.push(rollOutcome);
-      rollingPity = rollOutcome.nextPity;
-
+    for (const rollOutcome of results) {
       const it = rollOutcome.item;
-
       if (it.rarity === 'crystal' || it.rarity === 'legendary') {
-        if (it.type === 'crystal') {
-          earnedCrystals += it.crystalAmount || 1;
-        }
         maxRarity = 'legendary';
         if (!bestShowcaseItem || bestShowcaseItem.rarity !== 'legendary') {
           bestShowcaseItem = it;
@@ -388,73 +322,33 @@ export default function MascotGachaModal({
           bestShowcaseItem = it;
         }
       }
-
-      // Check any mascot
-      if (it.type === 'mascot' && it.mascotId) {
-        newUnlockedMascots.push(it.mascotId);
-        if (!bestShowcaseItem) {
-          bestShowcaseItem = it;
-        }
+      if (it.type === 'mascot' && it.mascotId && !bestShowcaseItem) {
+        bestShowcaseItem = it;
       }
-
-      totalCashback += it.pointsRefund || 0;
     }
 
-    if (!isAdmin && onGachaSettle) {
-      const saved = await onGachaSettle({
-        rollCount: count,
-        pity: rollingPity,
-        pointsCashback: totalCashback,
-        crystalsGranted: earnedCrystals,
-        mascotIds: newUnlockedMascots,
-      });
-      if (!saved) return;
-    } else if (isAdmin) {
-      setPoints(newPoints + totalCashback);
-    }
-
-    if (isAdmin) {
-      setPityCount(rollingPity);
-    }
     setCurrentPulls(results);
     setHighestRarity(maxRarity);
     setShowcaseItem(bestShowcaseItem);
-
-    // Direct transition to charging sequence
     setPhase('charging');
     setTimeout(() => {
       setPhase('burst');
       setTimeout(() => {
-        // If an epic/legendary mascot or crystal appeared, enter 5s showcase!
         const hasShowcaseTrigger = bestShowcaseItem && (
-          bestShowcaseItem.type === 'crystal' || 
-          bestShowcaseItem.type === 'mascot'
+          bestShowcaseItem.type === 'crystal'
+          || bestShowcaseItem.type === 'mascot'
         );
-
-        if (hasShowcaseTrigger) {
-          setPhase('showcase');
-        } else {
-          setPhase('summary');
-        }
+        setPhase(hasShowcaseTrigger ? 'showcase' : 'summary');
       }, 900);
     }, 1300);
-    } finally {
-      setTicketSpending(false);
-    }
   };
 
-  const triggerGacha = (count) => {
-    if (ticketSpending) return;
-
+  const executeGacha = async (count) => {
+    if (rolling) return;
     const useTickets = tickets >= count;
-    const requiredPoints = count === 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
+    const requiredPoints = count === 1 ? costSingle : costMulti;
 
-    if (useTickets) {
-      void executeGacha(count);
-      return;
-    }
-
-    if (pointBalance < requiredPoints) {
+    if (!useTickets && points < requiredPoints) {
       dialog.alert({
         level: 'warning',
         title: 'Insufficient Balance',
@@ -463,9 +357,66 @@ export default function MascotGachaModal({
       return;
     }
 
-    const pref = gachaPointsSpendAllowed;
+    setRolling(true);
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/streak/gacha-roll`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      });
+      if (!response.ok) {
+        const message = response.status === 409
+          ? 'Not enough Roll Tickets or Points.'
+          : await friendlyLoadErrorFromResponse(response);
+        dialog.alert({ level: 'warning', title: 'Summon failed', message });
+        return;
+      }
+      const body = await response.json();
+      const results = (body.pulls || []).map(mapServerPullToOutcome);
+
+      setPityCount(body.gachaPity ?? pityCount);
+      setPoints(body.points ?? points);
+      setTickets(body.gachaTickets ?? tickets);
+      onWalletSync?.({
+        points: body.points,
+        gachaTickets: body.gachaTickets,
+        crystals: body.crystals,
+        gachaPity: body.gachaPity,
+      });
+      onPointsChange?.(body.points);
+      onTicketsChange?.(body.gachaTickets);
+      if (Array.isArray(body.ownedMascotIds)) {
+        onOwnedMascotsChange?.(body.ownedMascotIds);
+      }
+      presentRollResults(results);
+    } catch (err) {
+      showToast(toFriendlyError(err), 'error');
+    } finally {
+      setRolling(false);
+    }
+  };
+
+  const triggerGacha = (count) => {
+    const useTickets = tickets >= count;
+    const requiredPoints = count === 1 ? costSingle : costMulti;
+
+    if (useTickets) {
+      executeGacha(count);
+      return;
+    }
+
+    if (points < requiredPoints) {
+      dialog.alert({
+        level: 'warning',
+        title: 'Insufficient Balance',
+        message: `Not enough Roll Tickets or Points! Need ${formatNumber(requiredPoints)} Points or ${count} Ticket${count > 1 ? 's' : ''}.`,
+      });
+      return;
+    }
+
+    const pref = readGachaPointsSpendPref();
     if (pref === true) {
-      void executeGacha(count);
+      executeGacha(count);
       return;
     }
     if (pref === false) {
@@ -481,15 +432,15 @@ export default function MascotGachaModal({
     if (!pointsSpendPrompt) return;
     const { count } = pointsSpendPrompt;
     if (rememberPointsChoice) {
-      onGachaPointsPrefSave?.(true);
+      writeGachaPointsSpendPref(true);
     }
     setPointsSpendPrompt(null);
-    void executeGacha(count);
+    executeGacha(count);
   };
 
   const declinePointsSpend = () => {
     if (rememberPointsChoice) {
-      onGachaPointsPrefSave?.(false);
+      writeGachaPointsSpendPref(false);
     }
     setPointsSpendPrompt(null);
   };
@@ -537,7 +488,7 @@ export default function MascotGachaModal({
 
             <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
               <Coins className="h-3.5 w-3.5 text-warning-text" />
-              <span className="tabular-nums text-foreground">{formatNumber(pointBalance)}</span>
+              <span className="tabular-nums text-foreground">{formatNumber(points)}</span>
               <span className="text-foreground-muted">pts</span>
             </div>
 
@@ -567,7 +518,7 @@ export default function MascotGachaModal({
               <ShieldCheck className="h-4 w-4 text-primary" />
               <span>Crystal guarantee (Hard Pity):</span>
               <span className="font-bold tabular-nums text-foreground">
-                {pityCount} / {HARD_PITY_LIMIT}
+                {Math.min(pityCount, pityHard)} / {pityHard}
               </span>
               {pityCount >= SOFT_PITY_START && (
                 <span className="animate-pulse rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">
@@ -591,7 +542,7 @@ export default function MascotGachaModal({
                 pityCount >= SOFT_PITY_START ? 'bg-amber-500' : 'bg-primary'
               }`}
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(100, (pityCount / HARD_PITY_LIMIT) * 100)}%` }}
+              animate={{ width: `${Math.min(100, (pityCount / pityHard) * 100)}%` }}
               transition={{ duration: 0.4 }}
             />
           </div>
@@ -647,7 +598,7 @@ export default function MascotGachaModal({
                       {tickets >= 1 ? (
                         <span className="font-semibold text-primary">1 Roll Ticket</span>
                       ) : (
-                        <span className="tabular-nums text-warning-text">{GACHA_COST_SINGLE_POINTS} pts</span>
+                        <span className="tabular-nums text-warning-text">{costSingle} pts</span>
                       )}
                     </span>
                   </button>
@@ -668,7 +619,7 @@ export default function MascotGachaModal({
                         <span className="font-semibold text-white">10 Roll Tickets</span>
                       ) : (
                         <span className="tabular-nums font-semibold text-warning-bg">
-                          {GACHA_COST_MULTI_POINTS} pts <span className="line-through text-white/60">1000</span>
+                          {costMulti} pts <span className="line-through text-white/60">1000</span>
                         </span>
                       )}
                     </span>
@@ -850,7 +801,7 @@ export default function MascotGachaModal({
                         Pull results ({currentPulls.length} rewards)
                       </h4>
                       <p className="text-xs text-foreground-muted">
-                        Current Crystal pity: <span className="font-bold text-foreground">{pityCount} / {HARD_PITY_LIMIT}</span>
+                        Current Crystal pity: <span className="font-bold text-foreground">{Math.min(pityCount, pityHard)} / {pityHard}</span>
                       </p>
                     </div>
 
@@ -1055,6 +1006,7 @@ export default function MascotGachaModal({
                   onClick={() => {
                     const next = tickets + 10;
                     setTickets(next);
+                    localStorage.setItem('gacha_demo_tickets', next);
                     onTicketsChange?.(next);
                   }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
@@ -1064,7 +1016,25 @@ export default function MascotGachaModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setPoints((value) => value + 1000);
+                    const todayStr = new Date().toLocaleDateString('en-CA');
+                    localStorage.removeItem(`oop_streak_tickets_claimed_${todayStr}`);
+                    dialog.alert({
+                      level: 'safety',
+                      title: 'Ticket Progress Reset',
+                      message: "Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.",
+                    });
+                  }}
+                  className="cursor-pointer rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20"
+                  title="Clear today's streak ticket claim cache so you can retest mission ticket rewards"
+                >
+                  Reset today's ticket claims
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = points + 1000;
+                    setPoints(next);
+                    onPointsChange?.(next);
                   }}
                   className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
                 >
@@ -1072,18 +1042,18 @@ export default function MascotGachaModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAdminDemoCrystals((value) => value + 1)}
+                  onClick={() => onCrystalsChange?.(crystals + 1)}
                   className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 text-amber-800 px-2.5 py-1 text-xs font-bold hover:opacity-90"
                 >
                   +1 Crystal
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPityCount(79)}
+                  onClick={() => setPityCount(99)}
                   className="cursor-pointer rounded-lg border border-warning-border bg-warning-bg px-2.5 py-1 text-xs font-bold text-warning-text hover:opacity-90"
-                  title="Set pity to 79 so the next roll is a guaranteed Crystal"
+                  title="Set pity to 99 so the next roll is a guaranteed Crystal (ticket roll)"
                 >
-                  Set Pity = 79 (test Crystal)
+                  Set Pity = 99 (test Crystal)
                 </button>
                 <button
                   type="button"
@@ -1123,7 +1093,7 @@ export default function MascotGachaModal({
 
             <div className="mt-4 space-y-3 text-xs text-foreground-secondary">
               <p>
-                <strong>Hard Pity rule:</strong> If no Crystal appears within 79 rolls, the 80th roll is a guaranteed Crystal. The base rate is capped at 0.15% so Crystals are not expected around ~30 rolls.
+                <strong>Crystal pity:</strong> Roll tickets guarantee a Crystal on the 100th roll if none dropped earlier; from roll 90 onward the rate ramps up (0.15% base before that).
               </p>
               <p>
                 <strong>Awakening showcase (5s):</strong> Pulling a Crystal or Epic+ mascot shows a special showcase for 5 seconds (press Skip to jump to results).
@@ -1156,7 +1126,7 @@ export default function MascotGachaModal({
                     </tr>
                     <tr style={{ backgroundColor: '#FEF3C7', color: '#92400E' }} className="font-bold">
                       <td className="px-3 py-2">💎 Crystal Stone</td>
-                      <td className="px-3 py-2 tabular-nums">0.15% (Pity 80)</td>
+                      <td className="px-3 py-2 tabular-nums">0.15% (Pity 100)</td>
                       <td className="px-3 py-2">+1 Crystal</td>
                     </tr>
                     <tr style={{ backgroundColor: '#EDE9FE', color: '#4C1D95' }} className="font-medium">

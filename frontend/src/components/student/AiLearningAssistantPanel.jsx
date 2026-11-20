@@ -274,7 +274,7 @@ export default function AiLearningAssistantPanel({
         }
       } catch (err) {
         if (err.name === 'AbortError' || controller.signal.aborted) {
-          // Cancelled because the user navigated away or re-analyzed ΓÇö ignore silently
+          // Cancelled because the user navigated away or re-analyzed — ignore silently
           return;
         }
         if (activeChallengeIdRef.current === targetChallengeId) {

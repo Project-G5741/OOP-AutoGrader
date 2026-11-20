@@ -24,6 +24,7 @@ class SchemaMigratorCatalogTest {
             "com.eiu.capstone.backend.config.FieldDeclarationNullabilitySchemaMigrator",
             "com.eiu.capstone.backend.config.LabAiEnabledSchemaMigrator",
             "com.eiu.capstone.backend.config.LabPrefixSchemaMigrator",
+            "com.eiu.capstone.backend.config.AiAssistedGradingSchemaMigrator",
             "com.eiu.capstone.backend.config.AiFeedbackCacheSchemaMigrator",
             "com.eiu.capstone.backend.config.AiStudentCredentialSchemaMigrator",
             "com.eiu.capstone.backend.config.MascotPracticeTokenSchemaMigrator",
@@ -33,6 +34,7 @@ class SchemaMigratorCatalogTest {
             "com.eiu.capstone.backend.config.StudentNotificationReadSchemaMigrator",
             "com.eiu.capstone.backend.config.StudentNotificationDismissSchemaMigrator",
             "com.eiu.capstone.backend.config.StudentStreakSchemaMigrator",
+            "com.eiu.capstone.backend.config.GachaRateConfigSchemaMigrator",
             "com.eiu.capstone.backend.config.SubmissionPillarScoreSchemaMigrator",
             "com.eiu.capstone.backend.config.TestcaseSchemaMigrator",
             "com.eiu.capstone.backend.config.WeeklyRankingSchemaMigrator");

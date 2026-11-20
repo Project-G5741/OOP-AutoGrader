@@ -4,6 +4,7 @@ import AppShell from '../components/layout/AppShell';
 import UserStats from '../components/UserStats';
 import UserTable from '../components/UserTable';
 import UserModal from '../components/UserModal';
+import MascotOwnershipPanel from '../components/lecturer/MascotOwnershipPanel';
 import { authHeaders } from '../utils/authHeaders';
 import { apiFetch } from '../utils/apiFetch';
 import { readFriendlyApiError, toFriendlyError } from '../utils/apiError';
@@ -76,6 +77,7 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
   const [touchedFields, setTouchedFields] = useState({});
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState('users');
   const [isDeleting, setIsDeleting] = useState(false);
   const deletingRef = useRef(false);
   const [page, setPage] = useState(1);
@@ -404,10 +406,34 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
 
   const inner = (
     <main className="max-w-full space-y-6">
-      <div className="mb-5">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">User Management</h1>
+        <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+          <button
+            type="button"
+            onClick={() => setSection('users')}
+            className={`cursor-pointer rounded-lg px-3 py-1.5 font-semibold ${
+              section === 'users' ? 'bg-primary text-white' : 'text-foreground-secondary hover:text-foreground'
+            }`}
+          >
+            Accounts
+          </button>
+          <button
+            type="button"
+            onClick={() => setSection('mascots')}
+            className={`cursor-pointer rounded-lg px-3 py-1.5 font-semibold ${
+              section === 'mascots' ? 'bg-primary text-white' : 'text-foreground-secondary hover:text-foreground'
+            }`}
+          >
+            Mascot ownership
+          </button>
+        </div>
       </div>
 
+      {section === 'mascots' ? (
+        <MascotOwnershipPanel />
+      ) : (
+        <>
       <UserStats stats={stats} />
 
       <UserTable
@@ -429,6 +455,8 @@ export default function UserManagement({ hideNav = false, user, onLogout, noShel
         roleColors={ROLE_COLORS}
         actorIsAdmin={actorIsAdmin}
       />
+        </>
+      )}
     </main>
   );
 
