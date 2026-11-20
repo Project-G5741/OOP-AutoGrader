@@ -93,6 +93,24 @@ class DesktopPackSerializerTest {
     }
 
     @Test
+    void finalPrefix_roundtrips() throws Exception {
+        UUID termId = UUID.randomUUID();
+        UUID labId = UUID.randomUUID();
+        UUID challengeId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        LabRubricSnapshot rubric = new LabRubricSnapshot(
+                labId,
+                Map.of(1, new ChallengeRubric(challengeId, 1, "Main", List.of(), List.of())));
+        DesktopPackLabMeta meta = new DesktopPackLabMeta(labId, "Final Exam", true, null, null, "Final");
+        DesktopPackInnerPayload payload = new DesktopPackInnerPayload(
+                "pack-v1",
+                termId,
+                "2026 — Quarter 1",
+                List.of(new DesktopPackLabEntry(meta, rubric)));
+        DesktopPackInnerPayload parsed = serializer.fromJson(serializer.toJson(payload));
+        assertEquals("Final", parsed.labs().get(0).lab().prefix());
+    }
+
+    @Test
     void roundtrip_preservesAliasLists() throws Exception {
         UUID labId = UUID.randomUUID();
         ParameterRubric parameter = new ParameterRubric(
