@@ -70,6 +70,12 @@ public class StudentStreak {
     @Column(name = "crystal_sourced_points", nullable = false)
     private int crystalSourcedPoints;
 
+    @Column(name = "gacha_points_pref_date")
+    private LocalDate gachaPointsPrefDate;
+
+    @Column(name = "gacha_points_pref_allow")
+    private Boolean gachaPointsPrefAllow;
+
     public UUID getUserId() {
         return userId;
     }
@@ -220,5 +226,21 @@ public class StudentStreak {
 
     public void setCrystalSourcedPoints(int crystalSourcedPoints) {
         this.crystalSourcedPoints = crystalSourcedPoints;
+    }
+
+    public LocalDate getGachaPointsPrefDate() {
+        return gachaPointsPrefDate;
+    }
+
+    public void setGachaPointsPrefDate(LocalDate gachaPointsPrefDate) {
+        this.gachaPointsPrefDate = gachaPointsPrefDate;
+    }
+
+    public Boolean getGachaPointsPrefAllow() {
+        return gachaPointsPrefAllow;
+    }
+
+    public void setGachaPointsPrefAllow(Boolean gachaPointsPrefAllow) {
+        this.gachaPointsPrefAllow = gachaPointsPrefAllow;
     }
 }

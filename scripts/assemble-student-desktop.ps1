@@ -3,7 +3,11 @@ param(
     [string]$OutputDir,
 
     # Skip Maven when jars already exist (UI/host-only refresh). Default rebuilds so OT/println parity cannot ship stale.
-    [switch]$SkipBackendBuild
+    [switch]$SkipBackendBuild,
+
+    # Shown in desktop header (version x.x.x - dd/mm/yyyy). Defaults from frontend/public/practice-bundle-version.json.
+    [string]$DesktopBundleVersion = "",
+    [string]$DesktopBundleVersionDate = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -189,6 +193,23 @@ if (Test-Path $uiDest) {
     Remove-Item -LiteralPath $uiDest -Recurse -Force
 }
 Copy-Item $frontendDist $uiDest -Recurse -Force
+
+$versionManifestSrc = Join-Path $repoRoot "frontend\public\practice-bundle-version.json"
+$version = $DesktopBundleVersion.Trim()
+$updatedOn = $DesktopBundleVersionDate.Trim()
+if (-not $version -and (Test-Path $versionManifestSrc)) {
+    try {
+        $existing = Get-Content -LiteralPath $versionManifestSrc -Raw | ConvertFrom-Json
+        if (-not $version -and $existing.version) { $version = [string]$existing.version }
+        if (-not $updatedOn -and $existing.updatedOn) { $updatedOn = [string]$existing.updatedOn }
+    } catch { }
+}
+if ($version) {
+    $manifest = @{ version = $version; updatedOn = $updatedOn }
+    $manifestJson = $manifest | ConvertTo-Json -Compress
+    Set-Content -LiteralPath (Join-Path $uiDest "practice-bundle-version.json") -Value $manifestJson -Encoding UTF8
+    Write-Host "Desktop bundle version label: version $version - $updatedOn"
+}
 
 $launcherSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\OOP-AutoGrader-Practice.bat"
 $readmeSrc = Join-Path $repoRoot "backend\src\main\resources\student-desktop\README.txt"

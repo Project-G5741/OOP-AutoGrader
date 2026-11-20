@@ -54,6 +54,11 @@ final class SecurityAuthorizationProbes {
             return "ok";
         }
 
+        @PostMapping("/desktop-bundles/refresh")
+        String desktopBundlesRefresh() {
+            return "ok";
+        }
+
         @PostMapping("/labs/{labId}/solution-import")
         String solutionImport(@PathVariable UUID labId) {
             return "ok";

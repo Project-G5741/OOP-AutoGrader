@@ -27,6 +27,8 @@ const MASCOT_EMOJIS = {
   zerotwo: '🌸',
   con_bang: '🐋',
   cung_ky: '🦁',
+  ice_queen: '❄️',
+  goat: '📮',
 };
 
 const REACTIONS = [
@@ -160,7 +162,7 @@ export default function StudentFoxMascot({
 
             <div className="relative flex items-start gap-2.5">
               <span className="text-xl select-none shrink-0" aria-hidden="true">
-                {MASCOT_EMOJIS[mascotId] || '🐾'}
+                {MASCOT_EMOJIS[art.id] || '🐾'}
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-0.5">

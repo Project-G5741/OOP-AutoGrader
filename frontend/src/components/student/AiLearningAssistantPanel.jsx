@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   KeyRound,
   ChevronDown,
@@ -227,7 +227,7 @@ export default function AiLearningAssistantPanel({
 
         if (!res.ok) {
           // Read backend message first (invalid key, budget exhausted, lab disabled, etc.)
-          // before falling back to a generic string — avoids showing "Server Busy" for
+          // before falling back to a generic string ΓÇö avoids showing "Server Busy" for
           // legitimate 400/403/429 application errors.
           let errMsg = '';
           try {

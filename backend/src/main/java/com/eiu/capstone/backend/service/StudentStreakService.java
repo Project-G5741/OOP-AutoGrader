@@ -5,12 +5,14 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.eiu.capstone.backend.DTO.GachaSettleRequest;
 import com.eiu.capstone.backend.DTO.StudentStreakView;
 import com.eiu.capstone.backend.model.StudentStreak;
 import com.eiu.capstone.backend.repository.StudentStreakRepository;
@@ -22,12 +24,22 @@ import jakarta.persistence.EntityManager;
 @Profile("!desktop & !desktop-lecturer")
 public class StudentStreakService {
 
+    private static final int GACHA_COST_SINGLE_POINTS = 100;
+    private static final int GACHA_COST_MULTI_POINTS = 900;
+    private static final int GACHA_MAX_PITY = 80;
+    private static final int GACHA_MAX_POINTS_CASHBACK_PER_ROLL = 300;
+
     private final StudentStreakRepository repository;
     private final EntityManager entityManager;
+    private final StudentMascotService mascotService;
 
-    public StudentStreakService(StudentStreakRepository repository, EntityManager entityManager) {
+    public StudentStreakService(
+            StudentStreakRepository repository,
+            EntityManager entityManager,
+            @Lazy StudentMascotService mascotService) {
         this.repository = repository;
         this.entityManager = entityManager;
+        this.mascotService = mascotService;
     }
 
     @Transactional
@@ -106,6 +118,66 @@ public class StudentStreakService {
             }
             row.setGachaTickets(row.getGachaTickets() - count);
         });
+    }
+
+    @Transactional
+    public StudentStreakView spendGachaPoints(UUID userId, int count) {
+        if (count < 1 || count > 10) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Summon count must be from 1 to 10");
+        }
+        int cost = count == 1 ? GACHA_COST_SINGLE_POINTS : GACHA_COST_MULTI_POINTS;
+        return mutate(userId, row -> {
+            if (row.getPoints() < cost) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Not enough points");
+            }
+            row.setPoints(row.getPoints() - cost);
+        });
+    }
+
+    @Transactional
+    public StudentStreakView saveGachaPointsSpendPref(UUID userId, boolean allow) {
+        return mutate(userId, row -> {
+            row.setGachaPointsPrefDate(today());
+            row.setGachaPointsPrefAllow(allow);
+        });
+    }
+
+    @Transactional
+    public StudentStreakView settleGacha(UUID userId, GachaSettleRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing settle payload");
+        }
+        int rollCount = request.rollCount();
+        if (rollCount < 1 || rollCount > 10) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Summon count must be from 1 to 10");
+        }
+        int pity = request.pity();
+        if (pity < 0 || pity > GACHA_MAX_PITY) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pity counter");
+        }
+        int pointsCashback = request.pointsCashback();
+        if (pointsCashback < 0 || pointsCashback > rollCount * GACHA_MAX_POINTS_CASHBACK_PER_ROLL) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid points cashback");
+        }
+        int crystalsGranted = request.crystalsGranted();
+        if (crystalsGranted < 0 || crystalsGranted > rollCount) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid crystal grant");
+        }
+        var mascotIds = request.mascotIds() == null ? java.util.List.<String>of() : request.mascotIds();
+        if (mascotIds.size() > rollCount) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many mascots in one batch");
+        }
+        StudentStreakView view = mutate(userId, row -> {
+            row.setGachaPityCount(pity);
+            if (pointsCashback > 0) {
+                row.setPoints(row.getPoints() + pointsCashback);
+            }
+            if (crystalsGranted > 0) {
+                row.setCrystals(row.getCrystals() + crystalsGranted);
+            }
+        });
+        mascotService.unlockGachaMascots(userId, mascotIds);
+        return view;
     }
 
     @Transactional

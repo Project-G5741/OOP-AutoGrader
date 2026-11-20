@@ -91,7 +91,7 @@ class MmdComparisonServiceTest {
     }
 
     @Test
-    void ae4_angleBracketGenericsMatchTildeGenericsInRubric() {
+    void ae4_tildeGenericsMatchRubricAndAngleBracketsDoNot() {
         UUID membersId = UUID.randomUUID();
         UUID classId = UUID.randomUUID();
         ChallengeRubric rubric = new ChallengeRubric(
@@ -104,19 +104,25 @@ class MmdComparisonServiceTest {
                         "public",
                         "CLASS",
                         false,
-                        List.of(new FieldRubric(membersId, "members", "private", "List~Member~", false, false)),
+                        List.of(new FieldRubric(membersId, "members", "private", "List<Member>", false, false)),
                         List.of(),
                         List.of())),
                 List.of(),
                 List.of());
 
-        String student = diagram("""
+        String tilde = diagram("""
+                class Team {
+                  -members: List~Member~
+                }
+                """);
+        String angles = diagram("""
                 class Team {
                   -members: List<Member>
                 }
                 """);
 
-        assertTrue(comparisonService.compare(rubric, parser.parse(student)).isFieldCorrect(membersId));
+        assertTrue(comparisonService.compare(rubric, parser.parse(tilde)).isFieldCorrect(membersId));
+        assertTrue(!comparisonService.compare(rubric, parser.parse(angles)).isFieldCorrect(membersId));
     }
 
     @Test

@@ -20,7 +20,7 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 import { formatNumber } from '../../utils/formatters';
-import { mascotArt, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
+import { mascotArt, listCatalogMascots, mascotOfferVisibleInShop, STUDENT_MASCOTS, MASCOT_TIERS } from './studentMascots';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const POINTS_PER_CRYSTAL = 4000;
@@ -33,6 +33,10 @@ const SORT_OPTIONS = [
 ];
 
 function compareShopOffers(a, b, sortBy) {
+  const tailA = a.exclusive ? 1 : 0;
+  const tailB = b.exclusive ? 1 : 0;
+  if (tailA !== tailB) return tailA - tailB;
+
   const priceA = Number(a.price) || 0;
   const priceB = Number(b.price) || 0;
   const nameA = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
@@ -79,7 +83,7 @@ export default function MascotShop({
   onCrystalsReconcile,
   tickets,
   ownedMascots = ['fox'],
-  onOwnedMascotsChange,
+  onMascotsRefresh,
 }) {
   const showToast = useToast();
   const [shop, setShop] = useState(null);
@@ -136,7 +140,7 @@ export default function MascotShop({
     const backendMap = new Map(backendMascots.map((m) => [m.id, m]));
     const query = searchQuery.trim().toLowerCase();
 
-    const all = Object.values(STUDENT_MASCOTS).map((catalogItem) => {
+    const all = listCatalogMascots().map((catalogItem) => {
       const backendItem = backendMap.get(catalogItem.id);
       const isOwnedLocally = ownedMascots.includes(catalogItem.id);
       const isEquippedLocally = localEquipped === catalogItem.id || (!localEquipped && (backendItem?.equipped || shop?.equipped === catalogItem.id));
@@ -150,6 +154,7 @@ export default function MascotShop({
     });
 
     const filtered = all.filter((item) => {
+      if (!mascotOfferVisibleInShop(item, backendMap)) return false;
       if (selectedTier !== 'all' && item.tier !== selectedTier) return false;
       if (!query) return true;
       const name = String(item.name || '').toLowerCase();
@@ -182,37 +187,37 @@ export default function MascotShop({
 
     try {
       if (paymentChoice === 'crystal' && pending.crystalCost) {
-        // Exchange with Crystals
         if (crystals < pending.crystalCost) {
           showToast('Not enough Crystals to redeem!', 'error');
           return;
         }
 
-        const newCrystals = crystals - pending.crystalCost;
-        onCrystalsChange?.(newCrystals);
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
-        setLocalEquipped(pending.id);
-        setPending(null);
-
-        try {
-          const response = await apiFetch(`${API_BASE}/api/students/mascots/${pending.id}/equip`, {
-            method: 'POST',
-            headers: authHeaders(),
-          });
-          if (response.ok) {
-            const next = await response.json();
-            apply(next, `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`);
-            return;
-          }
-        } catch {
-          /* fallback to local apply */
+        const spendResponse = await apiFetch(`${API_BASE}/api/students/streak/crystals/spend`, {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: pending.crystalCost }),
+        });
+        if (!spendResponse.ok) {
+          showToast(await readShopFailure(spendResponse), 'error');
+          return;
         }
+        const spent = await spendResponse.json();
+        onCrystalsReconcile?.(spent.crystals);
 
-        apply(
-          { ...(shop || {}), equipped: pending.id },
-          `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`
-        );
+        const response = await apiFetch(`${API_BASE}/api/students/mascots/${pending.id}/equip`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        if (!response.ok) {
+          showToast(await readShopFailure(response), 'error');
+          onMascotsRefresh?.();
+          return;
+        }
+        const next = await response.json();
+        setPending(null);
+        setLocalEquipped(pending.id);
+        apply(next, `Successfully redeemed ${pending.name} for ${pending.crystalCost} Crystals!`);
+        onMascotsRefresh?.();
         return;
       }
 
@@ -229,23 +234,16 @@ export default function MascotShop({
         }
         const next = await response.json();
         setPending(null);
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
         setLocalEquipped(pending.id);
         apply(next, `Purchased ${pending.name}. ${formatNumber(next.points)} pts remaining.`);
+        onMascotsRefresh?.();
       } else {
         // Catalog mascot point purchase simulation
         if (points < pending.price) {
           showToast('Not enough points to buy this mascot.', 'error');
           return;
         }
-        const nextPoints = points - pending.price;
-        const nextShop = { ...(shop || {}), points: nextPoints, equipped: pending.id };
-        const nextOwned = Array.from(new Set([...ownedMascots, pending.id]));
-        onOwnedMascotsChange?.(nextOwned);
-        setLocalEquipped(pending.id);
-        setPending(null);
-        apply(nextShop, `Purchased ${pending.name}. ${formatNumber(nextPoints)} pts remaining.`);
+        showToast('This mascot is not available for purchase yet.', 'error');
       }
     } catch (error) {
       showToast(toFriendlyError(error), 'error');
@@ -399,7 +397,7 @@ export default function MascotShop({
                   : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
               }`}
             >
-              All ({Object.keys(STUDENT_MASCOTS).length})
+              All ({listCatalogMascots().length})
             </button>
             {Object.values(MASCOT_TIERS).map((tier) => (
               <button

@@ -204,8 +204,56 @@ export const STUDENT_MASCOTS = {
     directions: '/mascots/cung-ky-directions.webp',
     reactions: '/mascots/cung-ky-reactions.webp',
   },
+  ice_queen: {
+    id: 'ice_queen',
+    name: 'Ice Queen',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/ice-queen-directions.webp',
+    reactions: '/mascots/ice-queen-reactions.webp',
+  },
+  goat: {
+    id: 'goat',
+    name: 'The GOAT',
+    tier: 'legendary',
+    price: 0,
+    exclusive: true,
+    directions: '/mascots/goat-directions.webp',
+    reactions: '/mascots/goat-reactions.webp',
+  },
 };
 
+/** Exclusive mascots appear in the shop only when the API includes them for the signed-in student. */
+export function mascotOfferVisibleInShop(catalogItem, backendOfferIds) {
+  if (catalogItem?.exclusive && !backendOfferIds?.has(catalogItem.id)) {
+    return false;
+  }
+  return true;
+}
+
+export function listCatalogMascots() {
+  const seen = new Set();
+  const list = [];
+  for (const item of Object.values(STUDENT_MASCOTS)) {
+    if (!item?.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    list.push(item);
+  }
+  return list;
+}
+
 export function mascotArt(id) {
-  return STUDENT_MASCOTS[id] || STUDENT_MASCOTS.fox;
+  if (!id) return STUDENT_MASCOTS.fox;
+  const raw = String(id).trim();
+  const lower = raw.toLowerCase();
+  const normalized = lower.replace(/-/g, '_');
+  const hyphenated = lower.replace(/_/g, '-');
+  return (
+    STUDENT_MASCOTS[raw] ||
+    STUDENT_MASCOTS[lower] ||
+    STUDENT_MASCOTS[normalized] ||
+    STUDENT_MASCOTS[hyphenated] ||
+    STUDENT_MASCOTS.fox
+  );
 }

@@ -37,6 +37,8 @@ class StudentGachaServiceTest {
     private GachaRateConfigService configService;
     @Mock
     private StudentMascotPurchaseRepository purchases;
+    @Mock
+    private com.eiu.capstone.backend.service.StudentMascotService mascotService;
 
     private StudentStreakService streakService;
     private StudentGachaService gachaService;
@@ -50,7 +52,7 @@ class StudentGachaServiceTest {
                 .thenReturn(nativeQuery);
         when(nativeQuery.executeUpdate()).thenReturn(1);
 
-        streakService = new StudentStreakService(streakRepository, entityManager);
+        streakService = new StudentStreakService(streakRepository, entityManager, mascotService);
         gachaService = new StudentGachaService(streakService, configService, purchases);
         when(configService.current()).thenReturn(new GachaRateConfig(
                 100, 900, 100, 90,
@@ -93,27 +95,20 @@ class StudentGachaServiceTest {
     }
 
     @Test
-    void pointRollAt99IsNotHardGuaranteedCrystal() {
+    void pointRollBelowSoftPityUsuallyMissesCrystal() {
         StudentStreak row = new StudentStreak();
         row.setUserId(userId);
         row.setGachaTickets(0);
         row.setPoints(10_000);
-        row.setGachaPityCount(99);
+        row.setGachaPityCount(50);
         row.setCrystalSourcedPoints(0);
         when(streakRepository.lockByUserId(userId)).thenReturn(Optional.of(row));
         when(streakRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        boolean sawNonCrystal = false;
-        for (int i = 0; i < 40; i++) {
-            row.setGachaPityCount(99);
-            row.setPoints(10_000);
-            GachaRollResponse response = gachaService.roll(userId, 1);
-            if (response.pulls().stream().noneMatch(p -> "crystal".equals(p.type()))) {
-                sawNonCrystal = true;
-                assertEquals(100, response.gachaPity());
-                break;
-            }
-        }
-        assertTrue(sawNonCrystal, "point roll 100 should not be a guaranteed crystal");
+        GachaRollResponse response = gachaService.roll(userId, 1);
+        assertTrue(
+                response.pulls().stream().noneMatch(p -> "crystal".equals(p.type())),
+                "pity 51 should use 1/10000 crystal rate");
+        assertEquals(51, response.gachaPity());
     }
 }

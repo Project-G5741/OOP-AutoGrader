@@ -118,6 +118,7 @@ Default section order:
 | `docs/sql/2026-11-12-submission-pillar-scores.sql` | Operator-run: `lab_submission` and `submission_challenge_result` MMD / Declaration / Operational percentages. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-tickets.sql` | Operator-run: `student_daily_streak` gacha ticket balance, today's mission-ticket counter, and the one-time 100-ticket launch gift flag. Startup migrator applies the same columns on PostgreSQL |
 | `docs/sql/2026-11-14-gacha-crystals.sql` | Operator-run: `student_daily_streak.crystals` balance. Startup migrator applies the same column on PostgreSQL. Shop exchange pays 4000 points per crystal |
+| `docs/sql/2026-11-20-gacha-rate-config.sql` | Operator-run: `gacha_rate_config` singleton + `gacha_pity_count`, `crystal_sourced_points` on streak. Migrator `GachaRateConfigSchemaMigrator` |
 | `docs/sql/2026-11-14-mascot-practice-token.sql` | Operator-run: `student_mascot_practice_token` (one live desktop mascot-read JWT per student). Startup migrator applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-read.sql` | Operator-run: `student_notification_read` (durable web student bell read-receipt keys). Startup migrator `StudentNotificationReadSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-15-student-notification-dismiss.sql` | Operator-run: `student_notification_dismiss` (durable web student bell forever-hide keys). Startup migrator `StudentNotificationDismissSchemaMigrator` applies the same table on PostgreSQL |
@@ -126,6 +127,7 @@ Default section order:
 | `docs/sql/2026-11-16-ai-feedback-cache-challenge-scope.sql` | Operator-run: widen `ai_feedback_cache.learning_area` to VARCHAR(64) for challenge-scoped AI feedback cache keys. Startup migrator applies the same statement on PostgreSQL |
 | `docs/sql/2026-11-16-ai-student-credential.sql` | Operator-run: `ai_student_credential` (encrypted Gemini BYOK + token budget). Startup migrator `AiStudentCredentialSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-17-ai-credential-key-invalid.sql` | Operator-run: `ai_student_credential.key_invalid` (marks expired/invalid Gemini key for early toast warning). Startup migrator applies the same column on PostgreSQL |
+| `docs/sql/2026-11-18-mascot-goat-id.sql` | Operator-run: rename stored exclusive mascot id `gigi` to `goat` on `student_daily_streak.equipped_mascot` and `student_mascot_purchase.mascot_id`. Startup migrator `StudentStreakSchemaMigrator` applies the same updates on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 | `docs/design/DESIGN_SYSTEM_SKILL.md` | Official UI/UX Design System Skill: Swiss Modernism 2.0, 60-30-10 color theory, 6 themes, dropboxes, layouts, components, WCAG AA |
 
