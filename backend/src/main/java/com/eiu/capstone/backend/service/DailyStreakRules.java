@@ -135,6 +135,11 @@ public final class DailyStreakRules {
     }
 
     public static StudentStreakView toView(StudentStreak row, LocalDate today, boolean missionCompletedNow) {
+        Boolean pointsSpendAllowed = null;
+        LocalDate prefDate = row.getGachaPointsPrefDate();
+        if (prefDate != null && prefDate.equals(today) && row.getGachaPointsPrefAllow() != null) {
+            pointsSpendAllowed = row.getGachaPointsPrefAllow();
+        }
         return new StudentStreakView(
                 row.getStreakCount(),
                 row.getPoints(),
@@ -150,6 +155,8 @@ public final class DailyStreakRules {
                 row.getEquippedMascot(),
                 row.getGachaTickets(),
                 row.getCrystals(),
+                row.getGachaPityCount(),
+                pointsSpendAllowed,
                 missionCompletedNow);
     }
 }

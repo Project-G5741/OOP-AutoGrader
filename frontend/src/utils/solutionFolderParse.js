@@ -1,7 +1,7 @@
 /**
  * Parse lecturer Solution import folder selection into challenge groups.
  * Accepts lab-root: Name/challenge_n/... or single-challenge: challenge_n/...
- * Midterm layout: Name/*.java|.mmd (no challenge_n); maps to challenge 1 for the API.
+ * Midterm / Final layout: Name/*.java|.mmd (no challenge_n); maps to challenge 1 for the API.
  */
 
 import { CHALLENGE_FOLDER_PATTERN } from './bulkFolderParse';
@@ -12,21 +12,26 @@ export const SOLUTION_IMPORT_KIND = {
   OFFICIAL: 'official',
   PRACTICE: 'practice',
   MIDTERM: 'midterm',
+  FINAL: 'final',
 };
 
 export function layoutForImportKind(importKind) {
-  return importKind === SOLUTION_IMPORT_KIND.MIDTERM ? 'midterm' : 'standard';
+  return importKind === SOLUTION_IMPORT_KIND.MIDTERM || importKind === SOLUTION_IMPORT_KIND.FINAL
+    ? 'midterm'
+  : 'standard';
 }
 
 export function prefixForImportKind(importKind) {
   if (importKind === SOLUTION_IMPORT_KIND.PRACTICE) return 'Practice';
   if (importKind === SOLUTION_IMPORT_KIND.MIDTERM) return 'Midterm';
+  if (importKind === SOLUTION_IMPORT_KIND.FINAL) return 'Final';
   return 'Official';
 }
 
 export function defaultImportKindFromLabPrefix(labPrefix) {
   if (labPrefix === 'Practice') return SOLUTION_IMPORT_KIND.PRACTICE;
   if (labPrefix === 'Midterm') return SOLUTION_IMPORT_KIND.MIDTERM;
+  if (labPrefix === 'Final') return SOLUTION_IMPORT_KIND.FINAL;
   return SOLUTION_IMPORT_KIND.OFFICIAL;
 }
 

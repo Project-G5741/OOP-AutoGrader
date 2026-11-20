@@ -771,6 +771,8 @@ export default function SolutionManagement() {
         message = `${labLabel} is Practice. It stays on Score but is left out of Total.`;
       } else if (savedPrefix === 'Midterm') {
         message = `${labLabel} is Midterm (flat uploads). It stays on Score but is left out of Total.`;
+      } else if (savedPrefix === 'Final') {
+        message = `${labLabel} is Final (flat uploads). It stays on Score but is left out of Total.`;
       }
       showToast({ message, type: 'success' });
       return true;

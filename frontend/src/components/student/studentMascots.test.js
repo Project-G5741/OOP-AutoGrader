@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getMascotProfile } from './mascotBehaviors';
-import { listCatalogMascots, mascotArt } from './studentMascots';
+import { listCatalogMascots, mascotArt, mascotOfferVisibleInShop } from './studentMascots';
 
 describe('mascot catalog', () => {
   it('lists each mascot once', () => {
@@ -21,5 +21,16 @@ describe('mascot catalog', () => {
   it('keeps The GOAT and Ice Queen dialogue on the canonical profile', () => {
     expect(getMascotProfile('ice-queen')).toBe(getMascotProfile('ice_queen'));
     expect(getMascotProfile('goat').dialogues.idle.join(' ')).toContain('The GOAT');
+  });
+
+  it('hides exclusive mascots in the shop unless the API offers them', () => {
+    const iceQueen = listCatalogMascots().find((item) => item.id === 'ice_queen');
+    const goat = listCatalogMascots().find((item) => item.id === 'goat');
+    const backend = new Set(['fox', 'bear']);
+    expect(mascotOfferVisibleInShop(iceQueen, backend)).toBe(false);
+    expect(mascotOfferVisibleInShop(goat, backend)).toBe(false);
+    expect(mascotOfferVisibleInShop(iceQueen, new Set(['fox', 'ice_queen']))).toBe(true);
+    expect(mascotOfferVisibleInShop(goat, new Set(['fox', 'goat']))).toBe(true);
+    expect(mascotOfferVisibleInShop({ id: 'bear', exclusive: false }, backend)).toBe(true);
   });
 });

@@ -55,6 +55,23 @@ class SubmissionUploadPathServiceTest {
     }
 
     @Test
+    void prepareUploadFiles_finalLab_insertsChallengeFolder() {
+        UUID labId = UUID.randomUUID();
+        Lab lab = new Lab();
+        lab.setId(labId);
+        lab.setPrefix(LabPrefix.FINAL);
+        Challenge challenge = new Challenge();
+        challenge.setChallengeNumber(1);
+        when(challengeRepository.findByLab_IdOrderByChallengeNumberAsc(labId)).thenReturn(List.of(challenge));
+
+        List<MultipartFile> files = List.of(javaFile("123_Name/Animal.java"));
+
+        var remapped = service.prepareUploadFiles(lab, files);
+        assertEquals(1, remapped.size());
+        assertEquals("123_Name/challenge_1/Animal.java", remapped.get(0).getOriginalFilename());
+    }
+
+    @Test
     void prepareUploadFiles_midtermLab_requiresSingleChallenge() {
         UUID labId = UUID.randomUUID();
         Lab lab = new Lab();

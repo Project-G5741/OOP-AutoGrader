@@ -24,7 +24,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `sidebar.jsx` | shadcn-style `SidebarProvider` / `Sidebar` / `SidebarInset` / `SidebarTrigger`. Desktop offcanvas clips a fixed-width rail (`18rem`) and slides it; inner text does not reflow. |
 | `item.jsx` | shadcn-style list `Item` (`ItemTitle`, `ItemDescription`, `ItemMedia`, `ItemActions`) |
 | `badge.jsx` | Small status chip (`default`, `secondary`, `outline`, `warning`, `destructive`, `navy`, `teal`, `gold`, `success`, `ai`, `deadline-3`, `deadline-2`, `deadline-1`) |
-| `LabPrefixBadge.jsx` | Official (`navy`), Practice (`teal`), or Midterm (`gold`) lab badge. Unknown or missing prefix displays as Official |
+| `LabPrefixBadge.jsx` | Official (`navy`), Practice (`teal`), Midterm or Final (`gold`) lab badge. Unknown or missing prefix displays as Official |
 | `DatePicker.jsx` | Flatpickr calendar (`Y-m-d` value, `d.m.Y` display); themed in `datepicker.css` |
 | `cn.js` | Class-name join helper |
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
@@ -37,7 +37,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 ### DropZone upload contract
 
 - Accepts props: `labId`, `attemptNumber`, `authToken`, `onUploadComplete` (and styling props)
-- Shows a one-line **Folder format** hint above the drop zone. Default: `IRN_YourName` / `challenge_1`, …; optional text after the name (e.g. `_lab_1`) is ignored. When `labPrefix` is **Midterm**, hint and client validation expect `.java` and `.mmd` directly under `IRN_YourName` (no `challenge_n` folders); the server remaps into the single challenge before compile.
+- Shows a one-line **Folder format** hint above the drop zone. Default: `IRN_YourName` / `challenge_1`, …; optional text after the name (e.g. `_lab_1`) is ignored. When `labPrefix` is **Midterm** or **Final**, hint and client validation expect `.java` and `.mmd` directly under `IRN_YourName` (no `challenge_n` folders); the server remaps into the single challenge before compile.
 - Client-side filter: `.mmd`, `.java`, and `.git/**`. Root may include `.git` beside `challenge_*` folders. Do not mention plagiarism to the student.
 - Builds `FormData` with `files` entries; each entry uses `webkitRelativePath` as the multipart filename (preserves folder structure for backend challenge detection)
 - Endpoint: `POST /api/submissions/{labId}/{attemptNumber}/upload` — `{attemptNumber}` is a positive placeholder; the server assigns `MAX(attempt)+1`

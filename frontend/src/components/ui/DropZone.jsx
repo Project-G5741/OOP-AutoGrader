@@ -9,7 +9,7 @@ import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { apiFetch } from '../../utils/apiFetch';
 import { getAccessToken } from '../../utils/authRoutes';
 import { useToast } from './Toast';
-import { normalizeLabPrefix } from './LabPrefixBadge';
+import { usesFlatStudentUploadPrefix } from './LabPrefixBadge';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
@@ -85,9 +85,9 @@ export default function DropZone({
     }
   };
 
-  const isMidtermLab = normalizeLabPrefix(labPrefix) === 'Midterm';
+  const isFlatUploadLab = usesFlatStudentUploadPrefix(labPrefix);
 
-  const isValidMidtermFolderStructure = (entries) => {
+  const isValidFlatUploadFolderStructure = (entries) => {
     const filePaths = entries.map(({ relativePath }) => relativePath);
     if (filePaths.length === 0) {
       return false;
@@ -127,8 +127,8 @@ export default function DropZone({
   };
 
   const isValidFolderStructure = (entries) => {
-    if (isMidtermLab) {
-      return isValidMidtermFolderStructure(entries);
+    if (isFlatUploadLab) {
+      return isValidFlatUploadFolderStructure(entries);
     }
     const filePaths = entries.map(({ relativePath }) => relativePath);
     if (filePaths.length === 0) {
@@ -173,7 +173,7 @@ export default function DropZone({
 
     if (relevant.length === 0) {
       setUploadError(
-        isMidtermLab
+        isFlatUploadLab
           ? 'Please drop a valid project folder with .java and .mmd files directly under IRN_YourName.'
           : 'Please drop a valid project folder with .mmd/.java files inside challenge folders.',
       );
@@ -182,7 +182,7 @@ export default function DropZone({
 
     if (!isValidFolderStructure(relevant)) {
       setUploadError(
-        isMidtermLab
+        isFlatUploadLab
           ? "Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with .java and .mmd files inside (no challenge_n folders)."
           : "Invalid folder structure. Expected a root folder named like 'IRN_StudentName' with challenge folders named 'challenge_1'.",
       );
@@ -265,7 +265,7 @@ export default function DropZone({
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p className="text-xs leading-relaxed">
             <span className="font-semibold">Folder format:</span>{' '}
-            {isMidtermLab ? (
+            {isFlatUploadLab ? (
               <>
                 <span className="font-mono">IRN_YourName</span>
                 {' / '}

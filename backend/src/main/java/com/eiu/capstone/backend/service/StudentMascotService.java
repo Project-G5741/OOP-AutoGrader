@@ -159,6 +159,31 @@ public class StudentMascotService {
         return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId), isGoatEligible(userId));
     }
 
+    @Transactional
+    public void unlockGachaMascots(UUID userId, List<String> mascotIds) {
+        if (userId == null || mascotIds == null || mascotIds.isEmpty()) {
+            return;
+        }
+        for (String raw : mascotIds) {
+            String targetId = normalizeMascotId(raw);
+            if (!MascotGachaPools.isUnlockable(targetId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid gacha mascot");
+            }
+            if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId)
+                    || MascotCatalog.EXCLUSIVE_GOAT_ID.equalsIgnoreCase(targetId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid gacha mascot");
+            }
+            if (purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
+                continue;
+            }
+            StudentMascotPurchase unlocked = new StudentMascotPurchase();
+            unlocked.setId(new StudentMascotPurchaseKey(userId, targetId));
+            unlocked.setPricePaid(0);
+            unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
+            purchases.save(unlocked);
+        }
+    }
+
     private Set<String> ownedIds(UUID userId) {
         return purchases.findByIdUserId(userId).stream()
                 .map(row -> row.getId().getMascotId())
