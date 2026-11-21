@@ -52,6 +52,12 @@ class BurstLimitExemptionsTest {
     }
 
     @Test
+    void streakPetPost_isExempt() {
+        assertTrue(BurstLimitExemptions.isExempt("/api/students/streak/pet", "POST"));
+        assertFalse(BurstLimitExemptions.isExempt("/api/students/streak/pet", "GET"));
+    }
+
+    @Test
     void ordinaryUpload_isNotExempt() {
         assertFalse(BurstLimitExemptions.isExempt("/api/submissions/upload", "POST"));
     }

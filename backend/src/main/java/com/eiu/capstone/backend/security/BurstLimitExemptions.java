@@ -46,6 +46,10 @@ public final class BurstLimitExemptions {
         if ("/api/students/ai/hint".equals(normalizedPath)) {
             return true;
         }
+        // Mascot header spam-clicks; cheap streak row update.
+        if ("/api/students/streak/pet".equals(normalizedPath)) {
+            return true;
+        }
         return TERM_STUDENT_IMPORT.matcher(normalizedPath).matches();
     }
 }
