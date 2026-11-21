@@ -6,6 +6,7 @@ import {
   DESKTOP_IMPORT_NETWORK,
   FRIENDLY,
   SOLUTION_IMPORT_ERROR_MESSAGES,
+  STREAK_PET_ERROR_MESSAGES,
   TESTCASE_CONFIG_FALLBACK,
 } from '../config/apiErrorMessages';
 
@@ -19,6 +20,7 @@ function collectFriendlyMessages() {
   messages.add(DESKTOP_IMPORT_NETWORK);
   messages.add(TESTCASE_CONFIG_FALLBACK);
   Object.values(SOLUTION_IMPORT_ERROR_MESSAGES).forEach((message) => messages.add(message));
+  Object.values(STREAK_PET_ERROR_MESSAGES).forEach((message) => messages.add(message));
   Object.values(AUTH_ERROR_MESSAGES).forEach((entry) => {
     Object.values(entry).forEach((message) => messages.add(message));
   });
@@ -154,6 +156,13 @@ export async function readFriendlyApiError(response, context = 'read') {
       return SOLUTION_IMPORT_ERROR_MESSAGES.default;
     case 'feedback':
       return backendMessage || FRIENDLY.SAVE_FAILED;
+    case 'streak-pet': {
+      const statusMessage = STREAK_PET_ERROR_MESSAGES[response.status];
+      if (statusMessage) {
+        return statusMessage;
+      }
+      return STREAK_PET_ERROR_MESSAGES.default;
+    }
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;
@@ -176,6 +185,9 @@ export function toFriendlyError(error, context = 'read') {
   if (isNetworkError(error)) {
     if (context === 'import') {
       return DESKTOP_IMPORT_NETWORK;
+    }
+    if (context === 'streak-pet') {
+      return STREAK_PET_ERROR_MESSAGES.default;
     }
     return FRIENDLY.SERVER_BUSY;
   }
@@ -211,6 +223,8 @@ export function toFriendlyError(error, context = 'read') {
       return FRIENDLY.SOMETHING_WRONG;
     case 'solution-import':
       return SOLUTION_IMPORT_ERROR_MESSAGES.default;
+    case 'streak-pet':
+      return STREAK_PET_ERROR_MESSAGES.default;
     case 'read':
     default:
       return FRIENDLY.SERVER_BUSY;

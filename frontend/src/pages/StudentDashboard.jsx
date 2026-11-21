@@ -372,6 +372,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [awardPulse, setAwardPulse] = useState(0);
   const [restoringStreak, setRestoringStreak] = useState(false);
   const streakSnapshot = useRef(null);
+  const petInFlightRef = useRef(false);
+  const petGoalToastShownRef = useRef(false);
 
   useEffect(() => {
     setMascotSpeech(null);
@@ -422,6 +424,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     const mergedNext = next ? { ...next, equipped: serverEquipped } : next;
     streakSnapshot.current = mergedNext;
     setStreak(mergedNext);
+    if (mergedNext && (mergedNext.petCount ?? 0) < (mergedNext.petGoal ?? 4)) {
+      petGoalToastShownRef.current = false;
+    }
   }, [applyCrystalBalance, postCrystalCount, showToast]);
 
   const applyShop = useCallback((shop) => {
@@ -606,19 +611,30 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const petFox = useCallback(async () => {
     if (IS_DESKTOP_APP) return;
     const goal = streakSnapshot.current?.petGoal ?? 4;
-    if ((streakSnapshot.current?.petCount ?? 0) >= goal) return;
+    const count = streakSnapshot.current?.petCount ?? 0;
+    if (count >= goal) {
+      if (!petGoalToastShownRef.current) {
+        petGoalToastShownRef.current = true;
+        showToast('Daily pet mission complete.', 'success');
+      }
+      return;
+    }
+    if (petInFlightRef.current) return;
+    petInFlightRef.current = true;
     try {
       const response = await apiFetch(`${API_BASE}/api/students/streak/pet`, {
         method: 'POST',
         headers: authHeaders(),
       });
       if (!response.ok) {
-        showToast(await friendlyLoadErrorFromResponse(response), 'error');
+        showToast(await readFriendlyApiError(response, 'streak-pet'), 'error');
         return;
       }
       applyStreak(await response.json());
     } catch (error) {
-      showToast(toFriendlyError(error), 'error');
+      showToast(toFriendlyError(error, 'streak-pet'), 'error');
+    } finally {
+      petInFlightRef.current = false;
     }
   }, [applyStreak, showToast]);
 

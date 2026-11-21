@@ -88,7 +88,14 @@ export const BACKEND_MESSAGE_CONTEXTS = [
   'feedback',
   'bulk-grade',
   'mascot-code',
+  'streak-pet',
 ];
+
+/** Daily mascot pet mission (`context: 'streak-pet'`) */
+export const STREAK_PET_ERROR_MESSAGES = {
+  409: 'Daily pet mission already complete.',
+  default: 'Unable to record pet. Please try again.',
+};
 
 /**
  * Client-thrown Error messages that should pass through unchanged in toFriendlyError.
