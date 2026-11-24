@@ -18,8 +18,8 @@ public record EggSmashRateConfig(
     public static EggSmashRateConfig defaults() {
         return new EggSmashRateConfig(
                 0.0,
-                0.0001,
-                0.05,
+                0.0,
+                0.0,
                 1.0 / 3.0,
                 1.0,
                 0.05,

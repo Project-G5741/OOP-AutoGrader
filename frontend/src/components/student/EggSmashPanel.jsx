@@ -519,18 +519,13 @@ export default function EggSmashPanel({
     onWalletSyncRef.current?.(finalWallet);
 
     const gotCrystal = (payload.crystalsEarned || 0) > 0;
-    const missedCrystal = !gotCrystal && (payload.cells || []).some((c) => !c.picked && c.type === 'crystal');
 
     if (gotCrystal) {
       parkRoosterHome(SPRITES.rWin, false);
       setBannerText(`+1 CRYSTAL & +${formatNumber(payload.pointsEarned || 0)} PTS!`);
     } else {
       parkRoosterHome(SPRITES.rIdle, true);
-      if (missedCrystal) {
-        setBannerText(`+${formatNumber(payload.pointsEarned || 0)} PTS · Crystal near!`);
-      } else {
-        setBannerText(`Won +${formatNumber(payload.pointsEarned || 0)} PTS!`);
-      }
+      setBannerText(`Won +${formatNumber(payload.pointsEarned || 0)} PTS!`);
     }
 
     setSelected([]);
