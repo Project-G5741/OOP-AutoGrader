@@ -25,6 +25,7 @@ import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/P
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
+import HolidayManagement from './HolidayManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { hasRole, LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
@@ -1226,6 +1227,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           <ReportsPage />
         ) : activeNav === 'feedback' ? (
           <FeedbackInbox />
+        ) : activeNav === 'holidays' ? (
+          <HolidayManagement />
         ) : null}
       </AppShell>
 

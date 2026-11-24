@@ -58,6 +58,7 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-14-gacha-tickets.sql` | `StudentStreakSchemaMigrator` | Ticket columns |
 | `2026-11-14-gacha-crystals.sql` | `StudentStreakSchemaMigrator` | `crystals` |
 | `2026-11-20-gacha-rate-config.sql` | `GachaRateConfigSchemaMigrator` | `gacha_rate_config` singleton + `gacha_pity_count`, `crystal_sourced_points` on streak |
+| `2026-11-24-holiday-schedule-config.sql` | `HolidayScheduleConfigSchemaMigrator` | `holiday_schedule_config` singleton for Admin early holiday schedule config |
 | `2026-11-14-mascot-practice-token.sql` | `MascotPracticeTokenSchemaMigrator` | Practice JWT tables |
 | `2026-11-15-student-notification-read.sql` | `StudentNotificationReadSchemaMigrator` | Durable bell read-receipt keys |
 | `2026-11-15-student-notification-dismiss.sql` | `StudentNotificationDismissSchemaMigrator` | Durable bell forever-hide dismiss keys |

@@ -101,6 +101,202 @@
   animation: arch-spin 52s linear infinite reverse;
 }
 
+/* ── Full-Scene Holiday Background Stage & Live Particle Engine ───────── */
+
+.holiday-scene-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.holiday-ornament-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.holiday-scene-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  animation: holiday-scene-fadein 0.45s ease-out;
+}
+
+@keyframes holiday-scene-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.holiday-lights-layer,
+.holiday-fog-layer,
+.holiday-particles-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.holiday-twinkle-orb {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fef08a;
+  box-shadow: 0 0 22px 8px rgba(251, 191, 36, 0.55);
+  animation: holiday-twinkle 2.8s ease-in-out infinite;
+}
+
+@keyframes holiday-twinkle {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.18);
+  }
+}
+
+.session-holiday-effects {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.session-holiday-corner-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.holiday-fog-band {
+  position: absolute;
+  bottom: -14px;
+  left: -25%;
+  width: 150%;
+  height: 120px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.08);
+  filter: blur(22px);
+}
+
+.holiday-fog-band--a {
+  animation: holiday-fog-slide 18s ease-in-out infinite;
+}
+
+.holiday-fog-band--b {
+  bottom: 34px;
+  background: rgba(168, 85, 247, 0.08);
+  animation: holiday-fog-slide 24s ease-in-out infinite reverse;
+}
+
+.holiday-particle {
+  position: absolute;
+  will-change: transform, opacity;
+}
+
+.holiday-particle--fall {
+  top: -36px;
+  animation-name: holiday-particle-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.holiday-particle--rise {
+  bottom: -36px;
+  animation-name: holiday-particle-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.holiday-sway-left {
+  animation: holiday-sway-a 4.2s ease-in-out infinite;
+}
+
+.holiday-sway-right {
+  animation: holiday-sway-b 4.8s ease-in-out infinite;
+}
+
+/* ── DEV Holiday Background Preview Bar ───────────────────────────────── */
+
+.holiday-dev-preview-bar {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.22);
+}
+
+.holiday-dev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--navy);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.holiday-dev-step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.holiday-dev-step-btn:hover {
+  background: var(--surface-tertiary);
+}
+
+.holiday-dev-select {
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
 /* ── Balanced Unified Two-Column Split Card (zero nested borders) ─────── */
 
 .login-shell {
@@ -114,15 +310,68 @@
   animation: login-rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.login-bg[data-holiday]:not([data-holiday="default"]) .login-shell {
+  max-width: 820px;
+}
+
+.login-bg[data-holiday]:not([data-holiday="default"]) .login-unified-card {
+  backdrop-filter: blur(10px);
+}
+
+.holiday-spider-dangle {
+  animation: holiday-spider-bounce 4.5s ease-in-out infinite;
+}
+
+@keyframes holiday-spider-bounce {
+  0%, 100% {
+    transform: translate(1475px, -10px);
+  }
+  50% {
+    transform: translate(1475px, 16px);
+  }
+}
+
 .login-unified-card {
+  position: relative;
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-radius: 28px;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--login-card-border, var(--border));
   background: var(--surface);
-  box-shadow: 0 24px 48px -16px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--login-card-shadow, 0 24px 48px -16px rgba(15, 23, 42, 0.12));
   overflow: hidden;
+}
+
+.login-card-holiday-decor {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.login-card-decor-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.login-logo-holiday-wrap {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.login-logo-accessory {
+  position: absolute;
+  top: -18px;
+  right: -18px;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  z-index: 4;
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.22));
 }
 
 .dark .login-unified-card {
@@ -135,7 +384,7 @@
   flex-direction: column;
   justify-content: center;
   padding: 2.75rem 2.5rem;
-  background: var(--surface-secondary);
+  background: var(--login-hero-bg, var(--surface-secondary));
   overflow: hidden;
 }
 
@@ -146,12 +395,12 @@
   width: 210px;
   height: 210px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  background: color-mix(in srgb, var(--login-accent, var(--primary)) 12%, transparent);
   pointer-events: none;
 }
 
 .dark .login-hero-corner {
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  background: color-mix(in srgb, var(--login-accent, var(--primary)) 20%, transparent);
 }
 
 .login-hero-inner {
@@ -169,8 +418,8 @@
   width: fit-content;
   padding: 0.38rem 0.85rem;
   border-radius: 999px;
-  background: var(--navy);
-  color: #ffffff;
+  background: var(--login-kicker-bg, var(--navy));
+  color: var(--login-kicker-fg, #ffffff);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -183,7 +432,7 @@
   line-height: 1.18;
   font-weight: 800;
   letter-spacing: -0.025em;
-  color: var(--text-primary);
+  color: var(--login-hero-text, var(--text-primary));
 }
 
 .login-hero-stage {
@@ -315,9 +564,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--navy);
-  border: 1.5px solid color-mix(in srgb, var(--primary) 35%, transparent);
-  box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--navy) 45%, transparent);
+  background: var(--login-logo-bg, var(--navy));
+  border: 1.5px solid color-mix(in srgb, var(--login-accent, var(--primary)) 35%, transparent);
+  box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--login-logo-bg, var(--navy)) 45%, transparent);
   transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -400,8 +649,8 @@
 }
 
 .input-field:focus {
-  border-color: var(--primary-hover);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+  border-color: var(--login-accent-hover, var(--primary-hover));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--login-accent, var(--primary)) 25%, transparent);
 }
 
 .password-toggle {
@@ -442,13 +691,14 @@
 .remember-option input {
   width: 0.95rem;
   height: 0.95rem;
-  accent-color: var(--primary);
+  accent-color: var(--login-accent, var(--primary));
 }
 
 .forgot-link {
   background: none;
   border: none;
-  color: var(--primary-text);
+  color: var(--login-accent, var(--primary-text));
+  font-weight: 600;
   cursor: pointer;
   padding: 0;
 }
@@ -458,7 +708,7 @@
   padding: 0.9rem 1rem;
   border: none;
   border-radius: 0.8rem;
-  background: var(--primary);
+  background: var(--login-accent, var(--primary));
   color: white;
   font-weight: 600;
   cursor: pointer;
@@ -466,7 +716,7 @@
 }
 
 .primary-btn:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--login-accent-hover, var(--primary-hover));
 }
 
 .primary-btn:disabled {
@@ -599,6 +849,55 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes holiday-particle-fall {
+  0% {
+    transform: translate3d(0, -4vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.88;
+  }
+  88% {
+    opacity: 0.88;
+  }
+  100% {
+    transform: translate3d(0, 106vh, 0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes holiday-particle-rise {
+  0% {
+    transform: translate3d(0, 4vh, 0) scale(0.85);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.92;
+  }
+  85% {
+    opacity: 0.92;
+  }
+  100% {
+    transform: translate3d(0, -106vh, 0) scale(1.08);
+    opacity: 0;
+  }
+}
+
+@keyframes holiday-sway-a {
+  0%, 100% { transform: translateX(-12px); }
+  50% { transform: translateX(12px); }
+}
+
+@keyframes holiday-sway-b {
+  0%, 100% { transform: translateX(14px); }
+  50% { transform: translateX(-14px); }
+}
+
+@keyframes holiday-fog-slide {
+  0%, 100% { transform: translateX(-4%); }
+  50% { transform: translateX(4%); }
+}
+
 @media (max-width: 900px) {
   .login-shell {
     max-width: 440px;
@@ -664,8 +963,18 @@
   .arch-plane,
   .arch-ring,
   .login-shell,
-  .login-card-wrapper {
+  .login-card-wrapper,
+  .holiday-particle,
+  .holiday-sway-left,
+  .holiday-sway-right,
+  .holiday-fog-band,
+  .holiday-twinkle-orb,
+  .holiday-scene-bg-img {
     animation: none !important;
+  }
+
+  .holiday-particles-layer {
+    display: none;
   }
 
   .login-lottie-box:hover,

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import Header from '../Header';
 import Footer from '../Footer';
 import NavBar from '../NavBar';
+import { hasRole } from '../../utils/authRoutes';
 
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
 const FeedbackFab = IS_DESKTOP_APP
@@ -67,6 +68,7 @@ export default function AppShell({
                 onNavigate={onNavigate}
                 onPrefetch={onPrefetch}
                 items={navItems}
+                isAdmin={hasRole(user?.roles, 'ADMIN')}
                 align={navAlign}
                 collapse={navCollapse}
                 trailing={navTrailing}

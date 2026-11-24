@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy, Sparkles } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -12,6 +12,7 @@ const navItems = [
   { id: 'projects', label: 'Solution', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
   { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
+  { id: 'holidays', label: 'Holidays', icon: Sparkles, adminOnly: true },
 ];
 
 function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '', pillId = 'desktop-nav-pill' }) {
@@ -49,12 +50,14 @@ export default function NavBar({
   onNavigate,
   onPrefetch,
   items = navItems,
+  isAdmin = false,
   align = 'end',
   collapse = true,
   trailing = null,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const activeItem = items.find((item) => item.id === active) ?? items[0];
+  const visibleItems = items.filter((item) => !item.adminOnly || isAdmin);
+  const activeItem = visibleItems.find((item) => item.id === active) ?? visibleItems[0];
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -107,7 +110,7 @@ export default function NavBar({
             className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-2xl border border-border bg-surface p-2 shadow-lg lg:hidden"
           >
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-              {items.map(({ id, label, icon }) => (
+              {visibleItems.map(({ id, label, icon }) => (
                 <NavButton
                   key={id}
                   id={id}
@@ -131,7 +134,7 @@ export default function NavBar({
         } ${collapse ? 'hidden lg:flex' : 'flex'}`}
       >
         <nav className={`flex min-w-0 flex-wrap items-center gap-2 ${trailing ? 'justify-start' : rowAlign}`}>
-          {items.map(({ id, label, icon }) => (
+          {visibleItems.map(({ id, label, icon }) => (
             <NavButton
               key={id}
               id={id}

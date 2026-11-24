@@ -15,6 +15,7 @@ import NoAccessPage from "./pages/NoAccessPage";
 import RateLimitedPage from "./pages/RateLimitedPage";
 import MaintenancePage from "./pages/MaintenancePage";
 import RequireRole from "./components/auth/RequireRole";
+import SessionHolidayEffects from "./components/auth/holidays/SessionHolidayEffects";
 import {
   clearAuthSession,
   defaultDashboardPath,
@@ -135,6 +136,7 @@ export default function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <SessionHolidayEffects />
       <Routes>
           <Route
             path={ROUTES.login}
@@ -220,6 +222,14 @@ export default function App() {
             path={ROUTES.lecturerRanking}
             element={
               <RequireRole anyOf={["LECTURER", "ADMIN"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.lecturerHolidays}
+            element={
+              <RequireRole anyOf={["ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
               </RequireRole>
             }
