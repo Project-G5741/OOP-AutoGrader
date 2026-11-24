@@ -125,6 +125,27 @@ class MmdRelationParseTest {
         assertNull(lineParser.parse("class Animal {", 1));
     }
 
+    @ParameterizedTest
+    @MethodSource("nonTableArrowsGradeAsUnknown")
+    void nonTableArrowsParseAsUnknownNotParseError(String arrow) {
+        ParsedMmdDiagram diagram = parse(diagram("ClassA " + arrow + " ClassB"));
+
+        assertEquals(1, diagram.relations.size(), "arrow: " + arrow);
+        assertEquals("unknown", diagram.relations.get(0).relationType);
+        assertEquals("ClassA", diagram.relations.get(0).sourceClassName);
+        assertEquals("ClassB", diagram.relations.get(0).targetClassName);
+    }
+
+    private static Stream<Arguments> nonTableArrowsGradeAsUnknown() {
+        return Stream.of(
+                Arguments.of("..o"),
+                Arguments.of("o.."),
+                Arguments.of("o-->"),
+                Arguments.of("--o>"),
+                Arguments.of("*-->"),
+                Arguments.of("--*>"));
+    }
+
     private static void assertClassPresent(ParsedMmdDiagram diagram, String name) {
         boolean found = diagram.classes.stream().map(c -> c.name).anyMatch(name::equals);
         if (!found) {

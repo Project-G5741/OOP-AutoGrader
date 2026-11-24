@@ -389,7 +389,7 @@ class MmdParserTest {
   @Test
   void parsesAggregationArrowWithRelationLabel() {
     String mmd = withHeader("""
-        BaseDecorator o--> Coffee : wraps
+        BaseDecorator o-- Coffee : wraps
         """);
 
     ParsedMmdDiagram diagram = parser.parse(mmd);
@@ -404,7 +404,7 @@ class MmdParserTest {
   @Test
   void gradesAggregationRelationWithLabelAgainstRubric() {
     String mmd = withHeader("""
-        BaseDecorator o--> Coffee : wraps
+        BaseDecorator o-- Coffee : wraps
         """);
 
     var relationId = java.util.UUID.randomUUID();
@@ -424,6 +424,34 @@ class MmdParserTest {
     MmdGradingOutcome outcome = comparisonService.compare(rubric, parser.parse(mmd));
 
     assertTrue(outcome.isRelationCorrect(relationId));
+  }
+
+  @Test
+  void nonTableAggregationArrowParsesAsUnknownAndDoesNotMatchRubric() {
+    String mmd = withHeader("""
+        BaseDecorator ..o Coffee : wraps
+        """);
+
+    ParsedMmdDiagram diagram = parser.parse(mmd);
+    assertEquals(1, diagram.relations.size());
+    assertEquals("unknown", diagram.relations.get(0).relationType);
+
+    var relationId = java.util.UUID.randomUUID();
+    var baseId = java.util.UUID.randomUUID();
+    var coffeeId = java.util.UUID.randomUUID();
+    ChallengeRubric rubric = new ChallengeRubric(
+        java.util.UUID.randomUUID(),
+        1,
+        "Decorator",
+        java.util.List.of(
+            new ClassRubric(baseId, "BaseDecorator", "public", "CLASS", true, java.util.List.of(), java.util.List.of(), java.util.List.of()),
+            new ClassRubric(coffeeId, "Coffee", "public", "INTERFACE", false, java.util.List.of(), java.util.List.of(), java.util.List.of())),
+        java.util.List.of(new com.eiu.capstone.backend.grading.rubric.RelationRubric(
+            relationId, baseId, "BaseDecorator", coffeeId, "Coffee", "aggregation")),
+        java.util.List.of());
+
+    MmdGradingOutcome outcome = comparisonService.compare(rubric, diagram);
+    assertFalse(outcome.isRelationCorrect(relationId));
   }
 
   @Test

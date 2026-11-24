@@ -550,6 +550,12 @@ public final class MmdAstToParsedMapper {
         ParsedMmdRelation relation = new ParsedMmdRelation();
         relation.relationType = MmdRelationTypes.canonicalRelationType(arrow);
 
+        if (MmdRelationTypes.UNKNOWN.equals(relation.relationType)) {
+            relation.sourceClassName = left;
+            relation.targetClassName = right;
+            return relation;
+        }
+
         if ("()--".equals(arrow)) {
             relation.relationType = "realization";
             relation.targetClassName = left;
