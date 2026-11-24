@@ -9,8 +9,8 @@ import javax.tools.JavaFileObject;
 /**
  * Result of compiling one challenge source list. {@code succeeded} is true only when
  * the first group javac completed without errors. Mixed failure keeps first-pass
- * diagnostics so callers can attribute ERROR files, and may still emit survivor
- * {@code .class} files via a remainder compile.
+ * diagnostics so callers can attribute ERROR files, wipes any partial first-pass
+ * {@code .class} output, and remainder-compiles independent survivors into {@code classes/}.
  */
 public record CompileOutcome(
         boolean succeeded,

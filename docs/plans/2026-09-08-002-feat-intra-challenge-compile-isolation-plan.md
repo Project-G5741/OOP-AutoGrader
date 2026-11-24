@@ -176,7 +176,7 @@ flowchart TB
 
 ### Key Technical Decisions
 
-- KTD1. **Remainder compile after a failed group javac** (session-settled: user-directed — instantiates R1/R2 over per-file javac and over a second compile as the default: happy path stays one group compile; mixed failure may run one extra group compile of sources with no ERROR diagnostic). If the first failed task already wrote any `.class` file, skip the remainder compile. Research: a mixed Good+Bad `CompilationTask` on the local JDK wrote zero `.class` files, so keeping survivors requires this fallback. **Governs R1, R2.**
+- KTD1. **Remainder compile after a failed group javac** (session-settled: user-directed — instantiates R1/R2 over per-file javac and over a second compile as the default: happy path stays one group compile; mixed failure always wipes partial first-pass `.class` output then runs one extra group compile of sources with no ERROR diagnostic that are not attributed dependents). Do not skip remainder when leftover `.class` files exist — javac can emit a partial set and orphan survivors. **Governs R1, R2.**
 - KTD2. **`ChallengeResult.compileError` is catastrophic only.** I/O and setup failures still delete the cleanup target and gate the whole challenge. Mixed javac leaves `compileError` null and fills `failedClassNames` plus `compileErrorsByClassName`. **Governs R6, R8, R10.**
 - KTD3. **Root vs dependent attribution.** ERROR diagnostics map to the source file, then to every type declared in that file (per R3). Dependents are a source scan of type positions (extends, implements, fields, method and constructor signatures, `new Type(`) against failed rubric names, closed transitively. Pointer text uses the first root in rubric order: `Compilation Error on Student`. **Governs R3, R4, R7.**
 - KTD4. **Testcase compile ERROR if any invoked type failed.** Check invocation `className`, `receiverClassName`, comparison instance class names, and parameter types against `failedClassNames`. Catastrophic `compileError` still gates every testcase. **Governs R8, R9.**
@@ -192,10 +192,9 @@ flowchart TB
   group[Group javac of all challenge sources]
   group --> ok{task success?}
   ok -->|yes| grade[Grade all compiled types]
-  ok -->|no| emit{Any .class written?}
-  emit -->|yes| attr[Attribute ERROR files]
-  emit -->|no| rem[Group javac of sources with no ERROR diagnostic]
-  rem --> attr
+  ok -->|no| wipe[Wipe partial first-pass .class output]
+  wipe --> rem[Group javac of non-ERROR non-dependent sources]
+  rem --> attr[Attribute ERROR files from first-pass diagnostics]
   attr --> close[Close dependents from source type positions]
   close --> split{Class fate}
   split -->|independent| gradeInd[Class tab + testcases + score share]
@@ -207,7 +206,7 @@ flowchart TB
 
 ### Assumptions
 
-- Mixed javac on JDK 17 writes no sibling `.class` files. U1 pins this. If a first pass writes any `.class`, skip the remainder compile.
+- Mixed javac may write zero or a partial `.class` set. U1 pins survivor recovery: wipe first-pass output, then remainder-compile independents (never skip remainder because leftovers exist).
 - Remainder sources stay one group so mutual references among survivors still compile (F3).
 - Extra student types not on the rubric still compile with the challenge. They do not get Class cards.
 - A rubric class with no uploaded source is a missing class, not a compile error, unless a dependent pointer applies.

@@ -77,7 +77,7 @@ Per upload request (unique `requestId` prevents collisions):
 
 ### Java compilation
 
-- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources that have no ERROR diagnostic and are not attributed dependents into the same `classes/`
+- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure wipes any partial first-pass `.class` output, then remainder-compiles sources that have no ERROR diagnostic and are not attributed dependents into `classes/` (do not skip remainder when leftover `.class` files exist)
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager` with empty `CLASS_PATH` (JDK types only; not the Spring Boot classpath). `initCompiler` warms javac with a throwaway `Warmup` compile so the first student upload is not the cold hit
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`, `-proc:none`
 - Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`
