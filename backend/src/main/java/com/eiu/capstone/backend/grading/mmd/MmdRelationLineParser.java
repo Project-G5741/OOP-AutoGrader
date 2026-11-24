@@ -44,28 +44,10 @@ public final class MmdRelationLineParser {
                     lollipopRight.group(1), "--()", lollipopRight.group(2), label, lineNumber);
         }
 
-        Match best = null;
-        for (String arrow : MmdRelationTypes.ARROWS) {
-            if ("()--".equals(arrow) || "--()".equals(arrow)) {
-                continue;
-            }
-            int searchFrom = 0;
-            while (searchFrom <= stripped.length()) {
-                int idx = stripped.indexOf(arrow, searchFrom);
-                if (idx < 0) {
-                    break;
-                }
-                Endpoint left = parseEndpoint(stripped.substring(0, idx).trim());
-                Endpoint right = parseEndpoint(stripped.substring(idx + arrow.length()).trim());
-                if (left != null && right != null) {
-                    if (best == null || arrow.length() > best.arrow.length()) {
-                        best = new Match(arrow, left, right);
-                    }
-                }
-                searchFrom = idx + 1;
-            }
+        Match best = matchKnownArrow(stripped);
+        if (best == null) {
+            best = matchUnknownRelationArrow(stripped);
         }
-
         if (best == null) {
             return null;
         }
@@ -78,6 +60,76 @@ public final class MmdRelationLineParser {
                 best.left.cardinality(),
                 best.right.cardinality(),
                 lineNumber);
+    }
+
+    private static Match matchKnownArrow(String stripped) {
+        Match best = null;
+        for (String arrow : MmdRelationTypes.ARROWS) {
+            if ("()--".equals(arrow) || "--()".equals(arrow)) {
+                continue;
+            }
+            int searchFrom = 0;
+            while (searchFrom <= stripped.length()) {
+                int idx = stripped.indexOf(arrow, searchFrom);
+                if (idx < 0) {
+                    break;
+                }
+                Match candidate = endpointsAround(stripped, idx, arrow.length(), arrow);
+                if (candidate != null && (best == null || arrow.length() > best.arrow.length())) {
+                    best = candidate;
+                }
+                searchFrom = idx + 1;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Accepts Mermaid-shaped arrows outside the graded table (e.g. {@code ..o}) as relation lines
+     * so the diagram still parses; canonical type becomes {@link MmdRelationTypes#UNKNOWN}.
+     */
+    private static Match matchUnknownRelationArrow(String stripped) {
+        Match best = null;
+        for (int i = 0; i < stripped.length() - 1; i++) {
+            char a = stripped.charAt(i);
+            char b = stripped.charAt(i + 1);
+            boolean solid = a == '-' && b == '-';
+            boolean dashed = a == '.' && b == '.';
+            if (!solid && !dashed) {
+                continue;
+            }
+            int start = i;
+            int end = i + 2;
+            while (start > 0 && isArrowChar(stripped.charAt(start - 1))) {
+                start--;
+            }
+            while (end < stripped.length() && isArrowChar(stripped.charAt(end))) {
+                end++;
+            }
+            String arrow = stripped.substring(start, end);
+            if (arrow.isBlank() || MmdRelationTypes.isCanonicalArrow(arrow)) {
+                continue;
+            }
+            Match candidate = endpointsAround(stripped, start, arrow.length(), arrow);
+            if (candidate != null && (best == null || arrow.length() > best.arrow.length())) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static Match endpointsAround(String stripped, int arrowStart, int arrowLength, String arrow) {
+        Endpoint left = parseEndpoint(stripped.substring(0, arrowStart).trim());
+        Endpoint right = parseEndpoint(stripped.substring(arrowStart + arrowLength).trim());
+        if (left == null || right == null) {
+            return null;
+        }
+        return new Match(arrow, left, right);
+    }
+
+    private static boolean isArrowChar(char c) {
+        return c == '<' || c == '>' || c == '|' || c == '*' || c == 'o'
+                || c == '.' || c == '-' || c == '(' || c == ')';
     }
 
     private static Endpoint parseEndpoint(String part) {

@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -16,6 +18,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -137,6 +142,47 @@ class SubmissionStorageServiceTest {
 
             Path goodClass = result.submissionFolder.resolve("challenge_2/classes/Good.class");
             assertTrue(Files.exists(goodClass));
+        } finally {
+            compileExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void omitsNonRubricApplicationEvenWhenBroken() throws IOException {
+        SubmissionStorageService storage = newStorage(tempDir);
+        ExecutorService compileExecutor = (ExecutorService) ReflectionTestUtils.getField(storage, "compileExecutor");
+        try {
+            ClassRubric fee = new ClassRubric(
+                    UUID.randomUUID(), "Fee", "public", "CLASS", false,
+                    List.of(), List.of(), List.of());
+            ChallengeRubric challenge = new ChallengeRubric(
+                    UUID.randomUUID(), 1, "c1", List.of(fee), List.of(), List.of());
+            LabRubricSnapshot rubric = new LabRubricSnapshot(UUID.randomUUID(), Map.of(1, challenge));
+
+            SubmissionStorageService.ProcessResult result = storage.processUpload(
+                    "irn1",
+                    "req-omit-app",
+                    List.of(
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Fee.java",
+                                    "public class Fee { public static final double WRAP = 1; }"),
+                            javaFile(
+                                    "2331200082_Nguyen_Van_A_lab_1/challenge_1/Application.java",
+                                    """
+                                            public class Application {
+                                              public static void main(String[] args) {
+                                                cart.add(new OrderedItem(new (RedRose(),3));
+                                              }
+                                            }
+                                            """)),
+                    rubric);
+
+            SubmissionStorageService.ChallengeResult challenge1 = findChallenge(result, "challenge_1");
+            assertNull(challenge1.compileError);
+            assertTrue(challenge1.failedClassNames.isEmpty());
+            assertEquals(1, challenge1.classFileCount);
+            assertTrue(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Fee.class")));
+            assertFalse(Files.exists(result.submissionFolder.resolve("challenge_1/classes/Application.class")));
         } finally {
             compileExecutor.shutdownNow();
         }

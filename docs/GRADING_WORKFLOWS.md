@@ -493,24 +493,27 @@ Unclosed block at EOF → `MmdParseException`.
 
 #### Relation arrows (lines 19–22, 241–298)
 
-Supported arrows (longest match first):
+Graded arrows (longest match first):
 ```
-..|>, <|.., *--, --*, o--, --o, <-->, <|--, --|>,
-..>, <.., -->, <--, --
+<|--|>, ..|>, <|.., <-->, <|--, --|>, *--, --*, o--, --o,
+()--, --(), ..>, <.., -->, <--, .., --
 ```
 
 `canonicalRelationType(arrow)` maps to:
 | Arrow(s) | Canonical type |
 |----------|----------------|
 | `<|--`, `--|>` | `inheritance` |
+| `<|--|>` | `bidirectional_inheritance` |
 | `*--`, `--*` | `composition` |
 | `o--`, `--o` | `aggregation` |
 | `-->`, `<--`, `--` | `association` |
 | `<-->` | `bidirectional_association` |
 | `..>`, `<..` | `dependency` |
-| `..|>`, `<|..` | `realization` |
+| `..|>`, `<|..`, `()--`, `--()` | `realization` |
+| `..` | `dashed_link` |
+| anything else Mermaid-shaped (e.g. `..o`, `o-->`) | `unknown` (wrong relationship; diagram still parses) |
 
-`parseRelation()` determines source/target based on arrow direction (symbol on left vs right).
+`parseRelation()` determines source/target based on arrow direction (symbol on left vs right). Unknown arrows keep left→right endpoint order and never match a rubric relation type.
 
 ---
 

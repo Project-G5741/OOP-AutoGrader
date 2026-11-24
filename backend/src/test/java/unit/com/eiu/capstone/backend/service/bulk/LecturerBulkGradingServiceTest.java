@@ -235,7 +235,7 @@ class LecturerBulkGradingServiceTest {
         Path temp = Path.of("submissions-test", "bulk-tmp");
         SubmissionStorageService.ProcessResult processResult =
                 new SubmissionStorageService.ProcessResult(temp, List.of(), Map.of(), 0L);
-        when(submissionStorageService.processUpload(anyString(), anyString(), anyList()))
+        when(submissionStorageService.processUpload(anyString(), anyString(), anyList(), any(LabRubricSnapshot.class)))
                 .thenReturn(processResult);
 
         UUID challengeId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
