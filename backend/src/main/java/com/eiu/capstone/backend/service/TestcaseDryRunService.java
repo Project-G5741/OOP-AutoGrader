@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
@@ -24,6 +25,7 @@ import com.eiu.capstone.backend.grading.pipeline.ChallengeGradingContext;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseResult;
 import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
@@ -33,6 +35,7 @@ import com.eiu.capstone.backend.grading.testcase.WorkerSessionHandle;
 import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
+import com.eiu.capstone.backend.service.compile.RubricCompileSourceFilter;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
@@ -49,6 +52,7 @@ public class TestcaseDryRunService {
     private static final boolean TEMP_DRY_RUN_TIMING = false;
 
     private final TestcaseRubricAssembler testcaseRubricAssembler;
+    private final LabRubricCache labRubricCache;
     private final JavaCompilerService javaCompilerService;
     private final TestcaseGrader testcaseGrader;
     private final TestcaseResultMapper testcaseResultMapper;
@@ -59,6 +63,7 @@ public class TestcaseDryRunService {
     private final int invokeTimeoutSeconds;
 
     public TestcaseDryRunService(TestcaseRubricAssembler testcaseRubricAssembler,
+                                 LabRubricCache labRubricCache,
                                  JavaCompilerService javaCompilerService,
                                  TestcaseGrader testcaseGrader,
                                  TestcaseResultMapper testcaseResultMapper,
@@ -68,6 +73,7 @@ public class TestcaseDryRunService {
                                  DryRunCompileCache dryRunCompileCache,
                                  @org.springframework.beans.factory.annotation.Value("${app.grading.testcase-invoke-timeout-seconds:3}") int invokeTimeoutSeconds) {
         this.testcaseRubricAssembler = testcaseRubricAssembler;
+        this.labRubricCache = labRubricCache;
         this.javaCompilerService = javaCompilerService;
         this.testcaseGrader = testcaseGrader;
         this.testcaseResultMapper = testcaseResultMapper;
@@ -104,6 +110,14 @@ public class TestcaseDryRunService {
                 }
                 String path = source.className().replace('.', '/') + ".java";
                 rawSources.add(new SourceEntry(path, source.source()));
+            }
+
+            Set<String> allowedNames = labRubricCache.get(labId).challengeById(challengeId)
+                    .map(RubricCompileSourceFilter::allowedSimpleNames)
+                    .orElse(Set.of());
+            rawSources = new ArrayList<>(RubricCompileSourceFilter.keepRubricSources(rawSources, allowedNames));
+            if (rawSources.isEmpty()) {
+                throw unprocessable("No reference sources declare a class on this challenge rubric");
             }
 
             NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(rawSources);

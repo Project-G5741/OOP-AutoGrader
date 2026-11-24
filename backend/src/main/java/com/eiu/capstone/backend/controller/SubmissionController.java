@@ -209,14 +209,16 @@ public class SubmissionController {
 
             long processStart = System.currentTimeMillis();
             List<MultipartFile> uploadFiles = submissionUploadPathService.prepareUploadFiles(lab, files);
+            // Rubric join happens inside processUpload after grouping so compile can omit
+            // non-rubric .java; joinRubric below is then a completed-future get.
             SubmissionStorageService.ProcessResult uploadResult =
-                    submissionStorageService.processUpload(irn, requestId, uploadFiles);
+                    submissionStorageService.processUpload(irn, requestId, uploadFiles, rubricFuture);
             submissionFolderToDelete = uploadResult.submissionFolder;
-            long processMs = System.currentTimeMillis() - processStart;
-
-            long rubricJoinStart = System.currentTimeMillis();
             LabRubricSnapshot rubric = joinRubric(rubricFuture);
-            long rubricMs = System.currentTimeMillis() - rubricJoinStart;
+            long rubricMs = uploadResult.rubricJoinMs;
+            long processMs = uploadResult.compileWallMs > 0
+                    ? uploadResult.compileWallMs
+                    : System.currentTimeMillis() - processStart;
 
             if (attemptNumber == null || attemptNumber < 1) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "attemptNumber must be a positive integer");

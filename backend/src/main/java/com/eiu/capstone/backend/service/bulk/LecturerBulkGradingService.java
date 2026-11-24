@@ -128,7 +128,7 @@ public class LecturerBulkGradingService {
         try {
             LabRubricSnapshot rubric = labRubricCache.get(lab);
             SubmissionStorageService.ProcessResult uploadResult =
-                    submissionStorageService.processUpload(studentFolder, requestId, remapped);
+                    submissionStorageService.processUpload(studentFolder, requestId, remapped, rubric);
             submissionFolderToDelete = uploadResult.submissionFolder;
 
             LabSubmission submission = new LabSubmission();

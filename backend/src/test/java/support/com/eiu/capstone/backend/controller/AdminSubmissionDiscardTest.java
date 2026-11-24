@@ -130,7 +130,8 @@ class AdminSubmissionDiscardTest {
                 .thenReturn(new StudentTermAccessService.UploadAccess(user, lab));
         when(submissionUploadPathService.prepareUploadFiles(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(1));
-        when(submissionStorageService.processUpload(any(), any(), any()))
+        when(submissionStorageService.processUpload(
+                        any(), any(), any(), org.mockito.ArgumentMatchers.<java.util.concurrent.CompletableFuture<com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot>>any()))
                 .thenReturn(new SubmissionStorageService.ProcessResult(folder, List.of(), Map.of(), 0L));
         when(labRubricCache.get(lab)).thenReturn(null);
         ChallengeDetailBundleDTO fullBundle = new ChallengeDetailBundleDTO(

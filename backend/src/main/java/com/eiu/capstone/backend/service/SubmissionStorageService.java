@@ -26,9 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.eiu.capstone.backend.exception.SubmissionProcessingException;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.service.compile.CompileClassAttribution;
 import com.eiu.capstone.backend.service.compile.CompileOutcome;
 import com.eiu.capstone.backend.service.compile.MemorySourceJavaFileObject;
+import com.eiu.capstone.backend.service.compile.RubricCompileSourceFilter;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.NormalizationResult;
 import com.eiu.capstone.backend.service.compile.StudentSourceNormalizer.SourceEntry;
@@ -110,15 +112,26 @@ public class SubmissionStorageService {
         public final List<ChallengeResult> challenges;
         public final Map<String, List<MultipartFile>> mmdByChallenge;
         public final long compileWallMs;
+        /** Time waiting on {@code rubricFuture.join()} after grouping (0 when unfiltered). */
+        public final long rubricJoinMs;
 
         public ProcessResult(Path submissionFolder,
                              List<ChallengeResult> challenges,
                              Map<String, List<MultipartFile>> mmdByChallenge,
                              long compileWallMs) {
+            this(submissionFolder, challenges, mmdByChallenge, compileWallMs, 0);
+        }
+
+        public ProcessResult(Path submissionFolder,
+                             List<ChallengeResult> challenges,
+                             Map<String, List<MultipartFile>> mmdByChallenge,
+                             long compileWallMs,
+                             long rubricJoinMs) {
             this.submissionFolder = submissionFolder;
             this.challenges = challenges;
             this.mmdByChallenge = mmdByChallenge;
             this.compileWallMs = compileWallMs;
+            this.rubricJoinMs = rubricJoinMs;
         }
     }
 
@@ -127,6 +140,28 @@ public class SubmissionStorageService {
             Map<String, List<MultipartFile>> mmdByChallenge) {}
 
     public ProcessResult processUpload(String irn, String requestId, List<MultipartFile> files) {
+        return processUpload(irn, requestId, files, (LabRubricSnapshot) null);
+    }
+
+    /**
+     * @param rubric when non-null, each challenge compiles only sources that declare a rubric
+     *               class simple name; {@code null} disables filtering (tests / legacy)
+     */
+    public ProcessResult processUpload(String irn,
+                                       String requestId,
+                                       List<MultipartFile> files,
+                                       LabRubricSnapshot rubric) {
+        return processUpload(irn, requestId, files, completedRubric(rubric));
+    }
+
+    /**
+     * Joins {@code rubricFuture} after grouping so rubric load can overlap path validation.
+     * When the future is null, compile filtering is disabled.
+     */
+    public ProcessResult processUpload(String irn,
+                                       String requestId,
+                                       List<MultipartFile> files,
+                                       CompletableFuture<LabRubricSnapshot> rubricFuture) {
         String irnFolderName = sanitize(irn);
         if (irnFolderName.isEmpty()) {
             throw new SubmissionProcessingException("Token did not contain a usable IRN claim");
@@ -137,6 +172,9 @@ public class SubmissionStorageService {
         Path submissionFolder = Path.of(baseDir, irnFolderName, requestId);
 
         GroupedUpload grouped = validateAndGroup(files);
+        long rubricJoinStart = System.currentTimeMillis();
+        LabRubricSnapshot rubric = rubricFuture != null ? rubricFuture.join() : null;
+        long rubricJoinMs = System.currentTimeMillis() - rubricJoinStart;
 
         Set<String> challengeKeys = new LinkedHashSet<>();
         challengeKeys.addAll(grouped.javaByChallenge().keySet());
@@ -148,13 +186,48 @@ public class SubmissionStorageService {
                         () -> processChallenge(
                                 submissionFolder,
                                 challengeKey,
-                                grouped.javaByChallenge().getOrDefault(challengeKey, List.of())),
+                                grouped.javaByChallenge().getOrDefault(challengeKey, List.of()),
+                                allowedSimpleNamesForChallenge(rubric, challengeKey)),
                         compileExecutor))
                 .collect(Collectors.toList());
 
         List<ChallengeResult> results = CompletableFutures.joinAll(futures);
         long compileWallMs = System.currentTimeMillis() - compileStart;
-        return new ProcessResult(submissionFolder, results, Map.copyOf(grouped.mmdByChallenge()), compileWallMs);
+        return new ProcessResult(
+                submissionFolder, results, Map.copyOf(grouped.mmdByChallenge()), compileWallMs, rubricJoinMs);
+    }
+
+    private static CompletableFuture<LabRubricSnapshot> completedRubric(LabRubricSnapshot rubric) {
+        return rubric == null ? null : CompletableFuture.completedFuture(rubric);
+    }
+
+    /** {@code null} = do not filter; empty = keep no sources for that challenge. */
+    private static Set<String> allowedSimpleNamesForChallenge(LabRubricSnapshot rubric, String challengeKey) {
+        if (rubric == null) {
+            return null;
+        }
+        Integer number = challengeNumberOf(challengeKey);
+        if (number == null) {
+            return Set.of();
+        }
+        return rubric.challenge(number)
+                .map(RubricCompileSourceFilter::allowedSimpleNames)
+                .orElse(Set.of());
+    }
+
+    private static Integer challengeNumberOf(String challengeKey) {
+        if (challengeKey == null || challengeKey.isBlank()) {
+            return null;
+        }
+        Matcher matcher = CHALLENGE_PATTERN.matcher(challengeKey);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private GroupedUpload validateAndGroup(List<MultipartFile> files) {
@@ -200,11 +273,14 @@ public class SubmissionStorageService {
         return new GroupedUpload(javaByChallenge, mmdByChallenge);
     }
 
-    private ChallengeResult processChallenge(Path submissionFolder, String challengeName, List<MultipartFile> files) {
+    private ChallengeResult processChallenge(Path submissionFolder,
+                                             String challengeName,
+                                             List<MultipartFile> files,
+                                             Set<String> allowedSimpleNames) {
         long start = System.currentTimeMillis();
         Path challengeFolder = submissionFolder.resolve(challengeName);
         try {
-            return processChallengeWork(challengeFolder, challengeName, files, start);
+            return processChallengeWork(challengeFolder, challengeName, files, allowedSimpleNames, start);
         } catch (RuntimeException e) {
             return failedChallenge(challengeName, challengeFolder, start, challengeFolder, 0, 0, 0,
                     runtimeErrorMessage(e));
@@ -214,6 +290,7 @@ public class SubmissionStorageService {
     private ChallengeResult processChallengeWork(Path challengeFolder,
                                                    String challengeName,
                                                    List<MultipartFile> files,
+                                                   Set<String> allowedSimpleNames,
                                                    long start) {
         Path classesFolder = challengeFolder.resolve("classes");
 
@@ -250,6 +327,8 @@ public class SubmissionStorageService {
                         "Failed to read file: " + sourcePath);
             }
         }
+
+        rawSources = new ArrayList<>(RubricCompileSourceFilter.keepRubricSources(rawSources, allowedSimpleNames));
 
         NormalizationResult normalization = StudentSourceNormalizer.normalizeChallengeSources(rawSources);
         String packageNormalizationNotice = normalization.packageStripped()
