@@ -409,7 +409,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setTickets(next.gachaTickets);
     }
 
-    if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
+    if (typeof next?.crystals === 'number') {
       applyCrystalBalance(next.crystals);
     }
 
@@ -428,7 +428,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (mergedNext && (mergedNext.petCount ?? 0) < (mergedNext.petGoal ?? 4)) {
       petGoalToastShownRef.current = false;
     }
-  }, [applyCrystalBalance, postCrystalCount, showToast]);
+  }, [applyCrystalBalance, showToast]);
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
