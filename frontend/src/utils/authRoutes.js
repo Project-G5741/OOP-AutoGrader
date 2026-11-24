@@ -10,6 +10,7 @@ export const ROUTES = {
   lecturerTerms: '/lecturer-terms',
   lecturerRanking: '/lecturer-ranking',
   lecturerHolidays: '/lecturer-holidays',
+  lecturerDropRates: '/lecturer-drop-rates',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
   studentRanking: '/student-ranking',
@@ -166,6 +167,7 @@ export const LECTURER_NAV_TO_ROUTE = {
   feedback: ROUTES.lecturerFeedback,
   terms: ROUTES.lecturerTerms,
   holidays: ROUTES.lecturerHolidays,
+  dropRates: ROUTES.lecturerDropRates,
 };
 
 export const LECTURER_ROUTE_TO_NAV = Object.fromEntries(

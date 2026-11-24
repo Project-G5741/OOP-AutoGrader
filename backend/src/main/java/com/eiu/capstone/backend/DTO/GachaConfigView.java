@@ -7,6 +7,7 @@ public record GachaConfigView(
         int softPityStart,
         double directLegendaryRate,
         double crystalBaseRate,
+        double pointCrystalRate,
         double randomMascotRate,
         double cashbackRate300,
         double cashbackRate150,

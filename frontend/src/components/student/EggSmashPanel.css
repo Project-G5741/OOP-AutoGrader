@@ -1,0 +1,124 @@
+@keyframes eggSmashRoosterBreath {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-2.5px) scale(1.012); }
+}
+
+@keyframes eggSmashSelectedPulse {
+  0%, 100% { transform: translateY(-3px) scale(1.04); }
+  50% { transform: translateY(-7px) scale(1.07); }
+}
+
+@keyframes eggSmashChickPop {
+  0% { transform: scale(0.88) translateY(4px); }
+  55% { transform: scale(1.05) translateY(-3px); }
+  100% { transform: scale(1) translateY(0px); }
+}
+
+@keyframes eggSmashImpactFlash {
+  0% { opacity: 1; transform: scale(0.35); }
+  100% { opacity: 0; transform: scale(1.65); }
+}
+
+@keyframes eggSmashFloatReward {
+  0% { opacity: 0; transform: translateY(8px) scale(0.72); }
+  65% { opacity: 1; transform: translateY(-3px) scale(1.08); }
+  100% { opacity: 1; transform: translateY(0px) scale(1); }
+}
+
+@keyframes eggSmashStageThud {
+  0%, 100% { transform: translate(0, 0); }
+  30% { transform: translate(-2.5px, 3px); }
+  65% { transform: translate(2.5px, -1.5px); }
+}
+
+@keyframes eggSmashBtnNudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-3px); }
+}
+
+.egg-smash-rooster-idle {
+  animation: eggSmashRoosterBreath 3.2s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.egg-smash-sel {
+  animation: eggSmashSelectedPulse 1.5s ease-in-out infinite;
+}
+
+.egg-smash-chick {
+  animation: eggSmashChickPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: bottom center;
+}
+
+.egg-smash-impact {
+  animation: eggSmashImpactFlash 0.34s ease-out forwards;
+}
+
+.egg-smash-reward {
+  animation: eggSmashFloatReward 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.egg-smash-thud {
+  animation: eggSmashStageThud 0.18s ease-out;
+}
+
+.egg-smash-nudge {
+  animation: eggSmashBtnNudge 0.3s ease-in-out;
+}
+
+.egg-smash-rooster-grounded {
+  filter: drop-shadow(0 8px 8px rgba(15, 32, 6, 0.55));
+}
+
+.egg-smash-nest-grounded {
+  filter: drop-shadow(0 9px 6px rgba(16, 38, 5, 0.65));
+}
+
+.egg-smash-nest-selected {
+  filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.9)) drop-shadow(0 10px 6px rgba(16, 38, 5, 0.68));
+}
+
+.egg-smash-nest-crystal {
+  filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.95)) drop-shadow(0 9px 6px rgba(16, 38, 5, 0.68));
+}
+
+.egg-smash-banner-title {
+  color: #FFD970;
+  text-shadow:
+    0 2px 0 #461F06,
+    0 -1.5px 0 #461F06,
+    1.5px 0 0 #461F06,
+    -1.5px 0 0 #461F06,
+    0 4px 6px rgba(0, 0, 0, 0.65);
+}
+
+.egg-smash-parchment {
+  background-color: #EFE1C6;
+  box-shadow:
+    0 12px 24px rgba(14, 28, 6, 0.55),
+    inset 0 0 20px rgba(115, 68, 22, 0.28),
+    inset 0 1px 0 rgba(255, 250, 235, 0.85);
+  border: 2.5px solid #4A2C12;
+  outline: 1.5px solid #8B572A;
+  outline-offset: -4px;
+}
+
+.egg-smash-header-tab {
+  background-color: #6E3F19;
+  border: 2px solid #381D08;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(235, 178, 112, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .egg-smash-rooster-idle,
+  .egg-smash-sel,
+  .egg-smash-chick,
+  .egg-smash-impact,
+  .egg-smash-reward,
+  .egg-smash-thud,
+  .egg-smash-nudge {
+    animation: none !important;
+  }
+}

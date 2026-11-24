@@ -250,17 +250,6 @@ public class StudentGachaService {
     }
 
     private static GachaConfigView toConfigView(GachaRateConfig cfg) {
-        return new GachaConfigView(
-                cfg.costSinglePoints(),
-                cfg.costMultiPoints(),
-                cfg.hardPityLimit(),
-                cfg.softPityStart(),
-                cfg.directLegendaryRate(),
-                cfg.crystalBaseRate(),
-                cfg.randomMascotRate(),
-                cfg.cashbackRate300(),
-                cfg.cashbackRate150(),
-                cfg.cashbackRate60(),
-                cfg.cashbackRate20());
+        return cfg.toView();
     }
 }

@@ -26,6 +26,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import, email current-quarter roster |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
 | `HolidayManagement.jsx` | **Admin**-only **Holidays** nav tab (`/lecturer-holidays`): early holiday activation (`Bật sớm ngay` or custom `earlyStartDate` → `endDate` via `DatePicker`) with automatic expiration once `todayIso > endDate` |
+| `DropRateManagement.jsx` | **Admin**-only **Drop Rates** nav tab (`/lecturer-drop-rates`): configure and reset item drop rates & pity thresholds for `Crystal Wheel` (Gacha) and `Egg Smash` |
 
 ## Local Contracts
 
@@ -45,6 +46,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-feedback` | LECTURER or ADMIN | Feedback inbox |
 | `/lecturer-ranking` | LECTURER or ADMIN | Weekly ranking board |
 | `/lecturer-holidays` | ADMIN | Holiday early activation & auto-expiration schedule |
+| `/lecturer-drop-rates` | ADMIN | Gacha (`Crystal Wheel`) and `Egg Smash` drop-rate configuration |
 | `/student-dashboard` | STUDENT or ADMIN | Student main. Admin requests `GET /api/labs/list?scope=student` (student-visible labs, no saved stats, no enrollment row) |
 | `/student-history` | STUDENT or ADMIN | Student history |
 | `/student-ranking` | STUDENT or ADMIN | Weekly ranking board (web only; empty rows when out of term) |
@@ -70,6 +72,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
 | `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved (soft-archive if reply) |
 | `holidays` | `HolidayManagement.jsx` (**Admin** only) | `GET /api/auth/holiday-config`, `PUT /api/lecturer/holiday-config` + `localStorage` sync |
+| `dropRates` | `DropRateManagement.jsx` (**Admin** only) | `GET /api/lecturer/drop-rates/config`, `PUT /api/lecturer/drop-rates/gacha`, `POST /api/lecturer/drop-rates/gacha/reset`, `PUT /api/lecturer/drop-rates/egg-smash`, `POST /api/lecturer/drop-rates/egg-smash/reset` |
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
@@ -120,6 +123,7 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `POST /api/desktop/mascot/sync` | `DesktopMascotImport.jsx` — body `{ token }` |
 | `GET /api/students/mascots/list` | `MascotShop.jsx` |
 | `POST /api/students/streak/gacha-spend` | `StudentDashboard.jsx` — body `{ count }` 1–10; spends `gachaTickets` from `GET /api/students/streak` |
+| `POST /api/students/streak/egg-smash` | `EggSmashPanel.jsx` (inside `MascotGachaModal.jsx`) — body `{ picks }` (3 distinct indices `0..8`); spends 1000 points and settles 9-egg Crystal/point outcomes in PostgreSQL |
 | `POST /api/students/streak/crystals/exchange` | `MascotShop.jsx` — body `{ count }` 1–99; spends crystals and adds 4000 points each |
 | `POST /api/students/streak/crystals/grant` | `StudentDashboard.jsx` — body `{ count }` 1–10; credits crystals won from gacha (or a one-time import of a previous browser balance) |
 | `POST /api/students/streak/crystals/spend` | `StudentDashboard.jsx` — body `{ count }` 1–99; spends crystals when a legendary mascot is paid with crystals |

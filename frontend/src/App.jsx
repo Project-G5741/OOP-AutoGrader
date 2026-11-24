@@ -234,6 +234,14 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route
+            path={ROUTES.lecturerDropRates}
+            element={
+              <RequireRole anyOf={["ADMIN"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
 
           <Route
             path={ROUTES.studentDashboard}
