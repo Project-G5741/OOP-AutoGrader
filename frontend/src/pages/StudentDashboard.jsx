@@ -281,6 +281,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
+  const [gachaInitialTab, setGachaInitialTab] = useState('wheel');
   const [crystals, setCrystals] = useState(0);
   const crystalsRef = useRef(crystals);
   const [ownedMascots, setOwnedMascots] = useState(['fox']);
@@ -408,7 +409,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       setTickets(next.gachaTickets);
     }
 
-    if (typeof next?.crystals === 'number' && !crystalImportingRef.current) {
+    if (typeof next?.crystals === 'number') {
       applyCrystalBalance(next.crystals);
     }
 
@@ -427,7 +428,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (mergedNext && (mergedNext.petCount ?? 0) < (mergedNext.petGoal ?? 4)) {
       petGoalToastShownRef.current = false;
     }
-  }, [applyCrystalBalance, postCrystalCount, showToast]);
+  }, [applyCrystalBalance, showToast]);
 
   const applyShop = useCallback((shop) => {
     if (!shop) return;
@@ -1623,11 +1624,17 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
               restoring={restoringStreak}
               onRestore={restoreStreak}
               tickets={tickets}
-              onOpenGacha={() => setShowGacha(true)}
+              onOpenGacha={() => {
+                setGachaInitialTab('wheel');
+                setShowGacha(true);
+              }}
             />
             <button
               type="button"
-              onClick={() => setShowGacha(true)}
+              onClick={() => {
+                setGachaInitialTab('wheel');
+                setShowGacha(true);
+              }}
               aria-label={`Crystal Gacha wheel. You have ${tickets} tickets.`}
               className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 text-sm font-bold text-primary shadow-sm transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
@@ -1726,7 +1733,14 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           open={showMascotShop}
           onClose={() => setShowMascotShop(false)}
           onUpdated={applyShop}
-          onOpenGacha={() => setShowGacha(true)}
+          onOpenGacha={() => {
+            setGachaInitialTab('wheel');
+            setShowGacha(true);
+          }}
+          onOpenEggSmash={() => {
+            setGachaInitialTab('egg-smash');
+            setShowGacha(true);
+          }}
           crystals={crystals}
           onCrystalsChange={handleCrystalsChange}
           onCrystalsReconcile={applyCrystalBalance}
@@ -1740,6 +1754,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
         <MascotGachaModal
           open={showGacha}
           onClose={() => setShowGacha(false)}
+          initialTab={gachaInitialTab}
           initialPoints={streak?.points ?? 0}
           initialGachaPity={gachaPity}
           onPointsChange={(pts) => {

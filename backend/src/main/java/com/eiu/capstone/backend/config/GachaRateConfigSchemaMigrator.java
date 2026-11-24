@@ -27,6 +27,7 @@ public class GachaRateConfigSchemaMigrator {
                     soft_pity_start         INTEGER NOT NULL DEFAULT 90,
                     direct_legendary_rate   DOUBLE PRECISION NOT NULL DEFAULT 0.00016666666666666666,
                     crystal_base_rate       DOUBLE PRECISION NOT NULL DEFAULT 0.0015,
+                    point_crystal_rate      DOUBLE PRECISION NOT NULL DEFAULT 0.0001,
                     random_mascot_rate      DOUBLE PRECISION NOT NULL DEFAULT 0.003,
                     cashback_rate_300       DOUBLE PRECISION NOT NULL DEFAULT 0.025,
                     cashback_rate_150       DOUBLE PRECISION NOT NULL DEFAULT 0.06,
@@ -34,6 +35,10 @@ public class GachaRateConfigSchemaMigrator {
                     cashback_rate_20        DOUBLE PRECISION NOT NULL DEFAULT 0.42,
                     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE gacha_rate_config
+                    ADD COLUMN IF NOT EXISTS point_crystal_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0001
                 """);
         jdbcTemplate.update("""
                 INSERT INTO gacha_rate_config (id) VALUES (1)
@@ -46,12 +51,6 @@ public class GachaRateConfigSchemaMigrator {
         jdbcTemplate.execute("""
                 ALTER TABLE student_daily_streak
                     ADD COLUMN IF NOT EXISTS crystal_sourced_points INTEGER NOT NULL DEFAULT 0
-                """);
-        jdbcTemplate.update("""
-                UPDATE gacha_rate_config
-                   SET soft_pity_start = 90
-                 WHERE id = 1
-                   AND soft_pity_start < 90
                 """);
     }
 }

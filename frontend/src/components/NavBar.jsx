@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy, Sparkles } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy, Sparkles, SlidersHorizontal } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -13,6 +13,7 @@ const navItems = [
   { id: 'reports', label: 'Reports', icon: BarChart3 },
   { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
   { id: 'holidays', label: 'Holidays', icon: Sparkles, adminOnly: true },
+  { id: 'dropRates', label: 'Drop Rates', icon: SlidersHorizontal, adminOnly: true },
 ];
 
 function NavButton({ id, label, icon: Icon, active, onClick, onPrefetch, fullWidth = false, className = '', pillId = 'desktop-nav-pill' }) {

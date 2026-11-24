@@ -76,6 +76,9 @@ public class StudentStreak {
     @Column(name = "gacha_points_pref_allow")
     private Boolean gachaPointsPrefAllow;
 
+    @Column(name = "egg_smash_pity", nullable = false)
+    private int eggSmashPity;
+
     public UUID getUserId() {
         return userId;
     }
@@ -242,5 +245,13 @@ public class StudentStreak {
 
     public void setGachaPointsPrefAllow(Boolean gachaPointsPrefAllow) {
         this.gachaPointsPrefAllow = gachaPointsPrefAllow;
+    }
+
+    public int getEggSmashPity() {
+        return eggSmashPity;
+    }
+
+    public void setEggSmashPity(int eggSmashPity) {
+        this.eggSmashPity = eggSmashPity;
     }
 }
