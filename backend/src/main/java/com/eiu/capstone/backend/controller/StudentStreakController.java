@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.eiu.capstone.backend.DTO.EggSmashRequest;
+import com.eiu.capstone.backend.DTO.EggSmashResponse;
 import com.eiu.capstone.backend.DTO.GachaConfigView;
 import com.eiu.capstone.backend.DTO.GachaPointsPrefRequest;
 import com.eiu.capstone.backend.DTO.GachaRollRequest;
@@ -15,6 +17,7 @@ import com.eiu.capstone.backend.DTO.GachaRollResponse;
 import com.eiu.capstone.backend.DTO.GachaSettleRequest;
 import com.eiu.capstone.backend.DTO.GachaSpendRequest;
 import com.eiu.capstone.backend.DTO.StudentStreakView;
+import com.eiu.capstone.backend.service.StudentEggSmashService;
 import com.eiu.capstone.backend.service.StudentGachaService;
 import com.eiu.capstone.backend.model.UserAccount;
 import com.eiu.capstone.backend.security.JwtAuthHelper;
@@ -30,14 +33,17 @@ public class StudentStreakController {
     private final JwtAuthHelper jwtAuthHelper;
     private final StudentStreakService studentStreakService;
     private final StudentGachaService studentGachaService;
+    private final StudentEggSmashService studentEggSmashService;
 
     public StudentStreakController(
             JwtAuthHelper jwtAuthHelper,
             StudentStreakService studentStreakService,
-            StudentGachaService studentGachaService) {
+            StudentGachaService studentGachaService,
+            StudentEggSmashService studentEggSmashService) {
         this.jwtAuthHelper = jwtAuthHelper;
         this.studentStreakService = studentStreakService;
         this.studentGachaService = studentGachaService;
+        this.studentEggSmashService = studentEggSmashService;
     }
 
     @GetMapping
@@ -69,6 +75,16 @@ public class StudentStreakController {
             @RequestBody GachaRollRequest request) {
         UserAccount user = jwtAuthHelper.requireActiveUser(principal);
         return studentGachaService.roll(user.getId(), request.count());
+    }
+
+    @PostMapping("/egg-smash")
+    public EggSmashResponse eggSmash(
+            @AuthenticationPrincipal JwtUserPrincipal principal,
+            @RequestBody EggSmashRequest request) {
+        UserAccount user = jwtAuthHelper.requireActiveUser(principal);
+        return studentEggSmashService.smash(
+                user.getId(),
+                request == null ? null : request.picks());
     }
 
     @PostMapping("/gacha-spend")

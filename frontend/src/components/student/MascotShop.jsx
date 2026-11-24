@@ -12,6 +12,7 @@ import {
   ArrowDown01,
   ArrowDownAZ,
   ArrowUpZA,
+  Hammer,
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import Combobox from '../ui/Combobox';
@@ -78,6 +79,7 @@ export default function MascotShop({
   onClose, 
   onUpdated, 
   onOpenGacha,
+  onOpenEggSmash,
   crystals = 0,
   onCrystalsChange,
   onCrystalsReconcile,
@@ -340,6 +342,20 @@ export default function MascotShop({
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Open Gacha</span>
+              </button>
+            )}
+
+            {onOpenEggSmash && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenEggSmash();
+                }}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-warning-border bg-warning-bg px-3 py-1.5 text-xs font-bold text-warning-text hover:opacity-90 transition-opacity"
+              >
+                <Hammer className="h-3.5 w-3.5" />
+                <span>Egg Smash</span>
               </button>
             )}
 

@@ -53,6 +53,7 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST, "/api/users/change-password")
                         .hasAnyRole(JwtRoleNames.STUDENT, JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
                     .requestMatchers("/api/users/**").hasAnyRole(JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
+                    .requestMatchers("/api/lecturer/drop-rates/**").hasRole(JwtRoleNames.ADMIN)
                     .requestMatchers("/api/lecturer/**").hasAnyRole(JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)
                     .requestMatchers("/api/analytics/**", "/api/master-data/**", "/api/terms/**")
                         .hasAnyRole(JwtRoleNames.LECTURER, JwtRoleNames.ADMIN)

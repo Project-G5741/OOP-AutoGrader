@@ -1,24 +1,19 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sparkles, 
-  RotateCw, 
-  X, 
-  Info, 
-  Coins, 
+import {
+  Sparkles,
+  X,
+  Coins,
   Ticket,
-  ShieldCheck,
   Zap,
-  HelpCircle,
-  Gem,
   Award,
   Crown,
-  FastForward,
-  ChevronRight,
   ArrowRight,
-  Check
+  Check,
+  Hammer,
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
+import EggSmashPanel from './EggSmashPanel';
 import { useToast } from '../ui/Toast';
 import { useDialog } from '../../context/DialogContext';
 import { formatNumber } from '../../utils/formatters';
@@ -26,10 +21,22 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, toFriendlyError } from '../../utils/apiError';
 import { mapServerPullToOutcome, formatPercent } from '../../utils/gachaServer';
-import { Mascot } from './MascotSprite';
+import { STUDENT_MASCOTS } from './studentMascots';
+import {
+  CosmicCrystalGem,
+  PrimogemStar,
+  CelestialArchTopBar,
+  CelestialIdleBannerStage,
+  GenshinMeteorCutscene,
+  GenshinSingleRevealStage,
+  GenshinWishSummaryStage,
+  getItemRarityKey,
+  getRarityTheme,
+} from './GachaCelestialStage';
+
+export { CosmicCrystalGem };
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
-import { MASCOT_TIERS, STUDENT_MASCOTS, mascotArt } from './studentMascots';
 
 // Economics & Pity constants
 export const GACHA_COST_SINGLE_POINTS = 100;
@@ -37,89 +44,19 @@ export const GACHA_COST_MULTI_POINTS = 900; // 10% discount
 export const HARD_PITY_LIMIT = 100;
 export const SOFT_PITY_START = 90;
 
-// Ultra-rare direct legendary mascot odds: 1 in 6,000 rolls
+// Base odds constants (fallback when /gacha-config has not loaded yet or in Admin sandbox)
 export const DIRECT_LEGENDARY_RATE = 1 / 6000; // ~0.0001667 (0.0167%)
-export const CRYSTAL_BASE_RATE = 0.0015; // 0.15% (nerfed from 1% so it doesn't pop in 30 pulls)
+export const CRYSTAL_BASE_RATE = 0.0015; // 0.15%
 /** Ticket soft-pity ramp from roll 90 toward guaranteed crystal at roll 100 (tickets only). */
 export const SOFT_PITY_RATE_STEP =
   (1 - CRYSTAL_BASE_RATE) / (HARD_PITY_LIMIT - SOFT_PITY_START);
-export const RANDOM_MASCOT_RATE = 0.003; // 0.3% (nerfed from 1.5% so mascots don't drop too easily, no duplicates)
+export const RANDOM_MASCOT_RATE = 0.003; // 0.3%
 
-// Handcrafted Prismatic Cosmic Crystal SVG Component
-export function CosmicCrystalGem({ size = 80, className = '', glow = true }) {
-  return (
-    <div className={`relative inline-flex items-center justify-center ${className}`}>
-      {glow && (
-        <div 
-          className="absolute inset-0 rounded-full blur-xl opacity-70 bg-amber-400/40 animate-pulse pointer-events-none"
-        />
-      )}
-      <svg 
-        width={size} 
-        height={size * 1.15} 
-        viewBox="0 0 100 115" 
-        fill="none" 
-        xmlns="http://www.w3.org/2000/svg"
-        className="relative drop-shadow-[0_8px_16px_rgba(245,158,11,0.4)] transition-transform hover:scale-105 duration-300 select-none"
-      >
-        <defs>
-          <linearGradient id="facetTop" x1="50" y1="5" x2="50" y2="40" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FFFBEB" />
-            <stop offset="60%" stopColor="#FDE68A" />
-            <stop offset="100%" stopColor="#F59E0B" />
-          </linearGradient>
-          <linearGradient id="facetLeft" x1="15" y1="40" x2="50" y2="105" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FBBF24" />
-            <stop offset="50%" stopColor="#D97706" />
-            <stop offset="100%" stopColor="#78350F" />
-          </linearGradient>
-          <linearGradient id="facetRight" x1="85" y1="40" x2="50" y2="105" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FDE68A" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#B45309" />
-          </linearGradient>
-          <linearGradient id="facetCenter" x1="50" y1="35" x2="50" y2="105" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FEF3C7" />
-            <stop offset="40%" stopColor="#FBBF24" />
-            <stop offset="100%" stopColor="#D97706" />
-          </linearGradient>
-          <linearGradient id="facetUpperLeft" x1="15" y1="40" x2="50" y2="35" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FDE68A" />
-            <stop offset="100%" stopColor="#F59E0B" />
-          </linearGradient>
-          <linearGradient id="facetUpperRight" x1="85" y1="40" x2="50" y2="35" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FEF9C3" />
-            <stop offset="100%" stopColor="#FBBF24" />
-          </linearGradient>
-        </defs>
-
-        <polygon points="50,6 74,24 50,34 26,24" fill="url(#facetTop)" stroke="#FFF" strokeWidth="0.8" />
-        <polygon points="26,24 50,34 50,6" fill="url(#facetUpperLeft)" stroke="#FFF" strokeWidth="0.6" opacity="0.9" />
-        <polygon points="74,24 50,34 50,6" fill="url(#facetUpperRight)" stroke="#FFF" strokeWidth="0.6" opacity="0.9" />
-        <polygon points="26,24 50,34 16,46" fill="#F59E0B" stroke="#FFF" strokeWidth="0.6" />
-        <polygon points="74,24 50,34 84,46" fill="#FEF08A" stroke="#FFF" strokeWidth="0.6" />
-        <polygon points="16,46 50,34 84,46" fill="#FDE68A" stroke="#FFF" strokeWidth="0.8" />
-        <polygon points="16,46 50,34 32,74" fill="url(#facetLeft)" stroke="#FFF" strokeWidth="0.6" />
-        <polygon points="84,46 50,34 68,74" fill="url(#facetRight)" stroke="#FFF" strokeWidth="0.6" />
-        <polygon points="32,74 50,34 68,74" fill="url(#facetCenter)" stroke="#FFF" strokeWidth="0.7" />
-        <polygon points="32,74 68,74 50,108" fill="url(#facetCenter)" stroke="#FFF" strokeWidth="0.8" />
-        <polygon points="16,46 32,74 50,108" fill="url(#facetLeft)" stroke="#FFF" strokeWidth="0.6" />
-        <polygon points="84,46 68,74 50,108" fill="url(#facetRight)" stroke="#FFF" strokeWidth="0.6" />
-
-        <circle cx="50" cy="35" r="2.5" fill="#FFFFFF" />
-        <path d="M43 35 L57 35 M50 28 L50 42" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
-        <circle cx="72" cy="26" r="1.5" fill="#FFFFFF" opacity="0.9" />
-        <circle cx="34" cy="74" r="1.5" fill="#FFFFFF" opacity="0.7" />
-      </svg>
-    </div>
-  );
-}
-
-const RANDOM_MASCOT_POOL = [
-  'bunny', 
-  'cat', 
-  'bear', 
-  'panda', 
+const SANDBOX_MASCOT_POOL = [
+  'bunny',
+  'cat',
+  'bear',
+  'panda',
   'penguin',
   'vit',
   'hamster',
@@ -132,7 +69,8 @@ const RANDOM_MASCOT_POOL = [
   'chu_tuoc',
   'huyen_vu',
 ];
-const LEGENDARY_MASCOT_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
+const SANDBOX_LEGENDARY_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
+
 const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
 const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
 
@@ -164,6 +102,130 @@ function writeGachaPointsSpendPref(allow) {
   );
 }
 
+/**
+ * In-modal demo roll simulation strictly for Admin sandbox testing (`isAdmin === true`).
+ * Student rolls always execute authoritatively on the server via `POST /api/students/streak/gacha-roll`.
+ */
+function rollAdminSandboxOnce(currentPity, usedTickets, sessionOwnedMascots, rateConfig) {
+  const nextAttempt = currentPity + 1;
+  const directLegendaryRate = rateConfig?.directLegendaryRate ?? DIRECT_LEGENDARY_RATE;
+  const ticketCrystalBaseRate = rateConfig?.crystalBaseRate ?? CRYSTAL_BASE_RATE;
+  const pointCrystalBaseRate = rateConfig?.pointCrystalRate ?? 0.0001;
+  const randomMascotRate = rateConfig?.randomMascotRate ?? RANDOM_MASCOT_RATE;
+  const hardPity = rateConfig?.hardPityLimit ?? HARD_PITY_LIMIT;
+  const softPity = rateConfig?.softPityStart ?? SOFT_PITY_START;
+
+  const availableLegendaries = SANDBOX_LEGENDARY_POOL.filter(
+    (id) => !sessionOwnedMascots.includes(id),
+  );
+
+  if (availableLegendaries.length > 0 && Math.random() < directLegendaryRate) {
+    const pickedId =
+      availableLegendaries[Math.floor(Math.random() * availableLegendaries.length)];
+    sessionOwnedMascots.push(pickedId);
+    const info = STUDENT_MASCOTS[pickedId];
+    return {
+      outcome: {
+        item: {
+          id: `legendary_${pickedId}`,
+          name: info?.name || pickedId,
+          rarity: 'legendary',
+          tierName: 'Legendary Mascot',
+          type: 'mascot',
+          mascotId: pickedId,
+          pointsRefund: 0,
+        },
+        wasPity: false,
+      },
+      nextPity: nextAttempt,
+    };
+  }
+
+  const isTicketHardPity = usedTickets && nextAttempt >= hardPity;
+  const span = Math.max(1, hardPity - softPity);
+  let crystalRate = usedTickets ? ticketCrystalBaseRate : pointCrystalBaseRate;
+  if (nextAttempt >= softPity) {
+    if (usedTickets) {
+      const step = Math.max(0, (1 - ticketCrystalBaseRate) / span);
+      crystalRate = Math.min(1, ticketCrystalBaseRate + (nextAttempt - softPity) * step);
+    } else {
+      const cap = Math.max(pointCrystalBaseRate, 0.99);
+      const step = Math.max(0, (cap - pointCrystalBaseRate) / span);
+      crystalRate = Math.min(cap, pointCrystalBaseRate + (nextAttempt - softPity) * step);
+    }
+  }
+
+  if (isTicketHardPity || Math.random() < crystalRate) {
+    return {
+      outcome: {
+        item: {
+          id: 'crystal',
+          name: 'Crystal Stone',
+          rarity: 'crystal',
+          tierName: 'Crystal',
+          type: 'crystal',
+          crystalAmount: 1,
+          pointsRefund: 0,
+        },
+        wasPity: isTicketHardPity || nextAttempt >= softPity,
+      },
+      nextPity: 0,
+    };
+  }
+
+  const availableMascots = SANDBOX_MASCOT_POOL.filter(
+    (id) => !sessionOwnedMascots.includes(id),
+  );
+  if (availableMascots.length > 0 && Math.random() < randomMascotRate) {
+    const pickedId = availableMascots[Math.floor(Math.random() * availableMascots.length)];
+    sessionOwnedMascots.push(pickedId);
+    const info = STUDENT_MASCOTS[pickedId];
+    const tier = info?.tier || 'rare';
+    return {
+      outcome: {
+        item: {
+          id: `mascot_${pickedId}`,
+          name: info?.name || pickedId,
+          rarity: tier,
+          tierName: `${tier.toUpperCase()} Mascot`,
+          type: 'mascot',
+          mascotId: pickedId,
+          pointsRefund: 0,
+        },
+        wasPity: false,
+      },
+      nextPity: nextAttempt,
+    };
+  }
+
+  const cb300 = rateConfig?.cashbackRate300 ?? 0.025;
+  const cb150 = rateConfig?.cashbackRate150 ?? 0.06;
+  const cb60 = rateConfig?.cashbackRate60 ?? 0.18;
+  const cb20 = rateConfig?.cashbackRate20 ?? 0.42;
+
+  const r = Math.random();
+  let pts = 5;
+  if (r < cb300) pts = 300;
+  else if (r < cb300 + cb150) pts = 150;
+  else if (r < cb300 + cb150 + cb60) pts = 60;
+  else if (r < cb300 + cb150 + cb60 + cb20) pts = 20;
+
+  return {
+    outcome: {
+      item: {
+        id: `points_${pts}`,
+        name: `+${pts} Points`,
+        rarity: 'point',
+        tierName: 'Reward points',
+        type: 'points',
+        pointsRefund: pts,
+      },
+      wasPity: false,
+    },
+    nextPity: nextAttempt,
+  };
+}
+
 export default function MascotGachaModal({
   open,
   onClose,
@@ -178,7 +240,10 @@ export default function MascotGachaModal({
   initialGachaPity = 0,
   onWalletSync,
   isAdmin = false,
+  initialTab = 'wheel',
 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [eggSmashBusy, setEggSmashBusy] = useState(false);
   const [points, setPoints] = useState(() => {
     if (!isAdmin) return initialPoints;
     const saved = localStorage.getItem('gacha_demo_points');
@@ -188,8 +253,14 @@ export default function MascotGachaModal({
   const [tickets, setTickets] = useState(() => {
     if (controlledTickets !== undefined) return controlledTickets;
     const saved = localStorage.getItem('gacha_demo_tickets');
-    return saved !== null ? parseInt(saved, 10) : (isAdmin ? 15 : 0);
+    return saved !== null ? parseInt(saved, 10) : isAdmin ? 15 : 0;
   });
+
+  const [demoCrystals, setDemoCrystals] = useState(() => crystals);
+
+  useEffect(() => {
+    setDemoCrystals(crystals);
+  }, [crystals]);
 
   useEffect(() => {
     if (controlledTickets !== undefined) {
@@ -203,36 +274,33 @@ export default function MascotGachaModal({
     }
   }, [isAdmin, initialPoints]);
 
-  const [pityCount, setPityCount] = useState(() => (
+  const [pityCount, setPityCount] = useState(() =>
     isAdmin
       ? (() => {
           const saved = localStorage.getItem('gacha_demo_pity');
-          return saved !== null ? parseInt(saved, 10) : 12;
+          return saved !== null ? parseInt(saved, 10) : 0;
         })()
-      : initialGachaPity
-  ));
+      : initialGachaPity,
+  );
   const [rateConfig, setRateConfig] = useState(null);
   const [rolling, setRolling] = useState(false);
 
-  // Phases: 'idle' | 'charging' | 'burst' | 'showcase' | 'summary'
+  // Genshin Wish Phases: 'idle' | 'meteor' | 'reveal' | 'summary'
   const [phase, setPhase] = useState('idle');
   const [currentPulls, setCurrentPulls] = useState([]);
-  const [highestRarity, setHighestRarity] = useState('normal');
-  const [showcaseItem, setShowcaseItem] = useState(null);
-  const [showcaseCountdown, setShowcaseCountdown] = useState(5);
+  const [highestRarityKey, setHighestRarityKey] = useState('point');
+  const [revealIndex, setRevealIndex] = useState(0);
+  const [inspectingSingleFromSummary, setInspectingSingleFromSummary] = useState(false);
+
   const [showOddsModal, setShowOddsModal] = useState(false);
-  const [demoBannerOpen, setDemoBannerOpen] = useState(true);
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
   const [rememberPointsChoice, setRememberPointsChoice] = useState(false);
   const showToast = useToast();
   const dialog = useDialog();
 
-  const countdownTimerRef = useRef(null);
-
-  // Persist the demo counters. Do not call the parent from here: this effect also
-  // runs when the parent pushes a new ticket count, and echoing that value back
-  // fights the header badge (it steps by 2 and never settles).
+  // Persist demo counters for Admin sandbox only
   useEffect(() => {
+    if (!isAdmin) return;
     localStorage.setItem('gacha_demo_points', String(points));
     localStorage.setItem('gacha_demo_tickets', String(tickets));
     localStorage.setItem('gacha_demo_pity', String(pityCount));
@@ -245,7 +313,7 @@ export default function MascotGachaModal({
   }, [isAdmin, initialGachaPity]);
 
   useEffect(() => {
-    if (!open || isAdmin) return;
+    if (!open) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -262,89 +330,118 @@ export default function MascotGachaModal({
     return () => {
       cancelled = true;
     };
-  }, [open, isAdmin]);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setPointsSpendPrompt(null);
+      setPhase('idle');
+      setInspectingSingleFromSummary(false);
+      setEggSmashBusy(false);
+    } else {
+      setActiveTab(initialTab || 'wheel');
+    }
+  }, [open, initialTab]);
 
   const costSingle = rateConfig?.costSinglePoints ?? GACHA_COST_SINGLE_POINTS;
   const costMulti = rateConfig?.costMultiPoints ?? GACHA_COST_MULTI_POINTS;
   const pityHard = rateConfig?.hardPityLimit ?? HARD_PITY_LIMIT;
-
-  // Handle 5-second showcase countdown
-  useEffect(() => {
-    if (phase === 'showcase') {
-      setShowcaseCountdown(5);
-      countdownTimerRef.current = setInterval(() => {
-        setShowcaseCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownTimerRef.current);
-            setPhase('summary');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-      }
-    }
-    return () => {
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-      }
-    };
-  }, [phase]);
-
-  useEffect(() => {
-    if (!open) setPointsSpendPrompt(null);
-  }, [open]);
+  const displayedCrystals = activeTab === 'egg-smash' ? crystals : (isAdmin ? demoCrystals : crystals);
+  const displayedPoints = activeTab === 'egg-smash' ? initialPoints : points;
 
   if (!open) return null;
 
   const presentRollResults = (results) => {
-    let maxRarity = 'normal';
-    let bestShowcaseItem = null;
+    let bestKey = 'point';
+    let bestRank = 0;
 
     for (const rollOutcome of results) {
-      const it = rollOutcome.item;
-      if (it.rarity === 'crystal' || it.rarity === 'legendary') {
-        maxRarity = 'legendary';
-        if (!bestShowcaseItem || bestShowcaseItem.rarity !== 'legendary') {
-          bestShowcaseItem = it;
-        }
-      } else if (it.rarity === 'epic' && maxRarity !== 'legendary') {
-        maxRarity = 'epic';
-        if (!bestShowcaseItem || (bestShowcaseItem.rarity !== 'legendary' && bestShowcaseItem.rarity !== 'crystal')) {
-          bestShowcaseItem = it;
-        }
-      } else if (it.rarity === 'rare' && maxRarity === 'normal') {
-        maxRarity = 'rare';
-        if (!bestShowcaseItem && it.type === 'mascot') {
-          bestShowcaseItem = it;
-        }
-      }
-      if (it.type === 'mascot' && it.mascotId && !bestShowcaseItem) {
-        bestShowcaseItem = it;
+      const key = getItemRarityKey(rollOutcome.item);
+      const rank = getRarityTheme(key).rank;
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestKey = key;
       }
     }
 
     setCurrentPulls(results);
-    setHighestRarity(maxRarity);
-    setShowcaseItem(bestShowcaseItem);
-    setPhase('charging');
-    setTimeout(() => {
-      setPhase('burst');
-      setTimeout(() => {
-        const hasShowcaseTrigger = bestShowcaseItem && (
-          bestShowcaseItem.type === 'crystal'
-          || bestShowcaseItem.type === 'mascot'
-        );
-        setPhase(hasShowcaseTrigger ? 'showcase' : 'summary');
-      }, 900);
-    }, 1300);
+    setHighestRarityKey(bestKey);
+    setRevealIndex(0);
+    setInspectingSingleFromSummary(false);
+    setPhase('meteor');
+  };
+
+  const executeAdminSandboxGacha = (count) => {
+    const useTickets = tickets >= count;
+    const requiredPoints = count === 1 ? costSingle : costMulti;
+
+    if (!useTickets && points < requiredPoints) {
+      dialog.alert({
+        level: 'warning',
+        title: 'Insufficient Balance',
+        message: `Not enough Roll Tickets or Points! Need ${formatNumber(requiredPoints)} Points or ${count} Ticket${count > 1 ? 's' : ''}.`,
+      });
+      return;
+    }
+
+    let nextTickets = tickets;
+    let nextPoints = points;
+    if (useTickets) {
+      nextTickets -= count;
+    } else {
+      nextPoints -= requiredPoints;
+    }
+
+    let rollingPity = pityCount;
+    let crystalsGained = 0;
+    let cashbackPts = 0;
+    const sessionOwned = [...ownedMascots];
+    const results = [];
+
+    for (let i = 0; i < count; i += 1) {
+      const { outcome, nextPity } = rollAdminSandboxOnce(
+        rollingPity,
+        useTickets,
+        sessionOwned,
+        rateConfig,
+      );
+      rollingPity = nextPity;
+      results.push(outcome);
+      if (outcome.item.type === 'crystal') {
+        crystalsGained += outcome.item.crystalAmount || 1;
+      }
+      if (outcome.item.pointsRefund) {
+        cashbackPts += outcome.item.pointsRefund;
+      }
+    }
+
+    nextPoints += cashbackPts;
+    setTickets(nextTickets);
+    setPoints(nextPoints);
+    setPityCount(rollingPity);
+    onTicketsChange?.(nextTickets);
+    onPointsChange?.(nextPoints);
+
+    if (crystalsGained > 0) {
+      const updatedCrystals = demoCrystals + crystalsGained;
+      setDemoCrystals(updatedCrystals);
+      onCrystalsChange?.(updatedCrystals);
+    }
+    if (sessionOwned.length !== ownedMascots.length) {
+      onOwnedMascotsChange?.(sessionOwned);
+    }
+
+    presentRollResults(results);
   };
 
   const executeGacha = async (count) => {
     if (rolling) return;
+
+    if (isAdmin) {
+      executeAdminSandboxGacha(count);
+      return;
+    }
+
     const useTickets = tickets >= count;
     const requiredPoints = count === 1 ? costSingle : costMulti;
 
@@ -365,9 +462,10 @@ export default function MascotGachaModal({
         body: JSON.stringify({ count }),
       });
       if (!response.ok) {
-        const message = response.status === 409
-          ? 'Not enough Roll Tickets or Points.'
-          : await friendlyLoadErrorFromResponse(response);
+        const message =
+          response.status === 409
+            ? 'Not enough Roll Tickets or Points.'
+            : await friendlyLoadErrorFromResponse(response);
         dialog.alert({ level: 'warning', title: 'Summon failed', message });
         return;
       }
@@ -445,65 +543,134 @@ export default function MascotGachaModal({
     setPointsSpendPrompt(null);
   };
 
-  const skipShowcase = () => {
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
+  const handleAdvanceReveal = () => {
+    if (inspectingSingleFromSummary) {
+      setInspectingSingleFromSummary(false);
+      setPhase('summary');
+      return;
     }
-    setPhase('summary');
+    if (revealIndex + 1 < currentPulls.length) {
+      setRevealIndex((idx) => idx + 1);
+    } else {
+      setPhase('summary');
+    }
   };
 
-  const totalRefundedInPulls = currentPulls.reduce((sum, p) => sum + (p.item.pointsRefund || 0), 0);
-  const crystalsWonInPulls = currentPulls.filter((p) => p.item.type === 'crystal').length;
-  const mascotsWonInPulls = currentPulls.filter((p) => p.item.type === 'mascot');
+  const handleInspectFromSummary = (idx) => {
+    setRevealIndex(idx);
+    setInspectingSingleFromSummary(true);
+    setPhase('reveal');
+  };
+
+  const modalLocked = phase === 'meteor' || rolling || eggSmashBusy;
 
   return (
-    <ModalOverlay onBackdropClick={phase === 'charging' || phase === 'burst' ? undefined : onClose}>
+    <ModalOverlay onBackdropClick={modalLocked ? undefined : onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="gacha-title"
-        className="relative flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl"
+        className={`relative flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border-2 shadow-[0_24px_64px_rgba(0,0,0,0.48)] ${
+          activeTab === 'egg-smash'
+            ? 'border-[#5C3A1B] bg-[#2A4814] text-[#2D1B0D]'
+            : 'border-[#E6C37A] bg-[#FDF6E7] text-[#2D1B0D]'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
-              <CosmicCrystalGem size={32} glow={false} />
+        <h2 id="gacha-title" className="sr-only">
+          {activeTab === 'egg-smash' ? 'Egg Smash' : 'Crystal Wheel'}
+        </h2>
+
+        {activeTab === 'egg-smash' ? (
+          <EggSmashPanel
+            points={initialPoints}
+            crystals={crystals}
+            onBusyChange={setEggSmashBusy}
+            onSwitchToWheel={() => setActiveTab('wheel')}
+            onClose={onClose}
+            onWalletSync={(wallet) => {
+              if (!wallet) return;
+              if (!isAdmin && typeof wallet.points === 'number') {
+                setPoints(wallet.points);
+                onPointsChange?.(wallet.points);
+              }
+              if (typeof wallet.crystals === 'number') {
+                onCrystalsChange?.(wallet.crystals);
+              }
+              onWalletSync?.(wallet);
+            }}
+          />
+        ) : (
+        <>
+        {/* Top Celestial Header Bar (Crystal Wheel mode) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EFE0C2] bg-[#FFFBF2] px-5 py-3 sm:px-6">
+          {/* Left Emblem + Mode Switcher */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#ECCD8E] bg-[#FBEBD0] shadow-sm">
+              <CosmicCrystalGem size={26} glow={false} />
             </div>
-            <div>
-              <h2 id="gacha-title" className="text-lg font-bold text-foreground">
-                Crystal Wheel (Lucky Summon)
-              </h2>
+            <div
+              role="tablist"
+              aria-label="Game mode"
+              className="inline-flex items-center rounded-full border border-[#E5CCA1] bg-[#F6E8CC] p-1"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={true}
+                disabled={modalLocked}
+                className="flex cursor-default items-center gap-1.5 rounded-full bg-[#2B180A] px-3.5 py-1.5 text-xs font-extrabold text-[#FEF3C7] shadow-sm"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Crystal Wheel</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={false}
+                disabled={modalLocked}
+                onClick={() => setActiveTab('egg-smash')}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-extrabold text-[#6E4720] transition-colors hover:text-[#2B180A] disabled:cursor-not-allowed"
+              >
+                <Hammer className="h-3.5 w-3.5" />
+                <span>Egg Smash</span>
+              </button>
+            </div>
+            <div className="hidden items-center gap-0.5 sm:flex" aria-hidden="true">
+              <PrimogemStar size={15} color="#EAB308" />
+              <PrimogemStar size={9} color="#F59E0B" className="-mt-2" />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Currency Badges */}
-            <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
-              <Ticket className="h-3.5 w-3.5 text-primary" />
-              <span className="tabular-nums text-foreground">{tickets}</span>
-              <span className="text-foreground-muted">Tickets</span>
+          {/* Right Currency Pills & Close */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Tickets Pill */}
+            <div className="flex items-center gap-1.5 rounded-full border border-[#E6CBA0] bg-[#F7E7CA] px-3 py-1.5 text-xs font-bold text-[#3B2313]">
+              <Ticket className="h-3.5 w-3.5 text-[#C97A16]" />
+              <span className="tabular-nums font-extrabold">{tickets}</span>
+              <span className="text-[#6E4720]">Tickets</span>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold">
-              <Coins className="h-3.5 w-3.5 text-warning-text" />
-              <span className="tabular-nums text-foreground">{formatNumber(points)}</span>
-              <span className="text-foreground-muted">pts</span>
+            {/* Points Pill */}
+            <div className="flex items-center gap-1.5 rounded-full border border-[#E6CBA0] bg-[#F7E7CA] px-3 py-1.5 text-xs font-bold text-[#3B2313]">
+              <Coins className="h-3.5 w-3.5 text-[#C97A16]" />
+              <span className="tabular-nums font-extrabold">{formatNumber(displayedPoints)}</span>
+              <span className="text-[#6E4720]">pts</span>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 shadow-sm">
-              <CosmicCrystalGem size={18} glow={false} />
-              <span className="tabular-nums">{crystals}</span>
+            {/* Highlighted Crystal Pill */}
+            <div className="flex items-center gap-1.5 rounded-full border-2 border-[#EAB308] bg-[#FEF08A] px-3.5 py-1.5 text-xs font-extrabold text-[#713F12] shadow-[0_2px_10px_rgba(234,179,8,0.28)]">
+              <CosmicCrystalGem size={16} glow={false} />
+              <span className="tabular-nums">{displayedCrystals}</span>
               <span>Crystal</span>
             </div>
 
-            {/* Close button: Enabled whenever not actively charging or bursting */}
+            {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
-              disabled={phase === 'charging' || phase === 'burst'}
-              className="cursor-pointer rounded-lg p-1.5 text-foreground-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-20"
+              disabled={modalLocked}
+              className="ml-0.5 cursor-pointer rounded-full p-1.5 text-[#6E4720] transition-colors hover:bg-[#F3E2C0] hover:text-[#2B180A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] disabled:opacity-25"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -511,493 +678,113 @@ export default function MascotGachaModal({
           </div>
         </div>
 
-        {/* Pity Progress Tracker */}
-        <div className="border-b border-border bg-surface-secondary/40 px-6 py-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 font-medium text-foreground-secondary">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              <span>Crystal guarantee (Hard Pity):</span>
-              <span className="font-bold tabular-nums text-foreground">
-                {Math.min(pityCount, pityHard)} / {pityHard}
-              </span>
-              {pityCount >= SOFT_PITY_START && (
-                <span className="animate-pulse rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">
-                  Soft Pity boost
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowOddsModal(true)}
-              className="flex cursor-pointer items-center gap-1 text-xs text-primary hover:underline font-medium"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-              <span>Rates & Rules</span>
-            </button>
-          </div>
-
-          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-secondary">
-            <motion.div
-              className={`h-full rounded-full ${
-                pityCount >= SOFT_PITY_START ? 'bg-amber-500' : 'bg-primary'
-              }`}
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(100, (pityCount / pityHard) * 100)}%` }}
-              transition={{ duration: 0.4 }}
+        {/* Main Stage Body */}
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          {phase === 'idle' && (
+            <CelestialArchTopBar
+              pityCount={pityCount}
+              pityHard={pityHard}
+              softPityStart={rateConfig?.softPityStart ?? SOFT_PITY_START}
+              onOpenOdds={() => setShowOddsModal(true)}
             />
-          </div>
-        </div>
+          )}
 
-        {/* Main Interaction Area */}
-        <div className="relative flex min-h-[460px] flex-1 flex-col items-center justify-center p-6">
           <AnimatePresence mode="wait">
-            {/* PHASE 1: IDLE / PORTAL SELECTION */}
             {phase === 'idle' && (
               <motion.div
                 key="idle"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex w-full flex-1 flex-col items-center justify-between"
-              >
-                {/* Visual Sacred Crystal Summoning Altar */}
-                <div className="relative my-auto flex flex-col items-center justify-center py-6 select-none">
-                  <div className="absolute h-72 w-72 rounded-full border border-dashed border-amber-400/25 animate-[spin_40s_linear_infinite]" />
-                  <div className="absolute h-56 w-56 rounded-full border-2 border-primary/20 animate-[spin_25s_linear_infinite_reverse]" />
-                  <div className="absolute h-44 w-44 rounded-full border border-purple/20 animate-[spin_15s_linear_infinite]" />
-
-                  <motion.div
-                    animate={{
-                      scale: [1, 1.06, 1],
-                      rotate: [0, 2, -2, 0],
-                    }}
-                    transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-                    className="relative z-10 flex h-40 w-40 items-center justify-center rounded-full border-2 border-amber-400/50 bg-surface shadow-2xl backdrop-blur-sm"
-                  >
-                    <CosmicCrystalGem size={105} glow={true} />
-                    <Sparkles className="absolute -right-2 -top-2 h-7 w-7 text-amber-400 animate-bounce" />
-                    <Sparkles className="absolute -left-2 -bottom-2 h-5 w-5 text-purple animate-pulse" />
-                  </motion.div>
-
-                  <div className="mt-6 text-center z-10">
-                    <h3 className="text-xl font-extrabold tracking-wide text-foreground">
-                      COSMIC CRYSTAL SUMMON
-                    </h3>
-                  </div>
-                </div>
-
-                {/* Summon Buttons */}
-                <div className="flex w-full flex-wrap items-center justify-center gap-4 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => triggerGacha(1)}
-                    className="group flex min-h-[56px] min-w-[200px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-border bg-surface-secondary px-6 py-2.5 transition-all hover:border-primary hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
-                  >
-                    <span className="text-sm font-bold text-foreground">Roll once</span>
-                    <span className="mt-0.5 flex items-center gap-1 text-xs text-foreground-muted">
-                      {tickets >= 1 ? (
-                        <span className="font-semibold text-primary">1 Roll Ticket</span>
-                      ) : (
-                        <span className="tabular-nums text-warning-text">{costSingle} pts</span>
-                      )}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => triggerGacha(10)}
-                    className="group relative flex min-h-[56px] min-w-[220px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-primary bg-primary px-8 py-2.5 text-white shadow-lg transition-all hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
-                  >
-                    {tickets < 10 && (
-                      <span className="absolute -top-2.5 right-4 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-text shadow-sm border border-warning-border">
-                        10% off
-                      </span>
-                    )}
-                    <span className="text-sm font-bold text-white">Roll 10 times</span>
-                    <span className="mt-0.5 flex items-center gap-1 text-xs text-white/90">
-                      {tickets >= 10 ? (
-                        <span className="font-semibold text-white">10 Roll Tickets</span>
-                      ) : (
-                        <span className="tabular-nums font-semibold text-warning-bg">
-                          {costMulti} pts <span className="line-through text-white/60">1000</span>
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* PHASE 2: CHARGING ANIMATION */}
-            {phase === 'charging' && (
-              <motion.div
-                key="charging"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-10"
+                transition={{ duration: 0.22 }}
+                className=" -mt-[54px] flex flex-1 flex-col pt-[42px] sm:-mt-[62px] sm:pt-[48px]"
               >
-                <div className="relative flex h-52 w-52 items-center justify-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="absolute h-full w-full rounded-full border-4 border-dashed border-amber-400"
-                  />
-                  <motion.div
-                    animate={{ rotate: -360 }}
-                    transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
-                    className="absolute h-40 w-40 rounded-full border-2 border-primary"
-                  />
-                  <motion.div
-                    animate={{ scale: [0.85, 1.25, 0.95, 1.3] }}
-                    transition={{ duration: 1.3, ease: 'easeInOut' }}
-                    className="flex items-center justify-center"
-                  >
-                    <CosmicCrystalGem size={96} glow={true} />
-                  </motion.div>
-                </div>
-                <p className="mt-6 font-bold tracking-widest text-foreground animate-pulse uppercase text-sm">
-                  Converging cosmic energy...
-                </p>
+                <CelestialIdleBannerStage
+                  tickets={tickets}
+                  costSingle={costSingle}
+                  costMulti={costMulti}
+                  onRollOnce={() => triggerGacha(1)}
+                  onRollTen={() => triggerGacha(10)}
+                  rolling={rolling}
+                />
               </motion.div>
             )}
 
-            {/* PHASE 3: RARITY BURST BEAM */}
-            {phase === 'burst' && (
+            {phase === 'meteor' && (
               <motion.div
-                key="burst"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1.15 }}
+                key="meteor"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-10"
+                transition={{ duration: 0.18 }}
+                className="flex flex-1 flex-col"
               >
-                <div
-                  className={`flex h-44 w-44 items-center justify-center rounded-full shadow-2xl ${
-                    highestRarity === 'legendary'
-                      ? 'bg-amber-50 border-4 border-amber-400 ring-8 ring-amber-400/40'
-                      : highestRarity === 'epic'
-                      ? 'bg-purple-50 border-4 border-purple ring-8 ring-purple/40'
-                      : 'bg-emerald-50 border-4 border-emerald-500 ring-8 ring-emerald-500/40'
-                  }`}
-                >
-                  {highestRarity === 'legendary' ? (
-                    <CosmicCrystalGem size={90} glow={false} />
-                  ) : (
-                    <Sparkles
-                      className={`h-20 w-20 animate-spin ${
-                        highestRarity === 'epic' ? 'text-purple' : 'text-emerald-500'
-                      }`}
-                    />
-                  )}
-                </div>
-                <p className="mt-6 text-base font-extrabold tracking-widest text-foreground">
-                  {highestRarity === 'legendary' && '✨ CRYSTAL / LEGENDARY RADIANCE! ✨'}
-                  {highestRarity === 'epic' && '🔮 EPIC LIGHT APPEARS! 🔮'}
-                  {highestRarity === 'rare' && '🌿 RARE REWARD! 🌿'}
-                  {highestRarity === 'normal' && 'KEEP ROLLING...'}
-                </p>
+                <GenshinMeteorCutscene
+                  highestRarityKey={highestRarityKey}
+                  pullCount={currentPulls.length}
+                  onComplete={() => setPhase('reveal')}
+                  onSkip={() => setPhase('summary')}
+                />
               </motion.div>
             )}
 
-            {/* PHASE 3.5: 5-SECOND EPIC SHOWCASE CUTSCENE (for Crystal & Mascot) */}
-            {phase === 'showcase' && showcaseItem && (
+            {phase === 'reveal' && currentPulls[revealIndex] && (
               <motion.div
-                key="showcase"
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="relative flex w-full flex-1 flex-col items-center justify-center py-6 select-none"
+                key="reveal"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-1 flex-col"
               >
-                {/* Skip Button Top Right */}
-                <button
-                  type="button"
-                  onClick={skipShowcase}
-                  className="absolute right-2 top-0 flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold text-foreground shadow-sm hover:bg-surface-secondary transition-all"
-                >
-                  <span>Skip</span>
-                  <FastForward className="h-3.5 w-3.5 text-primary" />
-                </button>
-
-                {/* Rotating Radiance Halo */}
-                <div className="absolute h-80 w-80 rounded-full border-2 border-dashed border-amber-400/30 animate-[spin_20s_linear_infinite]" />
-                <div className="absolute h-64 w-64 rounded-full border border-purple/20 animate-[spin_15s_linear_infinite_reverse]" />
-
-                {/* Main Visual Display */}
-                <motion.div
-                  animate={{
-                    scale: [0.95, 1.08, 1],
-                    y: [-4, 4, -4],
+                <GenshinSingleRevealStage
+                  pull={currentPulls[revealIndex]}
+                  index={revealIndex}
+                  total={inspectingSingleFromSummary ? 1 : currentPulls.length}
+                  onAdvance={handleAdvanceReveal}
+                  onSkipAll={() => {
+                    setInspectingSingleFromSummary(false);
+                    setPhase('summary');
                   }}
-                  transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                  className="relative z-10 flex h-48 w-48 items-center justify-center rounded-3xl border-2 border-amber-400/60 bg-amber-50/80 dark:bg-amber-950/40 shadow-2xl"
-                  style={{
-                    backgroundColor: showcaseItem.type === 'crystal' ? '#FEF3C7' : '#EDE9FE',
-                    borderColor: showcaseItem.type === 'crystal' ? '#FCD34D' : '#C4B5FD',
-                  }}
-                >
-                  {showcaseItem.type === 'crystal' ? (
-                    <CosmicCrystalGem size={110} glow={true} />
-                  ) : (
-                    <Mascot 
-                      size={110}
-                      label={`${showcaseItem.name} mascot`}
-                      directions={mascotArt(showcaseItem.mascotId).directions}
-                      reactions={mascotArt(showcaseItem.mascotId).reactions}
-                      tier={mascotArt(showcaseItem.mascotId).tier}
-                      trackPointer
-                    />
-                  )}
-                  <Sparkles className="absolute -top-3 -right-3 h-8 w-8 text-amber-500 animate-spin" />
-                </motion.div>
-
-                {/* Showcase Titles */}
-                <div className="mt-6 text-center z-10">
-                  <span className="inline-block rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-800 shadow-sm">
-                    {showcaseItem.type === 'crystal' ? 'ULTIMATE TREASURE' : `${showcaseItem.tierName}`}
-                  </span>
-                  <h3 className="mt-2 text-2xl font-black tracking-wide text-foreground">
-                    {showcaseItem.type === 'crystal' 
-                      ? '✨ COSMIC CRYSTAL AWAKENING! ✨'
-                      : `🎉 MASCOT AWAKENING: ${showcaseItem.name.toUpperCase()}!`
-                    }
-                  </h3>
-                  {showcaseItem.type === 'crystal' && (
-                    <p className="mt-1.5 max-w-md text-xs text-foreground-secondary">
-                      Ultimate treasure used to redeem Legendary mascots in the shop!
-                    </p>
-                  )}
-                </div>
-
-                {/* 5-second countdown progress bar */}
-                <div className="mt-8 flex flex-col items-center gap-1.5 z-10">
-                  <div className="h-1.5 w-48 overflow-hidden rounded-full bg-surface-secondary">
-                    <motion.div 
-                      className="h-full bg-primary rounded-full"
-                      initial={{ width: '100%' }}
-                      animate={{ width: '0%' }}
-                      transition={{ duration: 5, ease: 'linear' }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-semibold text-foreground-muted">
-                    Auto-continues in {showcaseCountdown}s (press Skip to continue now)
-                  </span>
-                </div>
+                />
               </motion.div>
             )}
 
-            {/* PHASE 4: SUMMARY & RESULTS GRID */}
             {phase === 'summary' && (
               <motion.div
                 key="summary"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex w-full flex-1 flex-col justify-between"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.22 }}
+                className="flex flex-1 flex-col"
               >
-                <div>
-                  {/* Pulls Header Summary */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-                    <div>
-                      <h4 className="text-base font-bold text-foreground">
-                        Pull results ({currentPulls.length} rewards)
-                      </h4>
-                      <p className="text-xs text-foreground-muted">
-                        Current Crystal pity: <span className="font-bold text-foreground">{Math.min(pityCount, pityHard)} / {pityHard}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {crystalsWonInPulls > 0 && (
-                        <div className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
-                          <CosmicCrystalGem size={16} glow={false} />
-                          <span>+{crystalsWonInPulls} Crystal(s) received!</span>
-                        </div>
-                      )}
-                      {mascotsWonInPulls.length > 0 && (
-                        <div className="flex items-center gap-1 rounded-full border border-purple/40 bg-purple-50 px-3 py-1 text-xs font-bold text-purple">
-                          <Award className="h-3.5 w-3.5" />
-                          <span>+{mascotsWonInPulls.length} new mascot(s)!</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1 rounded-full bg-surface-secondary px-3 py-1 text-xs font-bold text-foreground border border-border">
-                        <Coins className="h-3.5 w-3.5 text-warning-text" />
-                        <span>+{totalRefundedInPulls} pts refunded</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rewards Grid with Explicit Colors:
-                      - Normal Mascot: bg grey (#F1F5F9)
-                      - Rare Mascot: bg green light (#DCFCE7)
-                      - Epic Mascot: bg purple light (#EDE9FE)
-                      - Legendary Mascot & Crystal: bg light yellow (#FEF3C7)
-                      - Points: Clean neutral card (#F8FAFC) without normal/rare division!
-                  */}
-                  <div className={`mt-4 grid gap-3 overflow-y-auto max-h-[320px] p-1 ${
-                    currentPulls.length === 1 
-                      ? 'grid-cols-1 max-w-xs mx-auto' 
-                      : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5'
-                  }`}>
-                    {currentPulls.map((pull, idx) => {
-                      const item = pull.item;
-                      const isPoints = item.type === 'points';
-                      const isCrystal = item.type === 'crystal';
-                      const isMascot = item.type === 'mascot';
-
-                      // Explicit visual backgrounds requested:
-                      // Normal: bg grey (#F1F5F9)
-                      // Rare: bg green light (#DCFCE7)
-                      // Epic: bg purple light (#EDE9FE)
-                      // Legendary/Crystal: bg light yellow (#FEF3C7)
-                      let cardStyle = {
-                        backgroundColor: '#F8FAFC',
-                        borderColor: '#E2E8F0',
-                        color: '#0F172A',
-                      };
-                      let badgeStyle = {
-                        backgroundColor: '#E2E8F0',
-                        color: '#475569',
-                      };
-
-                      if (isCrystal || item.rarity === 'legendary') {
-                        cardStyle = {
-                          backgroundColor: '#FEF3C7',
-                          borderColor: '#FCD34D',
-                          color: '#78350F',
-                        };
-                        badgeStyle = {
-                          backgroundColor: '#FDE68A',
-                          color: '#92400E',
-                        };
-                      } else if (item.rarity === 'epic') {
-                        cardStyle = {
-                          backgroundColor: '#EDE9FE',
-                          borderColor: '#C4B5FD',
-                          color: '#4C1D95',
-                        };
-                        badgeStyle = {
-                          backgroundColor: '#DDD6FE',
-                          color: '#5B21B6',
-                        };
-                      } else if (item.rarity === 'rare') {
-                        cardStyle = {
-                          backgroundColor: '#DCFCE7',
-                          borderColor: '#86EFAC',
-                          color: '#14532D',
-                        };
-                        badgeStyle = {
-                          backgroundColor: '#BBF7D0',
-                          color: '#166534',
-                        };
-                      } else if (isMascot && item.rarity === 'normal') {
-                        cardStyle = {
-                          backgroundColor: '#F1F5F9',
-                          borderColor: '#CBD5E1',
-                          color: '#334155',
-                        };
-                        badgeStyle = {
-                          backgroundColor: '#E2E8F0',
-                          color: '#475569',
-                        };
-                      }
-
-                      return (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, scale: 0.8, y: 12 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          transition={{ delay: idx * 0.04 }}
-                          style={cardStyle}
-                          className={`relative flex flex-col items-center rounded-2xl border-2 p-3 text-center transition-all shadow-sm ${
-                            isCrystal || item.rarity === 'legendary' ? 'ring-2 ring-amber-400/40' : ''
-                          }`}
-                        >
-                          {/* Item Icon */}
-                          <div className="flex h-14 w-14 items-center justify-center">
-                            {isCrystal ? (
-                              <CosmicCrystalGem size={44} glow={false} />
-                            ) : isMascot ? (
-                              <Mascot
-                                size={46}
-                                label={`${item.name} mascot`}
-                                directions={mascotArt(item.mascotId).directions}
-                                reactions={mascotArt(item.mascotId).reactions}
-                              />
-                            ) : (
-                              <Coins className="h-8 w-8 text-warning-text drop-shadow-sm" />
-                            )}
-                          </div>
-
-                          {/* Item Title */}
-                          <div className="mt-1.5 flex-1">
-                            <span className="block text-xs font-bold line-clamp-1">
-                              {item.name}
-                            </span>
-                            <span 
-                              style={badgeStyle}
-                              className="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider"
-                            >
-                              {item.tierName}
-                            </span>
-                          </div>
-
-                          {/* Rewards Value Bottom Strip */}
-                          <div className="mt-2 w-full border-t border-black/10 pt-1.5 text-[11px] font-bold">
-                            {isCrystal ? (
-                              <span className="text-amber-800">+1 Crystal</span>
-                            ) : isMascot ? (
-                              <span className="text-emerald-800">UNLOCKED!</span>
-                            ) : (
-                              <span className="text-foreground-secondary">+{item.pointsRefund} pts</span>
-                            )}
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Bottom Actions: Return to idle screen, Close, or Roll again with clear currency indicator */}
-                <div className="mt-4 flex items-center justify-end gap-3 border-t border-border pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setPhase('idle')}
-                    className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  >
-                    Idle screen
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="min-h-11 cursor-pointer rounded-xl border border-border bg-surface-secondary px-5 text-xs font-semibold text-foreground transition-colors hover:bg-surface-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  >
-                    Done
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => triggerGacha(currentPulls.length)}
-                    className="min-h-11 cursor-pointer rounded-xl bg-primary px-6 text-xs font-bold text-white shadow-md transition-all hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98] flex items-center gap-2"
-                  >
-                    <span>Roll again ({currentPulls.length}x)</span>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      {tickets >= currentPulls.length
-                        ? `${currentPulls.length} Tickets`
-                        : `${currentPulls.length === 1 ? 100 : 900} pts`}
-                    </span>
-                  </button>
-                </div>
+                <GenshinWishSummaryStage
+                  pulls={currentPulls}
+                  pityCount={pityCount}
+                  pityHard={pityHard}
+                  tickets={tickets}
+                  costSingle={costSingle}
+                  costMulti={costMulti}
+                  onInspectPull={handleInspectFromSummary}
+                  onReturnIdle={() => setPhase('idle')}
+                  onClose={onClose}
+                  onRollAgain={(count) => triggerGacha(count)}
+                  rolling={rolling}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+        </>
+        )}
 
-        {/* Interactive Demo Sandbox Tools (Admin Only) */}
-        {isAdmin && demoBannerOpen && (
-          <div className="border-t border-border bg-surface-secondary px-6 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                <Zap className="h-4 w-4 text-warning-text" />
+        {/* Admin Demo Sandbox Controls Footer (Crystal Wheel only) */}
+        {isAdmin && activeTab === 'wheel' && (
+          <div className="border-t border-[#ECDCBC] bg-[#FCF4E4] px-5 py-3 sm:px-6">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#4A2E14]">
+                <Zap className="h-3.5 w-3.5 text-[#D97706]" />
                 <span>Gacha demo sandbox controls:</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1006,13 +793,14 @@ export default function MascotGachaModal({
                   onClick={() => {
                     const next = tickets + 10;
                     setTickets(next);
-                    localStorage.setItem('gacha_demo_tickets', next);
+                    localStorage.setItem('gacha_demo_tickets', String(next));
                     onTicketsChange?.(next);
                   }}
-                  className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
+                  className="cursor-pointer rounded-full border border-[#E5CCA1] bg-[#FFFDF7] px-3 py-1 text-xs font-semibold text-[#3B2313] shadow-sm transition-colors hover:bg-[#F7E7CA]"
                 >
                   +10 Roll Tickets
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1021,14 +809,16 @@ export default function MascotGachaModal({
                     dialog.alert({
                       level: 'safety',
                       title: 'Ticket Progress Reset',
-                      message: "Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.",
+                      message:
+                        "Cleared today's streak ticket claim progress! Try missions (Pet / Submit) to earn tickets again.",
                     });
                   }}
-                  className="cursor-pointer rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/20"
+                  className="cursor-pointer rounded-full border border-[#EAB676] bg-[#FADFC0] px-3 py-1 text-xs font-bold text-[#8C450A] transition-colors hover:bg-[#F6D2A7]"
                   title="Clear today's streak ticket claim cache so you can retest mission ticket rewards"
                 >
-                  Reset today's ticket claims
+                  Reset today&apos;s ticket claims
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1036,29 +826,36 @@ export default function MascotGachaModal({
                     setPoints(next);
                     onPointsChange?.(next);
                   }}
-                  className="cursor-pointer rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-tertiary"
+                  className="cursor-pointer rounded-full border border-[#E5CCA1] bg-[#FFFDF7] px-3 py-1 text-xs font-semibold text-[#3B2313] shadow-sm transition-colors hover:bg-[#F7E7CA]"
                 >
                   +1,000 Points
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => onCrystalsChange?.(crystals + 1)}
-                  className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 text-amber-800 px-2.5 py-1 text-xs font-bold hover:opacity-90"
+                  onClick={() => {
+                    const next = demoCrystals + 1;
+                    setDemoCrystals(next);
+                    onCrystalsChange?.(next);
+                  }}
+                  className="cursor-pointer rounded-full border border-[#EAB308] bg-[#FEF08A] px-3 py-1 text-xs font-extrabold text-[#78350F] transition-opacity hover:opacity-90"
                 >
                   +1 Crystal
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setPityCount(99)}
-                  className="cursor-pointer rounded-lg border border-warning-border bg-warning-bg px-2.5 py-1 text-xs font-bold text-warning-text hover:opacity-90"
-                  title="Set pity to 99 so the next roll is a guaranteed Crystal (ticket roll)"
+                  onClick={() => setPityCount(Math.max(0, pityHard - 1))}
+                  className="cursor-pointer rounded-full border border-[#EAB676] bg-[#FADFC0] px-3 py-1 text-xs font-bold text-[#8C450A] transition-colors hover:bg-[#F6D2A7]"
+                  title="Set pity right before hard pity so the next ticket roll is a guaranteed Crystal"
                 >
-                  Set Pity = 99 (test Crystal)
+                  Set Pity = {Math.max(0, pityHard - 1)} (test Crystal)
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setPityCount(0)}
-                  className="cursor-pointer rounded-lg border border-border bg-surface px-2 py-1 text-xs text-foreground-muted hover:bg-surface-tertiary"
+                  className="cursor-pointer rounded-full border border-[#E5CCA1] bg-[#FFFDF7] px-3 py-1 text-xs font-medium text-[#6E4720] shadow-sm transition-colors hover:bg-[#F7E7CA]"
                 >
                   Reset Pity (0)
                 </button>
@@ -1070,42 +867,39 @@ export default function MascotGachaModal({
 
       {/* Probability & Rules Modal */}
       {showOddsModal && (
-        <ModalOverlay onBackdropClick={() => setShowOddsModal(false)}>
+        <ModalOverlay className="z-[110]" onBackdropClick={() => setShowOddsModal(false)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="odds-title"
-            className="w-full max-w-lg rounded-3xl border border-border bg-surface p-6 shadow-2xl"
+            className="w-full max-w-lg rounded-3xl border border-border bg-surface p-6 shadow-stage-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 id="odds-title" className="text-base font-bold text-foreground">
-                Reward rates & cashback rules
-              </h3>
+              <div className="flex items-center gap-2">
+                <PrimogemStar size={18} color="#F59E0B" />
+                <h3 id="odds-title" className="text-base font-bold text-foreground">
+                  Reward rates &amp; cashback rules
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowOddsModal(false)}
-                className="cursor-pointer rounded-lg p-1 text-foreground-secondary hover:text-foreground"
+                className="cursor-pointer rounded-lg p-1 text-foreground-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 space-y-3 text-xs text-foreground-secondary">
+            <div className="mt-4 space-y-2.5 text-xs text-foreground-secondary">
               <p>
-                <strong>Crystal pity:</strong> Roll tickets guarantee a Crystal on the 100th roll if none dropped earlier; from roll 90 onward the rate ramps up (0.15% base before that).
+                <strong className="text-foreground">Crystal pity:</strong> Roll tickets guarantee a Crystal on roll{' '}
+                <span className="tabular-nums font-semibold">{pityHard}</span> if none dropped earlier; from roll{' '}
+                <span className="tabular-nums font-semibold">{rateConfig?.softPityStart ?? SOFT_PITY_START}</span> onward the rate ramps up.
               </p>
               <p>
-                <strong>Awakening showcase (5s):</strong> Pulling a Crystal or Epic+ mascot shows a special showcase for 5 seconds (press Skip to jump to results).
-              </p>
-              <p>
-                <strong>Direct Legendary mascot (1/6000):</strong> An ultra-rare 0.0167% chance to unlock a Legendary mascot directly.
-              </p>
-              <p>
-                <strong>Random mascot (0.3% — no duplicates):</strong> A 0.30% chance to unlock a new mascot you do not already own (never repeats owned mascots).
-              </p>
-              <p>
-                <strong>Legendary shop redeem:</strong> It takes 3–4 Crystals to redeem one Legendary mascot in the shop. Under normal conditions (full streak missions, ~50 tickets/week), students earn exactly 2 Legendaries in about 2.5 months.
+                <strong className="text-foreground">Random mascot (no duplicates):</strong> Mascot drops always unlock a mascot you do not already own.
               </p>
 
               {/* Odds Table */}
@@ -1115,49 +909,89 @@ export default function MascotGachaModal({
                     <tr>
                       <th className="px-3 py-2">Reward</th>
                       <th className="px-3 py-2">Rate</th>
-                      <th className="px-3 py-2">Description / Cashback</th>
+                      <th className="px-3 py-2">Effect</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    <tr style={{ backgroundColor: '#FEF3C7', color: '#78350F' }} className="font-bold">
-                      <td className="px-3 py-2">👑 Direct Legendary mascot</td>
-                      <td className="px-3 py-2 tabular-nums">0.0167% (1/6000)</td>
-                      <td className="px-3 py-2">Unlock a Legendary immediately</td>
+                    <tr className="bg-warning-bg/75 font-bold text-warning-text">
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Crown className="h-3.5 w-3.5 shrink-0" />
+                          <span>Direct Legendary mascot</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.directLegendaryRate ?? DIRECT_LEGENDARY_RATE)}
+                      </td>
+                      <td className="px-3 py-2">Unlock Legendary immediately</td>
                     </tr>
-                    <tr style={{ backgroundColor: '#FEF3C7', color: '#92400E' }} className="font-bold">
-                      <td className="px-3 py-2">💎 Crystal Stone</td>
-                      <td className="px-3 py-2 tabular-nums">0.15% (Pity 100)</td>
+                    <tr className="bg-warning-bg/55 font-bold text-warning-text">
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CosmicCrystalGem size={14} glow={false} />
+                          <span>Crystal Stone</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.crystalBaseRate ?? CRYSTAL_BASE_RATE)} (Pity {pityHard})
+                      </td>
                       <td className="px-3 py-2">+1 Crystal</td>
                     </tr>
-                    <tr style={{ backgroundColor: '#EDE9FE', color: '#4C1D95' }} className="font-medium">
-                      <td className="px-3 py-2">🐾 Random mascot (no duplicates)</td>
-                      <td className="px-3 py-2 tabular-nums">0.30%</td>
-                      <td className="px-3 py-2">Unlock a new unowned mascot</td>
+                    <tr className="bg-surface-secondary/60 font-semibold text-foreground">
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Award className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          <span>Random mascot (no duplicates)</span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.randomMascotRate ?? RANDOM_MASCOT_RATE)}
+                      </td>
+                      <td className="px-3 py-2">Unlock unowned mascot</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+300 reward points</td>
-                      <td className="px-3 py-2 tabular-nums">2.50%</td>
-                      <td className="px-3 py-2 text-primary font-semibold">+300 pts</td>
+                      <td className="px-3 py-2 font-medium text-foreground">+300 reward points</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.cashbackRate300 ?? 0.025)}
+                      </td>
+                      <td className="px-3 py-2 font-semibold tabular-nums text-primary">+300 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+150 reward points</td>
-                      <td className="px-3 py-2 tabular-nums">6.00%</td>
-                      <td className="px-3 py-2 text-primary font-semibold">+150 pts</td>
+                      <td className="px-3 py-2 font-medium text-foreground">+150 reward points</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.cashbackRate150 ?? 0.06)}
+                      </td>
+                      <td className="px-3 py-2 font-semibold tabular-nums text-primary">+150 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+60 reward points</td>
-                      <td className="px-3 py-2 tabular-nums">18.00%</td>
-                      <td className="px-3 py-2 text-primary font-semibold">+60 pts</td>
+                      <td className="px-3 py-2 font-medium text-foreground">+60 reward points</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.cashbackRate60 ?? 0.18)}
+                      </td>
+                      <td className="px-3 py-2 font-semibold tabular-nums text-primary">+60 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 font-medium">+20 reward points</td>
-                      <td className="px-3 py-2 tabular-nums">42.00%</td>
-                      <td className="px-3 py-2 text-primary font-semibold">+20 pts</td>
+                      <td className="px-3 py-2 font-medium text-foreground">+20 reward points</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(rateConfig?.cashbackRate20 ?? 0.42)}
+                      </td>
+                      <td className="px-3 py-2 font-semibold tabular-nums text-primary">+20 pts</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 text-slate-500">+5 reward points</td>
-                      <td className="px-3 py-2 tabular-nums">29.82%</td>
-                      <td className="px-3 py-2 text-slate-500">+5 pts</td>
+                      <td className="px-3 py-2 text-foreground-muted">+5 reward points</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatPercent(
+                          Math.max(
+                            0,
+                            1 -
+                              ((rateConfig?.cashbackRate300 ?? 0.025) +
+                                (rateConfig?.cashbackRate150 ?? 0.06) +
+                                (rateConfig?.cashbackRate60 ?? 0.18) +
+                                (rateConfig?.cashbackRate20 ?? 0.42)),
+                          ),
+                        )}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-foreground-muted">+5 pts</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1168,7 +1002,7 @@ export default function MascotGachaModal({
               <button
                 type="button"
                 onClick={() => setShowOddsModal(false)}
-                className="min-h-9 cursor-pointer rounded-xl bg-primary px-4 text-xs font-semibold text-white hover:bg-primary-hover"
+                className="min-h-9 cursor-pointer rounded-xl bg-primary px-4 text-xs font-semibold text-white hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 Got it
               </button>
@@ -1177,6 +1011,7 @@ export default function MascotGachaModal({
         </ModalOverlay>
       )}
 
+      {/* Points Spend Confirmation Modal */}
       {pointsSpendPrompt && (
         <ModalOverlay className="z-[110]" onBackdropClick={declinePointsSpend}>
           <motion.div
@@ -1190,10 +1025,9 @@ export default function MascotGachaModal({
             className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border bg-surface p-6 shadow-stage-3"
             onClick={(event) => event.stopPropagation()}
           >
-            {/* Top Row: Icon Badge, Title & Close Button */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-500 dark:bg-amber-400/15 dark:text-amber-400">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-warning/30 bg-warning-bg text-warning-text">
                   <Coins className="h-5 w-5" />
                 </div>
                 <h3 id="gacha-points-title" className="text-base font-bold text-foreground">
@@ -1210,7 +1044,7 @@ export default function MascotGachaModal({
               </button>
             </div>
 
-            {/* Transaction Breakdown Well (Single-level card compliant: borderless tint) */}
+            {/* Borderless surface-secondary tint well (no card-in-card) */}
             <div className="mt-4 space-y-2.5 rounded-2xl bg-surface-secondary/75 p-4 text-xs">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-foreground-secondary">
@@ -1234,19 +1068,17 @@ export default function MascotGachaModal({
 
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-foreground-secondary">
-                  <Coins className="h-3.5 w-3.5 text-amber-500" />
+                  <Coins className="h-3.5 w-3.5 text-warning-text" />
                   Cost
                 </span>
-                <span className="font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                <span className="font-bold tabular-nums text-warning-text">
                   -{formatNumber(pointsSpendPrompt.cost)} pts
                 </span>
               </div>
 
               <div className="border-t border-border/70 pt-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-foreground-secondary">
-                    Balance after roll
-                  </span>
+                  <span className="text-foreground-secondary">Balance after roll</span>
                   <div className="flex items-center gap-1.5 font-mono tabular-nums">
                     <span className="text-foreground-muted line-through">
                       {formatNumber(points)}
@@ -1261,7 +1093,7 @@ export default function MascotGachaModal({
             </div>
 
             {/* Remember Choice Toggle */}
-            <label className="mt-3.5 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/70 bg-surface-secondary/40 px-3.5 py-2.5 transition-colors hover:bg-surface-secondary">
+            <label className="mt-3.5 flex cursor-pointer items-center gap-2.5 rounded-xl bg-surface-secondary/50 px-3.5 py-2.5 transition-colors hover:bg-surface-secondary">
               <div
                 className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                   rememberPointsChoice
@@ -1277,12 +1109,9 @@ export default function MascotGachaModal({
                 onChange={(event) => setRememberPointsChoice(event.target.checked)}
                 className="sr-only"
               />
-              <span className="text-xs font-medium text-foreground">
-                Remember my choice
-              </span>
+              <span className="text-xs font-medium text-foreground">Remember my choice</span>
             </label>
 
-            {/* Actions */}
             <div className="mt-5 flex items-center gap-2.5">
               <button
                 type="button"
@@ -1294,10 +1123,10 @@ export default function MascotGachaModal({
               <button
                 type="button"
                 onClick={confirmPointsSpend}
-                className="min-h-11 flex-1 cursor-pointer rounded-xl bg-primary px-5 text-xs font-bold text-white shadow-stage-1 transition-all duration-150 hover:bg-primary-hover active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary flex items-center justify-center gap-1.5"
+                className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-primary px-5 text-xs font-bold text-white shadow-stage-1 transition-all duration-150 hover:bg-primary-hover active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <Coins className="h-4 w-4" />
-                <span>Spend {formatNumber(pointsSpendPrompt.cost)} pts</span>
+                <span className="tabular-nums">Spend {formatNumber(pointsSpendPrompt.cost)} pts</span>
               </button>
             </div>
           </motion.div>
