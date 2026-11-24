@@ -9,6 +9,7 @@ export const ROUTES = {
   lecturerFeedback: '/lecturer-feedback',
   lecturerTerms: '/lecturer-terms',
   lecturerRanking: '/lecturer-ranking',
+  lecturerHolidays: '/lecturer-holidays',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
   studentRanking: '/student-ranking',
@@ -164,6 +165,7 @@ export const LECTURER_NAV_TO_ROUTE = {
   reports: ROUTES.lecturerReport,
   feedback: ROUTES.lecturerFeedback,
   terms: ROUTES.lecturerTerms,
+  holidays: ROUTES.lecturerHolidays,
 };
 
 export const LECTURER_ROUTE_TO_NAV = Object.fromEntries(

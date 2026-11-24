@@ -30,6 +30,7 @@ Reusable, role-agnostic UI building blocks shared across lecturer and student fl
 | `Progress.jsx` | Determinate progress bar (`value` / `max`, `role="progressbar"`) |
 | `PasswordStrengthField.jsx` | First-login password field with four-part strength meter, rule checks, and eye toggle (styles scoped to `.u036`) |
 | `LottieAnimation.jsx` | CSP-safe offline SVG Lottie wrapper (`lottie-web/build/player/lottie_light`) for `src/assets/lottie/*.json`; locks calm frame under `prefers-reduced-motion` |
+| `LoginBackground.jsx` | Auth screen background container shared across `LoginUI`, `ForgotPasswordUI`, `ResetPasswordUI`, and `FirstTimeSetupUI`; renders the active major holiday background scene from `src/components/auth/holidays/registry.js` (or `DefaultBackgroundScene` when no holiday is active / on offline desktop) |
 | `MotionPrimitives.jsx` | Perspective 3D & Framer Motion primitives: `StageCard3D`, `AnimatedEntrance`, `StaggerGroup`, `StaggerItem`, `AnimatedCounter`, `EmptyState`, `GradingActivityVisual` |
 
 ## Local Contracts

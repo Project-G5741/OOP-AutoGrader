@@ -9,7 +9,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | File | Role |
 |---|---|
 | `Login.jsx` | Thin wrapper → `LoginUI.jsx` |
-| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane with `oop-stage.json` Lottie + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; zero nested borders, zero gradients) |
+| `LoginUI.jsx` | Balanced 50/50 unified two-column Corporate EdTech card (left borderless tint hero pane with `oop-stage.json` Lottie + 3 feature pills; right form pane with `AppLogo`, IRN + password, Google OAuth, forgot-password entry; zero nested borders, zero gradients). On Web during an active major holiday, `LoginUI` renders holiday-specific kicker badge, pop-up corner ornaments (`LoginCardHolidayDecor`), logo accessory (`LogoHolidayAccessory`), and Login-scoped accent tokens while `SessionHolidayEffects` runs ambient animations across the session |
 | `ForgotPasswordUI.jsx` | Request reset link by school email |
 | `ResetPasswordUI.jsx` | Set new password from `?resetToken=` query param |
 | `FirstTimeSetupUI.jsx` | New Google user: set IRN + password via `/api/auth/google/upsert`. Set Password uses `PasswordStrengthField` (strength meter + rule checks); submit still follows `getFirstTimeSetupErrors` (6–100 characters) |
@@ -25,6 +25,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `UserManagement.jsx` | User CRUD (live API) |
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import, email current-quarter roster |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
+| `HolidayManagement.jsx` | **Admin**-only **Holidays** nav tab (`/lecturer-holidays`): early holiday activation (`Bật sớm ngay` or custom `earlyStartDate` → `endDate` via `DatePicker`) with automatic expiration once `todayIso > endDate` |
 
 ## Local Contracts
 
@@ -43,6 +44,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-report` | LECTURER or ADMIN | Reports |
 | `/lecturer-feedback` | LECTURER or ADMIN | Feedback inbox |
 | `/lecturer-ranking` | LECTURER or ADMIN | Weekly ranking board |
+| `/lecturer-holidays` | ADMIN | Holiday early activation & auto-expiration schedule |
 | `/student-dashboard` | STUDENT or ADMIN | Student main. Admin requests `GET /api/labs/list?scope=student` (student-visible labs, no saved stats, no enrollment row) |
 | `/student-history` | STUDENT or ADMIN | Student history |
 | `/student-ranking` | STUDENT or ADMIN | Weekly ranking board (web only; empty rows when out of term) |
@@ -67,6 +69,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
 | `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved (soft-archive if reply) |
+| `holidays` | `HolidayManagement.jsx` (**Admin** only) | `GET /api/auth/holiday-config`, `PUT /api/lecturer/holiday-config` + `localStorage` sync |
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 

@@ -5,6 +5,11 @@ import { Eye, EyeOff, User, Lock } from 'lucide-react';
 import { BracketsCurly, FlowArrow, Flask, GraduationCap } from '@phosphor-icons/react';
 import AppLogo from '../components/ui/AppLogo';
 import LoginBackground from '../components/ui/LoginBackground';
+import LoginCardHolidayDecor, {
+  LogoHolidayAccessory,
+} from '../components/auth/holidays/LoginCardHolidayDecor';
+import { getHolidayBackgroundEntry } from '../components/auth/holidays/registry';
+import { useActiveHoliday } from '../utils/holidayCalendar';
 import LottieAnimation from '../components/ui/LottieAnimation';
 import oopStageData from '../assets/lottie/oop-stage.json';
 import { brand } from '../theme/brand';
@@ -29,6 +34,9 @@ function decodeJwtPayload(token) {
 }
 
 export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMessage, onBack }) {
+  const activeHoliday = useActiveHoliday();
+  const holidayEntry = getHolidayBackgroundEntry(activeHoliday?.id);
+  const KickerIcon = holidayEntry.KickerIcon || GraduationCap;
   const irnInputRef = useRef(null);
   const [irn, setIrn] = useState('');
   const [password, setPassword] = useState('');
@@ -210,13 +218,14 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
         )}
 
         <div className="login-shell">
-          <div className="login-unified-card">
+          <div className="login-unified-card" data-holiday-card={holidayEntry.id}>
+            <LoginCardHolidayDecor holidayId={holidayEntry.id} />
             <aside className="login-hero-pane" aria-hidden="true">
               <div className="login-hero-corner" />
               <div className="login-hero-inner">
                 <span className="login-hero-kicker">
-                  <GraduationCap size={15} weight="duotone" />
-                  EIU · SCIT
+                  <KickerIcon size={15} weight="duotone" />
+                  {holidayEntry.kicker}
                 </span>
 
                 <h2 className="login-hero-heading">
@@ -256,7 +265,10 @@ export default function LoginUI({ onLoginSuccess, loginMessage, onDismissLoginMe
 
             <div className="login-form-pane">
               <div className="logo-title">
-                <AppLogo variant="login" />
+                <div className="login-logo-holiday-wrap">
+                  <AppLogo variant="login" />
+                  <LogoHolidayAccessory holidayId={holidayEntry.id} />
+                </div>
                 <h1 className="main-title">{brand.loginTitle}</h1>
               </div>
 
