@@ -56,20 +56,36 @@ const SANDBOX_MASCOT_POOL = [
   'bunny',
   'cat',
   'bear',
+  'capybara',
   'panda',
   'penguin',
+  'alpaca',
   'vit',
+  'hai_cau',
   'hamster',
   'chuot_tui',
+  'red_panda',
   'shiba',
   'dai_bang',
+  'pomeranian',
   'cho_soi',
-  'thanh_long',
-  'bach_ho',
-  'chu_tuoc',
+  'ho_diep',
   'huyen_vu',
+  'thien_nga',
+  'chu_tuoc',
+  'bach_ho',
+  'cuu_vi',
+  'thanh_long',
 ];
-const SANDBOX_LEGENDARY_POOL = ['zerotwo', 'con_bang', 'cung_ky', 'linh_loc', 'ki_lan'];
+const SANDBOX_LEGENDARY_POOL = [
+  'zerotwo',
+  'con_bang',
+  'cung_ky',
+  'stella_witch',
+  'linh_loc',
+  'ki_lan',
+  'sakura_princess',
+];
 
 const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
 const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';

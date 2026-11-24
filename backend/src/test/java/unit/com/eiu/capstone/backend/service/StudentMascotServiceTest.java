@@ -57,38 +57,54 @@ class StudentMascotServiceTest {
     }
 
     @Test
-    void goat_eligibleUser_canSeeAndEquip() {
+    void retiredGoat_isRejectedAndEquippedFallsBackToFox() {
         StudentStreakService streakService = mock(StudentStreakService.class);
         StudentMascotPurchaseRepository purchases = mock(StudentMascotPurchaseRepository.class);
         UserAccountRepository userAccounts = mock(UserAccountRepository.class);
 
         StudentMascotService service = new StudentMascotService(streakService, purchases, userAccounts);
 
-        UUID eligibleId = UUID.fromString("89e5b815-89e3-4a62-b1d3-c4e98ec866a3");
+        UUID userId = UUID.randomUUID();
         UserAccount user = new UserAccount();
         user.setStudentCode("2331200041");
-        user.setEmail("kha.pham.cit23@eiu.edu.vn");
-        when(userAccounts.findById(eligibleId)).thenReturn(Optional.of(user));
+        user.setEmail("student2@eiu.edu.vn");
+        when(userAccounts.findById(userId)).thenReturn(Optional.of(user));
 
         StudentStreak streak = new StudentStreak();
         streak.setEquippedMascot("goat");
-        when(streakService.find(eligibleId)).thenReturn(Optional.of(streak));
-        when(streakService.lock(eligibleId)).thenReturn(streak);
+        when(streakService.find(userId)).thenReturn(Optional.of(streak));
 
-        MascotShopView view = service.list(eligibleId);
-        assertTrue(view.mascots().stream().anyMatch(m -> "goat".equals(m.id())), "Eligible account should see goat");
-        assertEquals("goat", view.equipped());
+        MascotShopView view = service.list(userId);
+        assertFalse(view.mascots().stream().anyMatch(m -> "goat".equals(m.id())));
+        assertEquals("fox", view.equipped());
 
-        // Ineligible user
-        UUID otherId = UUID.randomUUID();
-        UserAccount other = new UserAccount();
-        other.setStudentCode("2431200001");
-        other.setEmail("other@eiu.edu.vn");
-        when(userAccounts.findById(otherId)).thenReturn(Optional.of(other));
+        assertThrows(ResponseStatusException.class, () -> service.equip(userId, "goat"));
+        assertThrows(ResponseStatusException.class, () -> service.purchase(userId, "goat"));
+    }
 
-        MascotShopView otherView = service.list(otherId);
-        assertFalse(otherView.mascots().stream().anyMatch(m -> "goat".equals(m.id())), "Other users should NOT see goat");
+    @Test
+    void mythicAndNewCatalogMascots_normalizeHyphenAndAppearInShop() {
+        StudentStreakService streakService = mock(StudentStreakService.class);
+        StudentMascotPurchaseRepository purchases = mock(StudentMascotPurchaseRepository.class);
+        UserAccountRepository userAccounts = mock(UserAccountRepository.class);
 
-        assertThrows(ResponseStatusException.class, () -> service.equip(otherId, "goat"));
+        StudentMascotService service = new StudentMascotService(streakService, purchases, userAccounts);
+
+        UUID userId = UUID.randomUUID();
+        UserAccount user = new UserAccount();
+        user.setStudentCode("2431200099");
+        user.setEmail("student99@eiu.edu.vn");
+        when(userAccounts.findById(userId)).thenReturn(Optional.of(user));
+
+        StudentStreak streak = new StudentStreak();
+        streak.setEquippedMascot("cyber-striker");
+        when(streakService.find(userId)).thenReturn(Optional.of(streak));
+
+        MascotShopView view = service.list(userId);
+        assertEquals("cyber_striker", view.equipped());
+        assertTrue(view.mascots().stream().anyMatch(m -> "floral_fairy".equals(m.id()) && m.price() == 75000));
+        assertTrue(view.mascots().stream().anyMatch(m -> "chrono_celestia".equals(m.id()) && m.price() == 75000));
+        assertTrue(view.mascots().stream().anyMatch(m -> "cyber_striker".equals(m.id()) && m.price() == 75000));
+        assertTrue(view.mascots().stream().anyMatch(m -> "kiem_de".equals(m.id()) && m.price() == 75000));
     }
 }

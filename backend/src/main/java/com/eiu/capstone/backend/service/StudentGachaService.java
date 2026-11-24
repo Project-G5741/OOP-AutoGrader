@@ -244,7 +244,8 @@ public class StudentGachaService {
 
     private static boolean legendaryTier(String id) {
         return switch (id) {
-            case "thanh_long", "bach_ho", "chu_tuoc", "huyen_vu" -> true;
+            case "thanh_long", "bach_ho", "chu_tuoc", "huyen_vu",
+                    "ho_diep", "thien_nga", "cuu_vi" -> true;
             default -> false;
         };
     }

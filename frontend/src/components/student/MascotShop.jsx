@@ -509,6 +509,7 @@ export default function MascotShop({
                         reactions={art.reactions}
                         interactive={offer.owned}
                         trackPointer={offer.owned}
+                        tier={offer.tier}
                       />
                     </div>
 
@@ -543,7 +544,7 @@ export default function MascotShop({
                         type="button"
                         disabled={!canBuy || busy}
                         onClick={() => handleOpenPurchase(offer)}
-                        className={`mt-3 min-h-11 w-full cursor-pointer rounded-xl text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`mt-3 min-h-11 w-full cursor-pointer rounded-xl px-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60 ${
                           canBuyWithCrystals && !canBuyWithPoints
                             ? 'bg-warning-bg text-warning-text border border-warning-border hover:bg-warning-bg/80'
                             : canBuy

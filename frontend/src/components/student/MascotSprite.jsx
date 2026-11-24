@@ -198,7 +198,11 @@ export function Mascot({
   const reactionImage = useSprite(reactions, interactive && (followPointer || reaction != null));
 
   useEffect(() => {
-    if (!followPointer) return undefined;
+    if (!followPointer) {
+      setDirection('center');
+      setReaction(null);
+      return undefined;
+    }
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
       return undefined;
     }

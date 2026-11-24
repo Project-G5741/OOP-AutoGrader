@@ -8,7 +8,7 @@ import jakarta.annotation.PostConstruct;
 
 /**
  * Ensures {@code student_daily_streak} exists on older PostgreSQL databases.
- * Also rewrites a stored exclusive mascot id from {@code gigi} to {@code goat}.
+ * Clears retired exclusive mascot ids ({@code goat}, {@code gigi}) back to {@code fox}.
  * Desktop practice creates the same table through Hibernate {@code ddl-auto: update}.
  */
 @Component
@@ -80,7 +80,7 @@ public class StudentStreakSchemaMigrator {
                     PRIMARY KEY (user_id, mascot_id)
                 )
                 """);
-        jdbcTemplate.update("UPDATE student_daily_streak SET equipped_mascot = 'goat' WHERE equipped_mascot = 'gigi'");
-        jdbcTemplate.update("UPDATE student_mascot_purchase SET mascot_id = 'goat' WHERE mascot_id = 'gigi'");
+        jdbcTemplate.update("UPDATE student_daily_streak SET equipped_mascot = 'fox' WHERE equipped_mascot IN ('goat', 'gigi')");
+        jdbcTemplate.update("DELETE FROM student_mascot_purchase WHERE mascot_id IN ('goat', 'gigi')");
     }
 }
