@@ -1,6 +1,40 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Compass, Navigation, Zap, Pin } from 'lucide-react';
+import {
+  Compass,
+  Navigation,
+  Zap,
+  Pin,
+  Sword,
+  Swords,
+  Crosshair,
+  Sparkles,
+  Flower2,
+  Clock,
+  Orbit,
+  Settings2,
+} from 'lucide-react';
 import { mascotArt } from './studentMascots';
+import {
+  AUTO_SKILL_INTERVALS,
+  getMythicSkills,
+  readMythicSkillPrefs,
+  writeMythicSkillPrefs,
+  sampleAutoSkillDelay,
+  pickNextAutoSkill,
+  createSkillInstance,
+  stepSkillInstance,
+  drawSkillInstance,
+} from './mythicSkillEffects';
+
+const ICON_BY_KEY = {
+  sword: Sword,
+  swords: Swords,
+  crosshair: Crosshair,
+  sparkles: Sparkles,
+  flower: Flower2,
+  clock: Clock,
+  orbit: Orbit,
+};
 
 const SECTOR_TO_CELL = [5, 8, 7, 6, 3, 0, 1, 2];
 const SECTOR_STEP = (Math.PI * 2) / 8;
@@ -47,20 +81,113 @@ function drawFourPointStar(ctx, x, y, r, color, alpha) {
 export default function MythicScreenPetOverlay({
   mascotId,
   paused = false,
+  skillTrigger = null,
   onBoop,
   onDockToHeader,
 }) {
   const art = mascotArt(mascotId);
+  const skills = getMythicSkills(mascotId);
   const canvasRef = useRef(null);
   const hitBoxRef = useRef(null);
   const [mode, setMode] = useState('roam');
   const modeRef = useRef('roam');
+  const [skillPrefs, setSkillPrefs] = useState(() => readMythicSkillPrefs());
+  const skillPrefsRef = useRef(skillPrefs);
+  skillPrefsRef.current = skillPrefs;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsWrapRef = useRef(null);
   const petRef = useRef(null);
   const onBoopRef = useRef(onBoop);
+  const activeSkillsRef = useRef([]);
+  const skillsRef = useRef(skills);
+  skillsRef.current = skills;
+  const autoCastRef = useRef({
+    countdown: 4.5 + Math.random() * 2.0,
+    lastSkillId: null,
+    sameCount: 0,
+  });
+  const castSkillRef = useRef(null);
 
   useEffect(() => {
     onBoopRef.current = onBoop;
   }, [onBoop]);
+
+  const updatePrefs = (patch) => {
+    setSkillPrefs((prev) => {
+      const next = writeMythicSkillPrefs({ ...prev, ...patch });
+      skillPrefsRef.current = next;
+      if (Object.hasOwn(patch, 'autoCast') || Object.hasOwn(patch, 'intervalId')) {
+        autoCastRef.current.countdown = patch.autoCast === true
+          ? 3.5 + Math.random() * 2.0
+          : sampleAutoSkillDelay(next.intervalId);
+      }
+      return next;
+    });
+  };
+
+  const triggerSkill = (skillId) => {
+    if (!skillId || !art?.canMove || paused) return;
+    const pet = petRef.current;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const inst = createSkillInstance(skillId, {
+      originX: pet ? pet.x : vw * 0.35,
+      originY: pet ? pet.y : vh * 0.45,
+      viewW: vw,
+      viewH: vh,
+      reducedMotion,
+    });
+    if (activeSkillsRef.current.length >= 2) {
+      activeSkillsRef.current.shift();
+    }
+    activeSkillsRef.current.push(inst);
+    autoCastRef.current.countdown = sampleAutoSkillDelay(skillPrefsRef.current.intervalId);
+    if (pet) {
+      pet.squashX = 1.12;
+      pet.squashY = 0.89;
+    }
+  };
+  castSkillRef.current = triggerSkill;
+
+  useEffect(() => {
+    if (paused || !art?.canMove) {
+      activeSkillsRef.current = [];
+      setSettingsOpen(false);
+    }
+  }, [paused, art]);
+
+  useEffect(() => {
+    autoCastRef.current = {
+      countdown: 4.5 + Math.random() * 2.0,
+      lastSkillId: null,
+      sameCount: 0,
+    };
+  }, [mascotId]);
+
+  useEffect(() => {
+    if (!settingsOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    const onDocPointerDown = (e) => {
+      if (settingsWrapRef.current && !settingsWrapRef.current.contains(e.target)) {
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('pointerdown', onDocPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('pointerdown', onDocPointerDown);
+    };
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    if (skillTrigger?.skillId && !paused && art?.canMove) {
+      castSkillRef.current?.(skillTrigger.skillId);
+    }
+  }, [skillTrigger, paused, art]);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -337,6 +464,53 @@ export default function MythicScreenPetOverlay({
         pet.y += pet.vy * dt;
       }
 
+      const prefs = skillPrefsRef.current;
+      const availSkills = skillsRef.current;
+      const skillsList = activeSkillsRef.current;
+      if (
+        prefs.autoCast &&
+        !reducedMotion &&
+        !document.hidden &&
+        !pet.dragging &&
+        availSkills.length > 0 &&
+        skillsList.length === 0
+      ) {
+        autoCastRef.current.countdown -= dt;
+        if (autoCastRef.current.countdown <= 0) {
+          const picked = pickNextAutoSkill(
+            availSkills,
+            autoCastRef.current.lastSkillId,
+            autoCastRef.current.sameCount,
+          );
+          if (picked) {
+            autoCastRef.current.sameCount =
+              picked.id === autoCastRef.current.lastSkillId ? autoCastRef.current.sameCount + 1 : 1;
+            autoCastRef.current.lastSkillId = picked.id;
+            autoCastRef.current.countdown = sampleAutoSkillDelay(prefs.intervalId);
+            castSkillRef.current?.(picked.id);
+          }
+        }
+      }
+
+      let shakeX = 0;
+      let shakeY = 0;
+      for (let i = skillsList.length - 1; i >= 0; i -= 1) {
+        const inst = skillsList[i];
+        if (!stepSkillInstance(inst, dt, pet, viewW, viewH)) {
+          skillsList.splice(i, 1);
+          continue;
+        }
+        shakeX += inst.shakeX || 0;
+        shakeY += inst.shakeY || 0;
+      }
+      if (!prefs.screenShake) {
+        shakeX = 0;
+        shakeY = 0;
+      } else {
+        shakeX = Math.max(-7, Math.min(7, shakeX));
+        shakeY = Math.max(-7, Math.min(7, shakeY));
+      }
+
       const speed = Math.hypot(pet.vx, pet.vy);
       if (pet.dashTimer > 0) pet.dashTimer -= dt;
       if (pet.parachuteTimer > 0) pet.parachuteTimer -= dt;
@@ -413,6 +587,11 @@ export default function MythicScreenPetOverlay({
 
       ctx.clearRect(0, 0, viewW, viewH);
 
+      ctx.save();
+      if (shakeX || shakeY) {
+        ctx.translate(shakeX, shakeY);
+      }
+
       // Flat calibrated shadow discs (zero CSS/Canvas gradients)
       const shScale = 1.0 - (floatY + 5.2) * 0.012;
       ctx.save();
@@ -427,6 +606,10 @@ export default function MythicScreenPetOverlay({
       ctx.arc(0, 0, 22, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+
+      for (let i = 0; i < skillsList.length; i += 1) {
+        drawSkillInstance(ctx, skillsList[i], 'back', pet, viewW, viewH);
+      }
 
       // 3D Parallax Celestial Ring
       ctx.save();
@@ -524,6 +707,12 @@ export default function MythicScreenPetOverlay({
         drawFourPointStar(ctx, b.x, b.y, b.sz, i % 2 ? accent : accent2, b.life);
       }
 
+      for (let i = 0; i < skillsList.length; i += 1) {
+        drawSkillInstance(ctx, skillsList[i], 'front', pet, viewW, viewH);
+      }
+
+      ctx.restore();
+
       rafId = window.requestAnimationFrame(tick);
     };
 
@@ -554,6 +743,9 @@ export default function MythicScreenPetOverlay({
     pet.dashTimer = 0.9;
   };
 
+  const activeInterval =
+    AUTO_SKILL_INTERVALS.find((o) => o.id === skillPrefs.intervalId) || AUTO_SKILL_INTERVALS[1];
+
   return (
     <>
       <canvas
@@ -569,7 +761,7 @@ export default function MythicScreenPetOverlay({
         className="fixed left-0 top-0 z-[46] h-[116px] w-[116px] rounded-full bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       />
 
-      <div className="fixed bottom-4 left-4 z-[46] flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 shadow-stage-2">
+      <div className="fixed bottom-4 left-4 z-[46] flex max-w-[calc(100vw-6rem)] flex-wrap items-center gap-1 rounded-2xl border border-border bg-surface px-2 py-1 shadow-stage-2 sm:rounded-full">
         <span className="px-2 text-xs font-bold text-foreground">
           {art.name}
         </span>
@@ -608,16 +800,130 @@ export default function MythicScreenPetOverlay({
           <Zap className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Dash</span>
         </button>
+        {skills.length > 0 && (
+          <>
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+            {skills.map((skill) => {
+              const SkillIcon = ICON_BY_KEY[skill.iconKey] || Sparkles;
+              return (
+                <button
+                  key={skill.id}
+                  type="button"
+                  onClick={() => triggerSkill(skill.id)}
+                  title={skill.label}
+                  className={`flex h-7 cursor-pointer items-center gap-1 rounded-full border px-2.5 text-xs font-semibold transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    skill.isUltimate
+                      ? 'border-warning-border bg-warning-bg text-warning-text'
+                      : 'border-info-border bg-info-bg text-info-text'
+                  }`}
+                >
+                  <SkillIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span>{skill.shortLabel}</span>
+                </button>
+              );
+            })}
+            <div ref={settingsWrapRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((prev) => !prev)}
+                aria-expanded={settingsOpen}
+                aria-haspopup="dialog"
+                title="Skill Settings"
+                className={`flex h-7 cursor-pointer items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  skillPrefs.autoCast
+                    ? 'border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                    : 'bg-surface-secondary text-foreground-secondary hover:bg-surface-tertiary hover:text-foreground'
+                }`}
+              >
+                <Settings2 className="h-3.5 w-3.5 shrink-0" />
+                <span>{skillPrefs.autoCast ? `Auto · ${activeInterval.label}` : 'Auto · Off'}</span>
+              </button>
+
+              {settingsOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Skill Settings"
+                  className="absolute bottom-full left-0 mb-2 w-56 rounded-2xl border border-border bg-surface p-3 shadow-stage-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-foreground">Auto Skill</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={skillPrefs.autoCast}
+                      onClick={() => updatePrefs({ autoCast: !skillPrefs.autoCast })}
+                      className={`relative flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                        skillPrefs.autoCast ? 'bg-primary' : 'bg-surface-tertiary'
+                      }`}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded-full bg-white transition-transform ${
+                          skillPrefs.autoCast ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-foreground">Interval</span>
+                    <div className="flex rounded-full bg-surface-secondary p-0.5">
+                      {AUTO_SKILL_INTERVALS.map((opt) => {
+                        const selected = skillPrefs.intervalId === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            disabled={!skillPrefs.autoCast}
+                            onClick={() => updatePrefs({ intervalId: opt.id })}
+                            className={`cursor-pointer rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                              selected
+                                ? 'bg-primary text-on-primary'
+                                : 'text-foreground-secondary hover:text-foreground'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-foreground">Screen Shake</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={skillPrefs.screenShake}
+                      onClick={() => updatePrefs({ screenShake: !skillPrefs.screenShake })}
+                      className={`relative flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full px-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                        skillPrefs.screenShake ? 'bg-primary' : 'bg-surface-tertiary'
+                      }`}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded-full bg-white transition-transform ${
+                          skillPrefs.screenShake ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         {onDockToHeader && (
-          <button
-            type="button"
-            onClick={onDockToHeader}
-            title="Pin to Header"
-            className="flex h-7 cursor-pointer items-center gap-1 rounded-full bg-surface-secondary px-2.5 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground"
-          >
-            <Pin className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Pin</span>
-          </button>
+          <>
+            <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={onDockToHeader}
+              title="Pin to Header"
+              className="flex h-7 cursor-pointer items-center gap-1 rounded-full bg-surface-secondary px-2.5 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-tertiary hover:text-foreground"
+            >
+              <Pin className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Pin</span>
+            </button>
+          </>
         )}
       </div>
     </>

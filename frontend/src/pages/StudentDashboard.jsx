@@ -13,8 +13,9 @@ import StudentStreakFlame from '../components/student/StudentStreakFlame';
 import MascotShop from '../components/student/MascotShop';
 import MascotGachaModal from '../components/student/MascotGachaModal';
 import MythicScreenPetOverlay from '../components/student/MythicScreenPetOverlay';
+import { getMythicSkills } from '../components/student/mythicSkillEffects';
 
-import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
+import { getRandomDialogue } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
 import StudentPracticeBundleDownloadRow from '../components/student/StudentPracticeBundleDownloadRow';
@@ -380,6 +381,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     setMascotSpeech(null);
+    setActiveMascotSkill(null);
   }, [equippedMascot]);
 
   const applyStreak = useCallback((next) => {
@@ -1373,26 +1375,23 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (!IS_DESKTOP_APP) {
       const equippedId = equippedMascotRef.current || streakSnapshot.current?.equipped || 'fox';
       const hasCompileErr = labResultHasCompileError(labResult);
+      const mythicSkills = getMythicSkills(equippedId);
 
-      const profile = getMascotProfile(equippedId);
       if (score === 100) {
         const speechText = getRandomDialogue(equippedId, 'perfect');
         setMascotSpeech({ text: speechText, type: 'perfect', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
+        if (mythicSkills[1]) {
+          setActiveMascotSkill({ skillId: mythicSkills[1].id, nonce: Date.now() });
         }
       } else if (score != null && score >= 75) {
         const speechText = getRandomDialogue(equippedId, 'good');
         setMascotSpeech({ text: speechText, type: 'good', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
+        if (mythicSkills[0]) {
+          setActiveMascotSkill({ skillId: mythicSkills[0].id, nonce: Date.now() });
         }
       } else if ((score != null && score < 75) || hasCompileErr) {
         const speechText = getRandomDialogue(equippedId, 'retry');
         setMascotSpeech({ text: speechText, type: 'retry', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
-        }
       }
     }
     const challengeList = (challenges && challenges.length > 0)
@@ -1762,6 +1761,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       <MythicScreenPetOverlay
         mascotId={headerMascotId}
         paused={anyOverlayModalOpen || !isMythicRoaming}
+        skillTrigger={activeMascotSkill}
         onBoop={() => {
           petFox();
           const quote = getRandomDialogue(headerMascotId, 'pet');
