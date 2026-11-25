@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OOP AutoGrader — Crystal-Sharp Native Retina 360° Mythic 3D Mascot</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --surface-3: #e2e8f0;
+      --navy: #0f172a;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-sec: #475569;
+      --text-muted: #64748b;
+      --primary: #0d9488;
+      --success-bg: #ecfdf5;
+      --success-txt: #047857;
+      --warn-bg: #fffbeb;
+      --warn-txt: #b45309;
+      --accent: #34d399;
+    }
+    [data-theme="dark"] {
+      --bg: #090e1a;
+      --surface: #111827;
+      --surface-2: #1e293b;
+      --surface-3: #334155;
+      --navy: #0b1120;
+      --border: #1e293b;
+      --text: #f8fafc;
+      --text-sec: #cbd5e1;
+      --text-muted: #94a3b8;
+      --primary: #14b8a6;
+      --success-bg: rgba(16, 185, 129, 0.14);
+      --success-txt: #34d399;
+      --warn-bg: rgba(245, 158, 11, 0.15);
+      --warn-txt: #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      min-height: 100vh; overflow-x: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    .agy-header {
+      position: sticky; top: 0; z-index: 30;
+      background: var(--navy); color: #f8fafc;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .header-row-1 {
+      max-width: 1360px; margin: 0 auto; height: 64px;
+      padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo-wrap { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 1.05rem; }
+    .logo-cap {
+      width: 36px; height: 36px; border-radius: 10px; background: #0d9488;
+      display: flex; align-items: center; justify-content: center; font-size: 1.15rem;
+    }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .h-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 36px; padding: 0 12px; border-radius: 999px;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+      font-size: 0.78rem; font-weight: 700; color: #f8fafc;
+    }
+    .h-pill.crystal {
+      background: rgba(250, 204, 21, 0.16); border-color: rgba(250, 204, 21, 0.45); color: #fde047;
+    }
+    .h-btn {
+      height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+      background: #0d9488; border: 1px solid #14b8a6; color: #ffffff;
+      font-size: 0.76rem; font-weight: 800;
+    }
+    .h-btn.ghost { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18); }
+    .mascot-header-slot {
+      width: 50px; height: 50px; border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1.5px dashed rgba(244, 114, 182, 0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; color: #94a3b8; text-align: center; line-height: 1.1;
+    }
+    .avatar-circle {
+      width: 38px; height: 38px; border-radius: 999px;
+      background: #ec4899; color: #fff; font-weight: 800; font-size: 0.82rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .header-nav { background: var(--surface); border-bottom: 1px solid var(--border); }
+    .header-nav-inner {
+      max-width: 1360px; margin: 0 auto; padding: 0 24px; height: 44px;
+      display: flex; align-items: center; gap: 22px; font-size: 0.84rem; font-weight: 700;
+    }
+    .nav-tab { height: 100%; display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); border-bottom: 2.5px solid transparent; }
+    .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .main-wrap {
+      max-width: 1360px; margin: 0 auto; padding: 22px 24px 120px;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px 18px; }
+    .kpi-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-val { font-size: 1.55rem; font-weight: 800; margin-top: 4px; }
+    .kpi-badge {
+      display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 700; background: var(--success-bg); color: var(--success-txt);
+    }
+    .dashboard-cols { display: grid; grid-template-columns: 320px 1fr; gap: 18px; }
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 14px;
+      background: var(--surface-2); padding: 22px 14px; text-align: center; margin-top: 12px;
+    }
+    .ch-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 12px; border-radius: 12px; margin-top: 8px;
+      background: var(--surface-2); font-size: 0.84rem; font-weight: 700;
+    }
+    .ch-item.active { border-left: 4px solid var(--primary); background: var(--surface-3); }
+    .score-pill { padding: 2px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 800; background: var(--success-bg); color: var(--success-txt); }
+    .pillar-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 14px; }
+    .p-tab { padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; background: var(--surface-2); color: var(--text-sec); }
+    .p-tab.active { background: var(--primary); color: #fff; }
+    .check-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.83rem; }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.79rem; }
+
+    .control-dock {
+      position: fixed; right: 20px; bottom: 18px; width: 390px; z-index: 70;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 22px; padding: 15px 16px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .dock-head { display: flex; align-items: center; justify-content: space-between; }
+    .dock-head h3 { font-size: 0.9rem; font-weight: 800; }
+    .mythic-tag {
+      font-size: 0.68rem; font-weight: 800; padding: 3px 9px; border-radius: 999px;
+      background: rgba(20, 184, 166, 0.16); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.45);
+    }
+    .ctrl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .rx-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .c-btn {
+      padding: 7px 8px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text);
+      font-size: 0.74rem; font-weight: 700; cursor: pointer; transition: border-color 0.14s ease, background 0.14s ease;
+    }
+    .c-btn:hover { border-color: var(--accent); }
+    .c-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .status-strip {
+      display: flex; justify-content: space-between; font-size: 0.72rem;
+      color: var(--text-muted); padding-top: 4px; border-top: 1px solid var(--border);
+    }
+
+    #petStageCanvas {
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      z-index: 55; pointer-events: none;
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <header class="agy-header">
+    <div class="header-row-1">
+      <div class="logo-wrap">
+        <div class="logo-cap">🎓</div>
+        <div>
+          <div>OOP AutoGrader</div>
+          <div style="font-size:0.68rem; font-weight:600; color:#94a3b8;">Quarter 2026-Q4 · Student Portal</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="h-pill">🔥 Streak 14</div>
+        <div class="h-pill">🎫 28 Tickets</div>
+        <div class="h-pill">🪙 78,450 pts</div>
+        <div class="h-pill crystal">💎 15 Crystal · Mythic</div>
+        <button id="pinBtn" class="h-btn" onclick="toggleDock()">📌 Ghim về Header</button>
+        <button class="h-btn ghost" onclick="toggleTheme()">🌓 Đổi Theme</button>
+        <div class="mascot-header-slot" id="headerSlot">Mascot<br>Slot</div>
+        <div class="avatar-circle" title="Minh Anh (Student)">MA</div>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <div class="header-nav-inner">
+        <span class="nav-tab active">🏠 Home</span>
+        <span class="nav-tab">🕒 History</span>
+        <span class="nav-tab">🏆 Weekly Ranking</span>
+      </div>
+    </nav>
+  </header>
+
+  <main class="main-wrap">
+    <section class="kpi-grid">
+      <div class="card">
+        <div class="kpi-label">Selected Lab</div>
+        <div class="kpi-val">Lab 04</div>
+        <span class="kpi-badge">Official · Open</span>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Current Grade</div>
+        <div class="kpi-val">98 / 100</div>
+        <span class="kpi-badge">Attempt #4</span>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Class &amp; MMD Pillars</div>
+        <div class="kpi-val">100%</div>
+        <span class="kpi-badge">All Declarations Matched</span>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Operational Testcases</div>
+        <div class="kpi-val">9 / 10 Pass</div>
+        <span class="kpi-badge" style="background:var(--warn-bg);color:var(--warn-txt);">1 Edge Case Left</span>
+      </div>
+    </section>
+
+    <section class="dashboard-cols">
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="card">
+          <div class="kpi-label">Upload Submission (.zip)</div>
+          <div class="dropzone">
+            <div style="font-size:1.5rem; margin-bottom:6px;">📦</div>
+            <div style="font-size:0.84rem; font-weight:700;">2331200088_MinhAnh_Lab4.zip</div>
+            <div style="font-size:0.74rem; color:var(--text-muted); margin-top:4px;">Bản mới: Vẽ trực tiếp 360×360 chuẩn Retina 3x (0% bóng mờ crossfade) + bước xoay 3D Yaw×Pitch mượt căng nét!</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="kpi-label">Challenges</div>
+          <div class="ch-item active"><span>Challenge 1 · Beverage Hierarchy</span><span class="score-pill">100%</span></div>
+          <div class="ch-item"><span>Challenge 2 · Tea Composition</span><span class="score-pill">95%</span></div>
+          <div class="ch-item"><span>Challenge 3 · Order Billing</span><span class="score-pill">100%</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pillar-tabs">
+          <span class="p-tab active">Class Structure (100%)</span>
+          <span class="p-tab">MMD Relations (100%)</span>
+          <span class="p-tab">Operation Test (95%)</span>
+        </div>
+        <div class="check-row"><span class="mono">public abstract class Beverage</span><span class="score-pill">✓ Matched</span></div>
+        <div class="check-row"><span class="mono">private final String beverageName</span><span class="score-pill">✓ Matched</span></div>
+        <div class="check-row"><span class="mono">public class MatchaLatte extends Beverage</span><span class="score-pill">✓ Matched</span></div>
+        <div class="check-row"><span class="mono">public double calculatePrice(String size, boolean pearlTopping)</span><span class="score-pill">✓ Matched</span></div>
+        <div class="check-row" style="border-bottom:0;">
+          <span class="mono">Unit Test #8 · NullToppingDiscountBoundary</span>
+          <span class="score-pill" style="background:var(--warn-bg);color:var(--warn-txt);">Check Edge Case</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="control-dock">
+    <div class="dock-head">
+      <h3 id="activeTitle">Hoa Tiên Linh Lan 3D</h3>
+      <span class="mythic-tag">CRYSTAL-SHARP 360°</span>
+    </div>
+
+    <div class="ctrl-row" id="rosterBtns"></div>
+
+    <div class="ctrl-row">
+      <button id="mRoam" class="c-btn active" onclick="setMode('roam')">🦋 Bay 360° tự do</button>
+      <button id="mFollow" class="c-btn" onclick="setMode('follow')">🎯 Lướt theo chuột</button>
+      <button id="mStand" class="c-btn" onclick="setMode('stand')">👀 Đứng nhìn 360°</button>
+      <button class="c-btn" onclick="previewDash()">⚡ Vút sao băng</button>
+    </div>
+
+    <div class="rx-row" id="rxBtns"></div>
+
+    <div class="status-strip">
+      <span id="gazeReadout">Góc nhìn: ⊙ Chính diện (Center)</span>
+      <span id="fpsReadout">60 FPS</span>
+    </div>
+  </aside>
+
+  <canvas id="petStageCanvas"></canvas>
+
+  <script>
+    /**
+     * Crystal-Sharp Native-Retina 360° Engine (Zero Ghosting, Zero Offscreen Blur):
+     * 1. ZERO alpha crossfading between poses -> 0.0% double-exposed ghosting ("mờ mờ") EVER!
+     * 2. ZERO 200px/240px offscreen buffer & ZERO 20-strip slicing -> draws the 360×360 source cell
+     *    DIRECTLY in 1 native Retina (up to 3x DPR) drawImage call (identical sharpness to MascotSprite.jsx)!
+     * 3. True 3×3 (Yaw col × Pitch row) Turntable Stepper: every turn steps smoothly ±1 col / ±1 row
+     *    through anatomical in-between 3D angles (W -> Center -> E, NW -> N -> NE, N -> Center -> S)
+     *    around the 0.8px Spine-Locked head pivot, cushioned by a crisp 3.5% micro-foreshortening spring!
+     * 4. Critically-damped harmonic spring physics (zeta = 1.0) + continuous cursor focal tracking
+     *    (zero 2.2s timeout head-whip!).
+     */
+    const ASSET_VER = '?v=male6';
+    const ROSTER = [
+      {
+        slug: 'cyber-striker',
+        shortName: '🤖 Chiến Thần Cơ Giáp',
+        title: 'Chiến Thần Cơ Giáp Tinh Vân 3D',
+        accent: '#22d3ee',
+        accent2: '#fb923c',
+        dir: '../cyber-striker/cyber-striker-directions.webp' + ASSET_VER,
+        mov: '../cyber-striker/cyber-striker-movement.webp' + ASSET_VER,
+        react: '../cyber-striker/cyber-striker-reactions.webp' + ASSET_VER,
+        rx: [
+          ['💠 Lõi Lượng Tử', 'Đồng bộ Lõi Lượng Tử Arc-Reactor'],
+          ['⚔️ Song Kiếm', 'Rút song kiếm Plasma xanh–cam'],
+          ['🛸 Drone V-Squad', 'Triệu hồi đội hình Drone chiến thuật'],
+          ['🎯 Radar 3D', 'Mở kính ngắm khóa mục tiêu Hologram'],
+          ['🛹 Ván Từ Trường', 'Lướt ván trượt phản trọng lực cực ngầu'],
+          ['🔫 Pháo Railgun', 'Nạp cầu điện từ pháo tay Railgun'],
+          ['🍜 Mì Ramen', 'Cánh tay máy bê tô mì Ramen cay nóng'],
+          ['⚡ Chập Điện', 'Quá tải chập điện xẹt tia lửa hài hước!'],
+          ['🪽 Thần Giáp 6 Cánh', 'Omega Seraph Mode bung 6 cánh ánh sáng!']
+        ]
+      },
+      {
+        slug: 'kiem-de',
+        shortName: '⚔️ Kiếm Đế Hư Không',
+        title: 'Kiếm Đế Hư Không 3D',
+        accent: '#fbbf24',
+        accent2: '#a855f7',
+        dir: '../kiem-de/kiem-de-directions.webp' + ASSET_VER,
+        mov: '../kiem-de/kiem-de-movement.webp' + ASSET_VER,
+        react: '../kiem-de/kiem-de-reactions.webp' + ASSET_VER,
+        rx: [
+          ['🧘 Tâm Kiếm', 'Tọa thiền trên không cổ kiếm ngang gối'],
+          ['🗡️ Vạn Kiếm', 'Kiếm chỉ triệu hồi Vạn Kiếm Quy Tông'],
+          ['🍶 Rượu Tiên', 'Nằm trên đại kiếm nâng hồ lô ngọc bích'],
+          ['🌙 Bán Nguyệt Trảm', 'Chém kiếm khí bán nguyệt tím–vàng'],
+          ['📜 Bùa Kim Quang', 'Kẹp lá bùa kim quang mỉm cười bá đạo'],
+          ['📖 Cổ Thư Kiếm', 'Mở bí kíp cổ thư bay chữ vàng lơ lửng'],
+          ['🐺 Tiểu Hắc Lang', 'Xoa đầu tiểu Hắc Lang tinh linh lửa tím'],
+          ['💥 Nổ Đan Lô', 'Tẩu hỏa nổ lò luyện đan mặt lấm nhọ!'],
+          ['☯️ Kiếm Vực', 'Kiếm Vực Đế Vương 8 thần kiếm xoay quanh!']
+        ]
+      },
+      {
+        slug: 'floral-fairy',
+        shortName: '🧚‍♀️ Hoa Tiên Linh Lan',
+        title: 'Hoa Tiên Linh Lan 3D',
+        accent: '#34d399',
+        accent2: '#f472b6',
+        dir: '../floral-fairy/floral-fairy-directions.webp' + ASSET_VER,
+        mov: '../floral-fairy/floral-fairy-movement.webp' + ASSET_VER,
+        react: '../floral-fairy/floral-fairy-reactions.webp' + ASSET_VER,
+        rx: [
+          ['🌷 Tulip', 'Ngủ trong đài hoa Tulip 3D'],
+          ['🚿 Tưới hoa', 'Tưới bình vàng nở 3 đóa hoa'],
+          ['🐞 Bọ rùa', 'Cưỡi bạn bọ rùa đỏ chấm bi'],
+          ['🔔 Chuông hoa', 'Rung trượng hoa chuông Linh Lan'],
+          ['🌼 Bồ công anh', 'Bay cùng bồ công anh khổng lồ'],
+          ['🍯 Mật ong', 'Ôm hũ mật ong vàng cùng ong nhỏ'],
+          ['🍀 Dỗi hờn', 'Ngồi phụng phịu vướng dây cỏ 4 lá'],
+          ['🍄 Mọc nấm', 'Quá tải mọc 3 cây nấm trên mũ!'],
+          ['🌿 Đại Thụ', 'Vòng nguyệt quế Đại Thụ nở hoa!']
+        ]
+      },
+      {
+        slug: 'chrono-celestia',
+        shortName: '⏳ Nữ Thần Thời Không',
+        title: 'Nữ Thần Thời Không 3D',
+        accent: '#c084fc',
+        accent2: '#fbbf24',
+        dir: '../chrono-celestia/chrono-celestia-directions.webp' + ASSET_VER,
+        mov: '../chrono-celestia/chrono-celestia-movement.webp' + ASSET_VER,
+        react: '../chrono-celestia/chrono-celestia-reactions.webp' + ASSET_VER,
+        rx: [
+          ['⏳ Đồng hồ cát', 'Thiền định đồng hồ cát kim cương'],
+          ['🪐 Hành tinh', 'Tung hứng 4 hành tinh có vành đai'],
+          ['⭐ Ấn sao', 'Vẽ pháp trận sao 3D trên không'],
+          ['⌚ Ngưng đọng', 'Đồng hồ quả quýt ngưng đọng giờ'],
+          ['🌙 Trăng khuyết', 'Ngồi đung đưa trên trăng lưỡi liềm'],
+          ['🌟 Ôm sao', 'Ôm thú bông ngôi sao phúng phính'],
+          ['🕳️ Hố đen', 'Hố đen tí hon hút bánh quy sao!'],
+          ['⚙️ Bung lò xo', 'Quá tải bung lò xo đồng hồ!'],
+          ['💫 Siêu tân tinh', 'Hỗn thiên nghi vàng & Siêu tân tinh!']
+        ]
+      }
+    ];
+
+    const COMPASS_LABELS = [
+      '↖ Tây Bắc (NW)',
+      '↑ Bắc - Nhìn lên (N)',
+      '↗ Đông Bắc (NE)',
+      '← Tây - Trái (W)',
+      '⊙ Chính diện (Center)',
+      '→ Đông - Phải (E)',
+      '↙ Tây Nam (SW)',
+      '↓ Nam - Nhìn xuống (S)',
+      '↘ Đông Nam (SE)'
+    ];
+
+    const SECTOR_TO_CELL = [5, 8, 7, 6, 3, 0, 1, 2];
+    const SECTOR_STEP = (Math.PI * 2) / 8;
+    const HYSTERESIS = 0.15;
+
+    const IMG_CACHE = {};
+    ROSTER.forEach(m => {
+      ['dir', 'mov', 'react'].forEach(k => {
+        const im = new Image();
+        im.decoding = 'async';
+        im.src = m[k];
+        IMG_CACHE[m[k]] = im;
+      });
+    });
+
+    const canvas = document.getElementById('petStageCanvas');
+    const ctx = canvas.getContext('2d', { alpha: true });
+
+    let viewW = window.innerWidth, viewH = window.innerHeight;
+    let slotCenter = { x: viewW - 105, y: 34 };
+
+    function updateLayoutMetrics() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      viewW = window.innerWidth;
+      viewH = window.innerHeight;
+      canvas.width = Math.floor(viewW * dpr);
+      canvas.height = Math.floor(viewH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      const slotEl = document.getElementById('headerSlot');
+      if (slotEl) {
+        const r = slotEl.getBoundingClientRect();
+        slotCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 + 2 };
+      }
+    }
+    window.addEventListener('resize', updateLayoutMetrics);
+    updateLayoutMetrics();
+
+    let curIdx = 0;
+    const pet = {
+      x: viewW * 0.42,
+      y: viewH * 0.46,
+      vx: 64,
+      vy: -42,
+      roamPhase: 0.35,
+      waypointX: null,
+      waypointY: null,
+      scale: 1.0,
+      squashX: 1.0,
+      squashY: 1.0,
+      turnScaleX: 1.0,
+      turnScaleY: 1.0,
+      facingRight: true,
+      bankRad: 0,
+      tiltX: 0,
+      tiltY: 0,
+      compassSector: -1,
+      inCenterZone: true,
+      currDirCell: 4,
+      targetDirCell: 4,
+      stepCooldown: 0,
+      mode: 'roam',
+      dragging: false,
+      dragDX: 0,
+      dragDY: 0,
+      reactIdx: -1,
+      reactTimer: 0,
+      dashTimer: 0,
+      parachuteTimer: 0,
+      boops: 0,
+      boopAt: 0
+    };
+
+    const mouse = { x: viewW * 0.5, y: viewH * 0.45, hasMoved: false };
+    const trails = [], beacons = [], bursts = [];
+    const orbiters = [0, 1, 2, 3].map(i => ({
+      phase: (i * Math.PI) / 2,
+      spd: 1.35 + (i % 2) * 0.18,
+      rx: 66 + (i % 2) * 10,
+      rz: 46,
+      yo: i % 2 ? 12 : -10
+    }));
+
+    function wrapAngle(a) {
+      return Math.atan2(Math.sin(a), Math.cos(a));
+    }
+
+    /**
+     * Exact MascotSprite.jsx polar 8-sector + hysteresis deadzone around head eye-level (y - 22px).
+     */
+    function computeTargetCell(gx, gy) {
+      const dist = Math.hypot(gx, gy);
+      if (pet.inCenterZone) {
+        if (dist < 72) return 4;
+        pet.inCenterZone = false;
+      } else if (dist < 52) {
+        pet.inCenterZone = true;
+        pet.compassSector = -1;
+        return 4;
+      }
+
+      const angle = Math.atan2(gy, gx);
+      if (
+        pet.compassSector !== -1 &&
+        Math.abs(wrapAngle(angle - pet.compassSector * SECTOR_STEP)) < SECTOR_STEP * 0.5 + HYSTERESIS
+      ) {
+        return SECTOR_TO_CELL[pet.compassSector];
+      }
+      pet.compassSector = (Math.round(angle / SECTOR_STEP) + 8) % 8;
+      return SECTOR_TO_CELL[pet.compassSector];
+    }
+
+    /**
+     * Steps (currCol, currRow) by at most ±1 in Yaw (col) and ±1 in Pitch (row) per 50ms:
+     * W(0,1) -> Center(1,1) -> E(2,1), NW(0,0) -> N(1,0) -> NE(2,0), etc.
+     * 100% sharp single frame at all times — ZERO crossfade blur!
+     */
+    function advanceTurntableCell(targetCell, dt) {
+      pet.targetDirCell = targetCell;
+      if (pet.stepCooldown > 0) {
+        pet.stepCooldown -= dt;
+        return pet.currDirCell;
+      }
+      if (pet.currDirCell === targetCell) return pet.currDirCell;
+
+      const cCol = pet.currDirCell % 3;
+      const cRow = Math.floor(pet.currDirCell / 3);
+      const tCol = targetCell % 3;
+      const tRow = Math.floor(targetCell / 3);
+
+      const nCol = cCol + Math.sign(tCol - cCol);
+      const nRow = cRow + Math.sign(tRow - cRow);
+
+      if (nCol !== cCol) pet.turnScaleX = 0.962;
+      if (nRow !== cRow) pet.turnScaleY = 0.972;
+
+      pet.currDirCell = nRow * 3 + nCol;
+      pet.stepCooldown = 0.048;
+      return pet.currDirCell;
+    }
+
+    function selectMascot(idx) {
+      curIdx = idx;
+      const m = ROSTER[idx];
+      document.documentElement.style.setProperty('--accent', m.accent);
+      document.getElementById('activeTitle').textContent = m.title;
+      document.querySelectorAll('#rosterBtns button').forEach((b, bi) => b.classList.toggle('active', bi === idx));
+      const rxBox = document.getElementById('rxBtns');
+      rxBox.innerHTML = '';
+      m.rx.forEach(([shortL, desc], ri) => {
+        const btn = document.createElement('button');
+        btn.className = 'c-btn';
+        btn.textContent = shortL;
+        btn.title = desc;
+        btn.onclick = (e) => { e.stopPropagation(); triggerRx(ri, desc); };
+        rxBox.appendChild(btn);
+      });
+      pet.squashX = 1.09; pet.squashY = 0.92;
+      spawnBurst(pet.x, pet.y, 16);
+    }
+
+    const rBox = document.getElementById('rosterBtns');
+    ROSTER.forEach((m, i) => {
+      const b = document.createElement('button');
+      b.className = 'c-btn';
+      b.textContent = m.shortName;
+      b.onclick = (e) => { e.stopPropagation(); selectMascot(i); };
+      rBox.appendChild(b);
+    });
+    selectMascot(3);
+
+    function setMode(md) {
+      pet.mode = md;
+      pet.waypointX = null;
+      pet.waypointY = null;
+      ['mRoam','mFollow','mStand'].forEach(id => document.getElementById(id).classList.remove('active'));
+      if (md === 'roam') document.getElementById('mRoam').classList.add('active');
+      if (md === 'follow') document.getElementById('mFollow').classList.add('active');
+      if (md === 'stand') document.getElementById('mStand').classList.add('active');
+      document.getElementById('pinBtn').textContent = md === 'docked' ? '🦋 Thả bay trên Web' : '📌 Ghim về Header';
+    }
+
+    function toggleDock() {
+      updateLayoutMetrics();
+      if (pet.mode === 'docked') {
+        setMode('roam');
+        pet.waypointX = viewW * 0.46;
+        pet.waypointY = viewH * 0.48;
+        pet.parachuteTimer = 1.05;
+      } else {
+        setMode('docked');
+      }
+    }
+
+    function previewDash() {
+      if (pet.mode === 'docked') setMode('roam');
+      const goRight = pet.x < viewW * 0.45;
+      pet.facingRight = goRight;
+      pet.waypointX = goRight ? Math.min(viewW - 440, viewW * 0.74) : 160;
+      pet.waypointY = 175 + Math.random() * (viewH * 0.45);
+      pet.dashTimer = 0.9;
+      spawnBurst(pet.x, pet.y, 16);
+    }
+
+    function triggerRx(i, label) {
+      pet.reactIdx = i;
+      pet.reactTimer = 2.5;
+      pet.squashX = 1.10;
+      pet.squashY = 0.91;
+      document.getElementById('gazeReadout').textContent = 'Kỹ năng: ' + label;
+      spawnBurst(pet.x, pet.y, 16);
+    }
+
+    function toggleTheme() {
+      document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    }
+
+    function spawnBurst(cx, cy, n) {
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + Math.random() * 0.25, s = 65 + Math.random() * 120;
+        bursts.push({ x: cx, y: cy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: 1, sz: 4 + Math.random() * 4.2 });
+      }
+    }
+
+    function isOverPet(cx, cy) {
+      const hitR = 72 * pet.scale;
+      const dx = cx - pet.x, dy = cy - pet.y;
+      return (dx * dx + dy * dy) <= hitR * hitR;
+    }
+
+    let downInfo = null;
+    window.addEventListener('pointermove', e => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      mouse.hasMoved = true;
+      document.body.style.cursor = pet.dragging ? 'grabbing' : (isOverPet(e.clientX, e.clientY) ? 'grab' : 'default');
+      if (pet.dragging) {
+        const nx = e.clientX - pet.dragDX;
+        const ny = e.clientY - pet.dragDY;
+        pet.vx = (nx - pet.x) * 12;
+        pet.vy = (ny - pet.y) * 12;
+        pet.x = nx;
+        pet.y = ny;
+      }
+    }, { passive: true });
+
+    window.addEventListener('pointerdown', e => {
+      if (e.target.closest('.control-dock') || e.target.closest('.agy-header')) return;
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      mouse.hasMoved = true;
+      if (isOverPet(e.clientX, e.clientY)) {
+        downInfo = { x: e.clientX, y: e.clientY };
+        if (pet.mode !== 'docked') {
+          pet.dragging = true;
+          pet.dragDX = e.clientX - pet.x;
+          pet.dragDY = e.clientY - pet.y;
+        }
+        return;
+      }
+      if (pet.mode === 'docked') setMode('roam');
+      pet.waypointX = Math.max(120, Math.min(viewW - 430, e.clientX));
+      pet.waypointY = Math.max(145, Math.min(viewH - 115, e.clientY));
+      beacons.push({ x: pet.waypointX, y: pet.waypointY + 46, r: 8, a: 1 });
+    });
+
+    window.addEventListener('pointerup', e => {
+      if (pet.dragging) {
+        pet.dragging = false;
+        pet.squashX = 1.07; pet.squashY = 0.94;
+      }
+      if (downInfo && Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) < 10) {
+        const now = performance.now();
+        pet.boops = (now - pet.boopAt < 460) ? pet.boops + 1 : 1;
+        pet.boopAt = now;
+        const m = ROSTER[curIdx];
+        const pick = pet.boops >= 4 ? 7 : [0,1,2,3,4,5,6,8][Math.floor(Math.random() * 8)];
+        if (pet.boops >= 4) pet.boops = 0;
+        triggerRx(pick, m.rx[pick][1]);
+      }
+      downInfo = null;
+    });
+
+    function drawFourPointStar(c, x, y, r, col, a) {
+      if (a <= 0.01) return;
+      c.save();
+      c.globalAlpha = Math.max(0, Math.min(1, a));
+      c.fillStyle = col;
+      c.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const rd = i % 2 === 0 ? r : r * 0.38;
+        const ag = (i * Math.PI) / 4;
+        if (i === 0) c.moveTo(x + Math.cos(ag) * rd, y + Math.sin(ag) * rd);
+        else c.lineTo(x + Math.cos(ag) * rd, y + Math.sin(ag) * rd);
+      }
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+
+    let lastTime = performance.now();
+    let fpsAccum = 0, fpsFrames = 0;
+
+    function animate(now) {
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Math.min(0.033, Math.max(0.001, rawDt));
+      const t = now / 1000;
+      const m = ROSTER[curIdx];
+
+      fpsAccum += rawDt; fpsFrames += 1;
+      if (fpsAccum >= 0.5) {
+        const fps = Math.min(144, Math.round(fpsFrames / fpsAccum));
+        document.getElementById('fpsReadout').textContent = fps + ' FPS';
+        fpsAccum = 0; fpsFrames = 0;
+      }
+
+      // 1. Critically-Damped Harmonic Spring Locomotion (C∞ smooth, feather-soft stops & turns!)
+      if (!pet.dragging) {
+        const minX = 130, maxX = Math.max(300, viewW - 435);
+        const minY = 155, maxY = Math.max(270, viewH - 120);
+
+        if (pet.mode === 'docked') {
+          const omega = 7.5;
+          const ax = omega * omega * (slotCenter.x - pet.x) - 2 * omega * pet.vx;
+          const ay = omega * omega * (slotCenter.y - pet.y) - 2 * omega * pet.vy;
+          pet.vx += ax * dt;
+          pet.vy += ay * dt;
+        } else if (pet.waypointX !== null) {
+          const dx = pet.waypointX - pet.x, dy = pet.waypointY - pet.y;
+          const d = Math.hypot(dx, dy);
+          if (d < 12 && Math.hypot(pet.vx, pet.vy) < 45) {
+            pet.waypointX = null;
+            pet.waypointY = null;
+          } else {
+            const omega = pet.dashTimer > 0 ? 5.6 : 3.8;
+            const ax = omega * omega * dx - 2 * omega * pet.vx;
+            const ay = omega * omega * dy - 2 * omega * pet.vy;
+            pet.vx += ax * dt;
+            pet.vy += ay * dt;
+            const maxSpd = pet.dashTimer > 0 ? 410 : 250;
+            const sp = Math.hypot(pet.vx, pet.vy);
+            if (sp > maxSpd) {
+              pet.vx = (pet.vx / sp) * maxSpd;
+              pet.vy = (pet.vy / sp) * maxSpd;
+            }
+          }
+        } else if (pet.mode === 'follow') {
+          // Hover gracefully 58px away from cursor with critically-damped spring
+          const dx = mouse.x - pet.x, dy = mouse.y - pet.y;
+          const d = Math.hypot(dx, dy);
+          let tx = pet.x, ty = pet.y;
+          if (d > 58) {
+            tx = mouse.x - (dx / d) * 54;
+            ty = mouse.y - (dy / d) * 54;
+          }
+          const omega = 4.2;
+          pet.vx += (omega * omega * (tx - pet.x) - 2 * omega * pet.vx) * dt;
+          pet.vy += (omega * omega * (ty - pet.y) - 2 * omega * pet.vy) * dt;
+          const sp = Math.hypot(pet.vx, pet.vy);
+          if (sp > 265) { pet.vx = (pet.vx / sp) * 265; pet.vy = (pet.vy / sp) * 265; }
+        } else if (pet.mode === 'stand') {
+          pet.vx *= Math.exp(-6.0 * dt);
+          pet.vy *= Math.exp(-6.0 * dt);
+        } else {
+          // Graceful C∞ Lissajous figure-8 glide across safe screen region
+          pet.roamPhase += dt * 0.38;
+          const cx = (minX + maxX) * 0.5;
+          const cy = (minY + maxY) * 0.5;
+          const rx = Math.max(85, (maxX - minX) * 0.41);
+          const ry = Math.max(65, (maxY - minY) * 0.37);
+
+          const orbX = cx + Math.sin(pet.roamPhase) * rx;
+          const orbY = cy + Math.sin(pet.roamPhase * 1.5 + 0.4) * ry;
+          const orbVx = Math.cos(pet.roamPhase) * rx * 0.38;
+          const orbVy = Math.cos(pet.roamPhase * 1.5 + 0.4) * ry * (0.38 * 1.5);
+
+          const kSpring = 2.4;
+          pet.vx += ((orbVx + (orbX - pet.x) * 1.1) - pet.vx) * (1 - Math.exp(-kSpring * dt));
+          pet.vy += ((orbVy + (orbY - pet.y) * 1.1) - pet.vy) * (1 - Math.exp(-kSpring * dt));
+        }
+
+        pet.x += pet.vx * dt;
+        pet.y += pet.vy * dt;
+      }
+
+      const speed = Math.hypot(pet.vx, pet.vy);
+      if (pet.dashTimer > 0) pet.dashTimer -= dt;
+      if (pet.parachuteTimer > 0) pet.parachuteTimer -= dt;
+      if (pet.vx > 20) pet.facingRight = true;
+      else if (pet.vx < -20) pet.facingRight = false;
+
+      // 2. Consistent 360° Gaze Resolution (no 2.2s timeout head-whip!)
+      let gx = 0, gy = 0;
+      if (pet.waypointX !== null) {
+        gx = pet.waypointX - pet.x;
+        gy = pet.waypointY - pet.y;
+      } else if (mouse.hasMoved) {
+        // Eye-level offset (-22px) so hovering directly on her face hits Center cleanly!
+        gx = mouse.x - pet.x;
+        gy = mouse.y - (pet.y - 22 * pet.scale);
+      } else {
+        gx = pet.vx * 1.6;
+        gy = pet.vy * 1.6;
+      }
+
+      const desiredDir = pet.mode === 'docked' ? 4 : computeTargetCell(gx, gy);
+      const activeDir = advanceTurntableCell(desiredDir, dt);
+
+      let activeSheet = 'dir', activeCell = activeDir, activeMir = false;
+      if (pet.reactTimer > 0) {
+        pet.reactTimer -= dt;
+        activeSheet = 'react';
+        activeCell = pet.reactIdx;
+      } else if (pet.dragging || pet.parachuteTimer > 0) {
+        activeSheet = 'mov';
+        activeCell = 7;
+        document.getElementById('gazeReadout').textContent = 'Góc nhìn: 🪂 Đáp dù 3D';
+      } else if (pet.dashTimer > 0) {
+        activeSheet = 'mov';
+        activeCell = 5;
+        activeMir = !pet.facingRight;
+        document.getElementById('gazeReadout').textContent = 'Góc nhìn: ⚡ Vút sao băng 360°';
+      } else {
+        document.getElementById('gazeReadout').textContent = 'Góc nhìn: ' + COMPASS_LABELS[activeDir];
+      }
+
+      const gMag = Math.max(1, Math.hypot(gx, gy));
+      const tTiltX = pet.mode === 'docked' ? 0 : (gx / gMag) * Math.min(1, gMag / 80);
+      const tTiltY = pet.mode === 'docked' ? 0 : (gy / gMag) * Math.min(1, gMag / 80);
+      pet.tiltX += (tTiltX - pet.tiltX) * (1 - Math.exp(-8.0 * dt));
+      pet.tiltY += (tTiltY - pet.tiltY) * (1 - Math.exp(-8.0 * dt));
+
+      const dockedClose = pet.mode === 'docked' && Math.hypot(slotCenter.x - pet.x, slotCenter.y - pet.y) < 34;
+      pet.scale += ((dockedClose ? 0.28 : 1.0) - pet.scale) * (1 - Math.exp(-8.5 * dt));
+      pet.squashX += (1.0 - pet.squashX) * (1 - Math.exp(-10.0 * dt));
+      pet.squashY += (1.0 - pet.squashY) * (1 - Math.exp(-10.0 * dt));
+      pet.turnScaleX += (1.0 - pet.turnScaleX) * (1 - Math.exp(-22.0 * dt));
+      pet.turnScaleY += (1.0 - pet.turnScaleY) * (1 - Math.exp(-22.0 * dt));
+
+      let targetBank = dockedClose ? 0 : Math.max(-0.11, Math.min(0.11, pet.vx * 0.00038));
+      if (pet.dashTimer > 0 && speed > 40) {
+        const climbTilt = Math.atan2(pet.vy, Math.abs(pet.vx)) * (pet.facingRight ? 0.40 : -0.40);
+        targetBank = Math.max(-0.48, Math.min(0.48, climbTilt));
+      }
+      pet.bankRad += (targetBank - pet.bankRad) * (1 - Math.exp(-7.0 * dt));
+
+      const floatY = dockedClose ? Math.sin(t * 2.4) * 1.4 : Math.sin(t * 2.5) * 5.5;
+      const breathe = 1.0 + Math.sin(t * 3.2) * 0.012;
+
+      if (speed > 45 && !dockedClose && Math.random() < 0.40) {
+        trails.push({
+          x: pet.x - (pet.vx / speed) * 22 + (Math.random() - 0.5) * 14,
+          y: pet.y + floatY - (pet.vy / speed) * 14 + (Math.random() - 0.5) * 14,
+          vx: -pet.vx * 0.06 + (Math.random() - 0.5) * 10,
+          vy: -pet.vy * 0.06 + (Math.random() - 0.5) * 10,
+          life: 1.0,
+          sz: (3.6 + Math.random() * 3.4) * pet.scale
+        });
+      }
+
+      // ================= DIRECT NATIVE-DPR RENDER (ZERO BLUR, ZERO GHOSTING!) =================
+      ctx.clearRect(0, 0, viewW, viewH);
+
+      if (pet.scale > 0.4) {
+        const shScale = pet.scale * (1.0 - (floatY + 5.5) * 0.012);
+        ctx.save();
+        ctx.translate(pet.x, pet.y + 76 * pet.scale);
+        ctx.scale(shScale * 1.22, shScale * 0.33);
+        const grad = ctx.createRadialGradient(0, 0, 4, 0, 0, 44);
+        grad.addColorStop(0, 'rgba(2, 6, 23, 0.38)');
+        grad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 44, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(pet.x - pet.tiltX * 8 * pet.scale, pet.y + floatY * 0.7 - pet.tiltY * 7 * pet.scale);
+        ctx.rotate(pet.bankRad + pet.tiltX * 0.12);
+        ctx.scale(1.0, Math.max(0.22, 0.38 + pet.tiltY * 0.12));
+        ctx.strokeStyle = m.accent;
+        ctx.globalAlpha = 0.28;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 18, 68 * pet.scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      for (let i = trails.length - 1; i >= 0; i--) {
+        const p = trails[i];
+        p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.45;
+        if (p.life <= 0) { trails.splice(i, 1); continue; }
+        drawFourPointStar(ctx, p.x, p.y, p.sz * 1.2, i % 2 ? m.accent : m.accent2, p.life * 0.76);
+      }
+
+      orbiters.forEach((ob, oi) => {
+        const ag = t * ob.spd + ob.phase;
+        const oz = Math.sin(ag) * ob.rz * pet.scale;
+        if (oz > 0) return;
+        const ox = Math.cos(ag) * ob.rx * pet.scale;
+        const oy = (ob.yo - pet.tiltY * 8) * pet.scale + Math.sin(ag * 2) * 5.5 * pet.scale;
+        const pr = 340 / (340 - oz);
+        drawFourPointStar(ctx, pet.x + ox * pr, pet.y + floatY + oy * pr, (5.0 + (oi % 2) * 1.8) * pet.scale * pr, oi % 2 ? m.accent2 : m.accent, 0.44);
+      });
+
+      // SINGLE 1:1 RETINA DRAW CALL — 100% CRISP, 0% GHOSTING!
+      const sheetImg = IMG_CACHE[m[activeSheet]];
+      if (sheetImg && sheetImg.complete && sheetImg.naturalWidth) {
+        const cellPx = sheetImg.naturalWidth / 3;
+        const sx0 = Math.round((activeCell % 3) * cellPx);
+        const sy0 = Math.round(Math.floor(activeCell / 3) * cellPx);
+        const drawSize = 180 * pet.scale;
+
+        // Pivot rotation & micro-turn foreshortening right around the spine/head axis!
+        const finalScaleX = (activeMir ? -1 : 1) * pet.squashX * pet.turnScaleX * breathe;
+        const finalScaleY = pet.squashY * pet.turnScaleY * (2.0 - breathe);
+
+        ctx.save();
+        ctx.translate(pet.x, pet.y + floatY);
+        ctx.rotate(pet.bankRad);
+        ctx.scale(finalScaleX, finalScaleY);
+        ctx.globalAlpha = 1.0;
+        ctx.drawImage(sheetImg, sx0, sy0, cellPx, cellPx, -drawSize * 0.5, -drawSize * 0.5, drawSize, drawSize);
+        ctx.restore();
+      }
+
+      orbiters.forEach((ob, oi) => {
+        const ag = t * ob.spd + ob.phase;
+        const oz = Math.sin(ag) * ob.rz * pet.scale;
+        if (oz <= 0) return;
+        const ox = Math.cos(ag) * ob.rx * pet.scale;
+        const oy = (ob.yo + pet.tiltY * 8) * pet.scale + Math.sin(ag * 2) * 5.5 * pet.scale;
+        const pr = 340 / (340 - oz);
+        drawFourPointStar(ctx, pet.x + ox * pr, pet.y + floatY + oy * pr, (5.4 + (oi % 2) * 2.0) * pet.scale * pr, oi % 2 ? m.accent2 : m.accent, 0.92);
+      });
+
+      for (let i = beacons.length - 1; i >= 0; i--) {
+        const b = beacons[i];
+        b.r += dt * 90; b.a -= dt * 1.65;
+        if (b.a <= 0) { beacons.splice(i, 1); continue; }
+        ctx.save(); ctx.translate(b.x, b.y); ctx.scale(1, 0.42);
+        ctx.strokeStyle = m.accent; ctx.globalAlpha = b.a; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const b = bursts[i];
+        b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 170 * dt; b.life -= dt * 1.5;
+        if (b.life <= 0) { bursts.splice(i, 1); continue; }
+        drawFourPointStar(ctx, b.x, b.y, b.sz, i % 2 ? m.accent : m.accent2, b.life);
+      }
+
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

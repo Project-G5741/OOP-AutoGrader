@@ -1,7 +1,7 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, Store, Trophy, Sparkles } from 'lucide-react';
+import { Clock, Home, Store, Trophy, Sparkles, Compass } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
@@ -12,8 +12,10 @@ import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
 import MascotShop from '../components/student/MascotShop';
 import MascotGachaModal from '../components/student/MascotGachaModal';
+import MythicScreenPetOverlay from '../components/student/MythicScreenPetOverlay';
+import { getMythicSkills } from '../components/student/mythicSkillEffects';
 
-import { getRandomDialogue, getMascotProfile } from '../components/student/mascotBehaviors';
+import { getRandomDialogue } from '../components/student/mascotBehaviors';
 import { mascotArt } from '../components/student/studentMascots';
 import { formatNumber } from '../utils/formatters';
 import StudentPracticeBundleDownloadRow from '../components/student/StudentPracticeBundleDownloadRow';
@@ -355,6 +357,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }, [applyCrystalBalance]);
 
   const [equippedMascot, setEquippedMascot] = useState('fox');
+  const [mythicPinnedHeader, setMythicPinnedHeader] = useState(false);
   const [gachaPity, setGachaPity] = useState(0);
 
   const handleOwnedMascotsChange = useCallback((val) => {
@@ -378,6 +381,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
 
   useEffect(() => {
     setMascotSpeech(null);
+    setActiveMascotSkill(null);
   }, [equippedMascot]);
 
   const applyStreak = useCallback((next) => {
@@ -434,7 +438,12 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (!shop) return;
     const prev = streakSnapshot.current;
     const equipped = shop.equipped || prev?.equipped || 'fox';
-    setEquippedMascot(equipped);
+    setEquippedMascot((prevEquipped) => {
+      if (prevEquipped !== equipped && mascotArt(equipped)?.canMove) {
+        setMythicPinnedHeader(false);
+      }
+      return equipped;
+    });
     const next = {
       ...(prev || {}),
       points: shop.points,
@@ -1366,26 +1375,23 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (!IS_DESKTOP_APP) {
       const equippedId = equippedMascotRef.current || streakSnapshot.current?.equipped || 'fox';
       const hasCompileErr = labResultHasCompileError(labResult);
+      const mythicSkills = getMythicSkills(equippedId);
 
-      const profile = getMascotProfile(equippedId);
       if (score === 100) {
         const speechText = getRandomDialogue(equippedId, 'perfect');
         setMascotSpeech({ text: speechText, type: 'perfect', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
+        if (mythicSkills[1]) {
+          setActiveMascotSkill({ skillId: mythicSkills[1].id, nonce: Date.now() });
         }
       } else if (score != null && score >= 75) {
         const speechText = getRandomDialogue(equippedId, 'good');
         setMascotSpeech({ text: speechText, type: 'good', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
+        if (mythicSkills[0]) {
+          setActiveMascotSkill({ skillId: mythicSkills[0].id, nonce: Date.now() });
         }
       } else if ((score != null && score < 75) || hasCompileErr) {
         const speechText = getRandomDialogue(equippedId, 'retry');
         setMascotSpeech({ text: speechText, type: 'retry', mascotId: equippedId });
-        if (profile?.skillType) {
-          setActiveMascotSkill(profile.skillType);
-        }
       }
     }
     const challengeList = (challenges && challenges.length > 0)
@@ -1572,6 +1578,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   }
 
   const isInitialLoading = isLoadingLabs;
+  const headerMascotId = equippedMascot || streak?.equipped || 'fox';
+  const isEquippedMythic = Boolean(mascotArt(headerMascotId)?.canMove);
+  const isMythicRoaming = isEquippedMythic && !mythicPinnedHeader;
+  const anyOverlayModalOpen = showMascotShop || showGacha || showChangePassword || showAiSettings;
 
   return (
     <>
@@ -1656,19 +1666,39 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           </div>
         ) : null}
         headerAddon={IS_DESKTOP_APP ? (
-          <div className="-my-1 shrink-0">
-            <StudentFoxMascot size={56} mascotId={equippedMascot || 'fox'} />
+          <div className="-my-1 shrink-0 flex items-center gap-1">
+            <StudentFoxMascot size={56} mascotId={headerMascotId} />
+            {isEquippedMythic && mythicPinnedHeader && (
+              <button
+                type="button"
+                onClick={() => setMythicPinnedHeader(false)}
+                title="Release 3D Roam"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-border bg-surface text-primary hover:bg-surface-secondary"
+              >
+                <Compass className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         ) : (
-          <div className="relative -my-1 shrink-0 flex items-center">
+          <div className="relative -my-1 shrink-0 flex items-center gap-1">
             <StudentFoxMascot
               size={56}
               coverEyes={foxCoverEyes}
-              mascotId={equippedMascot || streak?.equipped || 'fox'}
+              mascotId={headerMascotId}
               onPet={petFox}
               speech={mascotSpeech}
               onClearSpeech={() => setMascotSpeech(null)}
             />
+            {isEquippedMythic && mythicPinnedHeader && (
+              <button
+                type="button"
+                onClick={() => setMythicPinnedHeader(false)}
+                title="Release 3D Roam"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-border bg-surface text-primary hover:bg-surface-secondary"
+              >
+                <Compass className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         )}
       >
@@ -1727,6 +1757,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           )}
         </div>
       </AppShell>
+
+      <MythicScreenPetOverlay
+        mascotId={headerMascotId}
+        paused={anyOverlayModalOpen || !isMythicRoaming}
+        skillTrigger={activeMascotSkill}
+        onBoop={() => {
+          petFox();
+          const quote = getRandomDialogue(headerMascotId, 'pet');
+          setMascotSpeech({ text: quote, type: 'pet', mascotId: headerMascotId });
+        }}
+        onDockToHeader={() => setMythicPinnedHeader(true)}
+      />
 
       {!IS_DESKTOP_APP && (
         <MascotShop

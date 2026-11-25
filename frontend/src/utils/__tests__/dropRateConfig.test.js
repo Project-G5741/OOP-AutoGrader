@@ -39,6 +39,9 @@ describe('dropRateConfig helpers & Admin page invariants', () => {
     expect(editedPayload.directLegendaryRate).toBe(DEFAULT_GACHA_CONFIG.directLegendaryRate);
 
     const eggDraft = eggSmashConfigToDraft(DEFAULT_EGG_SMASH_CONFIG);
+    expect(eggDraft.baseCrystalHitRate).toBe('0');
+    expect(eggDraft.turn6CrystalHitRate).toBe('0');
+    expect(eggDraft.turn7CrystalHitRate).toBe('0');
     expect(validateEggSmashDraft(eggDraft)).toMatchObject({
       valid: true,
       remainder50Pct: 50,

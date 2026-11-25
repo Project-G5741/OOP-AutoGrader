@@ -28,7 +28,20 @@ const MASCOT_EMOJIS = {
   con_bang: '🐋',
   cung_ky: '🦁',
   ice_queen: '❄️',
-  goat: '📮',
+  capybara: '🍊',
+  alpaca: '☁️',
+  hai_cau: '🦭',
+  red_panda: '🍓',
+  pomeranian: '🐶',
+  ho_diep: '🦋',
+  thien_nga: '🦢',
+  cuu_vi: '🦊',
+  stella_witch: '🔮',
+  sakura_princess: '🌙',
+  floral_fairy: '🧚',
+  chrono_celestia: '⏳',
+  cyber_striker: '🤖',
+  kiem_de: '⚔️',
 };
 
 const REACTIONS = [

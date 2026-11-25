@@ -155,6 +155,24 @@ Bộ hoạt động đồng đội lập trình thực chiến (Coder Adventure 
 - **Ô 7 (Hàng 3, Cột 2 - `glitch_dizzy`)**: Mắt xoắn ốc hoa văn glitch điện tử vi mạch, đầu bốc khói vì quá tải hệ thống.
 - **Ô 8 (Hàng 3, Cột 3 - `rare_burst`)**: Bùng nổ hào quang năng lượng xanh Cyan (`#38BDF8`), ăn mừng thăng hạng rực rỡ.
 
+#### C. Phẩm chất EPIC & LEGENDARY (Linh thú thần thoại & Nhân vật đặc biệt):
+Mỗi mascot bậc **Epic** và **Legendary** bắt buộc phải sở hữu **bộ 9 Reaction hoàn toàn độc bản (Unique Signature Reactions)** gắn liền với cốt truyện, nguyên tố, pháp bảo hoặc tính cách riêng của nhân vật đó — **tuyệt đối không sao chép mẫu chung của bậc Normal/Rare và không trùng lặp ý tưởng/đạo cụ giữa các mascot với nhau**:
+- **Ô 0 (Hàng 1, Cột 1)**: Tư thế tĩnh tâm / vận nội lực / nghi thức mở đầu đặc trưng riêng (tương thích nhịp chớp mở đầu khi click).
+- **Ô 1 → Ô 6**: 6 hoạt cảnh kỹ năng, pháp bảo, nhạc cụ, món ăn yêu thích hoặc nét tính cách độc quyền chỉ nhân vật đó mới có.
+- **Ô 7 (Hàng 3, Cột 2)**: Biểu cảm quá tải hài hước mang dấu ấn riêng (mắt xoắn ốc `@ @` kết hợp tai nạn đặc trưng như nổ vạc thuốc, tự quấn vào đuôi, hắt xì phấn hoa, lệch vương miện...) khi bị click liên tục (`rapid boop`).
+- **Ô 8 (Hàng 3, Cột 3)**: Tuyệt kỹ tối thượng (*Ultimate Domain / Ascension*) bung nở toàn bộ thần thái và hiệu ứng đặc trưng.
+
+#### D. Phẩm chất MYTHIC (`> Legendary` — 3D Full-Body Moving Screen-Pet & 360° Omni-Gaze):
+Phân khúc thượng hạng (`15 Crystal`) sử dụng phong cách **3D Stylized Figurine toàn thân** (không cắt ngang ngực) kết hợp tấm sprite thứ 3 **`<slug>-movement.webp` ($1080 \times 1080\text{ px}$)** và kiến trúc dựng hình **Single-Canvas GPU 60–120fps**:
+- **Full 360° Omni-Gaze căng nét tuyệt đối, không bóng mờ (`Crystal-Sharp 3×3 Turntable`)**:
+  - **Khóa tâm hộp sọ & cột sống (`Cranium-Spine Pivot Lock`)**: Toàn bộ 9 ô của `<slug>-directions.webp` bắt buộc căn chỉnh theo trọng tâm vùng đầu `[0.08h..0.38h]` tại đúng $(X = 180.0,\; Y_{\text{head}} = 113.0)$ với sai số $< 1\text{ px}$ (thay vì căn theo khung bao `bbox` chứa cánh/lụa lệch hai bên).
+  - **Vẽ trực tiếp chuẩn Retina `dpr <= 3` (Không Crossfade / Không Buffer phụ)**: Tuyệt đối không hòa trộn mờ (`alpha crossfade`) 2 tư thế chồng lên nhau và không cắt dải qua buffer nhỏ để tránh nhòe hình/bóng ma (`double-exposure ghosting`). Mỗi khung hình vẽ trực tiếp 1 ô $360 \times 360\text{ px}$ duy nhất bằng `drawImage` ở `globalAlpha = 1.0` (độ nét tương đương `MascotSprite.jsx`), kết hợp bước chuyển ma trận `3×3` `(Yaw col ±1, Pitch row ±1)` mỗi `48ms` qua góc trung gian tự nhiên (`W -> Center -> E`, `NW -> N -> NE`, `N -> Center -> S`) và lò xo tắt dần tới hạn ($\zeta = 1.0$).
+- **Các ô chuyên biệt trên `<slug>-movement.webp`**:
+  - **Ô 0 → Ô 3 (`stride_0..3`)** & **Ô 4 (`hover_float`)**: Các tư thế lướt và lơ lửng bổ trợ.
+  - **Ô 5 (`high_speed_dash`)**: Tư thế lướt sao băng tốc độ cao nghiêng theo góc bay 360° khi đuổi tới điểm click xa.
+  - **Ô 6 (`ascend`)** & **Ô 8 (`arrival_twirl`)**: Tư thế vút cao / xoay đáp đích.
+  - **Ô 7 (`parachute_descend`)**: Tư thế bung tà váy / mũ hoa / dải lụa đáp nhẹ từ thanh Header xuống màn hình hoặc khi đang nắm kéo thả chuột.
+
 ---
 
 ## 5. Tiêu Chuẩn Nghiệm Thu "Đạt Chuẩn" (Definition of Done)

@@ -35,12 +35,9 @@ public class StudentEggSmashService {
     public static final int TURN_7_RAMP = 7;
     public static final int SOFT_PITY_TURN = 8;
     public static final int HARD_PITY_TURN = 9;
-    /** Default Turn 6 hit rate = 0.01% (0.0001) => 9-egg board spawn rate = 3 * 0.0001 = 0.0003. */
-    public static final double TURN_6_HIT_RATE = 0.0001;
-    public static final double TURN_6_BOARD_SPAWN_RATE = TURN_6_HIT_RATE * (BOARD_SIZE / (double) PICKS_REQUIRED);
-    /** Default Turn 7 ramped hit rate = 5.0% (0.05) => 9-egg board spawn rate = 3 * 0.05 = 0.15. */
-    public static final double TURN_7_HIT_RATE = 0.05;
-    public static final double TURN_7_BOARD_SPAWN_RATE = TURN_7_HIT_RATE * (BOARD_SIZE / (double) PICKS_REQUIRED);
+    /** Default Turns 1–7 hit rate = 0% (1 visual crystal always placed in an unpicked slot). */
+    public static final double TURN_6_HIT_RATE = 0.0;
+    public static final double TURN_7_HIT_RATE = 0.0;
 
     private static final double UNIFORM_BOARD_HIT_RATE = PICKS_REQUIRED / (double) BOARD_SIZE;
     private static final double RATE_EPSILON = 1e-6;
@@ -150,32 +147,32 @@ public class StudentEggSmashService {
             Set<Integer> pickedSet,
             EggSmashRateConfig cfg,
             RandomGenerator rng) {
-        double hitRate = cfg.crystalHitRateForTurn(turn);
-        if (hitRate <= 0.0) {
-            return -1;
-        }
-        if (hitRate >= 1.0 - RATE_EPSILON) {
-            return picks.get(rng.nextInt(picks.size()));
-        }
-        if (Math.abs(hitRate - UNIFORM_BOARD_HIT_RATE) <= RATE_EPSILON) {
-            return rng.nextInt(BOARD_SIZE);
-        }
-        if (hitRate < UNIFORM_BOARD_HIT_RATE) {
-            double boardSpawnRate = hitRate * (BOARD_SIZE / (double) PICKS_REQUIRED);
-            return rng.nextDouble() < boardSpawnRate ? rng.nextInt(BOARD_SIZE) : -1;
-        }
-        // When configured hit rate exceeds 1/3 (33.33%), always place 1 crystal on the board,
-        // biased into chosen picks with exact probability `hitRate`.
-        if (rng.nextDouble() < hitRate) {
-            return picks.get(rng.nextInt(picks.size()));
-        }
+        double hitRate = Math.max(0.0, Math.min(1.0, cfg.crystalHitRateForTurn(turn)));
         List<Integer> unpicked = new ArrayList<>(BOARD_SIZE - picks.size());
         for (int idx = 0; idx < BOARD_SIZE; idx++) {
             if (!pickedSet.contains(idx)) {
                 unpicked.add(idx);
             }
         }
-        return unpicked.isEmpty() ? picks.get(rng.nextInt(picks.size())) : unpicked.get(rng.nextInt(unpicked.size()));
+        // Every 9-egg board ALWAYS contains 1 crystal cell (0..8).
+        // When hitRate == 0 (default Turns 1..7), place it strictly inside an unpicked slot (visual tease only).
+        if (hitRate <= 0.0) {
+            return unpicked.isEmpty()
+                    ? picks.get(Math.floorMod(rng.nextInt(picks.size()), picks.size()))
+                    : unpicked.get(Math.floorMod(rng.nextInt(unpicked.size()), unpicked.size()));
+        }
+        if (hitRate >= 1.0 - RATE_EPSILON) {
+            return picks.get(Math.floorMod(rng.nextInt(picks.size()), picks.size()));
+        }
+        if (Math.abs(hitRate - UNIFORM_BOARD_HIT_RATE) <= RATE_EPSILON) {
+            return Math.floorMod(rng.nextInt(BOARD_SIZE), BOARD_SIZE);
+        }
+        if (rng.nextDouble() < hitRate) {
+            return picks.get(Math.floorMod(rng.nextInt(picks.size()), picks.size()));
+        }
+        return unpicked.isEmpty()
+                ? picks.get(Math.floorMod(rng.nextInt(picks.size()), picks.size()))
+                : unpicked.get(Math.floorMod(rng.nextInt(unpicked.size()), unpicked.size()));
     }
 
     static int rollPointEgg(EggSmashRateConfig cfg, RandomGenerator rng) {

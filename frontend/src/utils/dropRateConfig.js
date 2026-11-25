@@ -17,8 +17,8 @@ export const DEFAULT_GACHA_CONFIG = {
 
 export const DEFAULT_EGG_SMASH_CONFIG = {
   baseCrystalHitRate: 0,
-  turn6CrystalHitRate: 0.0001,
-  turn7CrystalHitRate: 0.05,
+  turn6CrystalHitRate: 0,
+  turn7CrystalHitRate: 0,
   turn8CrystalHitRate: 1 / 3,
   turn9CrystalHitRate: 1,
   eggRate300: 0.05,

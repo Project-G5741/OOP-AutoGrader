@@ -7,8 +7,8 @@ ALTER TABLE gacha_rate_config
 CREATE TABLE IF NOT EXISTS egg_smash_rate_config (
     id                      SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     base_crystal_hit_rate   DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    turn6_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 0.0001,
-    turn7_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 0.05,
+    turn6_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    turn7_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     turn8_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 0.3333333333333333,
     turn9_crystal_hit_rate  DOUBLE PRECISION NOT NULL DEFAULT 1.0,
     egg_rate_300            DOUBLE PRECISION NOT NULL DEFAULT 0.05,
@@ -17,5 +17,17 @@ CREATE TABLE IF NOT EXISTS egg_smash_rate_config (
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE egg_smash_rate_config
+    ALTER COLUMN turn6_crystal_hit_rate SET DEFAULT 0.0,
+    ALTER COLUMN turn7_crystal_hit_rate SET DEFAULT 0.0;
+
 INSERT INTO egg_smash_rate_config (id) VALUES (1)
 ON CONFLICT (id) DO NOTHING;
+
+UPDATE egg_smash_rate_config
+SET turn6_crystal_hit_rate = 0.0,
+    turn7_crystal_hit_rate = 0.0,
+    updated_at = NOW()
+WHERE id = 1
+  AND ABS(turn6_crystal_hit_rate - 0.0001) < 1e-9
+  AND ABS(turn7_crystal_hit_rate - 0.05) < 1e-9;

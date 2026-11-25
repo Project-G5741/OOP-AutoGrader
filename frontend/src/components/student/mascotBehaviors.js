@@ -530,26 +530,339 @@ export const MASCOT_PROFILES = {
       ],
     },
   },
-  goat: {
+  capybara: {
     dialogues: {
       perfect: [
-        'Is that an ACE? naisu naisu',
+        'Zero stress, 100/100! Soaking in the hot spring to celebrate your clean code!',
+        'Unbothered, hydrated, and passing 100% of testcases effortlessly!',
       ],
       good: [
-        'Ooh, nt nt nice try',
-        'Lets do our best next time',
+        'Super chill progress! Balance a tangerine on your head and grab those last points!',
+        'Calm mind, clean OOP structure! Almost at 100!',
       ],
       retry: [
-        'Lets hit a different site this time, maybe that will work out',
-        'Maybe another match and I will go to bed'
+        'No panic! Take a deep capybara breath and trace that method calmly.',
+        'Bugs come and go, inner peace stays forever. Fix it gently and resubmit!',
       ],
       pet: [
-        'So? I am cool, right?',
-        'I should be the one in charge of the headpats..',
+        'Purr... warm head pats and sakura petals, life is wonderful!',
+        'Capybara shares tranquil anti-bug energy with you!',
       ],
       idle: [
-        'Oopsie, I acidentally ate your letter',
-        'Are you there, are you there?',
+        'Floating peacefully while keeping a cozy eye on your classes.',
+        'Stay calm and code steady—every testcase yields to patience.',
+      ],
+    },
+  },
+  alpaca: {
+    dialogues: {
+      perfect: [
+        'Fluffy cloud perfection! 100/100 sparkling brighter than cotton candy!',
+        'Bouncing on pastel clouds for your spotless OOP solution!',
+      ],
+      good: [
+        'So soft, so clean! Just one tiny polish left to hit 100!',
+        'Wonderful score! Your class design is as neat as freshly brushed fleece!',
+      ],
+      retry: [
+        'Do not fret! Wrap up in warm wool, spot the edge case, and try again!',
+        'Every great coder untangles a knot or two—you have got this!',
+      ],
+      pet: [
+        'Poof! So fluffy! Thank you for the gentle pats!',
+        'Happy alpaca hums! Cheering for your next green build!',
+      ],
+      idle: [
+        'Drifting softly beside your workspace while you craft clean Java.',
+        'Keep your methods tidy and cozy!',
+      ],
+    },
+  },
+  hai_cau: {
+    dialogues: {
+      perfect: [
+        'Arf arf! 100/100! Time for a celebratory pearl milk tea toast!',
+        ' clapping flippers nonstop! Every single testcase passed without a splash!',
+      ],
+      good: [
+        'Smooth ocean glide! One more sip of boba and 100 is yours!',
+        'Awesome OOP flow! Those edge cases stand no chance!',
+      ],
+      retry: [
+        'Dive back under the waves, spot that sneaky bug, and resurface stronger!',
+        'A quick milk tea recharge and you will ace the next upload!',
+      ],
+      pet: [
+        'Squishy seal belly taps! Thank you so much!',
+        'Bouncing happily like a boba pearl!',
+      ],
+      idle: [
+        'Sipping pearl milk tea while watching your code compile.',
+        'Ready to clap flippers for your next submission!',
+      ],
+    },
+  },
+  red_panda: {
+    dialogues: {
+      perfect: [
+        'Hands up in total celebration! 100/100 strawberry-sweet victory!',
+        'Fluffy striped tail wagging at max speed—flawless OOP mastery!',
+      ],
+      good: [
+        'Super sharp work! Just one small berry-sized tweak to reach 100!',
+        'Climbing high up the leaderboard branch! Keep going!',
+      ],
+      retry: [
+        'Stand tall with paws up—scare that bug right out of your code!',
+        'Check constructor and method signatures carefully, then strike back!',
+      ],
+      pet: [
+        'Eee! Ear scratches make my fluffy tail wag nonstop!',
+        'Red Panda is 100% energized to debug alongside you!',
+      ],
+      idle: [
+        'Curled up near your editor, watching over your class hierarchy.',
+        'Clean encapsulation makes Red Panda very happy!',
+      ],
+    },
+  },
+  pomeranian: {
+    dialogues: {
+      perfect: [
+        ' Bork bork hooray! A 5-star gourmet 100/100 masterpiece!',
+        'Spinning in happy circles—every single check turned bright green!',
+      ],
+      good: [
+        'Whipped-cream smooth logic! Just a tiny sprinkle left for 100!',
+        'Such proud puppy energy! Your OOP skills are shining!',
+      ],
+      retry: [
+        'Paws on the keyboard—we will sniff out that bug in seconds!',
+        'Shake off the compile dust and give it another confident try!',
+      ],
+      pet: [
+        'Tail wagging like a turbo fan! Thank you for the head pats!',
+        'Loyal Pom-Pom is cheering for every line you write!',
+      ],
+      idle: [
+        'Perky ears listening for a clean green build!',
+        'Ready to celebrate your next lab milestone!',
+      ],
+    },
+  },
+  ho_diep: {
+    dialogues: {
+      perfect: [
+        'Crystal prism wings in full bloom! A radiant 100/100 metamorphosis!',
+        'Every testcase refracted into pure emerald perfection!',
+      ],
+      good: [
+        'Graceful architecture! One final wingbeat will carry you to 100!',
+        'Luminous OOP structure—nearly flawless!',
+      ],
+      retry: [
+        'Even the brightest butterfly refines its chrysalis. Polish that logic and soar!',
+        'Let starlight illuminate the hidden boundary condition.',
+      ],
+      pet: [
+        'Iridescent wing-dust shimmers softly at your touch!',
+        'May crystal clarity guide your thoughts and algorithms.',
+      ],
+      idle: [
+        'Fluttering serenely amidst prism light while you design your classes.',
+        'Harmony between diagram and code creates true elegance.',
+      ],
+    },
+  },
+  thien_nga: {
+    dialogues: {
+      perfect: [
+        'A grand Swan Lake finale—100/100 with crystalline poise and precision!',
+        'Moonlit crown gleaming! Not a single flaw across the entire suite!',
+      ],
+      good: [
+        'An elegant performance! One final pirouette to claim a perfect 100!',
+        'Refined inheritance and clean methods—truly graceful!',
+      ],
+      retry: [
+        'Keep your posture poised; review the failing step and glide past it.',
+        'Calm waters reflect the sharpest truth. Inspect your edge cases gently.',
+      ],
+      pet: [
+        'Soft moonlit feathers rustle in quiet gratitude.',
+        'A graceful bow—let us compose impeccable code together.',
+      ],
+      idle: [
+        'Gliding across starlit waters, guarding your focus.',
+        'True elegance in OOP comes from clarity and balance.',
+      ],
+    },
+  },
+  cuu_vi: {
+    dialogues: {
+      perfect: [
+        'Nine sakura tails blaze in celestial triumph—an immaculate 100/100!',
+        'Even ancient immortals marvel at your flawless OOP dominion!',
+      ],
+      good: [
+        'Clever spirit! Just a whisper of fox-fire away from a perfect 100!',
+        'Sharp wit and clean abstractions—press onward to perfection!',
+      ],
+      retry: [
+        'See past the illusion of that bug; trace the true state and strike again!',
+        'Nine tails, ninefold resilience—no edge case can outwit us!',
+      ],
+      pet: [
+        'Hmph... Very well, you may brush my fluffy sakura tails just a little longer.',
+        'Warm spirit-lantern light blesses your coding session!',
+      ],
+      idle: [
+        'Nine tails swaying gently as sakura petals drift past your code.',
+        'Craft your classes with cunning precision.',
+      ],
+    },
+  },
+  stella_witch: {
+    dialogues: {
+      perfect: [
+        'The Astral Tarot foretold it—a spellbinding 100/100 across the cosmos!',
+        'Grand Grimoire unlocked! Every single testcase aligned like constellations!',
+      ],
+      good: [
+        'Potent spellcraft! Stir one last pinch of starlight into your edge cases!',
+        'The stars shine favorably upon your OOP design!',
+      ],
+      retry: [
+        'When a potion bubbles over, adjust the formula! Check your null and boundary guards!',
+        'My familiar spotted a tiny hex in the logic—let us dispel it!',
+      ],
+      pet: [
+        'Careful not to tilt my starlight witch hat! Hehe, thank you!',
+        'Casting a +100% Focus blessing upon your keyboard!',
+      ],
+      idle: [
+        'Reading star charts and class diagrams beside you.',
+        'Every clean method is a well-written incantation.',
+      ],
+    },
+  },
+  sakura_princess: {
+    dialogues: {
+      perfect: [
+        'Full Moon Blossom Ascension! A royal 100/100 worthy of the Lunar Palace!',
+        'The koto strings resonate in celebration of your flawless architecture!',
+      ],
+      good: [
+        'Exquisite craftsmanship! Just one delicate brushstroke left for 100!',
+        'Serene and noble logic—perfection is within reach!',
+      ],
+      retry: [
+        'Share a cup of warm matcha, calm your heart, and refine the failing method.',
+        'Like blossoms after frost, your next attempt will bloom even brighter.',
+      ],
+      pet: [
+        'A gentle royal smile—thank you for your kindness, dear scholar.',
+        'The little jade moon-bunny hops happily for your success!',
+      ],
+      idle: [
+        'Moonlight and cherry blossoms watch peacefully over your study.',
+        'Patience and clarity turn complex requirements into art.',
+      ],
+    },
+  },
+  floral_fairy: {
+    dialogues: {
+      perfect: [
+        'World Tree Sanctuary in full 3D bloom! A magical 100/100 triumph!',
+        'Lily-of-the-valley bells ring across the screen for your perfect score!',
+      ],
+      good: [
+        'Sparkling emerald wings! Just one tiny petal left to reach 100!',
+        'Your OOP garden is thriving beautifully—keep going!',
+      ],
+      retry: [
+        'Sprinkle a little fairy dew on that tricky testcase and watch it bloom!',
+        'Do not pout! Let us fly over that class and fix it together!',
+      ],
+      pet: [
+        'Hehe, fairy dust sparkles everywhere when you boop me!',
+        'Fluttering happily around your screen to cheer you on!',
+      ],
+      idle: [
+        'Gliding through the air in 360°, watching every class flourish!',
+        'Need quiet focus? You can pin me to the Header anytime!',
+      ],
+    },
+  },
+  chrono_celestia: {
+    dialogues: {
+      perfect: [
+        'Across every timeline in the cosmos, your 100/100 shines like a supernova!',
+        'The golden armillary sphere aligns—absolute perfection achieved!',
+      ],
+      good: [
+        'Time flows in your favor! One final cosmic convergence to reach 100!',
+        'Stellar OOP symmetry—almost at the singularity of perfection!',
+      ],
+      retry: [
+        'Let us rewind that step, inspect the state transition, and rewrite fate!',
+        'Even stars collapse before igniting—debug boldly and submit again!',
+      ],
+      pet: [
+        'Starlight ripples gently across time at your touch.',
+        'Orbiting beside you through every challenge and milestone!',
+      ],
+      idle: [
+        'Cruising across space-time while keeping watch over your logic.',
+        'Every second invested in clean design compounds across eternity.',
+      ],
+    },
+  },
+  cyber_striker: {
+    dialogues: {
+      perfect: [
+        'Omega Quantum Seraph Mode engaged—100/100 target obliterated!',
+        'Zero bugs detected on radar! Tactical execution rated SSS+!',
+      ],
+      good: [
+        'Thrusters at 95% output! Calibrate that final edge case for full 100% sync!',
+        'Solid armor-grade OOP architecture, Commander!',
+      ],
+      retry: [
+        'Hull intact! Pull up the diagnostic HUD, patch the anomaly, and relaunch!',
+        'A true pilot never quits—reroute power to debugging and fire again!',
+      ],
+      pet: [
+        'Arc-Reactor core synced at 120% morale! Ready for deployment!',
+        'Bit-drones salute you, Commander! Let us crush the next lab!',
+      ],
+      idle: [
+        'Patrolling your viewport at 100 FPS—all systems nominal.',
+        'Scanning class signatures and constructors in real time.',
+      ],
+    },
+  },
+  kiem_de: {
+    dialogues: {
+      perfect: [
+        'Ten-Thousand Swords bow before your flawless 100/100 Sword Domain!',
+        'One strike, zero bugs—your OOP mastery has reached the Immortal Realm!',
+      ],
+      good: [
+        'Formidable sword-intent! Temper one last edge case to ascend to 100!',
+        'Clean, decisive logic—worthy of an inner-court grandmaster!',
+      ],
+      retry: [
+        'Steady your qi! Discern the flaw in the formation and cleave right through it!',
+        'A true sword sovereign sharpens his blade on every trial. Strike again!',
+      ],
+      pet: [
+        'Hah! A toast from my jade gourd to a worthy fellow cultivator!',
+        'My spirit blades hum in resonance with your fighting spirit!',
+      ],
+      idle: [
+        'Soaring on my astral broadsword across the heavens as you forge your code.',
+        'When mind and specification become one, no testcase can stand against you.',
       ],
     },
   },

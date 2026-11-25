@@ -102,11 +102,18 @@ class StudentEggSmashServiceTest {
     }
 
     @Test
-    void smash_turns1To5NeverSpawnCrystalAndTripleMaxPointsCapsAt900() {
-        RandomGenerator zeroDoubleRng = new RandomGenerator() {
+    void smash_turns1To7AlwaysShowOneUnpickedCrystalAndNeverAwardIt() {
+        RandomGenerator maxPointsRng = new RandomGenerator() {
+            private int intStep = 0;
+
+            @Override
+            public int nextInt(int bound) {
+                return (intStep++) % bound;
+            }
+
             @Override
             public double nextDouble() {
-                return 0.0; // Luckiest possible RNG roll (0.0 -> 300 pts on every egg)
+                return 0.0; // Luckiest possible point roll (300 pts on every picked egg)
             }
 
             @Override
@@ -115,63 +122,31 @@ class StudentEggSmashServiceTest {
             }
         };
 
-        for (int pity = 0; pity <= 4; pity++) {
+        for (int pity = 0; pity <= 6; pity++) {
             StudentStreak row = new StudentStreak();
             row.setUserId(userId);
             row.setPoints(5_000);
             row.setCrystals(0);
-            row.setEggSmashPity(pity); // Turns 1..5
+            row.setEggSmashPity(pity); // Turns 1..7
             when(streakRepository.lockByUserId(userId)).thenReturn(Optional.of(row));
             when(streakRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            EggSmashResponse res = eggSmashService.smashWithRng(userId, List.of(1, 4, 7), zeroDoubleRng);
+            EggSmashResponse res = eggSmashService.smashWithRng(userId, List.of(1, 4, 7), maxPointsRng);
 
-            assertEquals(0, res.crystalsEarned(), "Turn " + (pity + 1) + " must have 0% crystal rate");
-            assertTrue(
-                    res.cells().stream().noneMatch(c -> "crystal".equals(c.type())),
-                    "No crystal may even spawn on board during turns 1..5");
+            assertEquals(0, res.crystalsEarned(), "Turn " + (pity + 1) + " must never award crystal");
+            assertEquals(
+                    1,
+                    res.cells().stream().filter(c -> "crystal".equals(c.type())).count(),
+                    "Every turn 1..7 must display exactly 1 crystal on the 9-egg board");
+            assertEquals(
+                    0,
+                    res.cells().stream().filter(c -> c.picked() && "crystal".equals(c.type())).count(),
+                    "Crystal on turns 1..7 must sit in an unpicked slot");
             assertEquals(900, res.pointsEarned());
             assertTrue(res.pointsEarned() < StudentEggSmashService.TURN_COST);
             assertEquals(4_900, res.points());
             assertEquals(pity + 1, row.getEggSmashPity());
         }
-    }
-
-    @Test
-    void smash_turn6UnlocksAtZeroPointZeroOnePercentAndTurn7RampsHigher() {
-        // Turn 6 (pity = 5): board spawn threshold = 0.0003 (0.03% * 3/9 = 0.01% hit rate)
-        StudentStreak turn6MissRow = new StudentStreak();
-        turn6MissRow.setUserId(userId);
-        turn6MissRow.setPoints(5_000);
-        turn6MissRow.setEggSmashPity(5);
-        when(streakRepository.lockByUserId(userId)).thenReturn(Optional.of(turn6MissRow));
-        when(streakRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        RandomGenerator roll001Rng = new RandomGenerator() {
-            @Override
-            public double nextDouble() {
-                return 0.01; // Misses Turn 6 (0.01 >= 0.0003), but hits Turn 7 (0.01 < 0.15)!
-            }
-
-            @Override
-            public int nextInt(int bound) {
-                return 4; // Slot 4 (picked!)
-            }
-
-            @Override
-            public long nextLong() {
-                return 0L;
-            }
-        };
-
-        EggSmashResponse turn6Res = eggSmashService.smashWithRng(userId, List.of(1, 4, 7), roll001Rng);
-        assertEquals(0, turn6Res.crystalsEarned());
-        assertEquals(6, turn6MissRow.getEggSmashPity()); // Advances to Turn 7
-
-        // Now at Turn 7 (pity = 6) with the exact same 0.01 RNG roll -> spawns & hits!
-        EggSmashResponse turn7Res = eggSmashService.smashWithRng(userId, List.of(1, 4, 7), roll001Rng);
-        assertEquals(1, turn7Res.crystalsEarned());
-        assertEquals(0, turn6MissRow.getEggSmashPity()); // Resets pity on hit
     }
 
     @Test
@@ -253,5 +228,32 @@ class StudentEggSmashServiceTest {
         assertEquals(1_600, res.points());
         assertEquals(1, res.crystals());
         assertEquals(0, row.getEggSmashPity());
+
+        // Even with a custom intermediate rate (e.g. 5%) that misses, the 9-egg board still shows 1 unpicked crystal
+        when(cfgService.current()).thenReturn(new com.eiu.capstone.backend.service.EggSmashRateConfig(
+                0.05, 0.05, 0.05, 1.0 / 3.0, 1.0,
+                0.05, 0.15, 0.30));
+        row.setPoints(2_000);
+        row.setEggSmashPity(5); // Turn 6
+        RandomGenerator missRng = new RandomGenerator() {
+            @Override
+            public int nextInt(int bound) {
+                return 2 % bound;
+            }
+
+            @Override
+            public double nextDouble() {
+                return 0.50; // > 0.05 -> misses Crystal; also rolls +50pt eggs
+            }
+
+            @Override
+            public long nextLong() {
+                return 0L;
+            }
+        };
+        EggSmashResponse customMiss = customService.smashWithRng(userId, List.of(0, 4, 8), missRng);
+        assertEquals(0, customMiss.crystalsEarned());
+        assertEquals(1, customMiss.cells().stream().filter(c -> "crystal".equals(c.type())).count());
+        assertEquals(0, customMiss.cells().stream().filter(c -> c.picked() && "crystal".equals(c.type())).count());
     }
 }
