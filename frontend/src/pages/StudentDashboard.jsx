@@ -347,16 +347,28 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     if (!wallet) return;
     if (typeof wallet.points === 'number') {
       setStreak((s) => (s ? { ...s, points: wallet.points } : s));
+      if (streakSnapshot.current) {
+        streakSnapshot.current = { ...streakSnapshot.current, points: wallet.points };
+      }
     }
     if (typeof wallet.gachaTickets === 'number') {
       ticketsRef.current = wallet.gachaTickets;
       setTickets(wallet.gachaTickets);
+      if (streakSnapshot.current) {
+        streakSnapshot.current = { ...streakSnapshot.current, gachaTickets: wallet.gachaTickets };
+      }
     }
     if (typeof wallet.crystals === 'number') {
       applyCrystalBalance(wallet.crystals);
+      if (streakSnapshot.current) {
+        streakSnapshot.current = { ...streakSnapshot.current, crystals: wallet.crystals };
+      }
     }
     if (typeof wallet.gachaPity === 'number') {
       setGachaPity(wallet.gachaPity);
+      if (streakSnapshot.current) {
+        streakSnapshot.current = { ...streakSnapshot.current, gachaPityCount: wallet.gachaPity };
+      }
     }
   }, [applyCrystalBalance]);
 
@@ -455,11 +467,15 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     };
     streakSnapshot.current = next;
     setStreak(next);
-    const ownedFromShop = (shop.mascots || [])
-      .filter((mascot) => mascot?.owned && mascot?.id)
-      .map((mascot) => mascot.id);
-    const owned = Array.from(new Set(['fox', ...ownedFromShop, equipped].filter(Boolean)));
-    setOwnedMascots(owned);
+    if (Array.isArray(shop.mascots)) {
+      const ownedFromShop = shop.mascots
+        .filter((mascot) => mascot?.owned && mascot?.id)
+        .map((mascot) => mascot.id);
+      const owned = Array.from(new Set(['fox', ...ownedFromShop, equipped].filter(Boolean)));
+      setOwnedMascots(owned);
+    } else if (equipped) {
+      setOwnedMascots((prevOwned) => Array.from(new Set(['fox', ...prevOwned, equipped].filter(Boolean))));
+    }
   }, []);
 
   const refreshMascotShop = useCallback(async () => {
@@ -1844,7 +1860,9 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
           ownedMascots={ownedMascots}
           onOwnedMascotsChange={(ids) => {
             handleOwnedMascotsChange(ids);
-            refreshMascotShop();
+            if (!isAdminUser) {
+              refreshMascotShop();
+            }
           }}
           isAdmin={isAdminUser}
         />

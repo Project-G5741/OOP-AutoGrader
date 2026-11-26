@@ -3,11 +3,13 @@ package com.eiu.capstone.backend.service;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.random.RandomGenerator;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -49,6 +51,11 @@ public class StudentGachaService {
 
     @Transactional
     public GachaRollResponse roll(UUID userId, int count) {
+        return rollWithRng(userId, count, ThreadLocalRandom.current());
+    }
+
+    @Transactional
+    public GachaRollResponse rollWithRng(UUID userId, int count, RandomGenerator rng) {
         if (count < 1 || count > 10) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Summon count must be from 1 to 10");
         }
@@ -70,9 +77,9 @@ public class StudentGachaService {
             row.setCrystalSourcedPoints(row.getCrystalSourcedPoints() - consumed);
             boolean allowCrystalDrop = consumed == 0;
             boolean payWithPoints = true;
-            return executeRolls(userId, row, count, cfg, allowCrystalDrop, payWithPoints);
+            return executeRolls(userId, row, count, cfg, allowCrystalDrop, payWithPoints, rng);
         }
-        return executeRolls(userId, row, count, cfg, true, false);
+        return executeRolls(userId, row, count, cfg, true, false, rng);
     }
 
     private GachaRollResponse executeRolls(
@@ -81,23 +88,28 @@ public class StudentGachaService {
             int count,
             GachaRateConfig cfg,
             boolean allowCrystalDrop,
-            boolean payWithPoints) {
+            boolean payWithPoints,
+            RandomGenerator rng) {
         Set<String> owned = new HashSet<>(ownedIds(userId));
         owned.add(MascotCatalog.STARTER_ID);
+        String equipped = MascotCatalog.canonicalId(row.getEquippedMascot());
+        if (equipped != null && MascotCatalog.isSelectable(equipped)) {
+            owned.add(equipped);
+        }
+        Set<String> ownedReadOnly = Collections.unmodifiableSet(owned);
         List<GachaRollItemView> pulls = new ArrayList<>();
         int totalCashback = 0;
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
 
         for (int i = 0; i < count; i++) {
             RollOutcome outcome = rollSingle(
-                    row.getGachaPityCount(), owned, cfg, allowCrystalDrop, payWithPoints, rng);
+                    row.getGachaPityCount(), ownedReadOnly, cfg, allowCrystalDrop, payWithPoints, rng);
             row.setGachaPityCount(outcome.nextPity);
             pulls.add(outcome.item);
             if ("crystal".equals(outcome.item.type())) {
                 row.setCrystals(row.getCrystals() + outcome.item.crystalAmount());
             }
             if ("mascot".equals(outcome.item.type()) || "legendary".equals(outcome.item.type())) {
-                String mascotId = outcome.item.mascotId();
+                String mascotId = MascotCatalog.canonicalId(outcome.item.mascotId());
                 if (mascotId != null && !owned.contains(mascotId)) {
                     recordUnlock(userId, mascotId);
                     owned.add(mascotId);
@@ -123,11 +135,12 @@ public class StudentGachaService {
     }
 
     private void recordUnlock(UUID userId, String mascotId) {
-        if (purchases.existsByIdUserIdAndIdMascotId(userId, mascotId)) {
+        String canonical = MascotCatalog.canonicalId(mascotId);
+        if (canonical == null || canonical.isBlank() || purchases.existsByIdUserIdAndIdMascotId(userId, canonical)) {
             return;
         }
         StudentMascotPurchase unlocked = new StudentMascotPurchase();
-        unlocked.setId(new StudentMascotPurchaseKey(userId, mascotId));
+        unlocked.setId(new StudentMascotPurchaseKey(userId, canonical));
         unlocked.setPricePaid(0);
         unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
         purchases.save(unlocked);
@@ -135,7 +148,15 @@ public class StudentGachaService {
 
     private Set<String> ownedIds(UUID userId) {
         Set<String> set = new HashSet<>();
-        purchases.findByIdUserId(userId).forEach(row -> set.add(row.getId().getMascotId()));
+        purchases.findByIdUserId(userId).forEach(row -> {
+            if (row == null || row.getId() == null) {
+                return;
+            }
+            String canonical = MascotCatalog.canonicalId(row.getId().getMascotId());
+            if (canonical != null && !canonical.isBlank()) {
+                set.add(canonical);
+            }
+        });
         return set;
     }
 
@@ -148,7 +169,7 @@ public class StudentGachaService {
             GachaRateConfig cfg,
             boolean allowCrystalDrop,
             boolean payWithPoints,
-            ThreadLocalRandom rng) {
+            RandomGenerator rng) {
         int rollNumber = currentPity + 1;
         // Hard pity guarantee applies to ticket rolls only; point rolls use soft rates (no lock at 100).
         if (!payWithPoints && rollNumber >= cfg.hardPityLimit()) {
@@ -168,7 +189,6 @@ public class StudentGachaService {
         List<String> legendaryPool = GachaPools.LEGENDARY_MASCOT.stream().filter(id -> !owned.contains(id)).toList();
         if (!legendaryPool.isEmpty() && legendaryRoll < cfg.directLegendaryRate()) {
             String picked = legendaryPool.get(rng.nextInt(legendaryPool.size()));
-            owned.add(picked);
             return new RollOutcome(
                     new GachaRollItemView(
                             "legendary",
@@ -212,7 +232,6 @@ public class StudentGachaService {
         List<String> mascotPool = GachaPools.RANDOM_MASCOT.stream().filter(id -> !owned.contains(id)).toList();
         if (!mascotPool.isEmpty() && rng.nextDouble() < cfg.randomMascotRate()) {
             String picked = mascotPool.get(rng.nextInt(mascotPool.size()));
-            owned.add(picked);
             String rarity = legendaryTier(picked) ? "epic" : "rare";
             return new RollOutcome(
                     new GachaRollItemView(
