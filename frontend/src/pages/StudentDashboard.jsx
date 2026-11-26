@@ -1,7 +1,7 @@
 // StudentDashboard.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Clock, Home, Store, Trophy, Sparkles, Compass } from 'lucide-react';
+import { Clock, Home, Store, Trophy, Sparkles, Compass, Zap } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import StudentHistoryPage from './StudentHistory';
 import StudentRankingPage from './StudentRankingPage';
@@ -12,6 +12,7 @@ import StudentFoxMascot from '../components/student/StudentFoxMascot';
 import StudentStreakFlame from '../components/student/StudentStreakFlame';
 import MascotShop from '../components/student/MascotShop';
 import MascotGachaModal from '../components/student/MascotGachaModal';
+import OopBlitzModal from '../components/student/OopBlitzModal';
 import MythicScreenPetOverlay from '../components/student/MythicScreenPetOverlay';
 import { getMythicSkills } from '../components/student/mythicSkillEffects';
 
@@ -30,6 +31,7 @@ import { parseMmdResponse, mmdFromChallengeBundle } from '../utils/mmdResponse';
 import { waitForDesktopBootstrap } from '../utils/desktopBootstrap';
 import { labResultHasCompileError } from '../utils/compileErrors';
 import { purgeLegacyGachaLocalStorage } from '../utils/studentGachaStorage';
+import { computeBlitzRunsRemaining, OOP_BLITZ_MAX_RUNS } from '../utils/oopBlitzHelpers';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 const IS_DESKTOP_APP = import.meta.env.VITE_APP_MODE === 'desktop';
@@ -283,6 +285,8 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [showMascotShop, setShowMascotShop] = useState(false);
   const [showGacha, setShowGacha] = useState(false);
+  const [showOopBlitz, setShowOopBlitz] = useState(false);
+  const [blitzStatus, setBlitzStatus] = useState(null);
   const [gachaInitialTab, setGachaInitialTab] = useState('wheel');
   const [crystals, setCrystals] = useState(0);
   const crystalsRef = useRef(crystals);
@@ -484,6 +488,19 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     }
   }, [applyStreak]);
 
+  const refreshBlitzStatus = useCallback(async () => {
+    if (IS_DESKTOP_APP) return;
+    try {
+      const response = await apiFetch(`${API_BASE}/api/students/oop-blitz/status`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      setBlitzStatus(await response.json());
+    } catch {
+      /* keep the latest known OOP Blitz badge */
+    }
+  }, []);
+
   const spendGachaTickets = useCallback(async (count) => {
     if (IS_DESKTOP_APP) return false;
     try {
@@ -592,9 +609,11 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
     setOwnedMascots(['fox']);
     setEquippedMascot('fox');
     setStreak(null);
+    setBlitzStatus(null);
     streakSnapshot.current = null;
     refreshStreak();
     refreshMascotShop();
+    refreshBlitzStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload economy only when the signed-in account changes
   }, [accountKey]);
 
@@ -1370,6 +1389,7 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
       type: 'success',
     };
     void refreshStreak();
+    void refreshBlitzStatus();
 
     // Trigger tier-specific mascot reaction & dialogue based on submission score
     if (!IS_DESKTOP_APP) {
@@ -1581,7 +1601,10 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
   const headerMascotId = equippedMascot || streak?.equipped || 'fox';
   const isEquippedMythic = Boolean(mascotArt(headerMascotId)?.canMove);
   const isMythicRoaming = isEquippedMythic && !mythicPinnedHeader;
-  const anyOverlayModalOpen = showMascotShop || showGacha || showChangePassword || showAiSettings;
+  const anyOverlayModalOpen = showMascotShop || showGacha || showOopBlitz || showChangePassword || showAiSettings;
+  const blitzRunsLeft = computeBlitzRunsRemaining(blitzStatus);
+  const blitzRunsMax = blitzStatus?.rewardedRunsMax ?? OOP_BLITZ_MAX_RUNS;
+  const blitzHasActive = blitzStatus?.activeSessionMode === 'REWARDED' && Boolean(blitzStatus?.activeSessionId);
 
   return (
     <>
@@ -1639,6 +1662,18 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
                 setShowGacha(true);
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowOopBlitz(true)}
+              aria-label={`Open OOP Blitz. ${blitzHasActive ? 'Active run ready to resume.' : `${blitzRunsLeft} rewarded runs available.`}`}
+              className="flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-gold/60 bg-gold-bg px-3 text-sm font-bold text-gold-text shadow-sm transition-colors hover:border-gold hover:bg-gold/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            >
+              <Zap className="h-4 w-4 fill-current text-gold" aria-hidden="true" />
+              <span className="hidden sm:inline">Blitz</span>
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-navy px-1.5 text-[11px] font-extrabold text-gold tabular-nums">
+                {blitzHasActive ? 'Resume' : `${blitzRunsLeft}/${blitzRunsMax}`}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1812,6 +1847,26 @@ export default function StudentDashboard({ user, onLogout, view = 'dashboard' })
             refreshMascotShop();
           }}
           isAdmin={isAdminUser}
+        />
+      )}
+
+      {!IS_DESKTOP_APP && (
+        <OopBlitzModal
+          open={showOopBlitz}
+          onClose={() => setShowOopBlitz(false)}
+          mascotId={headerMascotId}
+          points={streak?.points ?? 0}
+          onPointsChange={(pts) => {
+            setStreak((s) => (s ? { ...s, points: pts } : s));
+            if (streakSnapshot.current) {
+              streakSnapshot.current = { ...streakSnapshot.current, points: pts };
+            }
+          }}
+          onStatusSync={(nextStatus) => {
+            if (nextStatus) {
+              setBlitzStatus(nextStatus);
+            }
+          }}
         />
       )}
 

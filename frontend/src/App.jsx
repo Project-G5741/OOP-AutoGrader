@@ -227,6 +227,14 @@ export default function App() {
             }
           />
           <Route
+            path={ROUTES.lecturerBlitzBank}
+            element={
+              <RequireRole anyOf={["LECTURER", "ADMIN"]}>
+                <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
             path={ROUTES.lecturerHolidays}
             element={
               <RequireRole anyOf={["ADMIN"]}>

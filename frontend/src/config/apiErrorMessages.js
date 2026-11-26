@@ -89,6 +89,8 @@ export const BACKEND_MESSAGE_CONTEXTS = [
   'bulk-grade',
   'mascot-code',
   'streak-pet',
+  'oop-blitz',
+  'oop-blitz-bank',
 ];
 
 /** Daily mascot pet mission (`context: 'streak-pet'`) */

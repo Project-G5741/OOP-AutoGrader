@@ -9,6 +9,7 @@ export const ROUTES = {
   lecturerFeedback: '/lecturer-feedback',
   lecturerTerms: '/lecturer-terms',
   lecturerRanking: '/lecturer-ranking',
+  lecturerBlitzBank: '/lecturer-blitz-bank',
   lecturerHolidays: '/lecturer-holidays',
   lecturerDropRates: '/lecturer-drop-rates',
   studentDashboard: '/student-dashboard',
@@ -166,6 +167,7 @@ export const LECTURER_NAV_TO_ROUTE = {
   reports: ROUTES.lecturerReport,
   feedback: ROUTES.lecturerFeedback,
   terms: ROUTES.lecturerTerms,
+  blitzBank: ROUTES.lecturerBlitzBank,
   holidays: ROUTES.lecturerHolidays,
   dropRates: ROUTES.lecturerDropRates,
 };

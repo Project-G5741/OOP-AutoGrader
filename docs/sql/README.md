@@ -73,6 +73,8 @@ After applying a mirror SQL that a migrator already covers, restart the API (or 
 | `2026-11-25-remove-mascot-goat.sql` | `StudentStreakSchemaMigrator` | Remove retired mascot `goat` / `gigi` purchases and reset `equipped_mascot` to `fox` |
 | `2026-11-18-student-gacha-pity.sql` | `StudentStreakSchemaMigrator` | `student_daily_streak.gacha_pity_count` (0–80) |
 | `2026-11-18-student-gacha-points-pref.sql` | `StudentStreakSchemaMigrator` | Vietnam-day remember for spending points on gacha rolls |
+| `2026-11-25-oop-blitz.sql` | `OopBlitzSchemaMigrator` | `student_oop_blitz_session` table and indexes (`user_id`, `play_date`, active unique index) |
+| `2026-11-25-oop-blitz-questions.sql` | `OopBlitzSchemaMigrator` | `oop_blitz_question` table and `(active, difficulty)` index for custom Blitz questions |
 
 ## Cloud migrator catalog (regression)
 

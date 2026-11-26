@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { Home, Users, FolderKanban, BarChart3, ClipboardList, CalendarDays, Menu, X, Table2, MessageSquarePlus, Trophy, Sparkles, SlidersHorizontal, Zap } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -12,6 +12,7 @@ const navItems = [
   { id: 'projects', label: 'Solution', icon: FolderKanban },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
   { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
+  { id: 'blitzBank', label: 'Blitz Bank', icon: Zap },
   { id: 'holidays', label: 'Holidays', icon: Sparkles, adminOnly: true },
   { id: 'dropRates', label: 'Drop Rates', icon: SlidersHorizontal, adminOnly: true },
 ];
