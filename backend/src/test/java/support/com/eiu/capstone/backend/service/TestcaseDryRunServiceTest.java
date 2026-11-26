@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
@@ -32,7 +33,11 @@ import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingAssertionResult;
 import com.eiu.capstone.backend.grading.pipeline.TestcaseGrader.PendingTestcaseResult;
 import com.eiu.capstone.backend.grading.rubric.AssertionRubric;
+import com.eiu.capstone.backend.grading.rubric.ChallengeRubric;
+import com.eiu.capstone.backend.grading.rubric.ClassRubric;
 import com.eiu.capstone.backend.grading.rubric.InvocationRubric;
+import com.eiu.capstone.backend.grading.rubric.LabRubricCache;
+import com.eiu.capstone.backend.grading.rubric.LabRubricSnapshot;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubric;
 import com.eiu.capstone.backend.grading.rubric.TestcaseRubricAssembler;
 import com.eiu.capstone.backend.grading.testcase.SharedLocalWorkerCache;
@@ -53,6 +58,7 @@ import com.eiu.capstone.backend.model.TestcaseType;
 class TestcaseDryRunServiceTest {
 
     @Mock private TestcaseRubricAssembler testcaseRubricAssembler;
+    @Mock private LabRubricCache labRubricCache;
     @Mock private JavaCompilerService javaCompilerService;
 
     private final TestcaseDisplayFormatter displayFormatter =
@@ -66,6 +72,18 @@ class TestcaseDryRunServiceTest {
     void setUp() {
         labId = UUID.randomUUID();
         challengeId = UUID.randomUUID();
+    }
+
+    private void stubChallengeClasses(String... classNames) {
+        List<ClassRubric> classes = new java.util.ArrayList<>();
+        for (String name : classNames) {
+            classes.add(new ClassRubric(
+                    UUID.randomUUID(), name, "public", "CLASS", false,
+                    List.of(), List.of(), List.of()));
+        }
+        ChallengeRubric challenge = new ChallengeRubric(
+                challengeId, 1, "challenge", classes, List.of(), List.of());
+        when(labRubricCache.get(labId)).thenReturn(new LabRubricSnapshot(labId, Map.of(1, challenge)));
     }
 
     @Test
@@ -92,6 +110,7 @@ class TestcaseDryRunServiceTest {
         TestcaseRubric rubric = minimalRubric();
 
         when(testcaseRubricAssembler.assemble(labId, challengeId, testcase)).thenReturn(rubric);
+        stubChallengeClasses("Car", "Broken");
 
         JavaCompilerService realCompiler = new JavaCompilerService();
         realCompiler.initCompiler();
@@ -113,6 +132,7 @@ class TestcaseDryRunServiceTest {
 
         TestcaseDryRunService wired = new TestcaseDryRunService(
                 testcaseRubricAssembler,
+                labRubricCache,
                 realCompiler,
                 graderSpy,
                 new TestcaseResultMapper(displayFormatter, primaryAssertionSelector),
@@ -141,6 +161,7 @@ class TestcaseDryRunServiceTest {
         TestcaseRubric rubric = minimalRubric();
 
         when(testcaseRubricAssembler.assemble(eq(labId), eq(challengeId), eq(testcase))).thenReturn(rubric);
+        stubChallengeClasses("Car");
         when(javaCompilerService.compileSources(any(), any())).thenReturn(CompileOutcome.skipped());
 
         TestcaseGrader graderSpy = mock(TestcaseGrader.class);
@@ -177,6 +198,7 @@ class TestcaseDryRunServiceTest {
         TestcaseResultMapper mapper = new TestcaseResultMapper(displayFormatter, primaryAssertionSelector);
         return new TestcaseDryRunService(
                 testcaseRubricAssembler,
+                labRubricCache,
                 javaCompilerService,
                 grader,
                 mapper,

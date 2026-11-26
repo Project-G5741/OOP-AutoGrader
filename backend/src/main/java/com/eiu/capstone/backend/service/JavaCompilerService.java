@@ -86,22 +86,23 @@ public class JavaCompilerService {
         }
 
         resetFileManager();
-        int classFiles = countClassFiles(outputDir);
-        if (classFiles == 0) {
-            List<JavaFileObject> remainder = remainderSources(sources, firstPass);
-            if (!remainder.isEmpty()) {
-                DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
-                try {
-                    boolean remainderOk = runTask(remainder, outputDir, remainderDiagnostics);
-                    if (!remainderOk) {
-                        resetFileManager();
-                    }
-                } catch (RuntimeException e) {
+        // Failed group javac may emit a partial .class set (or leave orphans). That output is
+        // untrusted for survivor selection — wipe and always remainder-compile independents.
+        clearOutputDir(outputDir);
+        List<JavaFileObject> remainder = remainderSources(sources, firstPass);
+        int classFiles = 0;
+        if (!remainder.isEmpty()) {
+            DiagnosticCollector<JavaFileObject> remainderDiagnostics = new DiagnosticCollector<>();
+            try {
+                boolean remainderOk = runTask(remainder, outputDir, remainderDiagnostics);
+                if (!remainderOk) {
                     resetFileManager();
-                    throw e;
                 }
-                classFiles = countClassFiles(outputDir);
+            } catch (RuntimeException e) {
+                resetFileManager();
+                throw e;
             }
+            classFiles = countClassFiles(outputDir);
         }
 
         return new CompileOutcome(false, firstPass, classFiles);
@@ -205,6 +206,16 @@ public class JavaCompilerService {
                     .count();
         } catch (IOException e) {
             return 0;
+        }
+    }
+
+    /** Deletes {@code outputDir} contents (and the dir itself), then recreates an empty output dir. */
+    private static void clearOutputDir(Path outputDir) {
+        deleteRecursively(outputDir);
+        try {
+            Files.createDirectories(outputDir);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to recreate compile output dir: " + outputDir, e);
         }
     }
 

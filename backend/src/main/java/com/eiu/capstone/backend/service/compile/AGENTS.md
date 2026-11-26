@@ -11,7 +11,8 @@ In-memory javac of student sources, per-class error attribution, and the Class-c
 | `CompileClassAttribution` | Map ERROR diagnostics to declared types, file stems, and dependents |
 | `CompileErrorMessage` | One short student-facing line per failed type |
 | `StudentSourceNormalizer` | Strip `package` and same-challenge imports before compile |
-| `JavaCompilerService` (parent package) | Group javac via `javax.tools`; empty `CLASS_PATH`; `-proc:none`; mixed failure may remainder-compile |
+| `RubricCompileSourceFilter` | Keep only sources that declare a rubric class simple name (lecturer must list every needed type; extras like `Application` are omitted) |
+| `JavaCompilerService` (parent package) | Group javac via `javax.tools`; empty `CLASS_PATH`; `-proc:none`; mixed failure wipes partial `.class` output then remainder-compiles independents |
 
 ## Local Contracts
 
@@ -34,7 +35,8 @@ Class tab `ClassDetailDTO.error` and testcase ERROR feedback use `CompileErrorMe
 
 ## Work Guidance
 
-- Happy path stays one group javac. Remainder-compile diagnostics are not root syntax errors.
+- Upload/dry-run compile input is filtered by `RubricCompileSourceFilter` when a lab rubric is available: keep a `.java` file only if it declares at least one challenge rubric class simple name (including nested `outerClassName`). Non-rubric files are not compiled and get no Class-card feedback. Solution import does not filter.
+- Happy path stays one group javac. On mixed failure, wipe first-pass `.class` output (partial emission is untrusted) and always remainder-compile sources with no ERROR diagnostic that are not attributed dependents. Remainder-compile diagnostics are not root syntax errors.
 - Nested/static types that belong in `Outer.java` must not get `Declared in Outer.java`.
 - Do not store raw javac dumps on Class cards.
 
@@ -42,7 +44,9 @@ Class tab `ClassDetailDTO.error` and testcase ERROR feedback use `CompileErrorMe
 
 - `support` `CompileErrorMessageTest`
 - `support` `CompileClassAttributionTest`
+- `support` `RubricCompileSourceFilterTest`
 - `support` `JavaCompilerServiceTest` (JDK types compile; Spring classpath types do not)
+- `support` `SubmissionStorageServiceTest` (`omitsNonRubricApplicationEvenWhenBroken`)
 
 ## Child DOX Index
 

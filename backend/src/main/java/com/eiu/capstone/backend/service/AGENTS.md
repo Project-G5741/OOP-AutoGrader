@@ -75,11 +75,12 @@ Per upload request (unique `requestId` prevents collisions):
 - Challenge detection regex: `challenge[_-]?(\d+)` (case-insensitive)
 - Only `.mmd` and `.java` files inside recognized challenge folders are compiled; `root/.git/**` is accepted for plagiarism and ignored by compile grouping
 - Student Java sources with `package` declarations are normalized to the default package before compile (`StudentSourceNormalizer`); same-challenge cross-imports are stripped, JDK imports preserved
+- Student upload and lecturer bulk/dry-run compile only sources that declare a rubric class simple name for that challenge (`RubricCompileSourceFilter`). Lecturers must put every type needed to compile graded work on the rubric; extras (`Application`, demos) are omitted. `processUpload(..., null)` disables the filter (tests). Rubric join for filtering runs after path grouping inside `processUpload` so load still overlaps grouping
 - `SubmissionStorageService.deleteFolder()` removes the entire request folder after grading (`persistExecutor`, not the upload thread). The same 2-thread pool also runs detail UPSERT, sidecars, and plagiarism inspect. Upload rubric overlap uses `rubricOverlapExecutor`, not this pool.
 
 ### Java compilation
 
-- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure may remainder-compile sources that have no ERROR diagnostic and are not attributed dependents into the same `classes/`
+- `JavaCompilerService.compileSources(sources, outputDir)` returns `CompileOutcome`: one group javac on the happy path; mixed failure wipes any partial first-pass `.class` output, then remainder-compiles sources that have no ERROR diagnostic and are not attributed dependents into `classes/` (do not skip remainder when leftover `.class` files exist)
 - Reuses one `JavaCompiler` instance and a per-thread `StandardJavaFileManager` with empty `CLASS_PATH` (JDK types only; not the Spring Boot classpath). `initCompiler` warms javac with a throwaway `Warmup` compile so the first student upload is not the cold hit
 - Compiler options: `-d <outputDir>`, `-encoding UTF-8`, `-proc:none`
 - Mixed javac does not throw. `SubmissionStorageService` keeps survivor `.class` files and records per-class diagnostics (`ChallengeCompileErrors`). I/O/setup still uses `failedChallenge`

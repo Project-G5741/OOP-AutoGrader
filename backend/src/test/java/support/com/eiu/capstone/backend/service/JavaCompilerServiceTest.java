@@ -128,6 +128,32 @@ class JavaCompilerServiceTest {
     }
 
     @Test
+    void compileSources_remainderRunsEvenWhenFirstPassLeftClassFiles() throws Exception {
+        JavaCompilerService service = new JavaCompilerService();
+        service.initCompiler();
+
+        Path outputDir = tempDir.resolve("leftover");
+        Files.createDirectories(outputDir);
+        // Simulate a failed group javac that emitted a partial/orphan .class set. The old
+        // classFiles==0 gate skipped remainder and independent survivors never graded.
+        Files.write(outputDir.resolve("Orphan.class"), new byte[] { 0 });
+
+        List<JavaFileObject> sources = List.of(
+                new MemorySourceJavaFileObject(
+                        "Good.java", "public class Good {}".getBytes(StandardCharsets.UTF_8)),
+                new MemorySourceJavaFileObject(
+                        "Bad.java", "public class Bad {".getBytes(StandardCharsets.UTF_8)));
+
+        CompileOutcome outcome = assertDoesNotThrow(() -> service.compileSources(sources, outputDir));
+
+        assertFalse(outcome.succeeded());
+        assertTrue(Files.exists(outputDir.resolve("Good.class")));
+        assertFalse(Files.exists(outputDir.resolve("Bad.class")));
+        assertFalse(Files.exists(outputDir.resolve("Orphan.class")));
+        assertEquals(1, outcome.classFileCount());
+    }
+
+    @Test
     void compileSources_mutualRefsSurviveBrokenSibling() throws Exception {
         JavaCompilerService service = new JavaCompilerService();
         service.initCompiler();
