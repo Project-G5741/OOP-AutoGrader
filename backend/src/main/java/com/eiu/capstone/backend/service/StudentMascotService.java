@@ -2,10 +2,10 @@ package com.eiu.capstone.backend.service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -56,26 +56,42 @@ public class StudentMascotService {
         return MascotCatalog.canonicalId(mascotId);
     }
 
-    private static String resolveEquipped(StudentStreak row) {
+    private static String resolveEquipped(StudentStreak row, boolean iceQueenEligible) {
         String equipped = row == null ? MascotCatalog.STARTER_ID : normalizeMascotId(row.getEquippedMascot());
-        return MascotCatalog.isSelectable(equipped) ? equipped : MascotCatalog.STARTER_ID;
+        if (!MascotCatalog.isSelectable(equipped)) {
+            return MascotCatalog.STARTER_ID;
+        }
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(equipped) && !iceQueenEligible) {
+            return MascotCatalog.STARTER_ID;
+        }
+        return equipped;
     }
 
     @Transactional(readOnly = true)
     public MascotShopView list(UUID userId) {
         StudentStreak row = streakService.find(userId).orElse(null);
         int points = row == null ? 0 : row.getPoints();
-        String equipped = resolveEquipped(row);
         boolean iceQueenEligible = isIceQueenEligible(userId);
-        return toView(points, equipped, ownedIds(userId), iceQueenEligible);
+        String equipped = resolveEquipped(row, iceQueenEligible);
+        Set<String> owned = ownedIds(userId);
+        if (!MascotCatalog.STARTER_ID.equals(equipped)) {
+            owned.add(equipped);
+        }
+        return toView(points, equipped, owned, iceQueenEligible);
     }
 
     @Transactional(readOnly = true)
     public MascotSnapshotView snapshot(UUID userId) {
         StudentStreak row = streakService.find(userId).orElse(null);
-        String equipped = resolveEquipped(row);
-        List<String> owned = ownedIds(userId).stream()
+        boolean iceQueenEligible = isIceQueenEligible(userId);
+        String equipped = resolveEquipped(row, iceQueenEligible);
+        Set<String> ownedSet = ownedIds(userId);
+        if (!MascotCatalog.STARTER_ID.equals(equipped)) {
+            ownedSet.add(equipped);
+        }
+        List<String> owned = ownedSet.stream()
                 .filter(MascotCatalog::isSelectable)
+                .filter(id -> iceQueenEligible || !MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equals(id))
                 .toList();
         return new MascotSnapshotView(equipped, owned);
     }
@@ -87,7 +103,8 @@ public class StudentMascotService {
     @Transactional
     public MascotShopView purchase(UUID userId, String mascotId) {
         String targetId = normalizeMascotId(mascotId);
-        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
+        boolean iceQueenEligible = isIceQueenEligible(userId);
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !iceQueenEligible) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
         MascotCatalog.Offer offer = MascotCatalog.forSale(targetId);
@@ -95,11 +112,23 @@ public class StudentMascotService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
         StudentStreak row = streakService.lock(userId);
-        boolean alreadyOwned = purchases.existsByIdUserIdAndIdMascotId(userId, offer.id());
+        Set<String> owned = ownedIds(userId);
+        String previousEquipped = resolveEquipped(row, iceQueenEligible);
+        boolean previousRecorded = owned.contains(previousEquipped);
+        if (!MascotCatalog.STARTER_ID.equals(previousEquipped)) {
+            owned.add(previousEquipped);
+        }
+        boolean alreadyOwned = owned.contains(offer.id())
+                || purchases.existsByIdUserIdAndIdMascotId(userId, offer.id());
         try {
             MascotPurchaseRules.charge(row, offer.price(), alreadyOwned);
         } catch (MascotPurchaseException ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ex.getCode());
+        }
+        if (!MascotCatalog.STARTER_ID.equals(previousEquipped)
+                && !previousRecorded
+                && !purchases.existsByIdUserIdAndIdMascotId(userId, previousEquipped)) {
+            saveUnlock(userId, previousEquipped);
         }
         row.setEquippedMascot(offer.id());
         streakService.save(row);
@@ -108,9 +137,8 @@ public class StudentMascotService {
         bought.setPricePaid(offer.price());
         bought.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
         purchases.save(bought);
-        Set<String> owned = ownedIds(userId);
         owned.add(offer.id());
-        return toView(row.getPoints(), row.getEquippedMascot(), owned, isIceQueenEligible(userId));
+        return toView(row.getPoints(), row.getEquippedMascot(), owned, iceQueenEligible);
     }
 
     @Transactional
@@ -119,20 +147,30 @@ public class StudentMascotService {
         if (!MascotCatalog.isSelectable(targetId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown mascot");
         }
-        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !isIceQueenEligible(userId)) {
+        boolean iceQueenEligible = isIceQueenEligible(userId);
+        if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId) && !iceQueenEligible) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Exclusive mascot");
         }
-        if (!MascotCatalog.STARTER_ID.equals(targetId) && !purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
-            StudentMascotPurchase unlocked = new StudentMascotPurchase();
-            unlocked.setId(new StudentMascotPurchaseKey(userId, targetId));
-            unlocked.setPricePaid(0);
-            unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
-            purchases.save(unlocked);
-        }
         StudentStreak row = streakService.lock(userId);
+        Set<String> owned = ownedIds(userId);
+        String previousEquipped = resolveEquipped(row, iceQueenEligible);
+        if (!MascotCatalog.STARTER_ID.equals(previousEquipped)
+                && !owned.contains(previousEquipped)
+                && !purchases.existsByIdUserIdAndIdMascotId(userId, previousEquipped)) {
+            saveUnlock(userId, previousEquipped);
+            owned.add(previousEquipped);
+        }
+        if (!MascotCatalog.STARTER_ID.equals(targetId)
+                && !owned.contains(targetId)
+                && !purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
+            saveUnlock(userId, targetId);
+        }
+        if (!MascotCatalog.STARTER_ID.equals(targetId)) {
+            owned.add(targetId);
+        }
         row.setEquippedMascot(targetId);
         streakService.save(row);
-        return toView(row.getPoints(), row.getEquippedMascot(), ownedIds(userId), isIceQueenEligible(userId));
+        return toView(row.getPoints(), row.getEquippedMascot(), owned, iceQueenEligible);
     }
 
     @Transactional
@@ -140,6 +178,7 @@ public class StudentMascotService {
         if (userId == null || mascotIds == null || mascotIds.isEmpty()) {
             return;
         }
+        Set<String> owned = ownedIds(userId);
         for (String raw : mascotIds) {
             String targetId = normalizeMascotId(raw);
             if (!MascotGachaPools.isUnlockable(targetId)) {
@@ -148,21 +187,34 @@ public class StudentMascotService {
             if (MascotCatalog.EXCLUSIVE_ICE_QUEEN_ID.equalsIgnoreCase(targetId)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid gacha mascot");
             }
-            if (purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
+            if (owned.contains(targetId) || purchases.existsByIdUserIdAndIdMascotId(userId, targetId)) {
                 continue;
             }
-            StudentMascotPurchase unlocked = new StudentMascotPurchase();
-            unlocked.setId(new StudentMascotPurchaseKey(userId, targetId));
-            unlocked.setPricePaid(0);
-            unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
-            purchases.save(unlocked);
+            saveUnlock(userId, targetId);
+            owned.add(targetId);
         }
     }
 
+    private void saveUnlock(UUID userId, String mascotId) {
+        StudentMascotPurchase unlocked = new StudentMascotPurchase();
+        unlocked.setId(new StudentMascotPurchaseKey(userId, mascotId));
+        unlocked.setPricePaid(0);
+        unlocked.setPurchasedAt(OffsetDateTime.now(TimeUtil.VIETNAM_ZONE));
+        purchases.save(unlocked);
+    }
+
     private Set<String> ownedIds(UUID userId) {
-        return purchases.findByIdUserId(userId).stream()
-                .map(row -> row.getId().getMascotId())
-                .collect(Collectors.toSet());
+        Set<String> ids = new HashSet<>();
+        for (StudentMascotPurchase row : purchases.findByIdUserId(userId)) {
+            if (row == null || row.getId() == null) {
+                continue;
+            }
+            String canonical = normalizeMascotId(row.getId().getMascotId());
+            if (canonical != null && !canonical.isBlank()) {
+                ids.add(canonical);
+            }
+        }
+        return ids;
     }
 
     private static MascotShopView toView(int points, String equipped, Set<String> owned, boolean includeIceQueen) {

@@ -107,6 +107,7 @@ export default function MascotShop({
       setExchangeOpen(false);
       setSearchQuery('');
       setSortBy('price-asc');
+      setLocalEquipped(null);
       return undefined;
     }
     let cancelled = false;
@@ -121,6 +122,7 @@ export default function MascotShop({
       })
       .then((next) => {
         if (cancelled) return;
+        setLocalEquipped(null);
         setShop(next);
         onUpdated?.(next);
       })
@@ -172,6 +174,7 @@ export default function MascotShop({
   const points = shop?.points ?? 0;
 
   const apply = (next, message) => {
+    setLocalEquipped(null);
     setShop(next);
     onUpdated?.(next);
     showToast(message, 'success');
@@ -296,16 +299,16 @@ export default function MascotShop({
         method: 'POST',
         headers: authHeaders(),
       });
-      if (response.ok) {
-        const next = await response.json();
-        apply(next, `Now using ${offer.name}.`);
-      } else {
-        const nextShop = { ...(shop || {}), equipped: offer.id };
-        apply(nextShop, `Now using ${offer.name}.`);
+      if (!response.ok) {
+        setLocalEquipped(null);
+        showToast(await readShopFailure(response), 'error');
+        return;
       }
-    } catch {
-      const nextShop = { ...(shop || {}), equipped: offer.id };
-      apply(nextShop, `Now using ${offer.name}.`);
+      const next = await response.json();
+      apply(next, `Now using ${offer.name}.`);
+    } catch (error) {
+      setLocalEquipped(null);
+      showToast(toFriendlyError(error), 'error');
     } finally {
       setBusy(false);
     }
