@@ -50,6 +50,10 @@ public final class BurstLimitExemptions {
         if ("/api/students/streak/pet".equals(normalizedPath)) {
             return true;
         }
+        // OOP Blitz answer calls are bounded by the active server session (max 8 per match).
+        if ("/api/students/oop-blitz/answer".equals(normalizedPath)) {
+            return true;
+        }
         return TERM_STUDENT_IMPORT.matcher(normalizedPath).matches();
     }
 }

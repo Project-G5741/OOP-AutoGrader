@@ -25,6 +25,7 @@ import PlagiarismDangerMark, { labHasPlagiarism } from '../components/lecturer/P
 import UserManagement from './UserManagement';
 import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
+import BlitzQuestionBank from './BlitzQuestionBank';
 import HolidayManagement from './HolidayManagement';
 import DropRateManagement from './DropRateManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
@@ -1228,6 +1229,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           <ReportsPage />
         ) : activeNav === 'feedback' ? (
           <FeedbackInbox />
+        ) : activeNav === 'blitzBank' ? (
+          <BlitzQuestionBank />
         ) : activeNav === 'holidays' ? (
           <HolidayManagement />
         ) : activeNav === 'dropRates' ? (

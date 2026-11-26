@@ -37,6 +37,7 @@ class SchemaMigratorCatalogTest {
             "com.eiu.capstone.backend.config.EggSmashSchemaMigrator",
             "com.eiu.capstone.backend.config.EggSmashRateConfigSchemaMigrator",
             "com.eiu.capstone.backend.config.HolidayScheduleConfigSchemaMigrator",
+            "com.eiu.capstone.backend.config.OopBlitzSchemaMigrator",
             "com.eiu.capstone.backend.config.SubmissionPillarScoreSchemaMigrator",
             "com.eiu.capstone.backend.config.TestcaseSchemaMigrator",
             "com.eiu.capstone.backend.config.WeeklyRankingSchemaMigrator");

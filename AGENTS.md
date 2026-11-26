@@ -131,6 +131,8 @@ Default section order:
 | `docs/sql/2026-11-16-ai-student-credential.sql` | Operator-run: `ai_student_credential` (encrypted Gemini BYOK + token budget). Startup migrator `AiStudentCredentialSchemaMigrator` applies the same table on PostgreSQL |
 | `docs/sql/2026-11-17-ai-credential-key-invalid.sql` | Operator-run: `ai_student_credential.key_invalid` (marks expired/invalid Gemini key for early toast warning). Startup migrator applies the same column on PostgreSQL |
 | `docs/sql/2026-11-25-remove-mascot-goat.sql` | Operator-run: remove retired exclusive mascot `goat` (and legacy `gigi`) from `student_mascot_purchase` and reset `student_daily_streak.equipped_mascot` to `fox`. Startup migrator `StudentStreakSchemaMigrator` applies the same cleanup on PostgreSQL |
+| `docs/sql/2026-11-25-oop-blitz.sql` | Operator-run: `student_oop_blitz_session` + indexes (OOP Blitz quiz/bug-hunter sessions). Startup migrator `OopBlitzSchemaMigrator` applies the same DDL on PostgreSQL |
+| `docs/sql/2026-11-25-oop-blitz-questions.sql` | Operator-run: `oop_blitz_question` + index (lecturer/Admin custom OOP Blitz question bank). Startup migrator `OopBlitzSchemaMigrator` applies the same DDL on PostgreSQL |
 | `docs/MASCOT_GENERATION_GUIDE.md` | Interactive 2.5D Mascot Sprite Sheet design guide: math, AI prompts, computer vision pipeline, specs, and Definition of Done |
 | `docs/design/DESIGN_SYSTEM_SKILL.md` | Official UI/UX Design System Skill: Swiss Modernism 2.0, 60-30-10 color theory, 6 themes, dropboxes, layouts, components, WCAG AA |
 

@@ -16,7 +16,8 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `LecturerDashboard.jsx` | Lecturer shell: `activeNav` section switching |
 | `Reports.jsx` | Lecturer reports page (`/api/analytics/dashboard`; borderless header + `ReportsPanel` `StageCard3D` grid) |
 | `FeedbackInbox.jsx` | Lecturer Feedback inbox with flat segmented filter & left-accent student reply callout (not analytics Reports) |
-| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; legacy gacha `localStorage` keys are purged on load; when an owned Mythic `canMove` mascot is equipped, `MythicScreenPetOverlay` roams the viewport unless pinned to the header); `GET /api/students/mascots/list` on mount loads owned ids into memory for gacha anti-dupe. Header speech: pet lines come from `StudentFoxMascot` using the painted `mascotId`; score lines are `{ text, type, mascotId }` from `equippedMascotRef`. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, or streak APIs |
+| `BlitzQuestionBank.jsx` | Lecturer/Admin OOP Blitz question bank manager: procedural pool stats (`15,000+` variants), custom CRUD (`BUG` line picker / 4-choice editor), active toggle, and bulk JSON import (`POST /api/lecturer/oop-blitz/questions/import`) |
+| `StudentDashboard.jsx` | Student shell: `NavBar` (Home, History, Ranking) with web **Practice folder** download on the bar’s trailing edge; lab sidebar, upload, stats; Operation Test when OT applies. Web: header Blitz pill opens `OopBlitzModal` (learns-to-unlock 1–3 rewarded runs/day + unlimited `0`-pt Practice), Gacha button and points open the cosmic summon modal and mascot shop; equipped [page-mascot](https://koboyo.com/page-mascot) (`GET /api/students/streak` `equipped` wins; legacy gacha `localStorage` keys are purged on load; when an owned Mythic `canMove` mascot is equipped, `MythicScreenPetOverlay` roams the viewport unless pinned to the header); `GET /api/students/mascots/list` on mount loads owned ids into memory for gacha anti-dupe. Header speech: pet lines come from `StudentFoxMascot` using the painted `mascotId`; score lines are `{ text, type, mascotId }` from `equippedMascotRef`. Avatar menu **Copy Mascot Code** / **New Mascot Code** mint a one-import mascot-only token. Desktop: paints equipped mascot from `GET /api/desktop/mascot/snapshot` (fox until imported); header **Import mascot** pastes that code; no flame, points, shop, OOP Blitz, or streak APIs |
 | `StudentRankingPage.jsx` | Student Ranking board (`GET /api/students/ranking/current`; renders single-level `RankingBoard` card directly) |
 | `StudentHistory.jsx` | Thin wrapper → `StudentHistoryPage.jsx` |
 | `NoAccessPage.jsx` | Signed-in landing for gated API 403 (`StageCard3D` + `empty-orbit.json` Lottie) |
@@ -45,6 +46,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-report` | LECTURER or ADMIN | Reports |
 | `/lecturer-feedback` | LECTURER or ADMIN | Feedback inbox |
 | `/lecturer-ranking` | LECTURER or ADMIN | Weekly ranking board |
+| `/lecturer-blitz-bank` | LECTURER or ADMIN | OOP Blitz custom question bank & procedural stats |
 | `/lecturer-holidays` | ADMIN | Holiday early activation & auto-expiration schedule |
 | `/lecturer-drop-rates` | ADMIN | Gacha (`Crystal Wheel`) and `Egg Smash` drop-rate configuration |
 | `/student-dashboard` | STUDENT or ADMIN | Student main. Admin requests `GET /api/labs/list?scope=student` (student-visible labs, no saved stats, no enrollment row) |
@@ -71,6 +73,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `projects` | `SolutionManagement` | First paint: `GET /api/lecturer/bootstrap/solution` (lookups + labs + default structure); loading copy **Loading data...** |
 | `reports` | `Reports.jsx` | First paint: `GET /api/lecturer/bootstrap/reports` (fresh analytics; at-risk labs deduped per lab) |
 | `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved (soft-archive if reply) |
+| `blitzBank` | `BlitzQuestionBank.jsx` | `GET /api/lecturer/oop-blitz/questions`, `POST`, `PUT /{id}`, `PATCH /{id}/active`, `DELETE /{id}`, `POST /import` |
 | `holidays` | `HolidayManagement.jsx` (**Admin** only) | `GET /api/auth/holiday-config`, `PUT /api/lecturer/holiday-config` + `localStorage` sync |
 | `dropRates` | `DropRateManagement.jsx` (**Admin** only) | `GET /api/lecturer/drop-rates/config`, `PUT /api/lecturer/drop-rates/gacha`, `POST /api/lecturer/drop-rates/gacha/reset`, `PUT /api/lecturer/drop-rates/egg-smash`, `POST /api/lecturer/drop-rates/egg-smash/reset` |
 
@@ -127,6 +130,16 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `POST /api/students/streak/crystals/exchange` | `MascotShop.jsx` — body `{ count }` 1–99; spends crystals and adds 4000 points each |
 | `POST /api/students/streak/crystals/grant` | `StudentDashboard.jsx` — body `{ count }` 1–10; credits crystals |
 | `POST /api/students/streak/crystals/spend` | `StudentDashboard.jsx` — body `{ count }` 1–99; spends crystals when a legendary mascot is paid with crystals |
+| `GET /api/students/oop-blitz/status` | `StudentDashboard.jsx`, `OopBlitzModal.jsx` — daily runs, 250-pt cap, today best, and active session info |
+| `POST /api/students/oop-blitz/start` | `OopBlitzModal.jsx` — starts or resumes an 8-question OOP Blitz match (`{ mode }`) |
+| `POST /api/students/oop-blitz/answer` | `OopBlitzModal.jsx` — submits `{ sessionId, questionIndex, selectedIndex }` and returns explanation + next question or summary |
+| `POST /api/students/oop-blitz/abandon` | `OopBlitzModal.jsx` — expires an active OOP Blitz session (`{ sessionId }`) |
+| `GET /api/lecturer/oop-blitz/questions` | `BlitzQuestionBank.jsx` — procedural pool stats + custom DB questions |
+| `POST /api/lecturer/oop-blitz/questions` | `BlitzQuestionBank.jsx` — creates a custom OOP Blitz question |
+| `PUT /api/lecturer/oop-blitz/questions/{id}` | `BlitzQuestionBank.jsx` — updates a custom OOP Blitz question |
+| `PATCH /api/lecturer/oop-blitz/questions/{id}/active` | `BlitzQuestionBank.jsx` — enables/disables a custom question (`{ active }`) |
+| `DELETE /api/lecturer/oop-blitz/questions/{id}` | `BlitzQuestionBank.jsx` — deletes a custom OOP Blitz question |
+| `POST /api/lecturer/oop-blitz/questions/import` | `BlitzQuestionBank.jsx` — bulk JSON import (`<= 500` items) |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |

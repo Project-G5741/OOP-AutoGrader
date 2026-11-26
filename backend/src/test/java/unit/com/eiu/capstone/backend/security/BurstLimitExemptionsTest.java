@@ -58,6 +58,13 @@ class BurstLimitExemptionsTest {
     }
 
     @Test
+    void oopBlitzAnswerPost_isExempt_whileStartIsNot() {
+        assertTrue(BurstLimitExemptions.isExempt("/api/students/oop-blitz/answer", "POST"));
+        assertFalse(BurstLimitExemptions.isExempt("/api/students/oop-blitz/answer", "GET"));
+        assertFalse(BurstLimitExemptions.isExempt("/api/students/oop-blitz/start", "POST"));
+    }
+
+    @Test
     void ordinaryUpload_isNotExempt() {
         assertFalse(BurstLimitExemptions.isExempt("/api/submissions/upload", "POST"));
     }

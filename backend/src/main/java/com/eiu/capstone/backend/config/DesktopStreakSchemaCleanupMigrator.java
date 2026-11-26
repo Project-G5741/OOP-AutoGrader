@@ -28,6 +28,8 @@ public class DesktopStreakSchemaCleanupMigrator {
 
     @PostConstruct
     void dropStreakAndShopTables() {
+        jdbcTemplate.execute("DROP TABLE IF EXISTS oop_blitz_question");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS student_oop_blitz_session");
         jdbcTemplate.execute("DROP TABLE IF EXISTS student_notification_dismiss");
         jdbcTemplate.execute("DROP TABLE IF EXISTS student_notification_read");
         jdbcTemplate.execute("DROP TABLE IF EXISTS student_mascot_purchase");
