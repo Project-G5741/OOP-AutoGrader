@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  LECTURER_NAV_TO_ROUTE,
+  LECTURER_ROUTE_TO_NAV,
   ROUTES,
   clearAuthSession,
   defaultDashboardPath,
@@ -74,5 +76,11 @@ describe('authRoutes', () => {
     clearAuthSession();
     expect(localStorage.getItem('accessToken')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
+  });
+
+  it('maps unified Admin gacha nav item to /lecturer-gacha', () => {
+    expect(ROUTES.lecturerGacha).toBe('/lecturer-gacha');
+    expect(LECTURER_NAV_TO_ROUTE.gacha).toBe('/lecturer-gacha');
+    expect(LECTURER_ROUTE_TO_NAV['/lecturer-gacha']).toBe('gacha');
   });
 });

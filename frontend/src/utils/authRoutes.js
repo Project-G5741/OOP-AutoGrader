@@ -11,7 +11,9 @@ export const ROUTES = {
   lecturerRanking: '/lecturer-ranking',
   lecturerBlitzBank: '/lecturer-blitz-bank',
   lecturerHolidays: '/lecturer-holidays',
+  lecturerGacha: '/lecturer-gacha',
   lecturerDropRates: '/lecturer-drop-rates',
+  lecturerPets: '/lecturer-pets',
   studentDashboard: '/student-dashboard',
   studentHistory: '/student-history',
   studentRanking: '/student-ranking',
@@ -169,7 +171,7 @@ export const LECTURER_NAV_TO_ROUTE = {
   terms: ROUTES.lecturerTerms,
   blitzBank: ROUTES.lecturerBlitzBank,
   holidays: ROUTES.lecturerHolidays,
-  dropRates: ROUTES.lecturerDropRates,
+  gacha: ROUTES.lecturerGacha,
 };
 
 export const LECTURER_ROUTE_TO_NAV = Object.fromEntries(

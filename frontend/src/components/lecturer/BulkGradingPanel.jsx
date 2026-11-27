@@ -14,6 +14,7 @@ import { apiFetch } from '../../utils/apiFetch';
 import { authHeaders } from '../../utils/authHeaders';
 import { readFriendlyApiError, toFriendlyError } from '../../utils/apiError';
 import { formatNumber, formatText } from '../../utils/formatters';
+import { handleRowDoubleClickEdit } from '../../utils/rowDoubleClick';
 import { sortRows, toggleSortState } from '../../utils/sort';
 import SortableTableHeader from '../ui/SortableTableHeader';
 import { computeWithinBatchPlagiarism, attachClientHashes } from '../../utils/withinBatchPlagiarism';
@@ -864,7 +865,7 @@ export default function BulkGradingPanel({ labs = [] }) {
                   return (
                     <tr
                       key={row.studentId}
-                      onDoubleClick={openSubmission}
+                      onDoubleClick={(event) => handleRowDoubleClickEdit(event, openSubmission)}
                       className={`border-b border-border last:border-0 ${
                         canOpenSubmission ? 'cursor-pointer hover:bg-surface-secondary' : ''
                       }`}

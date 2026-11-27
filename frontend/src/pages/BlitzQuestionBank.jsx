@@ -18,6 +18,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { authHeaders } from '../utils/authHeaders';
 import { friendlyLoadErrorFromResponse, readFriendlyApiError, toFriendlyError } from '../utils/apiError';
 import { formatNumber } from '../utils/formatters';
+import { handleRowDoubleClickEdit } from '../utils/rowDoubleClick';
 import { tokenizeJavaLine } from '../utils/oopBlitzHelpers';
 import {
   BLITZ_DIFFICULTIES,
@@ -505,9 +506,13 @@ export default function BlitzQuestionBank() {
                 return (
                   <div
                     key={q.id}
-                    className={`flex flex-col justify-between gap-3 px-4 py-3.5 sm:flex-row sm:items-start ${
-                      q.active ? '' : 'opacity-60'
-                    }`}
+                    onDoubleClick={(event) => {
+                      if (busyId === q.id) return;
+                      handleRowDoubleClickEdit(event, () => openEditModal(q));
+                    }}
+                    className={`flex flex-col justify-between gap-3 px-4 py-3.5 transition-colors sm:flex-row sm:items-start ${
+                      busyId === q.id ? '' : 'cursor-pointer hover:bg-surface-secondary/50'
+                    } ${q.active ? '' : 'opacity-60'}`}
                   >
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-1.5 text-xs">

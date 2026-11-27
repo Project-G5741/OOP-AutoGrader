@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -32,6 +32,7 @@ import {
   GenshinWishSummaryStage,
   getItemRarityKey,
   getRarityTheme,
+  resolvePostRollPhase,
 } from './GachaCelestialStage';
 
 export { CosmicCrystalGem };
@@ -88,7 +89,26 @@ const SANDBOX_LEGENDARY_POOL = [
 ];
 
 const GACHA_POINTS_SPEND_PREF_KEY = 'gacha_points_spend_pref';
+export const GACHA_AUTO_SKIP_PREF_KEY = 'gacha_auto_skip';
 const VIETNAM_TZ = 'Asia/Ho_Chi_Minh';
+
+export function readGachaAutoSkipPref() {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(GACHA_AUTO_SKIP_PREF_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function writeGachaAutoSkipPref(enabled) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(GACHA_AUTO_SKIP_PREF_KEY, enabled ? 'true' : 'false');
+  } catch {
+    /* ignore storage write errors */
+  }
+}
 
 function vietnamTodayKey() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -306,7 +326,11 @@ export default function MascotGachaModal({
   const [currentPulls, setCurrentPulls] = useState([]);
   const [highestRarityKey, setHighestRarityKey] = useState('point');
   const [revealIndex, setRevealIndex] = useState(0);
+  const [rollSeq, setRollSeq] = useState(0);
   const [inspectingSingleFromSummary, setInspectingSingleFromSummary] = useState(false);
+  const [summaryAutoReturnSuppressed, setSummaryAutoReturnSuppressed] = useState(false);
+  const [autoSkip, setAutoSkip] = useState(readGachaAutoSkipPref);
+  const autoSkipRef = useRef(autoSkip);
 
   const [showOddsModal, setShowOddsModal] = useState(false);
   const [pointsSpendPrompt, setPointsSpendPrompt] = useState(null);
@@ -353,9 +377,13 @@ export default function MascotGachaModal({
       setPointsSpendPrompt(null);
       setPhase('idle');
       setInspectingSingleFromSummary(false);
+      setSummaryAutoReturnSuppressed(false);
       setEggSmashBusy(false);
     } else {
       setActiveTab(initialTab || 'wheel');
+      const pref = readGachaAutoSkipPref();
+      autoSkipRef.current = pref;
+      setAutoSkip(pref);
     }
   }, [open, initialTab]);
 
@@ -384,7 +412,9 @@ export default function MascotGachaModal({
     setHighestRarityKey(bestKey);
     setRevealIndex(0);
     setInspectingSingleFromSummary(false);
-    setPhase('meteor');
+    setSummaryAutoReturnSuppressed(false);
+    setRollSeq((seq) => seq + 1);
+    setPhase(resolvePostRollPhase(autoSkipRef.current));
   };
 
   const executeAdminSandboxGacha = (count) => {
@@ -575,7 +605,22 @@ export default function MascotGachaModal({
   const handleInspectFromSummary = (idx) => {
     setRevealIndex(idx);
     setInspectingSingleFromSummary(true);
+    setSummaryAutoReturnSuppressed(true);
     setPhase('reveal');
+  };
+
+  const handleToggleAutoSkip = () => {
+    const next = !autoSkipRef.current;
+    autoSkipRef.current = next;
+    setAutoSkip(next);
+    writeGachaAutoSkipPref(next);
+    if (next) {
+      setSummaryAutoReturnSuppressed(false);
+      if (phase === 'meteor' || (phase === 'reveal' && !inspectingSingleFromSummary)) {
+        setInspectingSingleFromSummary(false);
+        setPhase('summary');
+      }
+    }
   };
 
   const modalLocked = phase === 'meteor' || rolling || eggSmashBusy;
@@ -722,6 +767,8 @@ export default function MascotGachaModal({
                   onRollOnce={() => triggerGacha(1)}
                   onRollTen={() => triggerGacha(10)}
                   rolling={rolling}
+                  autoSkip={autoSkip}
+                  onToggleAutoSkip={handleToggleAutoSkip}
                 />
               </motion.div>
             )}
@@ -740,6 +787,8 @@ export default function MascotGachaModal({
                   pullCount={currentPulls.length}
                   onComplete={() => setPhase('reveal')}
                   onSkip={() => setPhase('summary')}
+                  autoSkip={autoSkip}
+                  onToggleAutoSkip={handleToggleAutoSkip}
                 />
               </motion.div>
             )}
@@ -762,6 +811,8 @@ export default function MascotGachaModal({
                     setInspectingSingleFromSummary(false);
                     setPhase('summary');
                   }}
+                  autoSkip={autoSkip}
+                  onToggleAutoSkip={inspectingSingleFromSummary ? undefined : handleToggleAutoSkip}
                 />
               </motion.div>
             )}
@@ -777,6 +828,7 @@ export default function MascotGachaModal({
               >
                 <GenshinWishSummaryStage
                   pulls={currentPulls}
+                  rollSeq={rollSeq}
                   pityCount={pityCount}
                   pityHard={pityHard}
                   tickets={tickets}
@@ -787,6 +839,10 @@ export default function MascotGachaModal({
                   onClose={onClose}
                   onRollAgain={(count) => triggerGacha(count)}
                   rolling={rolling}
+                  autoSkip={autoSkip}
+                  onToggleAutoSkip={handleToggleAutoSkip}
+                  autoReturnSuppressed={summaryAutoReturnSuppressed}
+                  autoReturnBlocked={Boolean(pointsSpendPrompt) || showOddsModal}
                 />
               </motion.div>
             )}

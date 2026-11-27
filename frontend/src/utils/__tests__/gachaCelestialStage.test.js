@@ -1,15 +1,55 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  SUMMARY_AUTO_RETURN_SECONDS,
   getItemRarityKey,
   getRarityTheme,
+  resolvePostRollPhase,
+  shouldRunSummaryAutoReturn,
   sortPullsForGenshinSummary,
 } from '../../components/student/GachaCelestialStage';
+import {
+  GACHA_AUTO_SKIP_PREF_KEY,
+  readGachaAutoSkipPref,
+  writeGachaAutoSkipPref,
+} from '../../components/student/MascotGachaModal';
 import { clamp01 } from '../../components/student/GachaThreeScene';
 import * as THREE from 'three';
 
 describe('GachaCelestialStage rarity & Genshin summary helpers', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('resolves post-roll phase to summary when Auto Skip is enabled and meteor otherwise', () => {
+    expect(resolvePostRollPhase(false)).toBe('meteor');
+    expect(resolvePostRollPhase(true)).toBe('summary');
+  });
+
+  it('defaults summary auto-return to 3s and gates countdown strictly on Auto Skip without suppression, blocks, or cancellation', () => {
+    expect(SUMMARY_AUTO_RETURN_SECONDS).toBe(3);
+    expect(shouldRunSummaryAutoReturn({ autoSkip: true })).toBe(true);
+    expect(shouldRunSummaryAutoReturn({ autoSkip: false })).toBe(false);
+    expect(shouldRunSummaryAutoReturn({ autoSkip: true, suppressed: true })).toBe(false);
+    expect(shouldRunSummaryAutoReturn({ autoSkip: true, blocked: true })).toBe(false);
+    expect(shouldRunSummaryAutoReturn({ autoSkip: true, cancelled: true })).toBe(false);
+  });
+
+  it('persists and reads the Auto Skip preference safely via localStorage', () => {
+    expect(readGachaAutoSkipPref()).toBe(false);
+
+    writeGachaAutoSkipPref(true);
+    expect(localStorage.getItem(GACHA_AUTO_SKIP_PREF_KEY)).toBe('true');
+    expect(readGachaAutoSkipPref()).toBe(true);
+
+    writeGachaAutoSkipPref(false);
+    expect(localStorage.getItem(GACHA_AUTO_SKIP_PREF_KEY)).toBe('false');
+    expect(readGachaAutoSkipPref()).toBe(false);
+
+    localStorage.setItem(GACHA_AUTO_SKIP_PREF_KEY, 'unexpected');
+    expect(readGachaAutoSkipPref()).toBe(false);
+  });
   it('maps crystal, mascots, and point outcomes to distinct rarity keys and star ratings', () => {
     expect(getItemRarityKey({ type: 'crystal', rarity: 'crystal' })).toBe('crystal');
     expect(getRarityTheme({ type: 'crystal', rarity: 'crystal' }).stars).toBe(5);

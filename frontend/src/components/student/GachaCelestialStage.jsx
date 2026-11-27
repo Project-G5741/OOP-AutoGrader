@@ -394,6 +394,56 @@ export function getRarityTheme(itemOrKey) {
   return RARITY_THEME[key] || RARITY_THEME.point;
 }
 
+export const SUMMARY_AUTO_RETURN_SECONDS = 3;
+
+export function resolvePostRollPhase(autoSkip) {
+  return autoSkip ? 'summary' : 'meteor';
+}
+
+export function shouldRunSummaryAutoReturn({
+  autoSkip = false,
+  suppressed = false,
+  blocked = false,
+  cancelled = false,
+} = {}) {
+  return Boolean(autoSkip && !suppressed && !blocked && !cancelled);
+}
+
+export function AutoSkipToggleButton({ enabled = false, onToggle, className = '' }) {
+  const prefersReducedMotion = useReducedMotion();
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-extrabold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${
+        enabled
+          ? 'border-[#D97706] bg-[#2B180A] text-[#FEF3C7] shadow-[0_4px_14px_rgba(43,24,10,0.28)] hover:bg-[#3D2410]'
+          : 'border-[#DFB66C] bg-[#FFFBF0]/92 text-[#5C3A16] shadow-sm hover:border-[#C9963B] hover:bg-white'
+      } ${className}`}
+    >
+      <FastForward
+        className={`h-3.5 w-3.5 shrink-0 ${enabled ? 'text-[#FBBF24]' : 'text-[#B4690E]'}`}
+      />
+      <span>Auto Skip</span>
+      <span
+        aria-hidden="true"
+        className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+          enabled ? 'bg-[#F59E0B]' : 'bg-[#E5D2B0]'
+        }`}
+      >
+        <span
+          className={`block h-3 w-3 rounded-full shadow-sm ${
+            prefersReducedMotion ? '' : 'transition-transform duration-150'
+          } ${enabled ? 'translate-x-3 bg-[#FFFBEB]' : 'translate-x-0 bg-[#FFFDF7]'}`}
+        />
+      </span>
+    </button>
+  );
+}
+
 export function sortPullsForGenshinSummary(pulls = []) {
   return pulls
     .map((pull, originalIndex) => ({
@@ -433,11 +483,12 @@ const ALTAR_RISING_MOTES = [
 /**
  * Interactive 3D Tilt Plaque Wrapper for Summary Cards (respects reduced motion).
  */
-function Plaque3DTilt({ children, className = '', style, onClick, title }) {
+function Plaque3DTilt({ children, className = '', style, onClick, onPointerInteract, title }) {
   const prefersReducedMotion = useReducedMotion();
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, hovered: false });
 
   const handleMove = (e) => {
+    onPointerInteract?.();
     if (prefersReducedMotion) return;
     const box = e.currentTarget.getBoundingClientRect();
     const nx = (e.clientX - box.left) / Math.max(1, box.width) - 0.5;
@@ -561,6 +612,8 @@ export function CelestialIdleBannerStage({
   onRollOnce,
   onRollTen,
   rolling,
+  autoSkip = false,
+  onToggleAutoSkip,
 }) {
   const prefersReducedMotion = useReducedMotion();
   const [pulseKey, setPulseKey] = useState(0);
@@ -791,9 +844,10 @@ export function CelestialIdleBannerStage({
         </div>
       </div>
 
-      {/* Dual Genshin Wish Pill Buttons */}
-      <div className="relative z-20 mt-4 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-        <motion.button
+      {/* Dual Genshin Wish Pill Buttons + Auto Skip Toggle */}
+      <div className="relative z-20 mt-4 flex flex-col items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+          <motion.button
           type="button"
           disabled={rolling}
           onClick={onRollOnce}
@@ -918,6 +972,11 @@ export function CelestialIdleBannerStage({
             )}
           </span>
         </motion.button>
+        </div>
+
+        {onToggleAutoSkip && (
+          <AutoSkipToggleButton enabled={autoSkip} onToggle={onToggleAutoSkip} />
+        )}
       </div>
     </div>
   );
@@ -932,6 +991,8 @@ export function GenshinMeteorCutscene({
   pullCount = 1,
   onComplete,
   onSkip,
+  autoSkip = false,
+  onToggleAutoSkip,
 }) {
   const prefersReducedMotion = useReducedMotion();
   const rarityTheme = getRarityTheme(highestRarityKey);
@@ -979,15 +1040,24 @@ export function GenshinMeteorCutscene({
         />
       )}
 
-      {/* Warm Ivory-Gold Skip Pill Top-Right */}
-      <button
-        type="button"
-        onClick={onSkip}
-        className="absolute right-4 top-4 z-20 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[#E5C17B] bg-[#FFFBF0]/90 px-3.5 py-1.5 text-xs font-extrabold text-[#3B2313] shadow-md backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
-      >
-        <span>Skip</span>
-        <FastForward className="h-3.5 w-3.5 text-[#D97706]" />
-      </button>
+      {/* Top-Right Auto Skip & Skip Pills */}
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+        {onToggleAutoSkip && (
+          <AutoSkipToggleButton
+            enabled={autoSkip}
+            onToggle={onToggleAutoSkip}
+            className="shadow-md backdrop-blur-sm"
+          />
+        )}
+        <button
+          type="button"
+          onClick={onSkip}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[#E5C17B] bg-[#FFFBF0]/90 px-3.5 py-1.5 text-xs font-extrabold text-[#3B2313] shadow-md backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+        >
+          <span>Skip</span>
+          <FastForward className="h-3.5 w-3.5 text-[#D97706]" />
+        </button>
+      </div>
 
       {/* Bottom Harmonious Parchment Callout Pill */}
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
@@ -1020,6 +1090,8 @@ export function GenshinSingleRevealStage({
   total,
   onAdvance,
   onSkipAll,
+  autoSkip = false,
+  onToggleAutoSkip,
 }) {
   const prefersReducedMotion = useReducedMotion();
   const item = pull?.item;
@@ -1105,14 +1177,19 @@ export function GenshinSingleRevealStage({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={onSkipAll}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[#E5C17B] bg-[#FFFBF0]/90 px-3.5 py-1.5 text-xs font-extrabold text-[#3B2313] shadow-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
-        >
-          <span>{total > 1 ? 'Skip' : 'Summary'}</span>
-          <FastForward className="h-3.5 w-3.5 text-[#D97706]" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onToggleAutoSkip && (
+            <AutoSkipToggleButton enabled={autoSkip} onToggle={onToggleAutoSkip} />
+          )}
+          <button
+            type="button"
+            onClick={onSkipAll}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[#E5C17B] bg-[#FFFBF0]/90 px-3.5 py-1.5 text-xs font-extrabold text-[#3B2313] shadow-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+          >
+            <span>{total > 1 ? 'Skip' : 'Summary'}</span>
+            <FastForward className="h-3.5 w-3.5 text-[#D97706]" />
+          </button>
+        </div>
       </div>
 
       {/* Center 3D Flip-Out Hero Display & Ornate Celestia Callout Plaque */}
@@ -1235,6 +1312,7 @@ export function GenshinSingleRevealStage({
  */
 export function GenshinWishSummaryStage({
   pulls,
+  rollSeq = 0,
   pityCount,
   pityHard,
   tickets,
@@ -1245,9 +1323,96 @@ export function GenshinWishSummaryStage({
   onClose,
   onRollAgain,
   rolling,
+  autoSkip = false,
+  onToggleAutoSkip,
+  autoReturnSuppressed = false,
+  autoReturnBlocked = false,
+  autoReturnSeconds = SUMMARY_AUTO_RETURN_SECONDS,
 }) {
   const prefersReducedMotion = useReducedMotion();
   const sortedPulls = useMemo(() => sortPullsForGenshinSummary(pulls), [pulls]);
+
+  const onReturnIdleRef = useRef(onReturnIdle);
+  const countdownArmedAtRef = useRef(Date.now());
+  const prevRollSeqRef = useRef(rollSeq);
+  const prevAutoSkipRef = useRef(autoSkip);
+  const [countdownCancelled, setCountdownCancelled] = useState(false);
+  const [countdownRunId, setCountdownRunId] = useState(0);
+  const [countdownRemaining, setCountdownRemaining] = useState(null);
+
+  useEffect(() => {
+    onReturnIdleRef.current = onReturnIdle;
+  }, [onReturnIdle]);
+
+  useEffect(() => {
+    if (rollSeq !== prevRollSeqRef.current) {
+      prevRollSeqRef.current = rollSeq;
+      setCountdownCancelled(false);
+      setCountdownRunId((n) => n + 1);
+      countdownArmedAtRef.current = Date.now();
+    }
+  }, [rollSeq]);
+
+  useEffect(() => {
+    if (autoSkip && !prevAutoSkipRef.current) {
+      setCountdownCancelled(false);
+      setCountdownRunId((n) => n + 1);
+      countdownArmedAtRef.current = Date.now();
+    }
+    prevAutoSkipRef.current = autoSkip;
+  }, [autoSkip]);
+
+  const countdownActive = shouldRunSummaryAutoReturn({
+    autoSkip,
+    suppressed: autoReturnSuppressed,
+    blocked: autoReturnBlocked || rolling,
+    cancelled: countdownCancelled,
+  });
+
+  const cancelCountdown = () => {
+    setCountdownCancelled(true);
+  };
+
+  const handlePlaquePointerInteract = () => {
+    if (!countdownActive) return;
+    if (Date.now() - countdownArmedAtRef.current < 250) return;
+    setCountdownCancelled(true);
+  };
+
+  useEffect(() => {
+    if (!countdownActive) {
+      setCountdownRemaining(null);
+      return undefined;
+    }
+
+    let left = autoReturnSeconds;
+    setCountdownRemaining(left);
+    countdownArmedAtRef.current = Date.now();
+
+    const timerId = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        window.clearInterval(timerId);
+        setCountdownRemaining(0);
+        onReturnIdleRef.current?.();
+        return;
+      }
+      setCountdownRemaining(left);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [countdownActive, rollSeq, countdownRunId, autoReturnSeconds]);
+
+  useEffect(() => {
+    if (!countdownActive) return undefined;
+    const onKeyDown = () => {
+      setCountdownCancelled(true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [countdownActive]);
 
   const totalRefunded = pulls.reduce((sum, p) => sum + (p.item?.pointsRefund || 0), 0);
   const crystalsWon = pulls.filter((p) => p.item?.type === 'crystal').length;
@@ -1257,6 +1422,7 @@ export function GenshinWishSummaryStage({
 
   return (
     <div
+      onPointerDown={cancelCountdown}
       style={{ perspective: '1200px' }}
       className="relative mx-3 my-2.5 flex min-h-[430px] flex-1 flex-col justify-between overflow-hidden rounded-[24px] border-2 border-[#E2B45B] px-4 py-3.5 shadow-[0_12px_32px_rgba(120,72,16,0.16)] sm:mx-5 sm:my-3 sm:min-h-[445px] sm:px-6"
     >
@@ -1311,6 +1477,7 @@ export function GenshinWishSummaryStage({
 
             return (
               <motion.div
+                key={`single-${rollSeq}-${item.id}`}
                 initial={
                   prefersReducedMotion
                     ? false
@@ -1322,8 +1489,10 @@ export function GenshinWishSummaryStage({
               >
                 <Plaque3DTilt
                   onClick={() => {
+                    cancelCountdown();
                     if (isSpecial) onInspectPull?.(single.originalIndex);
                   }}
+                  onPointerInteract={handlePlaquePointerInteract}
                   style={{
                     backgroundColor: theme.stripBg,
                     borderColor: theme.stripBorder,
@@ -1385,7 +1554,7 @@ export function GenshinWishSummaryStage({
 
               return (
                 <motion.div
-                  key={`${originalIndex}-${item.id}`}
+                  key={`${rollSeq}-${originalIndex}-${item.id}`}
                   initial={
                     prefersReducedMotion
                       ? { opacity: 0 }
@@ -1402,8 +1571,10 @@ export function GenshinWishSummaryStage({
                 >
                   <Plaque3DTilt
                     onClick={() => {
+                      cancelCountdown();
                       if (isSpecial) onInspectPull?.(originalIndex);
                     }}
+                    onPointerInteract={handlePlaquePointerInteract}
                     title={isSpecial ? `Inspect ${item.name} in 3D` : item.name}
                     style={{
                       backgroundColor: theme.stripBg,
@@ -1530,36 +1701,71 @@ export function GenshinWishSummaryStage({
       </div>
 
       {/* Bottom Harmonious Celestia Action Bar */}
-      <div className="relative z-20 flex flex-wrap items-center justify-end gap-2.5 pt-2">
-        <button
-          type="button"
-          onClick={onReturnIdle}
-          className="min-h-10 cursor-pointer rounded-full border-2 border-[#DFB66C] bg-[#FFFBF0] px-5 text-xs font-extrabold text-[#3B2313] shadow-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
-        >
-          Banner
-        </button>
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        className="relative z-20 flex flex-wrap items-center justify-between gap-2.5 pt-2"
+      >
+        <div>
+          {onToggleAutoSkip && (
+            <AutoSkipToggleButton enabled={autoSkip} onToggle={onToggleAutoSkip} />
+          )}
+        </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="min-h-10 cursor-pointer rounded-full border border-[#DFB66C] bg-[#F7E7CA]/95 px-5 text-xs font-extrabold text-[#4A2E14] shadow-sm transition-colors hover:bg-[#FFFBF0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
-        >
-          Done
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={onReturnIdle}
+            aria-label={
+              countdownRemaining > 0
+                ? `Banner (returning in ${countdownRemaining}s)`
+                : 'Banner'
+            }
+            className="relative inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 overflow-hidden rounded-full border-2 border-[#DFB66C] bg-[#FFFBF0] px-5 text-xs font-extrabold text-[#3B2313] shadow-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+          >
+            {countdownRemaining > 0 && (
+              <motion.span
+                key={`auto-return-bar-${rollSeq}-${countdownRunId}`}
+                aria-hidden="true"
+                initial={{ scaleX: 1 }}
+                animate={prefersReducedMotion ? undefined : { scaleX: 0 }}
+                transition={{ duration: autoReturnSeconds, ease: 'linear' }}
+                style={{ transformOrigin: 'left center' }}
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-[#F59E0B]"
+              />
+            )}
+            <span className="relative">Banner</span>
+            {countdownRemaining > 0 && (
+              <span className="relative rounded-full bg-[#FEF08A] px-1.5 py-0.5 text-[10px] font-black tabular-nums text-[#78350F]">
+                {countdownRemaining}s
+              </span>
+            )}
+          </button>
 
-        <button
-          type="button"
-          disabled={rolling}
-          onClick={() => onRollAgain(rollCount)}
-          className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border-2 border-[#FDE68A] bg-[#F59E0B] px-6 text-xs font-extrabold text-white shadow-[0_6px_18px_rgba(245,158,11,0.38)] transition-colors hover:bg-[#D97706] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#92400E] disabled:opacity-60"
-        >
-          <span>Roll again ({rollCount}x)</span>
-          <span className="rounded-full bg-[#78350F]/45 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#FEF9C3]">
-            {tickets >= rollCount
-              ? `${rollCount} Ticket${rollCount > 1 ? 's' : ''}`
-              : `${formatNumber(rollAgainCost)} pts`}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-10 cursor-pointer rounded-full border border-[#DFB66C] bg-[#F7E7CA]/95 px-5 text-xs font-extrabold text-[#4A2E14] shadow-sm transition-colors hover:bg-[#FFFBF0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706]"
+          >
+            Done
+          </button>
+
+          <button
+            type="button"
+            disabled={rolling}
+            onClick={() => {
+              cancelCountdown();
+              onRollAgain(rollCount);
+            }}
+            className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border-2 border-[#FDE68A] bg-[#F59E0B] px-6 text-xs font-extrabold text-white shadow-[0_6px_18px_rgba(245,158,11,0.38)] transition-colors hover:bg-[#D97706] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#92400E] disabled:opacity-60"
+          >
+            <span>Roll again ({rollCount}x)</span>
+            <span className="rounded-full bg-[#78350F]/45 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#FEF9C3]">
+              {tickets >= rollCount
+                ? `${rollCount} Ticket${rollCount > 1 ? 's' : ''}`
+                : `${formatNumber(rollAgainCost)} pts`}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Plus, Pencil, Search, Trash2, ArrowLeft, ArrowRight, Ban, UserCheck } from 'lucide-react';
 import SortableTableHeader from './ui/SortableTableHeader';
 import { formatDateTime } from '../utils/formatters';
+import { handleRowDoubleClickEdit } from '../utils/rowDoubleClick';
 
 const HEADER_CLASS = 'px-6 py-3 text-left text-xs font-semibold text-foreground-muted uppercase tracking-wider';
 
@@ -94,7 +95,11 @@ export default function UserTable({
                 <td colSpan={8} className="px-6 py-12 text-center text-foreground-disabled">No users found.</td>
               </tr>
             ) : rows.map((u) => (
-              <tr key={u.id} className="hover:bg-surface-secondary hover:bg-surface-secondary transition-colors">
+              <tr
+                key={u.id}
+                onDoubleClick={(event) => handleRowDoubleClickEdit(event, () => onEdit?.(u))}
+                className={`transition-colors hover:bg-surface-secondary ${onEdit ? 'cursor-pointer' : ''}`}
+              >
                 <td className="px-6 py-4 font-mono text-foreground-secondary break-words">{u.irn}</td>
                 <td className="px-6 py-4 text-foreground font-medium break-words">{u.fullname}</td>
                 <td className="px-6 py-4 text-foreground-muted whitespace-nowrap">{u.currentQuarter}</td>

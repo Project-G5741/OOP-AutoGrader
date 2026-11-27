@@ -103,6 +103,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 - Pass `user` and `onLogout` props from `App.jsx` down to dashboards
 - When wiring new API calls, follow existing `fetch` + `API_BASE` pattern until a shared client is extracted
 - Form field validation rules live in `src/utils/validation.js`; use inline errors and disable submit until valid
+- Editable table and list rows wire `onDoubleClick` via `handleRowDoubleClickEdit` in `src/utils/rowDoubleClick.js` so double-clicking a row opens its edit/manage form without misfiring on nested interactive controls (`button`, `input`, `a`, etc.)
 - Score and count display via `formatNumber` in `src/utils/formatters.js` always floors (never half-up)
 - API error bodies: adjust copy in `src/config/apiErrorMessages.js`; mapping in `src/utils/apiError.js` (`readFriendlyApiError`, `toFriendlyError`, `friendlyLoadErrorFromResponse`). Never surface raw backend `message`/`error`/`detail` except for contexts in `BACKEND_MESSAGE_CONTEXTS` (and download 403/404/503). **429** → rate-limit jail, not toast-only busy. Context `import` (desktop pack): backend message for 400/409/413/422; network → `DESKTOP_IMPORT_NETWORK`. Context `solution-import` (lecturer folder): backend message for 400/404/409/413/422; network → `FRIENDLY.SERVER_BUSY`. Context `streak-pet` (header mascot mission): `STREAK_PET_ERROR_MESSAGES`; network → that default, not generic busy.
 - Default `Footer` (AppShell) calls `GET /api/presence/count` on mount, route change, window focus, and tab visible (no interval timer — idle tabs do not wake a serverless API). Hidden tab / `pagehide` / logout send `DELETE /api/presence/leave`. Count is far-left, course title stays centered. Presence **401** (revoked session) clears storage and returns to login; other `apiFetch` **401** paths still hard-cut. Idle open tabs may show signed-in UI until the next presence probe or API call. Presence paths are excluded from the server burst budget.
@@ -115,7 +116,7 @@ Copy `frontend/.env.example` to `frontend/.env`:
 
 ## Verification
 
-- `npm test` (Vitest) — utils smoke under `src/utils/__tests__/` (`authRoutes`, `formatters`, `apiError`, `maintenanceMode`, `desktopMode`, `rateLimitJail`)
+- `npm test` (Vitest) — utils smoke under `src/utils/__tests__/` (`authRoutes`, `formatters`, `apiError`, `maintenanceMode`, `desktopMode`, `rateLimitJail`, `rowDoubleClick`, etc.)
 - `npm run build` must succeed
 - `npm run build:desktop` (`--mode desktop`) outputs `dist-desktop/` for the offline student bundle (`App.desktop.jsx`, no Google client required)
 - `npm run build:desktop-lecturer` for the offline lecturer Bulk UI
