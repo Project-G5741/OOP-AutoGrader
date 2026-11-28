@@ -75,12 +75,17 @@ describe('dropRateConfig helpers & Admin page invariants', () => {
     expect(eggRes.errors.eggPool).toBeDefined();
   });
 
-  it('enforces zero CSS/SVG gradients and zero nested bordered cards in DropRateManagement', () => {
-    const src = readFileSync(
+  it('enforces zero CSS/SVG gradients in DropRateManagement and GachaManagement', () => {
+    const dropRateSrc = readFileSync(
       resolve(process.cwd(), 'src/pages/DropRateManagement.jsx'),
       'utf8',
     );
+    const gachaPageSrc = readFileSync(
+      resolve(process.cwd(), 'src/pages/GachaManagement.jsx'),
+      'utf8',
+    );
     const forbidden = /(linear-gradient|radial-gradient|conic-gradient|bg-gradient-|linearGradient|radialGradient)/;
-    expect(src).not.toMatch(forbidden);
+    expect(dropRateSrc).not.toMatch(forbidden);
+    expect(gachaPageSrc).not.toMatch(forbidden);
   });
 });

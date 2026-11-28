@@ -27,7 +27,7 @@ import SolutionManagement from './SolutionManagement';
 import TermManagement from './TermManagement';
 import BlitzQuestionBank from './BlitzQuestionBank';
 import HolidayManagement from './HolidayManagement';
-import DropRateManagement from './DropRateManagement';
+import GachaManagement from './GachaManagement';
 import { formatNumber, formatPercent, formatText, hasItems } from '../utils/formatters';
 import { formatGradeOverviewSortParam, sortRows, toggleSortState } from '../utils/sort';
 import { hasRole, LECTURER_NAV_TO_ROUTE, LECTURER_ROUTE_TO_NAV, ROUTES } from '../utils/authRoutes';
@@ -1233,8 +1233,8 @@ export default function LecturerDashboard({ user, onLogout }) {
           <BlitzQuestionBank />
         ) : activeNav === 'holidays' ? (
           <HolidayManagement />
-        ) : activeNav === 'dropRates' ? (
-          <DropRateManagement />
+        ) : activeNav === 'gacha' ? (
+          <GachaManagement />
         ) : null}
       </AppShell>
 

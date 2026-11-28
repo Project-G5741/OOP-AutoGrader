@@ -77,6 +77,7 @@ Default section order:
 ## User Preferences
 
 - **No Unsolicited Descriptions / Microcopy Clutter:** Do not write boilerplate subtitle descriptions, explanatory policy paragraphs, or unrequested helper text in modals, cards, or inputs (e.g. `Import Gemini key · token management`, `Your Gemini key is stored encrypted on the server...`, `Alerts at 50% and 80%...`) unless explicitly requested by the user. Keep UI clean, minimal, and self-evident.
+- **Double-Click Row to Edit:** Editable table and list rows must open their edit/manage view on double-click, ignoring double-clicks on nested interactive controls.
 
 ## Child DOX Index
 

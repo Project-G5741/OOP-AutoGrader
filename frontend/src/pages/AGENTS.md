@@ -27,7 +27,8 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `TermManagement.jsx` | Lecturer term year create, optional copy labs from current quarter, sync labs into selected quarter (from all other quarters), current-term flag, student enrollment, Excel import, email current-quarter roster |
 | `SubmissionManagement.jsx` | Solution/lab structure + operational testcase authoring (`SolutionManagement.jsx` → `/api/lecturer/labs`; Copy lab from previous current quarter) |
 | `HolidayManagement.jsx` | **Admin**-only **Holidays** nav tab (`/lecturer-holidays`): early holiday activation (`Bật sớm ngay` or custom `earlyStartDate` → `endDate` via `DatePicker`) with automatic expiration once `todayIso > endDate` |
-| `DropRateManagement.jsx` | **Admin**-only **Drop Rates** nav tab (`/lecturer-drop-rates`): configure and reset item drop rates & pity thresholds for `Crystal Wheel` (Gacha) and `Egg Smash` |
+| `GachaManagement.jsx` | **Admin**-only **Gacha** nav tab (`/lecturer-gacha`): unified Gacha command center merging **Players & Inventory** (crystals, roll tickets, points, `Crystal Wheel` / `Egg Smash` pity editors, single/bulk currency + pet distribution, and full per-user pet CRUD) with **Drop Rates & Pity** (`DropRateManagement.jsx`, reachable directly via `?tab=rates`) |
+| `DropRateManagement.jsx` | Sub-panel inside `GachaManagement.jsx`: configure and reset item drop rates & pity thresholds for `Crystal Wheel` (Gacha) and `Egg Smash` |
 
 ## Local Contracts
 
@@ -48,7 +49,7 @@ Screen-level containers: authentication, role dashboards, and in-dashboard secti
 | `/lecturer-ranking` | LECTURER or ADMIN | Weekly ranking board |
 | `/lecturer-blitz-bank` | LECTURER or ADMIN | OOP Blitz custom question bank & procedural stats |
 | `/lecturer-holidays` | ADMIN | Holiday early activation & auto-expiration schedule |
-| `/lecturer-drop-rates` | ADMIN | Gacha (`Crystal Wheel`) and `Egg Smash` drop-rate configuration |
+| `/lecturer-gacha` | ADMIN | Unified Gacha management (`Players & Inventory` + `Drop Rates & Pity`; `/lecturer-drop-rates` and `/lecturer-pets` redirect here) |
 | `/student-dashboard` | STUDENT or ADMIN | Student main. Admin requests `GET /api/labs/list?scope=student` (student-visible labs, no saved stats, no enrollment row) |
 | `/student-history` | STUDENT or ADMIN | Student history |
 | `/student-ranking` | STUDENT or ADMIN | Weekly ranking board (web only; empty rows when out of term) |
@@ -75,7 +76,7 @@ Dual-role users and Admin land on `/lecturer-dashboard` after login; student rou
 | `feedback` | `FeedbackInbox.jsx` | `GET /api/lecturer/feedback/list`; detail/status/files/reply on select; `DELETE /{id}` for Resolved (soft-archive if reply) |
 | `blitzBank` | `BlitzQuestionBank.jsx` | `GET /api/lecturer/oop-blitz/questions`, `POST`, `PUT /{id}`, `PATCH /{id}/active`, `DELETE /{id}`, `POST /import` |
 | `holidays` | `HolidayManagement.jsx` (**Admin** only) | `GET /api/auth/holiday-config`, `PUT /api/lecturer/holiday-config` + `localStorage` sync |
-| `dropRates` | `DropRateManagement.jsx` (**Admin** only) | `GET /api/lecturer/drop-rates/config`, `PUT /api/lecturer/drop-rates/gacha`, `POST /api/lecturer/drop-rates/gacha/reset`, `PUT /api/lecturer/drop-rates/egg-smash`, `POST /api/lecturer/drop-rates/egg-smash/reset` |
+| `gacha` | `GachaManagement.jsx` (**Admin** only) | `Players & Inventory`: `GET /api/lecturer/admin-mascots/users`, `PUT /api/lecturer/admin-mascots/users/{userId}/resources`, `POST /api/lecturer/admin-mascots/users/{userId}/pets`, `POST /api/lecturer/admin-mascots/bulk-grant`, `PUT /api/lecturer/admin-mascots/users/{userId}/pets/{mascotId}`, `PUT /api/lecturer/admin-mascots/users/{userId}/equipped`, `DELETE /api/lecturer/admin-mascots/users/{userId}/pets/{mascotId}`. `Drop Rates & Pity` (`?tab=rates` → `DropRateManagement.jsx`): `GET /api/lecturer/drop-rates/config`, `PUT /api/lecturer/drop-rates/gacha`, `POST /api/lecturer/drop-rates/gacha/reset`, `PUT /api/lecturer/drop-rates/egg-smash`, `POST /api/lecturer/drop-rates/egg-smash/reset` |
 
 Tab bootstrap: `frontend/src/utils/lecturerBootstrapStore.js` — `{ fresh: true }` on each tab open (survives route remount; in-flight dedupe only). No idle/hover prefetch.
 
@@ -142,6 +143,13 @@ Shared: `home` (logo), `history`, `ranking`, `changePassword` (opens `ChangePass
 | `POST /api/lecturer/oop-blitz/questions/import` | `BlitzQuestionBank.jsx` — bulk JSON import (`<= 500` items) |
 | `POST /api/students/mascots/{id}/purchase` | `MascotShop.jsx` — deducts points and equips in one transaction |
 | `POST /api/students/mascots/{id}/equip` | `MascotShop.jsx` |
+| `GET /api/lecturer/admin-mascots/users` | `GachaManagement.jsx` — batched user wallet, pity, and owned/equipped pet roster |
+| `PUT /api/lecturer/admin-mascots/users/{userId}/resources` | `GachaManagement.jsx` — set user `crystals`, `gachaTickets`, `points`, `gachaPityCount`, and `eggSmashPity` |
+| `POST /api/lecturer/admin-mascots/users/{userId}/pets` | `GachaManagement.jsx` — grant one or more pets to a user |
+| `POST /api/lecturer/admin-mascots/bulk-grant` | `GachaManagement.jsx` — single/bulk currency (`+/-` crystals, tickets, points) and pet distribution |
+| `PUT /api/lecturer/admin-mascots/users/{userId}/pets/{mascotId}` | `GachaManagement.jsx` — swap pet, update `pricePaid`, or toggle equipped |
+| `PUT /api/lecturer/admin-mascots/users/{userId}/equipped` | `GachaManagement.jsx` — equip owned pet or reset to starter `fox` |
+| `DELETE /api/lecturer/admin-mascots/users/{userId}/pets/{mascotId}` | `GachaManagement.jsx` — remove owned pet (resets `equipped_mascot` to `fox` if worn) |
 | `GET /api/lecturer/terms/list` | `TermManagement.jsx` |
 | `GET /api/lecturer/terms/{termId}/roster` | `TermManagement.jsx` — enrolled + available students |
 | `POST /api/lecturer/terms/{termId}/students/import` | `TermManagement.jsx` — body `{ rows: [{ studentCode, email, fullName }] }` parsed from Excel; warning popup + **Show details** uses `notFoundStudents` and `alreadyInTermStudents` |
@@ -196,6 +204,7 @@ Upload (`POST /api/submissions/{labId}/{attemptNumber}/upload`) is called from `
 - Student history: `GET /api/submissions/my-history` and `GET /api/submissions/my-labs` via `StudentHistoryPage.jsx`
 - Term Excel import: `frontend/src/utils/studentImport.js` finds Student ID / IRN / IRD, Email, and optional Fullname columns anywhere in the sheet; Terms drop zone accepts drag/drop or click; `isSpreadsheetFile` lives in that util; import results that skip unknown students keep a **Details** list on the Terms page
 - Lecturer suspend/restore: `POST /api/users/{id}/suspend` and `POST /api/users/{id}/unsuspend` from `UserManagement.jsx` (student-only row action) and `TermManagement.jsx` roster
+- Row double-click edit (`handleRowDoubleClickEdit`): double-clicking a row in `UserTable.jsx` (`UserManagement.jsx`), `GachaManagement.jsx` (player table rows and owned-pet rows in the Manage modal), or `BlitzQuestionBank.jsx` opens its edit/manage state
 
 ## Verification
 

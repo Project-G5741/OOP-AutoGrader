@@ -13,6 +13,7 @@ import {
   ArrowDownAZ,
   ArrowUpZA,
   Hammer,
+  Check,
 } from 'lucide-react';
 import ModalOverlay from '../ui/ModalOverlay';
 import Combobox from '../ui/Combobox';
@@ -33,7 +34,7 @@ const SORT_OPTIONS = [
   { value: 'name-desc', label: 'Name: Z → A', icon: ArrowUpZA },
 ];
 
-function compareShopOffers(a, b, sortBy) {
+export function compareShopOffers(a, b, sortBy) {
   const tailA = a.exclusive ? 1 : 0;
   const tailB = b.exclusive ? 1 : 0;
   if (tailA !== tailB) return tailA - tailB;
@@ -51,6 +52,23 @@ function compareShopOffers(a, b, sortBy) {
   // default: price-asc
   if (priceA !== priceB) return priceA - priceB;
   return nameA;
+}
+
+export function filterShopOffers(offers, { selectedTier = 'all', searchQuery = '', sortBy = 'price-asc' } = {}) {
+  const query = String(searchQuery || '').trim().toLowerCase();
+  const filtered = offers.filter((item) => {
+    if (selectedTier === 'owned') {
+      if (!item.owned) return false;
+    } else if (selectedTier !== 'all' && item.tier !== selectedTier) {
+      return false;
+    }
+    if (!query) return true;
+    const name = String(item.name || '').toLowerCase();
+    const id = String(item.id || '').toLowerCase();
+    return name.includes(query) || id.includes(query);
+  });
+
+  return filtered.slice().sort((a, b) => compareShopOffers(a, b, sortBy));
 }
 
 function shopFailure(code) {
@@ -94,7 +112,7 @@ export default function MascotShop({
   const [pending, setPending] = useState(null);
   const [paymentChoice, setPaymentChoice] = useState('crystal'); // 'crystal' | 'points'
   const [busy, setBusy] = useState(false);
-  const [selectedTier, setSelectedTier] = useState('all'); // 'all' | 'normal' | 'rare' | 'epic' | 'legendary'
+  const [selectedTier, setSelectedTier] = useState('all'); // 'all' | 'owned' | 'normal' | 'rare' | 'epic' | 'legendary' | 'mythic'
   const [sortBy, setSortBy] = useState('price-asc');
   const [searchQuery, setSearchQuery] = useState('');
   const [localEquipped, setLocalEquipped] = useState(null);
@@ -139,35 +157,35 @@ export default function MascotShop({
   }, [open, onUpdated]);
 
   // Combine backend shop list with catalog definitions, then filter / sort for display
-  const displayedMascots = useMemo(() => {
+  const visibleMascots = useMemo(() => {
     const backendMascots = shop?.mascots || [];
     const backendMap = new Map(backendMascots.map((m) => [m.id, m]));
-    const query = searchQuery.trim().toLowerCase();
 
-    const all = listCatalogMascots().map((catalogItem) => {
-      const backendItem = backendMap.get(catalogItem.id);
-      const isOwnedLocally = ownedMascots.includes(catalogItem.id);
-      const isEquippedLocally = localEquipped === catalogItem.id || (!localEquipped && (backendItem?.equipped || shop?.equipped === catalogItem.id));
+    return listCatalogMascots()
+      .map((catalogItem) => {
+        const backendItem = backendMap.get(catalogItem.id);
+        const isOwnedLocally = ownedMascots.includes(catalogItem.id);
+        const isEquippedLocally = localEquipped === catalogItem.id || (!localEquipped && (backendItem?.equipped || shop?.equipped === catalogItem.id));
 
-      return {
-        ...catalogItem,
-        owned: backendItem ? backendItem.owned || isOwnedLocally : catalogItem.starter || isOwnedLocally,
-        equipped: isEquippedLocally,
-        price: backendItem ? backendItem.price : catalogItem.price,
-      };
-    });
+        return {
+          ...catalogItem,
+          owned: backendItem ? backendItem.owned || isOwnedLocally : catalogItem.starter || isOwnedLocally,
+          equipped: isEquippedLocally,
+          price: backendItem ? backendItem.price : catalogItem.price,
+        };
+      })
+      .filter((item) => mascotOfferVisibleInShop(item, backendMap));
+  }, [shop, ownedMascots, localEquipped]);
 
-    const filtered = all.filter((item) => {
-      if (!mascotOfferVisibleInShop(item, backendMap)) return false;
-      if (selectedTier !== 'all' && item.tier !== selectedTier) return false;
-      if (!query) return true;
-      const name = String(item.name || '').toLowerCase();
-      const id = String(item.id || '').toLowerCase();
-      return name.includes(query) || id.includes(query);
-    });
+  const ownedCount = useMemo(
+    () => visibleMascots.filter((item) => item.owned).length,
+    [visibleMascots],
+  );
 
-    return filtered.slice().sort((a, b) => compareShopOffers(a, b, sortBy));
-  }, [shop, selectedTier, sortBy, searchQuery, ownedMascots, localEquipped]);
+  const displayedMascots = useMemo(
+    () => filterShopOffers(visibleMascots, { selectedTier, searchQuery, sortBy }),
+    [visibleMascots, selectedTier, searchQuery, sortBy],
+  );
 
   if (!open) return null;
 
@@ -405,25 +423,40 @@ export default function MascotShop({
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-foreground-muted flex items-center gap-1">
               <Filter className="h-3.5 w-3.5" />
-              Tier:
+              Filter:
             </span>
             <button
               type="button"
+              aria-pressed={selectedTier === 'all'}
               onClick={() => setSelectedTier('all')}
-              className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 selectedTier === 'all'
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
               }`}
             >
-              All ({listCatalogMascots().length})
+              All ({visibleMascots.length})
+            </button>
+            <button
+              type="button"
+              aria-pressed={selectedTier === 'owned'}
+              onClick={() => setSelectedTier('owned')}
+              className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                selectedTier === 'owned'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'
+              }`}
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span>Owned ({ownedCount})</span>
             </button>
             {Object.values(MASCOT_TIERS).map((tier) => (
               <button
                 key={tier.id}
                 type="button"
+                aria-pressed={selectedTier === tier.id}
                 onClick={() => setSelectedTier(tier.id)}
-                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                   selectedTier === tier.id
                     ? 'bg-primary text-white shadow-sm'
                     : 'bg-surface text-foreground-secondary hover:bg-surface-tertiary'

@@ -243,10 +243,26 @@ export default function App() {
             }
           />
           <Route
-            path={ROUTES.lecturerDropRates}
+            path={ROUTES.lecturerGacha}
             element={
               <RequireRole anyOf={["ADMIN"]}>
                 <LecturerDashboard user={sessionUser} onLogout={handleLogout} />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.lecturerDropRates}
+            element={
+              <RequireRole anyOf={["ADMIN"]}>
+                <Navigate to={`${ROUTES.lecturerGacha}?tab=rates`} replace />
+              </RequireRole>
+            }
+          />
+          <Route
+            path={ROUTES.lecturerPets}
+            element={
+              <RequireRole anyOf={["ADMIN"]}>
+                <Navigate to={ROUTES.lecturerGacha} replace />
               </RequireRole>
             }
           />
